@@ -1,0 +1,166 @@
+[gd_scene format=3 uid="uid://cq3xs5ly2b4v0"]
+
+[ext_resource type="PackedScene" uid="uid://ds0bvw2cidi7g" path="res://scenes/player.tscn" id="1_755td"]
+[ext_resource type="Script" uid="uid://c2xyba20xth2h" path="res://scripts/player.gd" id="2_08uda"]
+[ext_resource type="PackedScene" uid="uid://dlvxllcuc4v84" path="res://scenes/debug_ui.tscn" id="3_08uda"]
+[ext_resource type="PackedScene" uid="uid://dg7creso2b5yf" path="res://scenes/raycast_interaccion.tscn" id="3_hpsmh"]
+[ext_resource type="Texture2D" uid="uid://r5wyupe3f2oe" path="res://assets/textures/concrete001_256x256.jpg" id="3_qolh1"]
+[ext_resource type="PackedScene" uid="uid://b3n7r2fg003oc" path="res://scenes/debug_trail.tscn" id="5_gdjh5"]
+[ext_resource type="PackedScene" uid="uid://dlrof3ye5138x" path="res://assets/models/stairs/escalera_grande2.glb" id="7_l606k"]
+[ext_resource type="PackedScene" uid="uid://b6tf840wvriod" path="res://assets/models/stairs/escalear_largalarga2.glb" id="8_3v85x"]
+[ext_resource type="PackedScene" uid="uid://c1167onhhefh" path="res://assets/models/stairs/escalera_xlarga.glb" id="8_mp4pn"]
+[ext_resource type="PackedScene" uid="uid://cfw7j1gbqx2yh" path="res://assets/models/stairs/escalera_xlarga2.glb" id="9_mp4pn"]
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/interactable.gd" id="10_s4463"]
+[ext_resource type="PackedScene" uid="uid://cqvywu8qgc4ic" path="res://scenes/hud.tscn" id="13_jo1an"]
+[ext_resource type="PackedScene" uid="uid://c0qytjvt5exhd" path="res://scenes/props/llave_comun_1.tscn" id="16_ayrel"]
+[ext_resource type="PackedScene" uid="uid://bmknlxq61koen" path="res://scenes/props/mesa_standar_1.tscn" id="18_st15v"]
+[ext_resource type="PackedScene" uid="uid://derv7f5stbi5f" path="res://scenes/props/botella_standar_1.tscn" id="19_rjjiw"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_755td"]
+
+[sub_resource type="Sky" id="Sky_08uda"]
+sky_material = SubResource("ProceduralSkyMaterial_755td")
+
+[sub_resource type="Environment" id="Environment_qolh1"]
+background_mode = 2
+sky = SubResource("Sky_08uda")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gdjh5"]
+albedo_texture = ExtResource("3_qolh1")
+uv1_scale = Vector3(5, 5, 5)
+
+[sub_resource type="BoxMesh" id="BoxMesh_755td"]
+material = SubResource("StandardMaterial3D_gdjh5")
+size = Vector3(80, 0.2, 80)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_08uda"]
+size = Vector3(80, 0.2, 80)
+
+[sub_resource type="BoxMesh" id="BoxMesh_qolh1"]
+size = Vector3(10, 1, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_gdjh5"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_gdjh5"]
+size = Vector3(12, 1, 12)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_d5coj"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_mp4pn"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_t354w"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_t354w"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_s4463"]
+
+[node name="MovementTest" type="Node3D" unique_id=15402342 groups=["raycast"]]
+
+[node name="player" parent="." unique_id=189769782 instance=ExtResource("1_755td")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.17427588, 0)
+
+[node name="player" parent="player" index="0" unique_id=629727262]
+script = ExtResource("2_08uda")
+
+[node name="raycast_interaccion" parent="player/player/Camera3D" parent_id_path=PackedInt32Array(189769782, 2133850831) index="0" unique_id=498661126 instance=ExtResource("3_hpsmh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.7056389, 0.28539956)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=704030181]
+environment = SubResource("Environment_qolh1")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1106024584]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 14.518962, 0)
+
+[node name="StaticBody3D" type="StaticBody3D" parent="." unique_id=602544399]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StaticBody3D" unique_id=571967057]
+mesh = SubResource("BoxMesh_755td")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D" unique_id=1885951137]
+shape = SubResource("BoxShape3D_08uda")
+
+[node name="debugui" parent="." unique_id=1589060079 instance=ExtResource("3_08uda")]
+
+[node name="StaticBody3D2" type="StaticBody3D" parent="." unique_id=23530118]
+transform = Transform3D(-3.090862e-08, 3.090862e-08, 1, 0.70710677, 0.70710677, 0, -0.70710677, 0.70710677, -4.371139e-08, 0, 2.9757617, -5.5168304)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StaticBody3D2" unique_id=147604839]
+mesh = SubResource("BoxMesh_qolh1")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D2" unique_id=2115335041]
+transform = Transform3D(10, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0)
+shape = SubResource("BoxShape3D_gdjh5")
+
+[node name="StaticBody3D3" type="StaticBody3D" parent="." unique_id=1998965982]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.37, -14.7)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StaticBody3D3" unique_id=1943942775]
+mesh = SubResource("BoxMesh_gdjh5")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D3" unique_id=628590392]
+transform = Transform3D(12, 0, 0, 0, 1, 0, 0, 0, 12, 0, 0, 0)
+shape = SubResource("BoxShape3D_d5coj")
+
+[node name="StaticBody3D4" type="StaticBody3D" parent="." unique_id=1190142017]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 6.37, -15.298)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StaticBody3D4" unique_id=1767284781]
+mesh = SubResource("BoxMesh_gdjh5")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D4" unique_id=1813498276]
+transform = Transform3D(12, 0, 0, 0, 1, 0, 0, 0, 12, 0, 0, 0)
+shape = SubResource("BoxShape3D_d5coj")
+
+[node name="DebugTrail" parent="." unique_id=107508621 instance=ExtResource("5_gdjh5")]
+
+[node name="escalera_grande2" parent="." unique_id=66060748 instance=ExtResource("7_l606k")]
+transform = Transform3D(-6, 0, -1.509958e-07, 0, 1, 0, 9.0597484e-07, 0, -1, -4.4400268, 0.099999905, 2.6735718)
+
+[node name="escalear_largalarga2" parent="." unique_id=1182729574 instance=ExtResource("8_3v85x")]
+transform = Transform3D(-5, 0, -8.742278e-08, 0, 1, 0, 4.371139e-07, 0, -1, 5.541, 0.1, 2.903)
+
+[node name="escalera_xlarga" parent="." unique_id=1759620651 instance=ExtResource("8_mp4pn")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -10.601125, 0.099999905, 2.5300117)
+
+[node name="escalera_xlarga2" parent="." unique_id=1600825315 instance=ExtResource("9_mp4pn")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 1, 0.1, 2.5824375)
+
+[node name="StaticBody3D5" type="StaticBody3D" parent="." unique_id=785074728]
+transform = Transform3D(1, 0, 0, 0, 3, 0, 0, 0, 1, 2.91, 1.6511959, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StaticBody3D5" unique_id=1443885721]
+mesh = SubResource("BoxMesh_mp4pn")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D5" unique_id=1519667662]
+shape = SubResource("BoxShape3D_t354w")
+
+[node name="ammobox1" type="StaticBody3D" parent="." unique_id=416009230]
+transform = Transform3D(0.2, 0, 0, 0, 0.2, 0, 0, 0, 0.2, -4.556244, 0.58973455, 0)
+collision_layer = 3
+collision_mask = 2
+script = ExtResource("10_s4463")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ammobox1" unique_id=699511387]
+layers = 3
+mesh = SubResource("BoxMesh_t354w")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ammobox1" unique_id=348794615]
+shape = SubResource("BoxShape3D_s4463")
+
+[node name="HUD" parent="." unique_id=1676478594 node_paths=PackedStringArray("raycast") instance=ExtResource("13_jo1an")]
+raycast = NodePath("../player/player/Camera3D/raycast_interaccion")
+
+[node name="mesa_standar_1" parent="." unique_id=107140109 instance=ExtResource("18_st15v")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.6788864, 0.19550133, -2.3654726)
+
+[node name="botella_standar_1" parent="." unique_id=1598823837 instance=ExtResource("19_rjjiw")]
+transform = Transform3D(0.7172269, -0.69683963, 0, 0.69683963, 0.7172268, 0, 0, 0, 0.9999999, -7.2728124, 0.37655032, -5.9735284)
+mass = 2.0
+
+[node name="llave_comun_1" parent="." unique_id=156850456 instance=ExtResource("16_ayrel")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.4647193, 0.32624185, -4.5864763)
+
+[editable path="player"]
+[editable path="player/player/Camera3D/raycast_interaccion"]
+[editable path="debugui"]
+[editable path="DebugTrail"]

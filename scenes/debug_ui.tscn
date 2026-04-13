@@ -1,0 +1,14 @@
+[gd_scene format=3 uid="uid://dlvxllcuc4v84"]
+
+[ext_resource type="Script" uid="uid://sfunhkudrbmh" path="res://scripts/debug_ui.gd" id="1_loc82"]
+
+[node name="Node3D" type="Node3D" unique_id=1589060079]
+
+[node name="DebugUI" type="CanvasLayer" parent="." unique_id=1375007653]
+script = ExtResource("1_loc82")
+
+[node name="Label" type="Label" parent="DebugUI" unique_id=1492697763]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 11.0
+offset_bottom = 33.0

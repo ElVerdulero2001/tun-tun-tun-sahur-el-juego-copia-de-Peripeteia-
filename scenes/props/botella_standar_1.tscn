@@ -1,0 +1,21 @@
+[gd_scene format=3 uid="uid://derv7f5stbi5f"]
+
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/interactable.gd" id="1_2fu4y"]
+[ext_resource type="Resource" uid="uid://5c2lon8qkibf" path="res://assets/data/collectibles/consumables/botella.tres" id="2_3xdfp"]
+[ext_resource type="PackedScene" uid="uid://b6bccki5m1ngx" path="res://assets/models/collectibles/botella_horrible4.glb" id="3_w7sxs"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_g4t4m"]
+height = 1.1
+radius = 0.157
+
+[node name="botella_standar_1" type="RigidBody3D" unique_id=1598823837]
+collision_layer = 10
+collision_mask = 9
+script = ExtResource("1_2fu4y")
+data = ExtResource("2_3xdfp")
+
+[node name="botella_horrible4" parent="." unique_id=913309584 instance=ExtResource("3_w7sxs")]
+
+[node name="cilindro" type="CollisionShape3D" parent="." unique_id=1579411691]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5471033, 0)
+shape = SubResource("CylinderShape3D_g4t4m")

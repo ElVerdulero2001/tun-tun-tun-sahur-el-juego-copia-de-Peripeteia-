@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://c0qytjvt5exhd"]
+
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/interactable.gd" id="1_4cwt5"]
+[ext_resource type="Resource" uid="uid://dcmxocufit3pl" path="res://assets/data/collectibles/consumables/key.tres" id="2_ac8da"]
+[ext_resource type="PackedScene" uid="uid://c5vwhwuprkqfu" path="res://assets/models/collectibles/llave2.glb" id="3_4cwt5"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_f5nse"]
+size = Vector3(0.18, 0.08, 0.45)
+
+[node name="llave_comun_1" type="RigidBody3D" unique_id=156850456]
+collision_layer = 10
+collision_mask = 9
+script = ExtResource("1_4cwt5")
+data = ExtResource("2_ac8da")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1688255668]
+shape = SubResource("BoxShape3D_f5nse")
+
+[node name="llave2" parent="." unique_id=1875975665 instance=ExtResource("3_4cwt5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.14170259)

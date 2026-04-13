@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://doxnsdb1p53h4"]
+
+[ext_resource type="Script" uid="uid://d3keoy2al2m6a" path="res://scripts/item_data.gd" id="1_4gjok"]
+
+[resource]
+script = ExtResource("1_4gjok")
+nombre = "Municion 9mm"
+descripcion = "Municion estandar de 9mm"
+tipo = "municion"
+es_recogible = true
+peso = 0.2
+municion = 15
+metadata/_custom_type_script = "uid://d3keoy2al2m6a"

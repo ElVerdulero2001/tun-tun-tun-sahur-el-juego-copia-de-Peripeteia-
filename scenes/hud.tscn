@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://cqvywu8qgc4ic"]
+
+[ext_resource type="Script" uid="uid://53tc6jfov4g2" path="res://scripts/hud.gd" id="1_ahhtf"]
+
+[node name="HUD" type="CanvasLayer" unique_id=1676478594]
+script = ExtResource("1_ahhtf")
+
+[node name="Label" type="Label" parent="." unique_id=1480327221]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -20.0
+offset_top = -23.0
+offset_right = 20.0
+grow_horizontal = 2
+grow_vertical = 0

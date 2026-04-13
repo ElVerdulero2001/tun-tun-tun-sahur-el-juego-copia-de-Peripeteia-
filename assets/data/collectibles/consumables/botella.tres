@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://5c2lon8qkibf"]
+
+[ext_resource type="Script" uid="uid://d3keoy2al2m6a" path="res://scripts/item_data.gd" id="1_elntr"]
+
+[resource]
+script = ExtResource("1_elntr")
+nombre = "Botella"
+descripcion = "Botella, solo eso"
+tipo = "collectible"
+es_recogible = true
+se_puede_romper = true
+peso = 1.5
+grid_forma = [[1], [1], [1]]
+metadata/_custom_type_script = "uid://d3keoy2al2m6a"

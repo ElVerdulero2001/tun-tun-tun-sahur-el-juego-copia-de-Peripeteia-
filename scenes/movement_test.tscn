@@ -13,6 +13,7 @@
 [ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/interactable.gd" id="10_s4463"]
 [ext_resource type="PackedScene" uid="uid://cqvywu8qgc4ic" path="res://scenes/hud.tscn" id="13_jo1an"]
 [ext_resource type="PackedScene" uid="uid://c0qytjvt5exhd" path="res://scenes/props/llave_comun_1.tscn" id="16_ayrel"]
+[ext_resource type="PackedScene" uid="uid://ce5sanae8y4jr" path="res://scenes/props/sable_san_martin_1.tscn" id="16_ch6f5"]
 [ext_resource type="PackedScene" uid="uid://bmknlxq61koen" path="res://scenes/props/mesa_standar_1.tscn" id="18_st15v"]
 [ext_resource type="PackedScene" uid="uid://derv7f5stbi5f" path="res://scenes/props/botella_standar_1.tscn" id="19_rjjiw"]
 
@@ -150,15 +151,18 @@ shape = SubResource("BoxShape3D_s4463")
 [node name="HUD" parent="." unique_id=1676478594 node_paths=PackedStringArray("raycast") instance=ExtResource("13_jo1an")]
 raycast = NodePath("../player/player/Camera3D/raycast_interaccion")
 
-[node name="mesa_standar_1" parent="." unique_id=107140109 instance=ExtResource("18_st15v")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.6788864, 0.19550133, -2.3654726)
-
 [node name="botella_standar_1" parent="." unique_id=1598823837 instance=ExtResource("19_rjjiw")]
-transform = Transform3D(0.7172269, -0.69683963, 0, 0.69683963, 0.7172268, 0, 0, 0, 0.9999999, -7.2728124, 0.37655032, -5.9735284)
+transform = Transform3D(0.9999999, 0, 0, 0, 0.99999994, 0, 0, 0, 0.9999999, -6.1183968, 1.2745622, -2.928712)
 mass = 2.0
 
-[node name="llave_comun_1" parent="." unique_id=156850456 instance=ExtResource("16_ayrel")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.4647193, 0.32624185, -4.5864763)
+[node name="sable_san_martin_1" parent="." unique_id=1154772102 instance=ExtResource("16_ch6f5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.7139072, 1.3139825, -3.0633163)
+
+[node name="mesa_standar_1" parent="." unique_id=389089462 instance=ExtResource("18_st15v")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.09225929, -3)
+
+[node name="llave_comun_1" parent="." unique_id=625194610 instance=ExtResource("16_ayrel")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.151903, 1.3016548, -2.4619324)
 
 [editable path="player"]
 [editable path="player/player/Camera3D/raycast_interaccion"]

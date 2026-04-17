@@ -14,8 +14,8 @@ collision_mask = 9
 script = ExtResource("1_2fu4y")
 data = ExtResource("2_3xdfp")
 
-[node name="botella_horrible4" parent="." unique_id=913309584 instance=ExtResource("3_w7sxs")]
-
 [node name="cilindro" type="CollisionShape3D" parent="." unique_id=1579411691]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5471033, 0)
 shape = SubResource("CylinderShape3D_g4t4m")
+
+[node name="botella_horrible4" parent="." unique_id=913309584 instance=ExtResource("3_w7sxs")]

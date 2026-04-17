@@ -15,6 +15,11 @@ run/main_scene="uid://cv5ym8d32f5mp"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
+[autoload]
+
+Catalogo="*uid://hqqps24vrcnr"
+Inventario="*uid://ctadtowboqcwg"
+
 [input]
 
 move_forward={

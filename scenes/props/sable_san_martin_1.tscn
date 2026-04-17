@@ -1,0 +1,21 @@
+[gd_scene format=3 uid="uid://ce5sanae8y4jr"]
+
+[ext_resource type="PackedScene" uid="uid://bhr8u0r0meas0" path="res://assets/models/collectibles/machetedesanmartin4.glb" id="1_et5r5"]
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/interactable.gd" id="1_kchcn"]
+[ext_resource type="Resource" uid="uid://s5ycp1augdjr" path="res://assets/data/collectibles/consumables/sable.tres" id="2_idbr6"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_kchcn"]
+size = Vector3(1.82, 0.1, 0.315)
+
+[node name="sable_san_martin_1" type="RigidBody3D" unique_id=1154772102]
+collision_layer = 10
+collision_mask = 9
+script = ExtResource("1_kchcn")
+data = ExtResource("2_idbr6")
+
+[node name="machetedesanmartin4" parent="." unique_id=578579898 instance=ExtResource("1_et5r5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.01, 0, 0.086)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=591493475]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.005, 0)
+shape = SubResource("BoxShape3D_kchcn")

@@ -4,22 +4,22 @@
 [ext_resource type="Resource" uid="uid://undo17gx4vw4" path="res://assets/data/non_collectibles/mesa.tres" id="2_ltqmi"]
 [ext_resource type="PackedScene" uid="uid://cp3i3p8f71hco" path="res://assets/models/no_collectibles/mesa_fea_9.glb" id="3_eyrvg"]
 
+[sub_resource type="BoxShape3D" id="BoxShape3D_qpm16"]
+size = Vector3(0.2, 1.01, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ltqmi"]
+size = Vector3(0.2, 1.01, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_eyrvg"]
+size = Vector3(0.2, 1.01, 0.2)
+
 [sub_resource type="BoxShape3D" id="BoxShape3D_ikxew"]
-size = Vector3(0.22, 1, 0.22)
+size = Vector3(0.2, 1.01, 0.2)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_prv31"]
-size = Vector3(0.22, 1, 0.22)
+size = Vector3(3.355, 0.145, 1.69)
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_ej6dp"]
-size = Vector3(0.22, 1, 0.22)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_1x4wt"]
-size = Vector3(0.22, 1, 0.22)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_db65g"]
-size = Vector3(3.365, 0.15, 1.695)
-
-[node name="mesa_standar_1" type="RigidBody3D" unique_id=107140109]
+[node name="mesa_standar_1" type="RigidBody3D" unique_id=389089462]
 collision_layer = 10
 collision_mask = 9
 script = ExtResource("1_qpm16")
@@ -27,22 +27,22 @@ data = ExtResource("2_ltqmi")
 
 [node name="mesa_fea_9" parent="." unique_id=879468227 instance=ExtResource("3_eyrvg")]
 
-[node name="pata_1" type="CollisionShape3D" parent="." unique_id=324417495]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.443, 0.56, 0.612)
+[node name="pata1" type="CollisionShape3D" parent="." unique_id=470371433]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.443, 0.555, 0.6106605)
+shape = SubResource("BoxShape3D_qpm16")
+
+[node name="pata2" type="CollisionShape3D" parent="." unique_id=1196626252]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.449, 0.555, -0.611)
+shape = SubResource("BoxShape3D_ltqmi")
+
+[node name="pata3" type="CollisionShape3D" parent="." unique_id=626816136]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.44, 0.555, -0.61)
+shape = SubResource("BoxShape3D_eyrvg")
+
+[node name="pata4" type="CollisionShape3D" parent="." unique_id=1027687103]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.44, 0.555, 0.61)
 shape = SubResource("BoxShape3D_ikxew")
 
-[node name="pata_2" type="CollisionShape3D" parent="." unique_id=423890009]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.443, 0.56, -0.612)
+[node name="tabla" type="CollisionShape3D" parent="." unique_id=1368665823]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1191161, 0)
 shape = SubResource("BoxShape3D_prv31")
-
-[node name="pata_3" type="CollisionShape3D" parent="." unique_id=506830744]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.443, 0.56, 0.612)
-shape = SubResource("BoxShape3D_ej6dp")
-
-[node name="pata_4" type="CollisionShape3D" parent="." unique_id=580888604]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.443, 0.56, -0.61)
-shape = SubResource("BoxShape3D_1x4wt")
-
-[node name="tablero" type="CollisionShape3D" parent="." unique_id=292230510]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1150389, 0)
-shape = SubResource("BoxShape3D_db65g")

@@ -17,6 +17,7 @@ var jumped = false
 
 @onready var camera = $Camera3D
 @onready var collision = $CollisionShape3D
+@onready var salud = $Salud
 
 func _ready():
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
@@ -25,6 +26,10 @@ func _ready():
 	floor_stop_on_slope = true
 	floor_max_angle = deg_to_rad(46)
 	floor_snap_length = 0.5
+	salud.murio.connect(_on_murio)
+
+func _on_murio():
+	get_tree().reload_current_scene()
 
 func hay_techo() -> bool:
 	var espacio = get_world_3d().direct_space_state
@@ -92,7 +97,6 @@ func _physics_process(delta):
 		velocity.x = lerp(velocity.x, target_velocity_x, ACCELERATION * delta)
 		velocity.z = lerp(velocity.z, target_velocity_z, ACCELERATION * delta)
 
-		# Limitar velocidad horizontal maxima
 		var vel_horizontal = Vector2(velocity.x, velocity.z).length()
 		if vel_horizontal > current_speed:
 			var direccion_actual = Vector2(velocity.x, velocity.z).normalized()

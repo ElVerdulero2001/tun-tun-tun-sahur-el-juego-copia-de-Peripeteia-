@@ -9,4 +9,5 @@ descripcion = "Sable del mas grande procer"
 tipo = "collectible"
 es_recogible = true
 peso = 2.0
+item_id = 3
 metadata/_custom_type_script = "uid://d3keoy2al2m6a"

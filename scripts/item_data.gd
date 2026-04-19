@@ -10,3 +10,4 @@ extends Resource
 @export var vida: float = 0.0
 @export var municion: int = 0
 @export var grid_forma: Array = [[1]]
+@export var item_id: int = 0

@@ -11,4 +11,5 @@ es_recogible = true
 se_puede_romper = true
 peso = 1.5
 grid_forma = [[1], [1], [1]]
+item_id = 2
 metadata/_custom_type_script = "uid://d3keoy2al2m6a"

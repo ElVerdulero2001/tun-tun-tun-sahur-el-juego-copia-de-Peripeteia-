@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bu700wnodsb4v"]
+
+[ext_resource type="Script" uid="uid://t6p4fdwrjgb" path="res://scripts/tirar_item.gd" id="1_cbliq"]
+
+[node name="TirarItem" type="Node" unique_id=1374972594]
+script = ExtResource("1_cbliq")

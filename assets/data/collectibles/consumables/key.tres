@@ -9,4 +9,5 @@ descripcion = "Llave para abrir puertas"
 tipo = "collectible"
 es_recogible = true
 peso = 0.015
+item_id = 1
 metadata/_custom_type_script = "uid://d3keoy2al2m6a"

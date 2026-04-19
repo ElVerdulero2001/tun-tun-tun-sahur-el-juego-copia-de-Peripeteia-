@@ -156,13 +156,13 @@ transform = Transform3D(0.9999999, 0, 0, 0, 0.99999994, 0, 0, 0, 0.9999999, -6.1
 mass = 2.0
 
 [node name="sable_san_martin_1" parent="." unique_id=1154772102 instance=ExtResource("15_2fbo5")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.7139072, 1.3139825, -3.0633163)
+transform = Transform3D(-4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0, 1, -4.325347, 1.3623137, -3.4483767)
 
 [node name="mesa_standar_1" parent="." unique_id=389089462 instance=ExtResource("16_hwk1c")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.09225929, -3)
 
 [node name="llave_comun_1" parent="." unique_id=625194610 instance=ExtResource("17_ittlt")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.151903, 1.3016548, -2.4619324)
+transform = Transform3D(-4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0, 1, -4.151903, 1.3281126, -2.4619324)
 
 [editable path="player"]
 [editable path="player/player/Camera3D/raycast_interaccion"]

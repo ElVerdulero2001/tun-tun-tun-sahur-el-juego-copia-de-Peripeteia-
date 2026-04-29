@@ -1,0 +1,22 @@
+[gd_scene format=3 uid="uid://c7dl0cwwdn0vp"]
+
+[ext_resource type="PackedScene" uid="uid://l4mkmga0sqmh" path="res://assets/models/collectibles/granada1.glb" id="1_fusaa"]
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/interactable.gd" id="1_xk7dm"]
+[ext_resource type="Resource" uid="uid://cgmbp2odwkc88" path="res://assets/data/collectibles/weapons/granada.tres" id="2_jpvmg"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_xk7dm"]
+radius = 0.1
+height = 0.3
+
+[node name="granada_01" type="RigidBody3D" unique_id=1896426358]
+collision_layer = 10
+collision_mask = 9
+script = ExtResource("1_xk7dm")
+data = ExtResource("2_jpvmg")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1865167681]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.066467136, 0)
+shape = SubResource("CapsuleShape3D_xk7dm")
+
+[node name="granada1" parent="." unique_id=1888103339 instance=ExtResource("1_fusaa")]
+transform = Transform3D(0.07, 0, 0, 0, 0.07, 0, 0, 0, 0.07, 0, 0, 0)

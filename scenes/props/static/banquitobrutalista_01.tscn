@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://dtjyj444v5jty"]
+
+[ext_resource type="PackedScene" uid="uid://bmjen0k04ph21" path="res://assets/models/collectibles/banquitobrutalisnumoer3.glb" id="1_th6bv"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_qj1vc"]
+size = Vector3(3.375, 0.845, 0.855)
+
+[node name="banquitobrutalista_01" type="StaticBody3D" unique_id=364838915]
+
+[node name="banquitobrutalisnumoer3" parent="." unique_id=1872941124 instance=ExtResource("1_th6bv")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.04115665, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1691200609]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.41155928, 0)
+shape = SubResource("BoxShape3D_qj1vc")

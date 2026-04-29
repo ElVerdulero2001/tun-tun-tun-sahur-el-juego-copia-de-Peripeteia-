@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cnsijqim4i1w8"
-path.s3tc="res://.godot/imported/mesa_fea_9_wood_256x256.webp-402477da410f6ba9e7390653601165e0.s3tc.ctex"
+uid="uid://bfgq6dwntpbmi"
+path.s3tc="res://.godot/imported/water_funtain_01_marble_01.webp-46bcc3bc05ccde9d2521f461243087c5.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "587997cbae6e370df3bc9e32e5e2da0e"
+"md5": "a616eb28bb4627823eaf7a6d7c760edb"
 }
 
 [deps]
 
-source_file="res://assets/models/no_collectibles/mesa_fea_9_wood_256x256.webp"
-dest_files=["res://.godot/imported/mesa_fea_9_wood_256x256.webp-402477da410f6ba9e7390653601165e0.s3tc.ctex"]
+source_file="res://assets/textures/water_funtain_01_marble_01.webp"
+dest_files=["res://.godot/imported/water_funtain_01_marble_01.webp-46bcc3bc05ccde9d2521f461243087c5.s3tc.ctex"]
 
 [params]
 

@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://c5vwhwuprkqfu" path="res://assets/models/collectibles/llave2.glb" id="3_4cwt5"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_4cwt5"]
-size = Vector3(0.5, 0.085, 0.2)
+size = Vector3(0.38, 0.085, 0.135)
 
 [node name="llave_comun_1" type="RigidBody3D" unique_id=625194610]
 transform = Transform3D(0.99999994, 0, 0, 0, 1, 0, 0, 0, 0.99999994, 0, 0, 0)
@@ -15,8 +15,8 @@ script = ExtResource("1_4cwt5")
 data = ExtResource("2_ac8da")
 
 [node name="llave2" parent="." unique_id=1875975665 instance=ExtResource("3_4cwt5")]
-transform = Transform3D(-4.3711353e-08, 0.9999994, 0, 4.3711363e-08, 1.9106846e-15, -0.99999917, -0.9999992, -4.371136e-08, -4.3711342e-08, 0, 0.08841553, 0)
+transform = Transform3D(-3.4969112e-08, 0.8, -3.4969112e-08, 0, -3.4969112e-08, -0.8, -0.8, -3.4969112e-08, 1.5285484e-15, 0, 0.08841553, 0)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=260852261]
-transform = Transform3D(4.3711236e-08, 0.99999666, 8.742275e-08, 0.9999968, -4.371125e-08, 0, 3.8213574e-15, 8.742248e-08, -0.9999997, 0, 0.25, 0)
+transform = Transform3D(4.3711232e-08, 0.9999966, 8.742274e-08, 0.9999968, -4.371125e-08, 0, 3.821357e-15, 8.742247e-08, -0.99999964, 0, 0.21254396, 0)
 shape = SubResource("BoxShape3D_4cwt5")

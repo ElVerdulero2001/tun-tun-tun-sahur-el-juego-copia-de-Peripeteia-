@@ -1,9 +1,10 @@
 extends Node
 
 var prefabs = {
-	1: "res://scenes/props/llave_comun_1.tscn",
-	2: "res://scenes/props/botella_standar_1.tscn",
-	3: "res://scenes/props/sable_san_martin_1.tscn",
+	1: "res://scenes/props/dinamic/llave_comun_1.tscn",
+	2: "res://scenes/props/dinamic/botella_standar_1.tscn",
+	3: "res://scenes/props/dinamic/sable_san_martin_1.tscn",
+	4: "res://scenes/props/dinamic/granada_01.tscn",
 }
 
 func get_prefab(item_id: int) -> PackedScene:

@@ -1,0 +1,65 @@
+[gd_scene format=3 uid="uid://bowc62hwhqjco"]
+
+[ext_resource type="PackedScene" uid="uid://bhtpk7s43gfrf" path="res://assets/models/no_collectibles/osciloscopio5.glb" id="1_4hd37"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_hmls3"]
+size = Vector3(0.875, 0.41, 0.875)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_3y40l"]
+size = Vector3(0.875, 0.095, 0.46)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_p0q5k"]
+resource_name = "pantalla"
+cull_mode = 2
+albedo_color = Color(0, 0, 0, 1)
+roughness = 0.5
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_mp8n4"]
+_surfaces = [{
+"aabb": AABB(-1.98862, -0.537536, 2.4332976, 1.5979114, 1.3163366, 1e-05),
+"format": 34896613377,
+"index_count": 6,
+"index_data": PackedByteArray(0, 0, 1, 0, 2, 0, 0, 0, 3, 0, 1, 0),
+"name": "pantalla",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 4,
+"vertex_data": PackedByteArray(255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0, 0, 0)
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_4hd37"]
+resource_name = "osciloscopio5_Cube_002"
+_surfaces = [{
+"aabb": AABB(-1.98862, -0.537536, 2.4332976, 1.5979114, 1.3163366, 1e-05),
+"attribute_data": PackedByteArray(238, 107, 27, 20, 15, 20, 246, 90, 15, 20, 27, 20, 238, 107, 246, 90),
+"format": 34896613399,
+"index_count": 6,
+"index_data": PackedByteArray(0, 0, 1, 0, 2, 0, 0, 0, 3, 0, 1, 0),
+"material": SubResource("StandardMaterial3D_p0q5k"),
+"name": "pantalla",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 4,
+"vertex_data": PackedByteArray(255, 255, 255, 255, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0, 255, 255, 0, 0, 0, 128, 255, 255, 0, 0, 0, 0, 0, 128, 255, 127, 255, 255, 255, 127, 255, 255, 255, 127, 255, 255, 255, 127, 255, 255)
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_mp8n4")
+
+[node name="osciloscopio" type="RigidBody3D" unique_id=1107824422]
+collision_layer = 10
+collision_mask = 9
+
+[node name="box" type="CollisionShape3D" parent="." unique_id=1414124643]
+shape = SubResource("BoxShape3D_hmls3")
+
+[node name="handle" type="CollisionShape3D" parent="." unique_id=718683566]
+transform = Transform3D(1, 0, 0, 0, 0.8756163, -0.4830073, 0, 0.4830073, 0.8756163, 0, 0.14112175, -0.1654344)
+shape = SubResource("BoxShape3D_3y40l")
+
+[node name="osciloscopio5" parent="." unique_id=1680476728 instance=ExtResource("1_4hd37")]
+
+[node name="pantalla" parent="osciloscopio5" index="5" unique_id=906293352]
+mesh = SubResource("ArrayMesh_4hd37")
+
+[editable path="osciloscopio5"]

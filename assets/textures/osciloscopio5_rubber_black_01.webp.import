@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://d0335ps0ra4t1"
-path.s3tc="res://.godot/imported/granada1_metal_hammered_01.webp-83a5b9b5d495b587bf6134671a1dca55.s3tc.ctex"
+uid="uid://fks7quim84f"
+path.s3tc="res://.godot/imported/osciloscopio5_rubber_black_01.webp-26e0f0e9e57bc77a07ab3e7d691d0933.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "11ac190b37ddb5872c80bc733b7bd3da"
+"md5": "80173bc0275d5733d9235ad406e158b1"
 }
 
 [deps]
 
-source_file="res://assets/models/collectibles/granada1_metal_hammered_01.webp"
-dest_files=["res://.godot/imported/granada1_metal_hammered_01.webp-83a5b9b5d495b587bf6134671a1dca55.s3tc.ctex"]
+source_file="res://assets/textures/osciloscopio5_rubber_black_01.webp"
+dest_files=["res://.godot/imported/osciloscopio5_rubber_black_01.webp-26e0f0e9e57bc77a07ab3e7d691d0933.s3tc.ctex"]
 
 [params]
 

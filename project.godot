@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Tun tun tun sahur"
-run/main_scene="uid://cv5ym8d32f5mp"
+run/main_scene="uid://cq3xs5ly2b4v0"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 

@@ -2,20 +2,17 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dyc47rmois3q"
-path.s3tc="res://.godot/imported/granada1_metal_scorned_01.webp-3b998591756161e631cf6e78eae7f640.s3tc.ctex"
+uid="uid://c636printxy5k"
+path.s3tc="res://.godot/imported/da8d5f8daba9268ae7a91a015974d7747df3c5c0_2_1035x517.png-aa584f032896ad933c735d906c06c8f6.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
-generator_parameters={
-"md5": "e00a7d6f8cfb29688234912d985b7713"
-}
 
 [deps]
 
-source_file="res://assets/models/collectibles/granada1_metal_scorned_01.webp"
-dest_files=["res://.godot/imported/granada1_metal_scorned_01.webp-3b998591756161e631cf6e78eae7f640.s3tc.ctex"]
+source_file="res://assets/textures/da8d5f8daba9268ae7a91a015974d7747df3c5c0_2_1035x517.png"
+dest_files=["res://.godot/imported/da8d5f8daba9268ae7a91a015974d7747df3c5c0_2_1035x517.png-aa584f032896ad933c735d906c06c8f6.s3tc.ctex"]
 
 [params]
 

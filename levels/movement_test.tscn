@@ -14,13 +14,13 @@
 [ext_resource type="PackedScene" uid="uid://derv7f5stbi5f" path="res://scenes/props/dinamic/botella_standar_1.tscn" id="14_8rkqj"]
 [ext_resource type="PackedScene" uid="uid://ce5sanae8y4jr" path="res://scenes/props/dinamic/sable_san_martin_1.tscn" id="15_2fbo5"]
 [ext_resource type="PackedScene" uid="uid://bmknlxq61koen" path="res://scenes/props/dinamic/mesa_standar_1.tscn" id="16_hwk1c"]
+[ext_resource type="PackedScene" uid="uid://dw51wthqro71g" path="res://scenes/props/dinamic/osciloscopio_01.tscn" id="16_yig0p"]
 [ext_resource type="PackedScene" uid="uid://ct6tfm3gtwy22" path="res://scenes/props/static/fuente_vieja_01.tscn" id="17_djgoh"]
 [ext_resource type="PackedScene" uid="uid://c0qytjvt5exhd" path="res://scenes/props/dinamic/llave_comun_1.tscn" id="17_ittlt"]
 [ext_resource type="PackedScene" uid="uid://bkmlbvilr8mps" path="res://scenes/props/static/farola_vieja_01.tscn" id="18_88gl0"]
 [ext_resource type="Texture2D" uid="uid://cvc38q08ijnas" path="res://assets/textures/piso_piedra_01.webp" id="19_00m5o"]
 [ext_resource type="PackedScene" uid="uid://dtjyj444v5jty" path="res://scenes/props/static/banquitobrutalista_01.tscn" id="19_ptivj"]
 [ext_resource type="PackedScene" uid="uid://c7dl0cwwdn0vp" path="res://scenes/props/dinamic/granada_01.tscn" id="20_00m5o"]
-[ext_resource type="PackedScene" uid="uid://bowc62hwhqjco" path="res://scenes/props/dinamic/osciloscopio.tscn" id="21_yig0p"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_755td"]
 
@@ -70,6 +70,13 @@ size = Vector3(12, 1, 12)
 [sub_resource type="BoxMesh" id="BoxMesh_t354w"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_s4463"]
+
+[sub_resource type="ViewportTexture" id="ViewportTexture_yig0p"]
+viewport_path = NodePath("../../../../../entities/Node3D/SubViewport")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kcpfy"]
+resource_local_to_scene = true
+albedo_texture = SubResource("ViewportTexture_yig0p")
 
 [node name="MovementTest" type="Node3D" unique_id=15402342 groups=["raycast"]]
 
@@ -198,12 +205,16 @@ transform = Transform3D(-4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0, 1, -5.4
 [node name="granada_01" parent="world/enviroment/dinamic" unique_id=1896426358 instance=ExtResource("20_00m5o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.09862, 1.3785677, -2.3285449)
 
-[node name="osciloscopio" parent="world/enviroment/dinamic" unique_id=1107824422 instance=ExtResource("21_yig0p")]
-transform = Transform3D(0.99999994, 0, 0, 0, 1, 0, 0, 0, 1, -3.8496594, 1.5746975, -2.8759344)
+[node name="osciloscopio_01" parent="world/enviroment/dinamic" unique_id=471919506 instance=ExtResource("16_yig0p")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.8551984, 1.4868441, -2.8426342)
+
+[node name="pantalla" parent="world/enviroment/dinamic/osciloscopio_01/osciloscopio5" parent_id_path=PackedInt32Array(471919506, 1264347502) index="5" unique_id=2136249046]
+surface_material_override/0 = SubResource("StandardMaterial3D_kcpfy")
 
 [node name="entities" type="Node3D" parent="." unique_id=2102854069]
 
 [node name="player" type="Node3D" parent="entities" unique_id=143539223]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.7168937, 0, 0)
 
 [node name="player" parent="entities/player" unique_id=189769782 instance=ExtResource("1_djgoh")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.17427588, 0)
@@ -225,6 +236,16 @@ capa_interaccion = 3
 [node name="HUD" parent="entities/player" unique_id=1676478594 node_paths=PackedStringArray("raycast") instance=ExtResource("13_6fxmk")]
 raycast = NodePath("../player/player/Camera3D/raycast_interaccion")
 
+[node name="Node3D" type="Node3D" parent="entities" unique_id=538461892]
+
+[node name="SubViewport" type="SubViewport" parent="entities/Node3D" unique_id=820303445]
+size = Vector2i(310, 255)
+
+[node name="Camera3D" type="Camera3D" parent="entities/Node3D/SubViewport" unique_id=417162581]
+transform = Transform3D(0.35445136, 0.6314493, -0.68966377, -0.04842532, 0.7489557, 0.66084826, 0.9338197, -0.20084135, 0.29604647, -5.9791393, 2.570358, 0.8493495)
+
+[editable path="world/enviroment/dinamic/osciloscopio_01"]
+[editable path="world/enviroment/dinamic/osciloscopio_01/osciloscopio5"]
 [editable path="entities/player/player"]
 [editable path="entities/player/player/player/Camera3D/raycast_interaccion"]
 [editable path="entities/player/debugui"]

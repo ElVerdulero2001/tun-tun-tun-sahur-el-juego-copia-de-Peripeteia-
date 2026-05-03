@@ -1,6 +1,8 @@
 [gd_scene format=3 uid="uid://dw51wthqro71g"]
 
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/interactable.gd" id="1_ppfc1"]
 [ext_resource type="PackedScene" uid="uid://bxjn7fsrompfd" path="res://assets/models/no_collectibles/osciloscopio5.glb" id="1_y8k1p"]
+[ext_resource type="Resource" uid="uid://d1kxhnxnkan5k" path="res://assets/data/non_collectibles/osciloscopio.tres" id="2_weci0"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ppfc1"]
 size = Vector3(0.875, 0.415, 0.89)
@@ -8,15 +10,17 @@ size = Vector3(0.875, 0.415, 0.89)
 [sub_resource type="BoxShape3D" id="BoxShape3D_weci0"]
 size = Vector3(0.875, 0.095, 0.445)
 
-[sub_resource type="ViewportTexture" id="ViewportTexture_y8k1p"]
+[sub_resource type="ViewportTexture" id="ViewportTexture_weci0"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ppfc1"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cly0j"]
 resource_local_to_scene = true
-albedo_texture = SubResource("ViewportTexture_y8k1p")
+albedo_texture = SubResource("ViewportTexture_weci0")
 
 [node name="osciloscopio_01" type="RigidBody3D" unique_id=471919506]
 collision_layer = 10
 collision_mask = 9
+script = ExtResource("1_ppfc1")
+data = ExtResource("2_weci0")
 
 [node name="cuerpo" type="CollisionShape3D" parent="." unique_id=1411806449]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21, 0.009)
@@ -31,6 +35,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21, 0)
 
 [node name="pantalla" parent="osciloscopio5" index="5" unique_id=2136249046]
 transform = Transform3D(-0.16480452, -1.4407669e-08, 0, 1.4407669e-08, -0.16480452, 0, 0, 0, 0.16480452, -0.3920871, 0.039759785, 0)
-surface_material_override/0 = SubResource("StandardMaterial3D_ppfc1")
+surface_material_override/0 = SubResource("StandardMaterial3D_cly0j")
 
 [editable path="osciloscopio5"]

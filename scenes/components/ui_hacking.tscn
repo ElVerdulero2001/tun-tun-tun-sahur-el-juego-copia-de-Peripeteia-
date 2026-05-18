@@ -1,0 +1,46 @@
+[gd_scene format=3 uid="uid://vmyxlqj06ho8"]
+
+[ext_resource type="Script" uid="uid://7knuisqbg7pd" path="res://scripts/enviroment/ui_hacking.gd" id="1_8rcou"]
+
+[node name="UIHacking" type="CanvasLayer" unique_id=20736175]
+script = ExtResource("1_8rcou")
+
+[node name="Control" type="Control" parent="." unique_id=1064396169]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="Control" unique_id=1736952657]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 20.0
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Control/PanelContainer" unique_id=474735758]
+layout_mode = 2
+
+[node name="terminal" type="Label" parent="Control/PanelContainer/VBoxContainer" unique_id=797363751]
+layout_mode = 2
+text = "Terminal"
+horizontal_alignment = 1
+
+[node name="LineEdit" type="LineEdit" parent="Control/PanelContainer/VBoxContainer" unique_id=262229545]
+layout_mode = 2
+
+[node name="confirmar" type="Button" parent="Control/PanelContainer/VBoxContainer" unique_id=916397247]
+layout_mode = 2
+text = "CONFIRMAR"
+
+[node name="Label2" type="Label" parent="Control/PanelContainer/VBoxContainer" unique_id=690133739]
+layout_mode = 2

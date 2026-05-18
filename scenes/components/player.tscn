@@ -3,6 +3,9 @@
 [ext_resource type="PackedScene" uid="uid://cj26qqnpcfcpc" path="res://scenes/components/salud.tscn" id="1_6mmc7"]
 [ext_resource type="PackedScene" uid="uid://dg7creso2b5yf" path="res://scenes/components/raycast_interaccion.tscn" id="1_sjsxr"]
 [ext_resource type="PackedScene" uid="uid://bu700wnodsb4v" path="res://scenes/components/tirar_item.tscn" id="2_h3cwf"]
+[ext_resource type="PackedScene" uid="uid://cqvywu8qgc4ic" path="res://scenes/components/hud.tscn" id="4_acvb7"]
+[ext_resource type="PackedScene" uid="uid://dlvxllcuc4v84" path="res://scenes/components/debug_ui.tscn" id="5_ps70n"]
+[ext_resource type="PackedScene" uid="uid://vmyxlqj06ho8" path="res://scenes/components/ui_hacking.tscn" id="6_v4i73"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_u8vuu"]
 
@@ -33,3 +36,12 @@ fov = 81.0
 [node name="Salud" parent="player" unique_id=579747584 instance=ExtResource("1_6mmc7")]
 
 [node name="TirarItem" parent="player" unique_id=1374972594 instance=ExtResource("2_h3cwf")]
+
+[node name="HUD" parent="player" unique_id=1676478594 node_paths=PackedStringArray("raycast") instance=ExtResource("4_acvb7")]
+raycast = NodePath("../Camera3D/raycast_interaccion")
+
+[node name="DebugUI" parent="player" unique_id=1589060079 instance=ExtResource("5_ps70n")]
+
+[node name="UIHacking" parent="player" unique_id=20736175 instance=ExtResource("6_v4i73")]
+
+[editable path="player/DebugUI"]

@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 Catalogo="*uid://hqqps24vrcnr"
 Inventario="*uid://ctadtowboqcwg"
+UIHacking="*uid://vmyxlqj06ho8"
 
 [input]
 

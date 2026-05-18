@@ -25,7 +25,8 @@ shape = SubResource("CapsuleShape3D_u8vuu")
 mesh = SubResource("CapsuleMesh_3vyb7")
 
 [node name="Camera3D" type="Camera3D" parent="player" unique_id=2133850831]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7056389, -0.28539956)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -0.285)
+fov = 81.0
 
 [node name="raycast_interaccion" parent="player/Camera3D" unique_id=498661126 instance=ExtResource("1_sjsxr")]
 

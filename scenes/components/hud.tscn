@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cqvywu8qgc4ic"]
 
-[ext_resource type="Script" uid="uid://53tc6jfov4g2" path="res://scripts/hud.gd" id="1_ahhtf"]
-[ext_resource type="Script" uid="uid://cre4dceanml2p" path="res://scripts/marco_enfoque.gd" id="2_oo0fn"]
+[ext_resource type="Script" uid="uid://53tc6jfov4g2" path="res://scripts/player n entities/visuals/hud.gd" id="1_ahhtf"]
+[ext_resource type="Script" uid="uid://cre4dceanml2p" path="res://scripts/player n entities/visuals/marco_enfoque.gd" id="2_oo0fn"]
 
 [node name="HUD" type="CanvasLayer" unique_id=1676478594]
 script = ExtResource("1_ahhtf")

@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cq3xs5ly2b4v0"]
 
 [ext_resource type="PackedScene" uid="uid://ds0bvw2cidi7g" path="res://scenes/components/player.tscn" id="1_djgoh"]
-[ext_resource type="Script" uid="uid://c2xyba20xth2h" path="res://scripts/player.gd" id="2_88gl0"]
+[ext_resource type="Script" uid="uid://c2xyba20xth2h" path="res://scripts/player n entities/player.gd" id="2_88gl0"]
 [ext_resource type="Texture2D" uid="uid://r5wyupe3f2oe" path="res://assets/textures/concrete001_256x256.jpg" id="5_yig0p"]
 [ext_resource type="PackedScene" uid="uid://dlvxllcuc4v84" path="res://scenes/components/debug_ui.tscn" id="6_kcpfy"]
 [ext_resource type="PackedScene" uid="uid://b3n7r2fg003oc" path="res://scenes/components/debug_trail.tscn" id="7_co54g"]
@@ -10,7 +10,7 @@
 [ext_resource type="PackedScene" uid="uid://c1167onhhefh" path="res://assets/models/stairs/escalera_xlarga.glb" id="10_okx0b"]
 [ext_resource type="PackedScene" uid="uid://cfw7j1gbqx2yh" path="res://assets/models/stairs/escalera_xlarga2.glb" id="11_jm7au"]
 [ext_resource type="PackedScene" uid="uid://bnkcn1b174ahh" path="res://scenes/props/static/door_rust_01.tscn" id="11_kcpfy"]
-[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/interactable.gd" id="12_7ued8"]
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/interactable.gd" id="12_7ued8"]
 [ext_resource type="PackedScene" uid="uid://cqvywu8qgc4ic" path="res://scenes/components/hud.tscn" id="13_6fxmk"]
 [ext_resource type="PackedScene" uid="uid://derv7f5stbi5f" path="res://scenes/props/dinamic/botella_standar_1.tscn" id="14_8rkqj"]
 [ext_resource type="PackedScene" uid="uid://ce5sanae8y4jr" path="res://scenes/props/dinamic/sable_san_martin_1.tscn" id="15_2fbo5"]
@@ -131,16 +131,16 @@ shape = SubResource("BoxShape3D_s4463")
 [node name="bloques" type="Node3D" parent="world/enviroment/static" unique_id=987092061]
 
 [node name="escalera_grande2" parent="world/enviroment/static/bloques" unique_id=66060748 instance=ExtResource("8_gpyf4")]
-transform = Transform3D(-6, 0, -1.509958e-07, 0, 1, 0, 9.0597484e-07, 0, -1, -4.4400268, 0.099999905, 2.6735718)
+transform = Transform3D(-6, 0, -1.509958e-07, 0, 1, 0, 9.0597484e-07, 0, -1, -4.4400268, 0.099999905, 8.618525)
 
 [node name="escalear_largalarga2" parent="world/enviroment/static/bloques" unique_id=1182729574 instance=ExtResource("9_0l33h")]
-transform = Transform3D(-5, 0, -8.742278e-08, 0, 1, 0, 4.371139e-07, 0, -1, 5.541, 0.1, 2.903)
+transform = Transform3D(-5, 0, -8.742278e-08, 0, 1, 0, 4.371139e-07, 0, -1, 5.541, 0.1, 8.847953)
 
 [node name="escalera_xlarga" parent="world/enviroment/static/bloques" unique_id=1759620651 instance=ExtResource("10_okx0b")]
-transform = Transform3D(-2.205, 0, -1.509958e-07, 0, 1, 0, 3.3294575e-07, 0, -1, -10.601125, 0.099999905, 2.5300117)
+transform = Transform3D(-2.205, 0, -1.509958e-07, 0, 1, 0, 3.3294575e-07, 0, -1, -10.601125, 0.099999905, 8.474964)
 
 [node name="escalera_xlarga2" parent="world/enviroment/static/bloques" unique_id=1600825315 instance=ExtResource("11_jm7au")]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 1, 0.1, 2.5824375)
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 1, 0.1, 8.5273905)
 
 [node name="StaticBody3D" type="StaticBody3D" parent="world/enviroment/static/bloques" unique_id=602544399]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.742693, 0, 0)
@@ -193,7 +193,7 @@ shape = SubResource("BoxShape3D_t354w")
 [node name="puertas" type="Node3D" parent="world/enviroment/static" unique_id=125387660]
 
 [node name="door_rust_01" parent="world/enviroment/static/puertas" unique_id=2111091655 instance=ExtResource("11_kcpfy")]
-transform = Transform3D(-4.3711385e-08, 0, 0.99999994, 0, 1, 0, -0.99999994, 0, -4.3711385e-08, -6.5650597, 0.31575918, 0)
+transform = Transform3D(-4.3711385e-08, 0, 0.99999994, 0, 1, 0, -0.99999994, 0, -4.3711385e-08, -8.675149, 0.31575918, 1.974226)
 
 [node name="dinamic" type="Node3D" parent="world/enviroment" unique_id=637697114]
 
@@ -221,7 +221,7 @@ mass = 0.35
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.8551984, 1.3069715, -2.8426342)
 mass = 10.0
 
-[node name="pantalla" parent="world/enviroment/dinamic/osciloscopio_01/osciloscopio5" parent_id_path=PackedInt32Array(471919506, 1264347502) index="5" unique_id=2136249046]
+[node name="pantalla" parent="world/enviroment/dinamic/osciloscopio_01/osciloscopio5" parent_id_path=PackedInt32Array(471919506, 1264347502) index="5" unique_id=1963793558]
 surface_material_override/0 = SubResource("StandardMaterial3D_co54g")
 
 [node name="entities" type="Node3D" parent="." unique_id=2102854069]

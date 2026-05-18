@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bnkcn1b174ahh"]
 
 [ext_resource type="PackedScene" uid="uid://bfbjsgji3vcwb" path="res://assets/models/no_collectibles/door_oxide3.glb" id="1_sdjq4"]
-[ext_resource type="Script" uid="uid://dfunccitmsma3" path="res://scripts/puerta.gd" id="1_tnq7p"]
+[ext_resource type="Script" uid="uid://dfunccitmsma3" path="res://scripts/enviroment/puerta.gd" id="1_tnq7p"]
 [ext_resource type="Resource" uid="uid://tewcbt5v8ocu" path="res://assets/data/non_collectibles/door_01.tres" id="2_o1rq1"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_tnq7p"]

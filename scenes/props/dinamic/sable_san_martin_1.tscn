@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://ce5sanae8y4jr"]
 
 [ext_resource type="PackedScene" uid="uid://bhr8u0r0meas0" path="res://assets/models/collectibles/machetedesanmartin4.glb" id="1_et5r5"]
-[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/interactable.gd" id="1_kchcn"]
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/interactable.gd" id="1_kchcn"]
 [ext_resource type="Resource" uid="uid://s5ycp1augdjr" path="res://assets/data/collectibles/consumables/sable.tres" id="2_idbr6"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_kchcn"]

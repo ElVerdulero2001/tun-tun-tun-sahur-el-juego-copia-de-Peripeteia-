@@ -10,9 +10,10 @@ var abierta: bool = false
 var moviendose: bool = false
 var angulo_actual: float = 0.0
 var direccion: float = 1.0
+var desbloqueada: bool = false
 
 func interactuar():
-	if requiere_llave:
+	if requiere_llave and not desbloqueada:
 		var tiene_llave = false
 		for instancia in Inventario.items:
 			if instancia["data"].item_id == id_llave:
@@ -29,6 +30,10 @@ func interactuar():
 	direccion = 1.0 if abierta else -1.0
 	angulo_actual = 0.0
 	moviendose = true
+
+func desbloquear():
+	desbloqueada = true
+	interactuar()
 
 func _physics_process(delta):
 	if not moviendose:

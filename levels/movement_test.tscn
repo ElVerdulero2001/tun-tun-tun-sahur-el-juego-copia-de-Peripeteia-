@@ -9,6 +9,7 @@
 [ext_resource type="PackedScene" uid="uid://cfw7j1gbqx2yh" path="res://assets/models/stairs/escalera_xlarga2.glb" id="11_jm7au"]
 [ext_resource type="PackedScene" uid="uid://bnkcn1b174ahh" path="res://scenes/props/static/door_rust_01.tscn" id="11_kcpfy"]
 [ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/interactable.gd" id="12_7ued8"]
+[ext_resource type="PackedScene" uid="uid://d0vjdy7sg5k" path="res://scenes/props/static/monitor_01.tscn" id="13_yig0p"]
 [ext_resource type="PackedScene" uid="uid://derv7f5stbi5f" path="res://scenes/props/dinamic/botella_standar_1.tscn" id="14_8rkqj"]
 [ext_resource type="PackedScene" uid="uid://ce5sanae8y4jr" path="res://scenes/props/dinamic/sable_san_martin_1.tscn" id="15_2fbo5"]
 [ext_resource type="PackedScene" uid="uid://bmknlxq61koen" path="res://scenes/props/dinamic/mesa_standar_1.tscn" id="16_hwk1c"]
@@ -19,6 +20,7 @@
 [ext_resource type="Texture2D" uid="uid://cvc38q08ijnas" path="res://assets/textures/piso_piedra_01.webp" id="19_00m5o"]
 [ext_resource type="PackedScene" uid="uid://dtjyj444v5jty" path="res://scenes/props/static/banquitobrutalista_01.tscn" id="19_ptivj"]
 [ext_resource type="PackedScene" uid="uid://c7dl0cwwdn0vp" path="res://scenes/props/dinamic/granada_01.tscn" id="20_00m5o"]
+[ext_resource type="PackedScene" uid="uid://cfgfx6u5ccnn7" path="res://scenes/props/static/escritorio_01.tscn" id="20_yig0p"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_755td"]
 
@@ -69,12 +71,12 @@ size = Vector3(12, 1, 12)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_t354w"]
 
-[sub_resource type="ViewportTexture" id="ViewportTexture_00m5o"]
+[sub_resource type="ViewportTexture" id="ViewportTexture_yig0p"]
 viewport_path = NodePath("../../../../../entities/screen osci/SubViewport")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kcpfy"]
 resource_local_to_scene = true
-albedo_texture = SubResource("ViewportTexture_00m5o")
+albedo_texture = SubResource("ViewportTexture_yig0p")
 
 [node name="MovementTest" type="Node3D" unique_id=15402342 groups=["raycast"]]
 
@@ -190,7 +192,17 @@ shape = SubResource("BoxShape3D_t354w")
 [node name="puertas" type="Node3D" parent="world/enviroment/static" unique_id=125387660]
 
 [node name="door_rust_01" parent="world/enviroment/static/puertas" unique_id=2111091655 instance=ExtResource("11_kcpfy")]
-transform = Transform3D(-4.3711385e-08, 0, 0.99999994, 0, 1, 0, -0.99999994, 0, -4.3711385e-08, -8.675149, 0.31575918, 1.974226)
+transform = Transform3D(0.6806823, 0, 0.7325784, 0, 1, 0, -0.7325784, 0, 0.6806823, -10.286775, 0.31575918, -3.6303935)
+velocidad = 2.2
+requiere_llave = true
+
+[node name="escritorio_01" parent="world/enviroment/static" unique_id=59279466 instance=ExtResource("20_yig0p")]
+transform = Transform3D(1.04, 0, 0, 0, 1.04, 0, 0, 0, 1.04, -8.527092, 0, -3)
+
+[node name="monitor_01" parent="world/enviroment/static" unique_id=496304599 instance=ExtResource("13_yig0p")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, -8.689714, 1.284939, -2.951923)
+contrasena = "1234"
+objetivo = NodePath("../puertas/door_rust_01")
 
 [node name="dinamic" type="Node3D" parent="world/enviroment" unique_id=637697114]
 
@@ -215,7 +227,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.09862, 1.3785677, -2.32854
 mass = 0.35
 
 [node name="osciloscopio_01" parent="world/enviroment/dinamic" unique_id=471919506 instance=ExtResource("16_yig0p")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.8551984, 1.3069715, -2.8426342)
+transform = Transform3D(0.99997795, 0.0060523394, -0.0027255674, -0.006050634, 0.99998146, 0.00063339557, 0.0027293519, -0.00061688496, 0.99999607, -7.540926, 1.4057808, -2.8426342)
 mass = 10.0
 
 [node name="pantalla" parent="world/enviroment/dinamic/osciloscopio_01/osciloscopio5" parent_id_path=PackedInt32Array(471919506, 1264347502) index="5" unique_id=1963793558]
@@ -245,7 +257,7 @@ capa_interaccion = 3
 size = Vector2i(310, 255)
 
 [node name="Camera3D" type="Camera3D" parent="entities/screen osci/SubViewport" unique_id=417162581]
-transform = Transform3D(-0.013578206, 0, -0.9999078, 0, 1, 0, 0.99990773, 0, -0.0135781765, -10.516237, 1.8608596, -2.6852598)
+transform = Transform3D(-0.009670533, 0.7019665, -0.7121442, 0.009531449, 0.7122099, 0.7019019, 0.9999078, 0, -0.013578207, -11.442765, 5.6156588, -1.9091789)
 
 [editable path="world/enviroment/dinamic/osciloscopio_01"]
 [editable path="world/enviroment/dinamic/osciloscopio_01/osciloscopio5"]

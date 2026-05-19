@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ce6pymwcifuow"
-path.s3tc="res://.godot/imported/water_funtain_01_marble_01.webp-1830f2d103b34511869682bfbb3f1856.s3tc.ctex"
+uid="uid://miqefayafpjg"
+path.s3tc="res://.godot/imported/monitorcrt4_monitor pantalla.webp-93696694e9db886fed2cbc9f4d8cf29b.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "a616eb28bb4627823eaf7a6d7c760edb"
+"md5": "02111bba0ed7ee4fbf9a91f42c70bc38"
 }
 
 [deps]
 
-source_file="res://assets/models/no_collectibles/water_funtain_01_marble_01.webp"
-dest_files=["res://.godot/imported/water_funtain_01_marble_01.webp-1830f2d103b34511869682bfbb3f1856.s3tc.ctex"]
+source_file="res://assets/textures/monitorcrt4_monitor pantalla.webp"
+dest_files=["res://.godot/imported/monitorcrt4_monitor pantalla.webp-93696694e9db886fed2cbc9f4d8cf29b.s3tc.ctex"]
 
 [params]
 

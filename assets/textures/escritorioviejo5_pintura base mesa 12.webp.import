@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dt5nj2sphyx24"
-path.s3tc="res://.godot/imported/door_oxide3_door_rust_01.webp-2e594b2e6ce9af24f6a911f521ada66a.s3tc.ctex"
+uid="uid://beylj5rrtip2n"
+path.s3tc="res://.godot/imported/escritorioviejo5_pintura base mesa 12.webp-64e665484babc30d22859bf51d133c20.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "e3e46fe78e31634a4ed33ddbbca3ac4f"
+"md5": "cb25c663f298d4466782d5ac6b0005a7"
 }
 
 [deps]
 
-source_file="res://assets/models/no_collectibles/door_oxide3_door_rust_01.webp"
-dest_files=["res://.godot/imported/door_oxide3_door_rust_01.webp-2e594b2e6ce9af24f6a911f521ada66a.s3tc.ctex"]
+source_file="res://assets/textures/escritorioviejo5_pintura base mesa 12.webp"
+dest_files=["res://.godot/imported/escritorioviejo5_pintura base mesa 12.webp-64e665484babc30d22859bf51d133c20.s3tc.ctex"]
 
 [params]
 

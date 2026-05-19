@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://d0vjdy7sg5k"]
+
+[ext_resource type="PackedScene" uid="uid://c3mnxj2ogypfb" path="res://assets/models/no_collectibles/monitorcrt4.glb" id="1_gi06t"]
+[ext_resource type="Script" uid="uid://db4dlr0g1mipp" path="res://scripts/enviroment/terminal.gd" id="1_tgd5d"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_tgd5d"]
+size = Vector3(0.75, 0.74, 0.705)
+
+[node name="monitor_01" type="StaticBody3D" unique_id=496304599]
+script = ExtResource("1_tgd5d")
+
+[node name="monitorcrt4" parent="." unique_id=1123304842 instance=ExtResource("1_gi06t")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.10756113, 0, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=980058600]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0077038854, 0.3547225, 0)
+shape = SubResource("BoxShape3D_tgd5d")

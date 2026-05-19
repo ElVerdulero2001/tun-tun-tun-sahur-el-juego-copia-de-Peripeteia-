@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://7knuisqbg7pd" path="res://scripts/enviroment/ui_hacking.gd" id="1_8rcou"]
 
 [node name="UIHacking" type="CanvasLayer" unique_id=20736175]
+process_mode = 3
 script = ExtResource("1_8rcou")
 
 [node name="Control" type="Control" parent="." unique_id=1064396169]

@@ -1,0 +1,44 @@
+[gd_scene format=3 uid="uid://cfgfx6u5ccnn7"]
+
+[ext_resource type="PackedScene" uid="uid://blt43724aob6t" path="res://assets/models/no_collectibles/escritorioviejo5.glb" id="1_2hasn"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1nqfn"]
+size = Vector3(2.905, 0.26, 1.29)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_nmkh8"]
+size = Vector3(0.775, 0.57, 1.17)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ari28"]
+size = Vector3(0.135, 0.46, 1.17)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_tw3j1"]
+size = Vector3(1.355, 0.52, 0.075)
+
+[node name="escritorio_01" type="StaticBody3D" unique_id=59279466]
+
+[node name="escritorioviejo5" parent="." unique_id=1927582931 instance=ExtResource("1_2hasn")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0034701228, 0)
+
+[node name="colision1" type="CollisionShape3D" parent="." unique_id=1478839527]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1055182, -0.058623552)
+shape = SubResource("BoxShape3D_1nqfn")
+
+[node name="colision2" type="CollisionShape3D" parent="." unique_id=1679768115]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.0619031, 0.73760235, -0.11370812)
+shape = SubResource("BoxShape3D_nmkh8")
+
+[node name="colision3" type="CollisionShape3D" parent="." unique_id=2052730583]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.06, 0.738, -0.11)
+shape = SubResource("BoxShape3D_nmkh8")
+
+[node name="colision4" type="CollisionShape3D" parent="." unique_id=2133171250]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3763078, 0.22700986, -0.113341816)
+shape = SubResource("BoxShape3D_ari28")
+
+[node name="colision5" type="CollisionShape3D" parent="." unique_id=258513183]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.376, 0.227, -0.113)
+shape = SubResource("BoxShape3D_ari28")
+
+[node name="colision6" type="CollisionShape3D" parent="." unique_id=1101268333]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.72043097, -0.65726835)
+shape = SubResource("BoxShape3D_tw3j1")

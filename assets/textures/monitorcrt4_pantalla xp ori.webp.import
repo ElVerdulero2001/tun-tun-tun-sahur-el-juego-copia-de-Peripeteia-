@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c6jc8v02a2ocv"
-path.s3tc="res://.godot/imported/machetedesanmartin4_damascus_steel_1.webp-9cf63333e86a4dae8a62de9394f52a89.s3tc.ctex"
+uid="uid://bgsh1ttngqfsb"
+path.s3tc="res://.godot/imported/monitorcrt4_pantalla xp ori.webp-3c85de7b76f3c989497a5c32b9f7d596.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "2ec11647ad9b4203f70f4924af63a4e7"
+"md5": "aa3d4d519e425d0a044b7a5ea3e45546"
 }
 
 [deps]
 
-source_file="res://assets/models/collectibles/machetedesanmartin4_damascus_steel_1.webp"
-dest_files=["res://.godot/imported/machetedesanmartin4_damascus_steel_1.webp-9cf63333e86a4dae8a62de9394f52a89.s3tc.ctex"]
+source_file="res://assets/textures/monitorcrt4_pantalla xp ori.webp"
+dest_files=["res://.godot/imported/monitorcrt4_pantalla xp ori.webp-3c85de7b76f3c989497a5c32b9f7d596.s3tc.ctex"]
 
 [params]
 

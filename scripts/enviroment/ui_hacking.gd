@@ -9,12 +9,18 @@ var terminal_actual: Terminal = null
 func _ready():
 	visible = false
 	boton.pressed.connect(_on_confirmar)
+	campo.text_submitted.connect(_on_texto_enviado)
+
+func _process(_delta):
+	if visible and not campo.has_focus():
+		campo.grab_focus()
 
 func abrir(terminal: Terminal):
 	terminal_actual = terminal
 	campo.text = ""
 	feedback.text = ""
 	visible = true
+	await get_tree().process_frame
 	campo.grab_focus()
 	get_tree().paused = true
 
@@ -35,6 +41,22 @@ func _on_confirmar():
 		cerrar()
 	else:
 		feedback.text = "CONTRASEÑA INCORRECTA"
+		campo.text = ""
+		var evento = InputEventKey.new()
+		evento.keycode = KEY_ENTER
+		evento.pressed = true
+		Input.parse_input_event(evento)
+		var timer = Timer.new()
+		timer.wait_time = 1.0
+		timer.one_shot = true
+		add_child(timer)
+		timer.start()
+		await timer.timeout
+		timer.queue_free()
+		feedback.text = ""
+
+func _on_texto_enviado(_texto: String):
+	_on_confirmar()
 
 func _input(event):
 	if visible and event.is_action_pressed("ui_cancel"):

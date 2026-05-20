@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://cxm11mhaddb7c"]
+
+[ext_resource type="Script" uid="uid://c8xsse002apmw" path="res://scripts/player n entities/inventory/ui_inventario.gd" id="1_1rhiy"]
+
+[node name="UIInventario" type="CanvasLayer" unique_id=671206665]
+script = ExtResource("1_1rhiy")
+
+[node name="Control" type="Control" parent="." unique_id=2842172]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Grilla" type="GridContainer" parent="Control" unique_id=992035420]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0

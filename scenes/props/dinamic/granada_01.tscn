@@ -4,6 +4,8 @@
 [ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/interactable.gd" id="1_xk7dm"]
 [ext_resource type="Resource" uid="uid://cgmbp2odwkc88" path="res://assets/data/collectibles/weapons/granada.tres" id="2_jpvmg"]
 
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_jpvmg"]
+
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_xk7dm"]
 radius = 0.1
 height = 0.3
@@ -11,6 +13,8 @@ height = 0.3
 [node name="granada_01" type="RigidBody3D" unique_id=1896426358]
 collision_layer = 10
 collision_mask = 9
+physics_material_override = SubResource("PhysicsMaterial_jpvmg")
+linear_damp = 2.0
 script = ExtResource("1_xk7dm")
 data = ExtResource("2_jpvmg")
 

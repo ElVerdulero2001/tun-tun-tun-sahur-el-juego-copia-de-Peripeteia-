@@ -8,7 +8,7 @@
 size = Vector3(1.49, 2.46, 0.205)
 
 [node name="door_rust_01" type="AnimatableBody3D" unique_id=2111091655]
-collision_layer = 2
+collision_layer = 3
 script = ExtResource("1_tnq7p")
 data = ExtResource("2_o1rq1")
 

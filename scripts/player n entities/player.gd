@@ -64,7 +64,7 @@ func _physics_process(delta):
 		velocity.y = JUMP_VELOCITY
 		jumped = true
 
-	var target_height = 1.0 if is_crouching else 2.0
+	var target_height = 0.8 if is_crouching else 2.0
 	var target_camera_y = 0.4 if is_crouching else 0.706
 	collision.shape.height = lerp(collision.shape.height, target_height, CROUCH_SPEED_TRANSITION * delta)
 	camera.position.y = lerp(camera.position.y, target_camera_y, CROUCH_SPEED_TRANSITION * delta)

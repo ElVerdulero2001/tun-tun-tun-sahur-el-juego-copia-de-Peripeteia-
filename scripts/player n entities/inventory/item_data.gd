@@ -12,4 +12,3 @@ extends Resource
 @export var item_id: int = 0
 @export var fuerza_lanzamiento: float = 5.0
 @export var velocidad_angular: float = 2.0
-@export var grid_forma: Array = [[1]]

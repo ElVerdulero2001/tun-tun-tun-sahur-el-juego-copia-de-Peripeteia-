@@ -7,8 +7,20 @@ var prefabs = {
 	4: "res://scenes/props/dinamic/granada_01.tscn",
 }
 
+var formas = {
+	1: [[1, 1]],
+	2: [[1, 1], [1, 1], [1, 1], [1, 1], [1, 1]],
+	3: [[1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1]],
+	4: [[1, 1]],
+}
+
 func get_prefab(item_id: int) -> PackedScene:
 	if not prefabs.has(item_id):
 		print("Error: no existe prefab para el ID ", item_id)
 		return null
 	return load(prefabs[item_id])
+
+func get_forma(item_id: int) -> Array:
+	if formas.has(item_id):
+		return formas[item_id]
+	return [[1]]

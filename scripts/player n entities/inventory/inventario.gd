@@ -14,24 +14,45 @@ func agregar_item(data: ItemData) -> void:
 		"bloqueado": false,
 		"cantidad": 1,
 	}
-	instancia["grid_col"] = _buscar_celda_libre(instancia)
+	var pos = _buscar_celda_libre(instancia)
+	instancia["grid_col"] = pos.x
+	instancia["grid_fila"] = pos.y
 	items.append(instancia)
 	print("Item agregado: ", data.nombre)
 	print("Inventario actual: ", items.size(), " items")
 
-func _buscar_celda_libre(instancia: Dictionary) -> int:
-	for i in range(15 * 20):
-		var col = i % 15
-		var fila = int(i / 15.0)
-		if _celda_libre(col, fila):
-			instancia["grid_fila"] = fila
-			return col
-	return -1
+func _buscar_celda_libre(instancia: Dictionary) -> Vector2i:
+	var forma = Catalogo.get_forma(instancia["data"].item_id)
+	for fila in range(15):
+		for col in range(15):
+			if _caben_todas(col, fila, forma):
+				return Vector2i(col, fila)
+	return Vector2i(-1, -1)
+
+func _caben_todas(col_base: int, fila_base: int, forma: Array) -> bool:
+	for f in range(forma.size()):
+		for c in range(forma[f].size()):
+			if forma[f][c] == 0:
+				continue
+			var col = col_base + c
+			var fila = fila_base + f
+			if col >= 15 or fila >= 20:
+				return false
+			if not _celda_libre(col, fila):
+				return false
+	return true
 
 func _celda_libre(col: int, fila: int) -> bool:
 	for item in items:
-		if item["grid_col"] == col and item["grid_fila"] == fila:
-			return false
+		var forma = Catalogo.get_forma(item["data"].item_id)
+		var col_base = item["grid_col"]
+		var fila_base = item["grid_fila"]
+		for f in range(forma.size()):
+			for c in range(forma[f].size()):
+				if forma[f][c] == 0:
+					continue
+				if col_base + c == col and fila_base + f == fila:
+					return false
 	return true
 
 func devolver_item(instancia: Dictionary, posicion: Vector3) -> void:
@@ -42,6 +63,8 @@ func devolver_item(instancia: Dictionary, posicion: Vector3) -> void:
 	nodo.global_position = posicion
 	get_tree().current_scene.add_child(nodo)
 	items.erase(instancia)
+	if UiInventario.visible:
+		UiInventario.grilla_sucia = true
 
 func mostrar_inventario() -> void:
 	print("=== INVENTARIO ===")

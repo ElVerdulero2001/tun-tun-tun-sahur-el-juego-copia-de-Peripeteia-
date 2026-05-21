@@ -41,6 +41,8 @@ func hay_techo() -> bool:
 	return resultado.size() > 0
 
 func _input(event):
+	if UiInventario.visible:
+		return
 	if event is InputEventMouseMotion:
 		rotate_y(-event.relative.x * MOUSE_SENSITIVITY)
 		camera.rotate_x(-event.relative.y * MOUSE_SENSITIVITY)
@@ -80,6 +82,12 @@ func _physics_process(delta):
 	current_speed = lerp(current_speed, target_speed, ACCELERATION * delta)
 
 	var direction = Vector3.ZERO
+	if UiInventario.visible:
+		velocity.x = lerp(velocity.x, 0.0, ACCELERATION * delta)
+		velocity.z = lerp(velocity.z, 0.0, ACCELERATION * delta)
+		move_and_slide()
+		return
+
 	if Input.is_action_pressed("move_forward"):
 		direction -= transform.basis.z
 	if Input.is_action_pressed("move_back"):

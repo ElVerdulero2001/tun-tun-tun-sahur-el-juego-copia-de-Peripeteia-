@@ -17,6 +17,8 @@ func _construir_grilla():
 	var cell_size = int(CELL_SIZE * escala)
 	grilla.columns = COLS
 	grilla.position = Vector2(50, 40)
+	grilla.add_theme_constant_override("h_separation", 0)
+	grilla.add_theme_constant_override("v_separation", 0)
 	for i in range(ROWS * COLS):
 		var celda = ColorRect.new()
 		celda.custom_minimum_size = Vector2(cell_size, cell_size)

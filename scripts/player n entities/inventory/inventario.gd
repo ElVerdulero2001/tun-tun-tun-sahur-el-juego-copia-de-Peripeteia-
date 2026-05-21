@@ -1,33 +1,25 @@
 extends Node
 
-var items: Array = []
+const COLS = 15
+const ROWS = 20
+
+var items: Array[ItemInstancia] = []
 
 func agregar_item(data: ItemData) -> void:
-	var instancia = {
-		"data": data,
-		"municion_actual": data.municion,
-		"durabilidad_actual": data.vida,
-		"grid_col": -1,
-		"grid_fila": -1,
-		"grid_rotacion": 0,
-		"equipado": false,
-		"bloqueado": false,
-		"cantidad": 1,
-	}
-	var pos = _buscar_celda_libre(instancia)
-	instancia["grid_col"] = pos.x
-	instancia["grid_fila"] = pos.y
+	var instancia = ItemInstancia.new(data)
+	_buscar_celda_libre(instancia)
 	items.append(instancia)
 	print("Item agregado: ", data.nombre)
 	print("Inventario actual: ", items.size(), " items")
 
-func _buscar_celda_libre(instancia: Dictionary) -> Vector2i:
-	var forma = Catalogo.get_forma(instancia["data"].item_id)
-	for fila in range(15):
-		for col in range(15):
+func _buscar_celda_libre(instancia: ItemInstancia) -> void:
+	var forma = Catalogo.get_forma(instancia.data.item_id)
+	for fila in range(ROWS):
+		for col in range(COLS):
 			if _caben_todas(col, fila, forma):
-				return Vector2i(col, fila)
-	return Vector2i(-1, -1)
+				instancia.grid_col = col
+				instancia.grid_fila = fila
+				return
 
 func _caben_todas(col_base: int, fila_base: int, forma: Array) -> bool:
 	for f in range(forma.size()):
@@ -44,19 +36,19 @@ func _caben_todas(col_base: int, fila_base: int, forma: Array) -> bool:
 
 func _celda_libre(col: int, fila: int) -> bool:
 	for item in items:
-		var forma = Catalogo.get_forma(item["data"].item_id)
-		var col_base = item["grid_col"]
-		var fila_base = item["grid_fila"]
+		if item.grid_col == -1 or item.grid_fila == -1:
+			continue
+		var forma = Catalogo.get_forma(item.data.item_id)
 		for f in range(forma.size()):
 			for c in range(forma[f].size()):
 				if forma[f][c] == 0:
 					continue
-				if col_base + c == col and fila_base + f == fila:
+				if item.grid_col + c == col and item.grid_fila + f == fila:
 					return false
 	return true
 
-func devolver_item(instancia: Dictionary, posicion: Vector3) -> void:
-	var escena = Catalogo.get_prefab(instancia["data"].item_id)
+func devolver_item(instancia: ItemInstancia, posicion: Vector3) -> void:
+	var escena = Catalogo.get_prefab(instancia.data.item_id)
 	if escena == null:
 		return
 	var nodo = escena.instantiate()
@@ -69,5 +61,5 @@ func devolver_item(instancia: Dictionary, posicion: Vector3) -> void:
 func mostrar_inventario() -> void:
 	print("=== INVENTARIO ===")
 	for instancia in items:
-		print("- ", instancia["data"].nombre, " en (", instancia["grid_col"], ",", instancia["grid_fila"], ")")
+		print("- ", instancia.data.nombre, " en (", instancia.grid_col, ",", instancia.grid_fila, ")")
 	print("==================")

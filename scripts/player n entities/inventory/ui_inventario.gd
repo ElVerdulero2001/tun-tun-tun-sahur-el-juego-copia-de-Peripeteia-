@@ -45,25 +45,30 @@ func _actualizar_grilla():
 				var indice = (instancia.grid_fila + f) * COLS + (instancia.grid_col + c)
 				if indice < grilla.get_child_count():
 					grilla.get_child(indice).color = instancia.color
+	if item_en_mano != null:
+		var celda = celda_highlight
+		if celda != Vector2i(-1, -1):
+			var col_base = celda.x - offset_mano.x
+			var fila_base = celda.y - offset_mano.y
+			var forma = Catalogo.get_forma(item_en_mano.data.item_id)
+			for f in range(forma.size()):
+				for c in range(forma[f].size()):
+					if forma[f][c] == 0:
+						continue
+					var col = col_base + c
+					var fila = fila_base + f
+					if col < 0 or col >= COLS or fila < 0 or fila >= ROWS:
+						continue
+					var indice = fila * COLS + col
+					if indice < grilla.get_child_count():
+						grilla.get_child(indice).color = Color(0.6, 0.6, 0.2)
 
 func _actualizar_highlight():
 	var celda_anterior = celda_highlight
 	celda_highlight = _obtener_celda_bajo_mouse()
 	if celda_anterior == celda_highlight:
 		return
-	if celda_anterior != Vector2i(-1, -1):
-		var indice_anterior = celda_anterior.y * COLS + celda_anterior.x
-		var item_anterior = _obtener_item_en_celda(celda_anterior.x, celda_anterior.y)
-		if item_anterior != null:
-			grilla.get_child(indice_anterior).color = item_anterior.color
-		else:
-			grilla.get_child(indice_anterior).color = Color(0.1, 0.1, 0.1)
-	if celda_highlight != Vector2i(-1, -1):
-		var indice = celda_highlight.y * COLS + celda_highlight.x
-		if item_en_mano != null:
-			grilla.get_child(indice).color = Color(0.6, 0.6, 0.2)
-		else:
-			grilla.get_child(indice).color = Color(0.4, 0.4, 0.4)
+	grilla_sucia = true
 
 func _actualizar_tooltip():
 	if celda_highlight == Vector2i(-1, -1):

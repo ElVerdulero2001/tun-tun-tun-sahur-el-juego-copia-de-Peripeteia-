@@ -207,7 +207,7 @@ objetivo = NodePath("../puertas/door_rust_01")
 [node name="dinamic" type="Node3D" parent="world/enviroment" unique_id=637697114]
 
 [node name="botella_standar_1" parent="world/enviroment/dinamic" unique_id=1598823837 instance=ExtResource("14_8rkqj")]
-transform = Transform3D(0.9999999, 0, 0, 0, 0.99999994, 0, 0, 0, 0.9999999, -6.1183968, 1.2745622, -2.928712)
+transform = Transform3D(0.99999213, -0.003589724, 0.0016199998, 0.003589023, 0.9999934, 0.00043423104, -0.0016215518, -0.000428399, 0.99999845, -6.1183968, 1.2745622, -2.928712)
 mass = 2.0
 
 [node name="sable_san_martin_1" parent="world/enviroment/dinamic" unique_id=1154772102 instance=ExtResource("15_2fbo5")]

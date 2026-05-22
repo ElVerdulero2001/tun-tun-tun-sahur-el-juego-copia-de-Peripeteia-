@@ -10,6 +10,6 @@ tipo = "collectible"
 es_recogible = true
 peso = 0.015
 item_id = 1
-fuerza_lanzamiento = 9.0
+fuerza_lanzamiento = 15.0
 velocidad_angular = 12.0
 metadata/_custom_type_script = "uid://d3keoy2al2m6a"

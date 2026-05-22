@@ -128,6 +128,15 @@ func _input(event):
 		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			var celda = _obtener_celda_bajo_mouse()
 			if celda == Vector2i(-1, -1):
+				if item_en_mano != null:
+					var mouse_pos = get_viewport().get_mouse_position()
+					var rect_seguro = grilla.get_global_rect().grow(50)
+					if not rect_seguro.has_point(mouse_pos):
+						var player = get_tree().get_first_node_in_group("player")
+						var tirar_item = player.get_node("TirarItem")
+						tirar_item.lanzar_desde_inventario(item_en_mano)
+						item_en_mano = null
+						grilla_sucia = true
 				return
 			var item_en_celda = _obtener_item_en_celda(celda.x, celda.y)
 			if item_en_mano == null:

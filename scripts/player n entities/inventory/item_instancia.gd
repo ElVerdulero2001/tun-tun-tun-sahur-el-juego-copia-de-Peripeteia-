@@ -11,6 +11,7 @@ var equipado: bool = false
 var bloqueado: bool = false
 var cantidad: int = 1
 var color: Color = Color.WHITE
+var forma_rotada: Array = []
 
 func _init(item_data: ItemData):
 	data = item_data

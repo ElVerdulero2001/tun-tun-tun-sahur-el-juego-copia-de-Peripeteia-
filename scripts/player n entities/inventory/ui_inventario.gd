@@ -31,13 +31,29 @@ func _construir_grilla():
 		celda.color = Color(0.1, 0.1, 0.1)
 		grilla.add_child(celda)
 
+func _rotar_forma(forma: Array) -> Array:
+	var filas = forma.size()
+	var cols = forma[0].size()
+	var nueva_forma = []
+	for c in range(cols):
+		var fila = []
+		for f in range(filas - 1, -1, -1):
+			fila.append(forma[f][c])
+		nueva_forma.append(fila)
+	return nueva_forma
+
+func _obtener_forma_actual(instancia: ItemInstancia) -> Array:
+	if instancia.forma_rotada.size() > 0:
+		return instancia.forma_rotada
+	return Catalogo.get_forma(instancia.data.item_id)
+
 func _actualizar_grilla():
 	for celda in grilla.get_children():
 		celda.color = Color(0.1, 0.1, 0.1)
 	for instancia in Inventario.items:
 		if instancia.grid_col == -1 or instancia.grid_fila == -1:
 			continue
-		var forma = Catalogo.get_forma(instancia.data.item_id)
+		var forma = _obtener_forma_actual(instancia)
 		for f in range(forma.size()):
 			for c in range(forma[f].size()):
 				if forma[f][c] == 0:
@@ -50,7 +66,7 @@ func _actualizar_grilla():
 		if celda != Vector2i(-1, -1):
 			var col_base = celda.x - offset_mano.x
 			var fila_base = celda.y - offset_mano.y
-			var forma = Catalogo.get_forma(item_en_mano.data.item_id)
+			var forma = _obtener_forma_actual(item_en_mano)
 			for f in range(forma.size()):
 				for c in range(forma[f].size()):
 					if forma[f][c] == 0:
@@ -96,7 +112,7 @@ func _obtener_item_en_celda(col: int, fila: int) -> ItemInstancia:
 	for instancia in Inventario.items:
 		if instancia.grid_col == -1 or instancia.grid_fila == -1:
 			continue
-		var forma = Catalogo.get_forma(instancia.data.item_id)
+		var forma = _obtener_forma_actual(instancia)
 		for f in range(forma.size()):
 			for c in range(forma[f].size()):
 				if forma[f][c] == 0:
@@ -114,6 +130,17 @@ func _input(event):
 	if visible and event is InputEventMouseMotion:
 		_actualizar_highlight()
 		_actualizar_tooltip()
+
+	if visible and event.is_action_pressed("rotar_item"):
+		if item_en_mano != null:
+			var forma_actual = _obtener_forma_actual(item_en_mano)
+			item_en_mano.forma_rotada = _rotar_forma(forma_actual)
+			item_en_mano.grid_rotacion = (item_en_mano.grid_rotacion + 90) % 360
+			var nueva_forma = item_en_mano.forma_rotada
+			var nuevo_offset_x = min(offset_mano.y, nueva_forma[0].size() - 1)
+			var nuevo_offset_y = min(offset_mano.x, nueva_forma.size() - 1)
+			offset_mano = Vector2i(nuevo_offset_x, nuevo_offset_y)
+			grilla_sucia = true
 
 	if event.is_action_pressed("toggle_inventario"):
 		visible = !visible
@@ -169,7 +196,7 @@ func _input(event):
 				else:
 					var col_destino = celda.x - offset_mano.x
 					var fila_destino = celda.y - offset_mano.y
-					var forma = Catalogo.get_forma(item_en_mano.data.item_id)
+					var forma = _obtener_forma_actual(item_en_mano)
 					if col_destino < 0 or fila_destino < 0:
 						return
 					if col_destino + forma[0].size() > COLS or fila_destino + forma.size() > ROWS:

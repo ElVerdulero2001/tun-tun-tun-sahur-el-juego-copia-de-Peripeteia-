@@ -28,7 +28,7 @@ func _caben_todas(col_base: int, fila_base: int, forma: Array) -> bool:
 				continue
 			var col = col_base + c
 			var fila = fila_base + f
-			if col >= 15 or fila >= 20:
+			if col >= COLS or fila >= ROWS:
 				return false
 			if not _celda_libre(col, fila):
 				return false
@@ -38,7 +38,11 @@ func _celda_libre(col: int, fila: int) -> bool:
 	for item in items:
 		if item.grid_col == -1 or item.grid_fila == -1:
 			continue
-		var forma = Catalogo.get_forma(item.data.item_id)
+		var forma
+		if item.forma_rotada.size() > 0:
+			forma = item.forma_rotada
+		else:
+			forma = Catalogo.get_forma(item.data.item_id)
 		for f in range(forma.size()):
 			for c in range(forma[f].size()):
 				if forma[f][c] == 0:

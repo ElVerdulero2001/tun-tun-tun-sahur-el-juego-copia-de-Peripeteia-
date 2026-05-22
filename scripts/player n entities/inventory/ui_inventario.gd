@@ -11,6 +11,8 @@ var item_en_mano: ItemInstancia = null
 var grilla_sucia: bool = true
 var celda_highlight: Vector2i = Vector2i(-1, -1)
 var offset_mano: Vector2i = Vector2i(0, 0)
+var col_original: int = -1
+var fila_original: int = -1
 
 func _ready():
 	visible = false
@@ -116,7 +118,11 @@ func _input(event):
 		else:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 			tooltip.visible = false
-			item_en_mano = null
+			if item_en_mano != null:
+				item_en_mano.grid_col = col_original
+				item_en_mano.grid_fila = fila_original
+				item_en_mano = null
+				grilla_sucia = true
 
 	if visible and event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
@@ -126,6 +132,8 @@ func _input(event):
 			var item_en_celda = _obtener_item_en_celda(celda.x, celda.y)
 			if item_en_mano == null:
 				if item_en_celda != null:
+					col_original = item_en_celda.grid_col
+					fila_original = item_en_celda.grid_fila
 					offset_mano = Vector2i(celda.x - item_en_celda.grid_col, celda.y - item_en_celda.grid_fila)
 					item_en_mano = item_en_celda
 					item_en_celda.grid_col = -1
@@ -133,7 +141,6 @@ func _input(event):
 					grilla_sucia = true
 			else:
 				if item_en_celda != null:
-					# swap — item de la celda va a la mano, item de la mano va donde estaba el de la celda
 					var temp_col = item_en_celda.grid_col
 					var temp_fila = item_en_celda.grid_fila
 					item_en_mano.grid_col = temp_col
@@ -141,10 +148,11 @@ func _input(event):
 					item_en_celda.grid_col = -1
 					item_en_celda.grid_fila = -1
 					item_en_mano = item_en_celda
+					col_original = temp_col
+					fila_original = temp_fila
 					offset_mano = Vector2i(celda.x - temp_col, celda.y - temp_fila)
 					grilla_sucia = true
 				else:
-					# celda vacia — chequear espacio
 					var col_destino = celda.x - offset_mano.x
 					var fila_destino = celda.y - offset_mano.y
 					var forma = Catalogo.get_forma(item_en_mano.data.item_id)

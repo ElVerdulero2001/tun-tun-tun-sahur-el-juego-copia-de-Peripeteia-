@@ -6,6 +6,11 @@
 [ext_resource type="PackedScene" uid="uid://cqvywu8qgc4ic" path="res://scenes/components/hud.tscn" id="4_acvb7"]
 [ext_resource type="PackedScene" uid="uid://dlvxllcuc4v84" path="res://scenes/components/debug_ui.tscn" id="5_ps70n"]
 [ext_resource type="PackedScene" uid="uid://vmyxlqj06ho8" path="res://scenes/components/ui_hacking.tscn" id="6_v4i73"]
+[ext_resource type="Script" uid="uid://blv4n764rju7n" path="res://scripts/player n entities/movement/movement_controller.gd" id="7_ypwcc"]
+[ext_resource type="Script" uid="uid://b8p7v1o0fxd20" path="res://scripts/player n entities/movement/traversal_controller.gd" id="8_2l1sc"]
+[ext_resource type="Script" uid="uid://dsjsxgd8b8y5n" path="res://scripts/player n entities/movement/parkour_detector.gd" id="9_fgeo0"]
+[ext_resource type="PackedScene" uid="uid://dbgecuc6y840g" path="res://scenes/components/traversal_ui.tscn" id="10_2b5yf"]
+[ext_resource type="Script" uid="uid://hrek7du53wl" path="res://scripts/player n entities/visuals/free_camera.gd" id="10_lkd77"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_u8vuu"]
 
@@ -43,5 +48,19 @@ raycast = NodePath("../Camera3D/raycast_interaccion")
 [node name="DebugUI" parent="player" unique_id=1589060079 instance=ExtResource("5_ps70n")]
 
 [node name="UIHacking" parent="player" unique_id=20736175 instance=ExtResource("6_v4i73")]
+
+[node name="MovementController" type="Node" parent="player" unique_id=179593937]
+script = ExtResource("7_ypwcc")
+
+[node name="TraversalController" type="Node" parent="player" unique_id=1131840832]
+script = ExtResource("8_2l1sc")
+
+[node name="ParkourDetector" type="Node" parent="player" unique_id=832609161]
+script = ExtResource("9_fgeo0")
+
+[node name="traversal_ui" parent="player" unique_id=2025065989 instance=ExtResource("10_2b5yf")]
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1884290946]
+script = ExtResource("10_lkd77")
 
 [editable path="player/DebugUI"]

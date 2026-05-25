@@ -89,12 +89,12 @@ size = Vector3(3, 3, 3)
 [sub_resource type="BoxShape3D" id="BoxShape3D_gpyf4"]
 size = Vector3(3, 3, 3)
 
-[sub_resource type="ViewportTexture" id="ViewportTexture_gpyf4"]
+[sub_resource type="ViewportTexture" id="ViewportTexture_yig0p"]
 viewport_path = NodePath("../../../../../entities/screen osci/SubViewport")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0l33h"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kcpfy"]
 resource_local_to_scene = true
-albedo_texture = SubResource("ViewportTexture_gpyf4")
+albedo_texture = SubResource("ViewportTexture_yig0p")
 
 [node name="MovementTest" type="Node3D" unique_id=15402342 groups=["raycast"]]
 
@@ -163,6 +163,7 @@ transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 1, 0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.742693, 0, 0)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/bloques/StaticBody3D" unique_id=571967057]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.00041913986, 0.025310755, -0.008286476)
 mesh = SubResource("BoxMesh_755td")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/bloques/StaticBody3D" unique_id=1885951137]
@@ -170,7 +171,6 @@ shape = SubResource("BoxShape3D_08uda")
 
 [node name="StaticBody3D2" type="StaticBody3D" parent="world/enviroment/static/bloques" unique_id=23530118]
 transform = Transform3D(-3.090862e-08, 3.090862e-08, 1, 0.70710677, 0.70710677, 0, -0.70710677, 0.70710677, -4.371139e-08, 0, 2.9757617, -5.5168304)
-visible = false
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/bloques/StaticBody3D2" unique_id=147604839]
 mesh = SubResource("BoxMesh_qolh1")
@@ -183,7 +183,6 @@ shape = SubResource("BoxShape3D_gdjh5")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.37, -14.7)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/bloques/StaticBody3D3" unique_id=1943942775]
-visible = false
 mesh = SubResource("BoxMesh_gdjh5")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/bloques/StaticBody3D3" unique_id=628590392]
@@ -192,7 +191,6 @@ shape = SubResource("BoxShape3D_d5coj")
 
 [node name="StaticBody3D4" type="StaticBody3D" parent="world/enviroment/static/bloques" unique_id=1190142017]
 transform = Transform3D(0.97159046, -0.23666857, 0, 0.23666857, 0.97159046, 0, 0, 0, 1, 14.483122, 8.968386, -15.298)
-visible = false
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/bloques/StaticBody3D4" unique_id=1767284781]
 mesh = SubResource("BoxMesh_gdjh5")
@@ -203,7 +201,6 @@ shape = SubResource("BoxShape3D_d5coj")
 
 [node name="StaticBody3D5" type="StaticBody3D" parent="world/enviroment/static/bloques" unique_id=785074728]
 transform = Transform3D(6, 0, 0, 0, 3, 0, 0, 0, 1, 5.02, 1.621, -5.752)
-visible = false
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/bloques/StaticBody3D5" unique_id=1443885721]
 mesh = SubResource("BoxMesh_mp4pn")
@@ -213,7 +210,6 @@ shape = SubResource("BoxShape3D_t354w")
 
 [node name="StaticBody3D6" type="StaticBody3D" parent="world/enviroment/static/bloques" unique_id=1923909996]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.571462, 1.082566, -5.875285)
-visible = false
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/bloques/StaticBody3D6" unique_id=1051597865]
 mesh = SubResource("BoxMesh_yig0p")
@@ -223,7 +219,6 @@ shape = SubResource("BoxShape3D_kcpfy")
 
 [node name="cubo prueba" type="StaticBody3D" parent="world/enviroment/static/bloques" unique_id=2062958007]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.2547092, 0.83184385, 0)
-visible = false
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/bloques/cubo prueba" unique_id=1464269293]
 mesh = SubResource("BoxMesh_kcpfy")
@@ -282,7 +277,7 @@ transform = Transform3D(0.99997795, 0.0060523394, -0.0027255674, -0.006050634, 0
 mass = 10.0
 
 [node name="pantalla" parent="world/enviroment/dinamic/osciloscopio_01/osciloscopio5" parent_id_path=PackedInt32Array(471919506, 1264347502) index="5" unique_id=1963793558]
-surface_material_override/0 = SubResource("StandardMaterial3D_0l33h")
+surface_material_override/0 = SubResource("StandardMaterial3D_kcpfy")
 
 [node name="entities" type="Node3D" parent="." unique_id=2102854069]
 

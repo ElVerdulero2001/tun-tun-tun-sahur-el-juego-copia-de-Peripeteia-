@@ -56,14 +56,9 @@ func _physics_process(delta: float) -> void:
 
 	# El TraversalController tiene prioridad cuando está activo.
 	# Cuando está en IDLE, el MovementController tiene el control.
-	if traversal.is_active():
-		# Regla de hierro 1: mientras el traversal está activo, ÉL es el
-		# dueño absoluto del body. Mueve global_position directamente.
-		# NO debe correr move_and_slide() acá: reprocesaría la cápsula
-		# con colisión y le pelearía la posición al traversal cada frame
-		# (esto rompía el SNAPPING y el shimmy).
-		traversal.process(delta)
-	else:
+	# El TraversalController corre en su propio _physics_process.
+	# Acá solo bloqueamos el movimiento normal mientras está activo.
+	if not traversal.is_active():
 		var direction = _get_input_direction()
 		movement.process(delta, direction)
 		parkour_detector.process(delta)

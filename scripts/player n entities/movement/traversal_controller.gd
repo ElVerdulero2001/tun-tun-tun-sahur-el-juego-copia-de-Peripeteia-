@@ -132,7 +132,14 @@ func get_event_log() -> Array:
 	return _event_log
 
 # ─────────────────────────────────────────────────────────────────
-func process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
+	DebugDraw.clear()
+
+	# Solo corre cuando el traversal esta activo.
+	# Cuando esta en IDLE, el MovementController tiene el control.
+	if state == State.IDLE:
+		return
+
 	match state:
 		State.SNAPPING: _state_snapping(delta)
 		State.HANGING:  _state_hanging(delta)
@@ -293,6 +300,9 @@ func _edge_continues(lateral_dir: Vector3) -> bool:
 	# Punto de sondeo: desplazado lateralmente desde la altura del borde.
 	var probe = probe_origin + lateral_dir * shimmy_max_dist
 
+	# TEST: confirmar que la funcion se ejecuta.
+	print("_edge_continues probe: ", probe, " dir: ", lateral_dir)
+
 	# 1. Raycast hacia la pared (en dirección -normal, hacia adentro).
 	# El alcance tiene que superar el HANG_WALL_GAP (0.68m) o el raycast
 	# termina en el aire antes de llegar a la cara lateral del objeto.
@@ -303,9 +313,17 @@ func _edge_continues(lateral_dir: Vector3) -> bool:
 	var wall_hit = space.intersect_ray(wall_q)
 
 	# Debug: rayo de pared — naranja si pega, gris si no.
-	DebugDraw.ray(wall_from, wall_to, Color.ORANGE if wall_hit else Color.GRAY)
+	DebugDraw.ray(wall_from, wall_to, Color.BLUE if wall_hit else Color.GRAY)
 
 	if wall_hit.is_empty():
+		return false
+
+	# Validar que la superficie es suficientemente vertical.
+	# Rampas e inclinadas tienen normal con componente Y alta.
+	# Mismo umbral que parkour_detector (30 grados).
+	var max_normal_y : float = sin(deg_to_rad(30.0))
+	if abs(wall_hit["normal"].y) > max_normal_y:
+		DebugDraw.ray(wall_from, wall_to, Color.RED)
 		return false
 
 	# 2. Raycast hacia abajo desde arriba del hit, para confirmar el borde.

@@ -21,6 +21,7 @@
 [ext_resource type="PackedScene" uid="uid://dtjyj444v5jty" path="res://scenes/props/static/banquitobrutalista_01.tscn" id="19_ptivj"]
 [ext_resource type="PackedScene" uid="uid://c7dl0cwwdn0vp" path="res://scenes/props/dinamic/granada_01.tscn" id="20_00m5o"]
 [ext_resource type="PackedScene" uid="uid://cfgfx6u5ccnn7" path="res://scenes/props/static/escritorio_01.tscn" id="20_yig0p"]
+[ext_resource type="PackedScene" uid="uid://ddf7ji16h0jt3" path="res://scenes/props/static/circulo_circuloso.tscn" id="22_kcpfy"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_755td"]
 
@@ -89,12 +90,12 @@ size = Vector3(3, 3, 3)
 [sub_resource type="BoxShape3D" id="BoxShape3D_gpyf4"]
 size = Vector3(3, 3, 3)
 
-[sub_resource type="ViewportTexture" id="ViewportTexture_yig0p"]
+[sub_resource type="ViewportTexture" id="ViewportTexture_co54g"]
 viewport_path = NodePath("../../../../../entities/screen osci/SubViewport")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kcpfy"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gpyf4"]
 resource_local_to_scene = true
-albedo_texture = SubResource("ViewportTexture_yig0p")
+albedo_texture = SubResource("ViewportTexture_co54g")
 
 [node name="MovementTest" type="Node3D" unique_id=15402342 groups=["raycast"]]
 
@@ -277,7 +278,7 @@ transform = Transform3D(0.99997795, 0.0060523394, -0.0027255674, -0.006050634, 0
 mass = 10.0
 
 [node name="pantalla" parent="world/enviroment/dinamic/osciloscopio_01/osciloscopio5" parent_id_path=PackedInt32Array(471919506, 1264347502) index="5" unique_id=1963793558]
-surface_material_override/0 = SubResource("StandardMaterial3D_kcpfy")
+surface_material_override/0 = SubResource("StandardMaterial3D_gpyf4")
 
 [node name="entities" type="Node3D" parent="." unique_id=2102854069]
 
@@ -304,6 +305,9 @@ size = Vector2i(310, 255)
 
 [node name="Camera3D" type="Camera3D" parent="entities/screen osci/SubViewport" unique_id=417162581]
 transform = Transform3D(-0.009670533, 0.7019665, -0.7121442, 0.009531449, 0.7122099, 0.7019019, 0.9999078, 0, -0.013578207, -11.442765, 5.6156588, -1.9091789)
+
+[node name="circulo circuloso" parent="." unique_id=252392807 instance=ExtResource("22_kcpfy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.789009, 4.6441727, 8.405916)
 
 [editable path="world/enviroment/dinamic/osciloscopio_01"]
 [editable path="world/enviroment/dinamic/osciloscopio_01/osciloscopio5"]

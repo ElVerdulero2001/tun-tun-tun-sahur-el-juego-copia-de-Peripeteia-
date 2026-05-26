@@ -33,7 +33,9 @@ var movement : Node
 var detector : Node
 
 # ── Estado interno ────────────────────────────────────────────────
-var _hang_position : Vector3 = Vector3.ZERO   # dónde están las "manos"
+var _hang_position        : Vector3 = Vector3.ZERO   # donde esta el cuerpo ahora
+var _hang_position_target : Vector3 = Vector3.ZERO   # hacia donde va (destino del lerp)
+var _transitioning_face   : bool    = false            # true mientras suaviza cambio de cara
 var _hang_normal   : Vector3 = Vector3.ZERO   # normal de la pared (apunta hacia afuera)
 var _along_wall    : Vector3 = Vector3.ZERO   # vector lateral a lo largo de la pared
 
@@ -164,6 +166,7 @@ func _on_candidate_found(candidate: Dictionary) -> void:
 	_hang_position  = Vector3(edge.x, edge.y + HANG_OFFSET_Y, edge.z)
 	_hang_position -= _hang_normal * HANG_WALL_GAP
 
+	_hang_position_target = _hang_position
 	_snap_timer = 0.0
 	_log("candidato aceptado — snap iniciado")
 	_change_state(State.SNAPPING)
@@ -255,10 +258,20 @@ func _state_hanging(delta: float) -> void:
 
 	if dir != 0.0:
 		var step = _along_wall * dir * shimmy_speed * delta
-		_hang_position += step
+		_hang_position        += step
+		_hang_position_target += step
+
+	# Al cambiar de cara, suavizar solo X y Z hacia el target.
+	# El shimmy ya mueve _hang_position directo, sin pasar por aca.
+	if _transitioning_face:
+		var smooth_x = lerp(_hang_position.x, _hang_position_target.x, 4.0 * delta)
+		var smooth_z = lerp(_hang_position.z, _hang_position_target.z, 4.0 * delta)
+		_hang_position = Vector3(smooth_x, _hang_position.y, smooth_z)
+		var dist_xz = Vector2(_hang_position.x - _hang_position_target.x, _hang_position.z - _hang_position_target.z).length()
+		if dist_xz < 0.01:
+			_transitioning_face = false
 
 	# Anclar SIEMPRE el body a _hang_position.
-	# Cubre los tres casos: quieto, shimmy exitoso y shimmy bloqueado.
 	body.global_position = _hang_position
 
 # ─────────────────────────────────────────────────────────────────
@@ -280,63 +293,92 @@ func _state_climbing(delta: float) -> void:
 # ─────────────────────────────────────────────────────────────────
 
 func _update_shimmy_probes() -> void:
-	# Recalcula si el borde continúa a izquierda y derecha.
-	# Se llama todos los frames en HANGING. Sus raycasts dibujan
-	# debug de forma continua, así que los rayos quedan fijos en
-	# pantalla mientras estás colgado — sin necesidad de apretar nada.
-	_can_go_left  = _edge_continues(_along_wall * -1.0)
-	_can_go_right = _edge_continues(_along_wall *  1.0)
+	# Recalcula si el borde continua a izquierda y derecha.
+	# Si encuentra pared valida, actualiza _hang_normal y _along_wall
+	# para que el shimmy pueda seguir bordes curvos o pasar entre caras.
+	var result_left  : Dictionary = _edge_continues(_along_wall * -1.0)
+	var result_right : Dictionary = _edge_continues(_along_wall *  1.0)
 
-func _edge_continues(lateral_dir: Vector3) -> bool:
-	# Devuelve true si hay pared + borde en la dirección lateral pedida.
-	# Buscamos un poco por debajo del filo del borde (HANG_OFFSET_Y - 0.15)
-	# para que el raycast pegue en la cara lateral, no en el filo donde
-	# la geometria es inestable. El alcance del raycast (0.8) tiene que
-	# superar el HANG_WALL_GAP o termina en el aire sin pegar nada.
+	_can_go_left  = not result_left.is_empty()
+	_can_go_right = not result_right.is_empty()
+
+	# Actualizar la normal con la cara que encontro el probe activo.
+	# Priorizamos el lado hacia donde nos movemos.
+	# Solo actualizar la normal si nos estamos moviendo activamente.
+	# Si shimmy_dir es 0 (quieto o bloqueado), conservar la normal actual.
+	# Esto evita la oscilacion cuando uno de los probes esta en la cara
+	# nueva y el otro en la vieja al soltar la tecla.
+	var new_normal : Vector3 = Vector3.ZERO
+	if _shimmy_dir < 0.0 and _can_go_left:
+		new_normal = result_left["wall_normal"]
+	elif _shimmy_dir > 0.0 and _can_go_right:
+		new_normal = result_right["wall_normal"]
+
+	if new_normal != Vector3.ZERO and new_normal != _hang_normal:
+		var lado : String = "derecha" if (_shimmy_dir > 0.0 or (not _can_go_left and _can_go_right)) else "izquierda"
+		_log("normal cambia: " + str(_hang_normal.snapped(Vector3(0.01,0.01,0.01))) + " -> " + str(new_normal.snapped(Vector3(0.01,0.01,0.01))) + " | lado: " + lado + " | dir: " + str(_shimmy_dir) + " | L:" + ("SI" if _can_go_left else "NO") + " R:" + ("SI" if _can_go_right else "NO") + " | pos: " + str(_hang_position.snapped(Vector3(0.01,0.01,0.01))) + " target: " + str(_hang_position_target.snapped(Vector3(0.01,0.01,0.01))))
+		_hang_normal = new_normal
+		_along_wall  = Vector3.UP.cross(_hang_normal).normalized()
+
+		# Reposicionar _hang_position respecto a la nueva pared.
+		# Tomamos el wall_point del lado activo y lo usamos como
+		# referencia para recalcular la posicion de agarre correcta.
+		var ref_point : Vector3 = Vector3.ZERO
+		if _shimmy_dir < 0.0 and _can_go_left:
+			ref_point = result_left["wall_point"]
+		elif _shimmy_dir > 0.0 and _can_go_right:
+			ref_point = result_right["wall_point"]
+		elif _can_go_right:
+			ref_point = result_right["wall_point"]
+		elif _can_go_left:
+			ref_point = result_left["wall_point"]
+
+		if ref_point != Vector3.ZERO:
+			# Asignar al TARGET, no a _hang_position directamente.
+			# _state_hanging interpolara suavemente hacia este valor.
+			_hang_position_target = Vector3(ref_point.x, _hang_position.y, ref_point.z)
+			_hang_position_target -= _hang_normal * HANG_WALL_GAP
+			_transitioning_face = true
+
+func _edge_continues(lateral_dir: Vector3) -> Dictionary:
+	# Devuelve diccionario vacio si no hay borde valido.
+	# Devuelve { "wall_normal": normal } si hay borde agarrable.
+	# El llamador usa la normal para actualizar _hang_normal y _along_wall,
+	# permitiendo seguir bordes curvos o pasar entre caras adyacentes.
 	var edge_y_offset : float = abs(HANG_OFFSET_Y) - 0.15
 	var probe_origin : Vector3 = _hang_position + Vector3(0.0, edge_y_offset, 0.0)
 	var space = body.get_world_3d().direct_space_state
 
-	# Punto de sondeo: desplazado lateralmente desde la altura del borde.
 	var probe = probe_origin + lateral_dir * shimmy_max_dist
 
-	# TEST: confirmar que la funcion se ejecuta.
-	print("_edge_continues probe: ", probe, " dir: ", lateral_dir)
-
-	# 1. Raycast hacia la pared (en dirección -normal, hacia adentro).
-	# El alcance tiene que superar el HANG_WALL_GAP (0.68m) o el raycast
-	# termina en el aire antes de llegar a la cara lateral del objeto.
 	var wall_from = probe + _hang_normal * 0.2
 	var wall_to   = probe - _hang_normal * 0.8
 	var wall_q = PhysicsRayQueryParameters3D.create(wall_from, wall_to)
 	wall_q.exclude = [body]
 	var wall_hit = space.intersect_ray(wall_q)
 
-	# Debug: rayo de pared — naranja si pega, gris si no.
 	DebugDraw.ray(wall_from, wall_to, Color.BLUE if wall_hit else Color.GRAY)
 
 	if wall_hit.is_empty():
-		return false
+		return {}
 
-	# Validar que la superficie es suficientemente vertical.
-	# Rampas e inclinadas tienen normal con componente Y alta.
-	# Mismo umbral que parkour_detector (30 grados).
 	var max_normal_y : float = sin(deg_to_rad(30.0))
 	if abs(wall_hit["normal"].y) > max_normal_y:
 		DebugDraw.ray(wall_from, wall_to, Color.RED)
-		return false
+		return {}
 
-	# 2. Raycast hacia abajo desde arriba del hit, para confirmar el borde.
 	var edge_from = wall_hit["position"] + Vector3.UP * 0.4 - _hang_normal * 0.05
 	var edge_to   = edge_from + Vector3.DOWN * 0.7
 	var edge_q = PhysicsRayQueryParameters3D.create(edge_from, edge_to)
 	edge_q.exclude = [body]
 	var edge_hit = space.intersect_ray(edge_q)
 
-	# Debug: rayo de borde — verde si encuentra, rojo si no.
 	DebugDraw.ray(edge_from, edge_to, Color.GREEN if edge_hit else Color.RED)
 
-	return not edge_hit.is_empty()
+	if edge_hit.is_empty():
+		return {}
+
+	return { "wall_normal": wall_hit["normal"], "wall_point": wall_hit["position"] }
 
 # ─────────────────────────────────────────────────────────────────
 # ── SALIDA ───────────────────────────────────────────────────────

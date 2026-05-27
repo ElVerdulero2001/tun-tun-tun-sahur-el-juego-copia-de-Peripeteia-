@@ -20,15 +20,16 @@ var state : State = State.IDLE
 
 # ── Parámetros ────────────────────────────────────────────────────
 @export var snap_speed     : float = 14.0
-@export var snap_threshold : float = 0.08
+@export var snap_threshold : float = 0.2
 @export var climb_speed    : float = 4.0
-@export var shimmy_speed   : float = 2.0
-@export var shimmy_max_dist: float = 0.5    # cuánto puede sondear lateral antes de cortar
+@export var shimmy_speed   : float = 2.5
+@export var shimmy_max_dist: float = 0.5    # pegado al radio de la cápsula (1m de diámetro)
 @export var jump_force     : float = 6.5
 
-# Probes intermedios para calculo de tangente promedio.
-# Solo suavizan la direccion, no determinan si puede moverse.
-const PROBE_OFFSETS_INNER : Array = [0.1, 0.2, 0.3]
+# Probes internos para suavizado de curvas.
+# Negativos = lado izquierdo, positivos = lado derecho.
+# La resta centroid_right - centroid_left da la tangente en la dirección correcta.
+const PROBE_OFFSETS_INNER : Array = [-0.7, -0.4, -0.1, 0.1, 0.4, 0.7]
 
 # ── Referencias ───────────────────────────────────────────────────
 var body     : CharacterBody3D
@@ -243,9 +244,9 @@ func _state_hanging(delta: float) -> void:
 	var pressing_right = Input.is_action_pressed("move_right")
 
 	if pressing_left and _can_go_left:
-		dir = 1.0
-	elif pressing_right and _can_go_right:
 		dir = -1.0
+	elif pressing_right and _can_go_right:
+		dir = 1.0
 
 	# Detección de "shimmy bloqueado": apretás hacia un lado pero ese
 	# lado no tiene borde. Solo se loggea en el FRAME en que empieza
@@ -344,50 +345,54 @@ func _update_shimmy_probes() -> void:
 			_hang_position_target -= _hang_normal * HANG_WALL_GAP
 			_transitioning_face = true
 
-	# Calcular tangente promedio con probes intermedios
+	# (tangente manejada puramente por el bloque de new_normal de arriba)
+	# Suavizado adicional para curvas via probes internos.
 	_calculate_tangent()
 
 func _calculate_tangent() -> void:
-	# Probes intermedios para tangente promedio.
-	# Solo corre al moverse activamente.
+	# Suaviza _along_wall en curvas usando 6 probes internos simétricos.
+	# Solo corre al moverse activamente — en reposo no tocamos la tangente.
 	if _shimmy_dir == 0.0:
-		return
-
-	var left_points  : Array = []
-	var right_points : Array = []
-
-	for offset in PROBE_OFFSETS_INNER:
-		var r_left  = _edge_continues(_along_wall * -1.0, offset)
-		var r_right = _edge_continues(_along_wall *  1.0, offset)
-		if not r_left.is_empty():
-			left_points.append(r_left["wall_point"])
-		if not r_right.is_empty():
-			right_points.append(r_right["wall_point"])
-
-	if left_points.is_empty() or right_points.is_empty():
 		return
 
 	var centroid_left  : Vector3 = Vector3.ZERO
 	var centroid_right : Vector3 = Vector3.ZERO
-	for p in left_points:
-		centroid_left += p
-	for p in right_points:
-		centroid_right += p
-	centroid_left  /= float(left_points.size())
-	centroid_right /= float(right_points.size())
+	var count_left  : int = 0
+	var count_right : int = 0
 
-	# Aplanar Y antes de normalizar -- la tangente debe ser horizontal.
-	var raw_tangent : Vector3 = centroid_left - centroid_right
-	raw_tangent.y = 0.0
-	var tangent : Vector3 = raw_tangent.normalized()
-	if tangent == Vector3.ZERO or tangent == _along_wall:
+	for offset in PROBE_OFFSETS_INNER:
+		var r = _edge_continues(_along_wall * offset)
+		if r.is_empty():
+			continue
+		if offset < 0.0:
+			centroid_left  += r["wall_point"]
+			count_left     += 1
+		else:
+			centroid_right += r["wall_point"]
+			count_right    += 1
+
+	# Necesitamos al menos un punto de cada lado para definir la tangente.
+	if count_left == 0 or count_right == 0:
 		return
 
-	_along_wall = tangent
-	var new_normal : Vector3 = Vector3.UP.cross(_along_wall).normalized()
-	if new_normal != _hang_normal:
-		_hang_normal = new_normal
-		_transitioning_face = true
+	centroid_left  /= float(count_left)
+	centroid_right /= float(count_right)
+
+	# CORRECCIÓN MATEMÁTICA: centroid_right - centroid_left da la tangente
+	# en el sentido correcto del movimiento (derecha positiva).
+	var raw_tangent : Vector3 = centroid_right - centroid_left
+	raw_tangent.y = 0.0
+	if raw_tangent.length() < 0.001:
+		return
+	var target_tangent : Vector3 = raw_tangent.normalized()
+
+	# Lerp suave — no reemplazo directo. Evita jitter en rectas y
+	# suaviza la transición en curvas sin generar el loop inestable.
+	_along_wall = _along_wall.lerp(target_tangent, 0.15)
+	_along_wall.y = 0.0
+	if _along_wall.length() < 0.001:
+		return
+	_along_wall = _along_wall.normalized()
 
 func _edge_continues(lateral_dir: Vector3, dist: float = -1.0) -> Dictionary:
 	# Devuelve diccionario vacio si no hay borde valido.
@@ -492,7 +497,7 @@ func _draw_debug() -> void:
 		var probe_right = _hang_position + _along_wall *  shimmy_max_dist
 		DebugDraw.sphere(probe_left,  0.1, Color.GREEN if _can_go_left  else Color.RED)
 		DebugDraw.sphere(probe_right, 0.1, Color.GREEN if _can_go_right else Color.RED)
-		# Probes intermedios -- solo contribuyen a la tangente
+		# Probes internos -- muestran el escaneo de la curva en tiempo real
 		for offset in PROBE_OFFSETS_INNER:
-			DebugDraw.sphere(_hang_position + _along_wall * -offset, 0.06, Color.WHITE)
-			DebugDraw.sphere(_hang_position + _along_wall *  offset, 0.06, Color.WHITE)
+			var col = Color.CYAN if offset < 0.0 else Color.YELLOW
+			DebugDraw.sphere(_hang_position + _along_wall * offset, 0.06, col)

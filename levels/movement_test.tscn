@@ -90,12 +90,12 @@ size = Vector3(3, 3, 3)
 [sub_resource type="BoxShape3D" id="BoxShape3D_gpyf4"]
 size = Vector3(3, 3, 3)
 
-[sub_resource type="ViewportTexture" id="ViewportTexture_co54g"]
+[sub_resource type="ViewportTexture" id="ViewportTexture_kcpfy"]
 viewport_path = NodePath("../../../../../entities/screen osci/SubViewport")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gpyf4"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_co54g"]
 resource_local_to_scene = true
-albedo_texture = SubResource("ViewportTexture_co54g")
+albedo_texture = SubResource("ViewportTexture_kcpfy")
 
 [node name="MovementTest" type="Node3D" unique_id=15402342 groups=["raycast"]]
 
@@ -153,7 +153,6 @@ transform = Transform3D(-6, 0, -1.509958e-07, 0, 1, 0, 9.0597484e-07, 0, -1, -4.
 
 [node name="escalear_largalarga2" parent="world/enviroment/static/bloques" unique_id=1182729574 instance=ExtResource("9_0l33h")]
 transform = Transform3D(-5, 0, -8.742278e-08, 0, 1, 0, 4.371139e-07, 0, -1, 5.541, 0.1, 8.847953)
-visible = false
 
 [node name="escalera_xlarga" parent="world/enviroment/static/bloques" unique_id=1759620651 instance=ExtResource("10_okx0b")]
 transform = Transform3D(-2.205, 0, -1.509958e-07, 0, 1, 0, 3.3294575e-07, 0, -1, -10.601125, 0.099999905, 8.474964)
@@ -211,7 +210,7 @@ mesh = SubResource("BoxMesh_mp4pn")
 shape = SubResource("BoxShape3D_t354w")
 
 [node name="StaticBody3D6" type="StaticBody3D" parent="world/enviroment/static/bloques" unique_id=1923909996]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.571462, 1.082566, -5.875285)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.571462, 2.046853, -5.875285)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/bloques/StaticBody3D6" unique_id=1051597865]
 mesh = SubResource("BoxMesh_yig0p")
@@ -279,7 +278,7 @@ transform = Transform3D(0.99997795, 0.0060523394, -0.0027255674, -0.006050634, 0
 mass = 10.0
 
 [node name="pantalla" parent="world/enviroment/dinamic/osciloscopio_01/osciloscopio5" parent_id_path=PackedInt32Array(471919506, 1264347502) index="5" unique_id=1963793558]
-surface_material_override/0 = SubResource("StandardMaterial3D_gpyf4")
+surface_material_override/0 = SubResource("StandardMaterial3D_co54g")
 
 [node name="entities" type="Node3D" parent="." unique_id=2102854069]
 

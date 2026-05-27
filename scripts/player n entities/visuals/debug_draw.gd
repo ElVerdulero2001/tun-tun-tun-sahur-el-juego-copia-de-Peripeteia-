@@ -13,7 +13,7 @@
 
 extends Node
 
-var enabled : bool = false
+var enabled : bool = true
 var frozen  : bool = false
 
 var _rays    : Array = []

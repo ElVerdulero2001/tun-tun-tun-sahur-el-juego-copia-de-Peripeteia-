@@ -26,6 +26,10 @@ var state : State = State.IDLE
 @export var shimmy_max_dist: float = 0.5    # cuánto puede sondear lateral antes de cortar
 @export var jump_force     : float = 6.5
 
+# Probes intermedios para calculo de tangente promedio.
+# Solo suavizan la direccion, no determinan si puede moverse.
+const PROBE_OFFSETS_INNER : Array = [0.1, 0.2, 0.3]
+
 # ── Referencias ───────────────────────────────────────────────────
 var body     : CharacterBody3D
 var camera   : Camera3D
@@ -239,9 +243,9 @@ func _state_hanging(delta: float) -> void:
 	var pressing_right = Input.is_action_pressed("move_right")
 
 	if pressing_left and _can_go_left:
-		dir = -1.0
-	elif pressing_right and _can_go_right:
 		dir = 1.0
+	elif pressing_right and _can_go_right:
+		dir = -1.0
 
 	# Detección de "shimmy bloqueado": apretás hacia un lado pero ese
 	# lado no tiene borde. Solo se loggea en el FRAME en que empieza
@@ -340,24 +344,73 @@ func _update_shimmy_probes() -> void:
 			_hang_position_target -= _hang_normal * HANG_WALL_GAP
 			_transitioning_face = true
 
-func _edge_continues(lateral_dir: Vector3) -> Dictionary:
+	# Calcular tangente promedio con probes intermedios
+	_calculate_tangent()
+
+func _calculate_tangent() -> void:
+	# Probes intermedios para tangente promedio.
+	# Solo corre al moverse activamente.
+	if _shimmy_dir == 0.0:
+		return
+
+	var left_points  : Array = []
+	var right_points : Array = []
+
+	for offset in PROBE_OFFSETS_INNER:
+		var r_left  = _edge_continues(_along_wall * -1.0, offset)
+		var r_right = _edge_continues(_along_wall *  1.0, offset)
+		if not r_left.is_empty():
+			left_points.append(r_left["wall_point"])
+		if not r_right.is_empty():
+			right_points.append(r_right["wall_point"])
+
+	if left_points.is_empty() or right_points.is_empty():
+		return
+
+	var centroid_left  : Vector3 = Vector3.ZERO
+	var centroid_right : Vector3 = Vector3.ZERO
+	for p in left_points:
+		centroid_left += p
+	for p in right_points:
+		centroid_right += p
+	centroid_left  /= float(left_points.size())
+	centroid_right /= float(right_points.size())
+
+	# Aplanar Y antes de normalizar -- la tangente debe ser horizontal.
+	var raw_tangent : Vector3 = centroid_left - centroid_right
+	raw_tangent.y = 0.0
+	var tangent : Vector3 = raw_tangent.normalized()
+	if tangent == Vector3.ZERO or tangent == _along_wall:
+		return
+
+	_along_wall = tangent
+	var new_normal : Vector3 = Vector3.UP.cross(_along_wall).normalized()
+	if new_normal != _hang_normal:
+		_hang_normal = new_normal
+		_transitioning_face = true
+
+func _edge_continues(lateral_dir: Vector3, dist: float = -1.0) -> Dictionary:
 	# Devuelve diccionario vacio si no hay borde valido.
-	# Devuelve { "wall_normal": normal } si hay borde agarrable.
-	# El llamador usa la normal para actualizar _hang_normal y _along_wall,
-	# permitiendo seguir bordes curvos o pasar entre caras adyacentes.
+	# Devuelve { "wall_normal": normal, "wall_point": punto } si hay borde agarrable.
+	# dist: distancia del probe. Si es -1, usa shimmy_max_dist (probe extremo).
+	var probe_dist : float = dist if dist > 0.0 else shimmy_max_dist
 	var edge_y_offset : float = abs(HANG_OFFSET_Y) - 0.15
 	var probe_origin : Vector3 = _hang_position + Vector3(0.0, edge_y_offset, 0.0)
 	var space = body.get_world_3d().direct_space_state
 
-	var probe = probe_origin + lateral_dir * shimmy_max_dist
+	var probe = probe_origin + lateral_dir * probe_dist
 
-	var wall_from = probe + _hang_normal * 0.2
-	var wall_to   = probe - _hang_normal * 0.8
+	# Raycast desde fuera hacia la pared.
+	# to_wall apunta desde el jugador hacia la pared (-_hang_normal).
+	var to_wall   : Vector3 = -_hang_normal
+	var wall_from = probe + to_wall * -0.2
+	var wall_to   = probe + to_wall *  1.0
 	var wall_q = PhysicsRayQueryParameters3D.create(wall_from, wall_to)
 	wall_q.exclude = [body]
 	var wall_hit = space.intersect_ray(wall_q)
 
 	DebugDraw.ray(wall_from, wall_to, Color.BLUE if wall_hit else Color.GRAY)
+	print("probe dist:", probe_dist, " wall_hit:", not wall_hit.is_empty(), " from:", wall_from, " to:", wall_to)
 
 	if wall_hit.is_empty():
 		return {}
@@ -434,7 +487,12 @@ func _draw_debug() -> void:
 	# Verde si el borde continúa por ese lado, rojo si no.
 	# Quedan visibles SIEMPRE que estás colgado.
 	if state == State.HANGING:
+		# Probes extremos -- determinan si puede moverse
 		var probe_left  = _hang_position + _along_wall * -shimmy_max_dist
 		var probe_right = _hang_position + _along_wall *  shimmy_max_dist
 		DebugDraw.sphere(probe_left,  0.1, Color.GREEN if _can_go_left  else Color.RED)
 		DebugDraw.sphere(probe_right, 0.1, Color.GREEN if _can_go_right else Color.RED)
+		# Probes intermedios -- solo contribuyen a la tangente
+		for offset in PROBE_OFFSETS_INNER:
+			DebugDraw.sphere(_hang_position + _along_wall * -offset, 0.06, Color.WHITE)
+			DebugDraw.sphere(_hang_position + _along_wall *  offset, 0.06, Color.WHITE)

@@ -153,6 +153,7 @@ transform = Transform3D(-6, 0, -1.509958e-07, 0, 1, 0, 9.0597484e-07, 0, -1, -4.
 
 [node name="escalear_largalarga2" parent="world/enviroment/static/bloques" unique_id=1182729574 instance=ExtResource("9_0l33h")]
 transform = Transform3D(-5, 0, -8.742278e-08, 0, 1, 0, 4.371139e-07, 0, -1, 5.541, 0.1, 8.847953)
+visible = false
 
 [node name="escalera_xlarga" parent="world/enviroment/static/bloques" unique_id=1759620651 instance=ExtResource("10_okx0b")]
 transform = Transform3D(-2.205, 0, -1.509958e-07, 0, 1, 0, 3.3294575e-07, 0, -1, -10.601125, 0.099999905, 8.474964)

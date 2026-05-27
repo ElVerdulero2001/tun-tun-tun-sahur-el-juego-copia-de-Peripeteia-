@@ -34,6 +34,7 @@ extends CanvasLayer
 
 # Referencia cacheada al TraversalController. Se resuelve una sola vez.
 var _traversal : Node = null
+var _enabled   : bool = false  # arranca oculto
 
 
 func _ready() -> void:
@@ -47,8 +48,11 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	# Sin traversal, no hay nada que mostrar. Panel oculto.
-	if _traversal == null:
+	if Input.is_action_just_pressed("toggle_debug_traversal"):
+		_enabled = not _enabled
+
+	# Sin traversal o desactivado, panel oculto.
+	if _traversal == null or not _enabled:
 		visible = false
 		return
 

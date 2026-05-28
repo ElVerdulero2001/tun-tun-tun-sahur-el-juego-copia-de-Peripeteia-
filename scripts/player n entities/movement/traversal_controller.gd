@@ -266,15 +266,24 @@ func _state_hanging(delta: float) -> void:
 		_hang_position        += step
 		_hang_position_target += step
 
-	# Al cambiar de cara, suavizar solo X y Z hacia el target.
-	# El shimmy ya mueve _hang_position directo, sin pasar por aca.
+	# Alineación a la curva.
+	# Con input: lerp suave para no teletransportar mid-shimmy.
+	# Sin input: normal virtual promediada de todos los probes internos
+	# que estén colisionando. Si el jugador se detiene en la arista entre
+	# dos caras, la normal virtual queda a mitad de camino entre ambas,
+	# eliminando el salto de cámara.
 	if _transitioning_face:
-		var smooth_x = lerp(_hang_position.x, _hang_position_target.x, 4.0 * delta)
-		var smooth_z = lerp(_hang_position.z, _hang_position_target.z, 4.0 * delta)
-		_hang_position = Vector3(smooth_x, _hang_position.y, smooth_z)
-		var dist_xz = Vector2(_hang_position.x - _hang_position_target.x, _hang_position.z - _hang_position_target.z).length()
-		if dist_xz < 0.01:
+		if dir == 0.0:
+			body.velocity = Vector3.ZERO
+			_apply_virtual_normal()
 			_transitioning_face = false
+		else:
+			var smooth_x = lerp(_hang_position.x, _hang_position_target.x, 4.0 * delta)
+			var smooth_z = lerp(_hang_position.z, _hang_position_target.z, 4.0 * delta)
+			_hang_position = Vector3(smooth_x, _hang_position.y, smooth_z)
+			var dist_xz = Vector2(_hang_position.x - _hang_position_target.x, _hang_position.z - _hang_position_target.z).length()
+			if dist_xz < 0.01:
+				_transitioning_face = false
 
 	# Anclar SIEMPRE el body a _hang_position.
 	body.global_position = _hang_position
@@ -393,6 +402,56 @@ func _calculate_tangent() -> void:
 	if _along_wall.length() < 0.001:
 		return
 	_along_wall = _along_wall.normalized()
+
+func _apply_virtual_normal() -> void:
+	# Promedia posiciones y normales de todos los probes internos que
+	# estén colisionando en este frame. Si el jugador se detuvo en la
+	# arista entre dos caras, los probes de cada lado devuelven normales
+	# distintas — el promedio da una normal virtual intermedia que evita
+	# el salto instantáneo de cámara y posición.
+	var sum_normal   : Vector3 = Vector3.ZERO
+	var sum_position : Vector3 = Vector3.ZERO
+	var count        : int     = 0
+
+	var space = body.get_world_3d().direct_space_state
+	var edge_y_offset : float = abs(HANG_OFFSET_Y) - 0.15
+	var probe_origin  : Vector3 = _hang_position + Vector3(0.0, edge_y_offset, 0.0)
+
+	for offset in PROBE_OFFSETS_INNER:
+		var probe     : Vector3 = probe_origin + _along_wall * offset
+		var to_wall   : Vector3 = -_hang_normal
+		var wall_from : Vector3 = probe + to_wall * -0.2
+		var wall_to   : Vector3 = probe + to_wall *  1.0
+		var wall_q = PhysicsRayQueryParameters3D.create(wall_from, wall_to)
+		wall_q.exclude = [body]
+		var hit = space.intersect_ray(wall_q)
+
+		if hit.is_empty():
+			continue
+		var max_normal_y : float = sin(deg_to_rad(30.0))
+		if abs(hit["normal"].y) > max_normal_y:
+			continue
+
+		sum_normal   += hit["normal"]
+		sum_position += hit["position"]
+		count        += 1
+
+	# Si ningún probe tocó nada, no cambiar nada.
+	if count == 0:
+		return
+
+	var avg_normal   : Vector3 = (sum_normal / float(count)).normalized()
+	var avg_position : Vector3 = sum_position / float(count)
+
+	# Actualizar normal y posición desde el promedio.
+	# Y se conserva — solo movemos en el plano XZ.
+	_hang_normal  = avg_normal
+	_along_wall   = Vector3.UP.cross(_hang_normal).normalized()
+	_hang_position = Vector3(
+		avg_position.x - avg_normal.x * HANG_WALL_GAP,
+		_hang_position.y,
+		avg_position.z - avg_normal.z * HANG_WALL_GAP
+	)
 
 func _edge_continues(lateral_dir: Vector3, dist: float = -1.0) -> Dictionary:
 	# Devuelve diccionario vacio si no hay borde valido.

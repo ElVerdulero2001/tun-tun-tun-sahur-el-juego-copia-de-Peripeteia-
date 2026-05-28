@@ -50,6 +50,16 @@ var _along_wall    : Vector3 = Vector3.ZERO   # vector lateral a lo largo de la 
 var _can_go_left  : bool = false
 var _can_go_right : bool = false
 
+# Última posición de agarre — leída por parkour_detector para el filtro
+# de distancia radial que evita el re-enganche inmediato.
+var last_hanging_pos : Vector3 = Vector3.ZERO
+var _last_hang_clear_timer : float = 0.0  # cuenta regresiva hasta limpiar last_hanging_pos
+
+# Booleano público — leído por player.gd para bloquear el crouch
+# mientras el jugador mantenga Control presionado tras caer de la cornisa.
+# Se vuelve false únicamente cuando la tecla es soltada.
+var is_crouch_blocked_after_drop : bool = false
+
 # ── Dirección de shimmy del último frame ──────────────────────────
 # Guardamos qué hizo el shimmy en el frame actual para poder mostrarlo
 # en el panel de debug. 0 = quieto, -1 = izquierda, +1 = derecha.
@@ -100,6 +110,9 @@ func setup(p_body: CharacterBody3D, p_camera: Camera3D, p_movement: Node, p_dete
 func is_active() -> bool:
 	return state != State.IDLE
 
+func process(delta: float) -> void:
+	_physics_process(delta)
+
 # Devuelve el nombre del estado actual como texto, para debug.
 func get_state_name() -> String:
 	return State.keys()[state]
@@ -145,6 +158,20 @@ func _physics_process(delta: float) -> void:
 	# Solo corre cuando el traversal esta activo.
 	# Cuando esta en IDLE, el MovementController tiene el control.
 	if state == State.IDLE:
+		# Desbloquear crouch en cuanto se suelta la tecla.
+		if is_crouch_blocked_after_drop and not Input.is_action_pressed("crouch"):
+			is_crouch_blocked_after_drop = false
+
+		# Reset por suelo: tocar el piso limpia el historial de parkour.
+		if body.is_on_floor():
+			last_hanging_pos = Vector3.ZERO
+			_last_hang_clear_timer = 0.0
+		# Reset por tiempo: la exclusión solo dura mientras el cooldown del
+		# detector esté activo. Una vez que expira, se puede volver a agarrar.
+		elif _last_hang_clear_timer > 0.0:
+			_last_hang_clear_timer -= delta
+			if _last_hang_clear_timer <= 0.0:
+				last_hanging_pos = Vector3.ZERO
 		return
 
 	match state:
@@ -223,10 +250,19 @@ func _state_hanging(delta: float) -> void:
 		_release(_hang_normal * 3.5 + Vector3.UP * 1.0)
 		return
 
-	# ── Trepar ────────────────────────────────────────────────────
-	if Input.is_action_just_pressed("move_forward"):
-		_change_state(State.CLIMBING)
+	# ── Soltar con Control — caída pasiva, sin impulso ────────────
+	# Guardamos last_hanging_pos ANTES de llamar a _release para que
+	# parkour_detector pueda leerla en el mismo frame.
+	if Input.is_action_just_pressed("crouch"):
+		_log("release por CONTROL — caída pasiva")
+		last_hanging_pos = _hang_position
+		_last_hang_clear_timer = detector.detection_cooldown
+		is_crouch_blocked_after_drop = true
+		_release(Vector3.ZERO)
 		return
+
+	# ── Trepar ────────────────────────────────────────────────────
+	# (sin input asignado por ahora)
 
 	# ── Chequeo del terreno — SIEMPRE, ambos lados, todos los frames.
 	# Esto corre haya o no input. Así sus rayos de debug se dibujan

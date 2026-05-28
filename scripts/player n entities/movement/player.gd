@@ -20,7 +20,7 @@ func _ready() -> void:
 	floor_snap_length   = 0.5
 
 	movement.setup(self, camera, collision)
-	parkour_detector.setup(self, camera)
+	parkour_detector.setup(self, camera, traversal)
 	traversal.setup(self, camera, movement, parkour_detector)
 	salud.murio.connect(_on_murio)
 
@@ -41,6 +41,10 @@ func _input(event: InputEvent) -> void:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 	if event.is_action_pressed("crouch"):
+		# Guardia: si el traversal está activo, o si se acaba de soltar
+		# la cornisa y el jugador mantiene Control, ignorar el crouch.
+		if traversal.is_active() or traversal.is_crouch_blocked_after_drop:
+			return
 		if movement.is_crouching and _hay_techo():
 			pass
 		else:
@@ -56,9 +60,14 @@ func _physics_process(delta: float) -> void:
 
 	# El TraversalController tiene prioridad cuando está activo.
 	# Cuando está en IDLE, el MovementController tiene el control.
-	# El TraversalController corre en su propio _physics_process.
-	# Acá solo bloqueamos el movimiento normal mientras está activo.
-	if not traversal.is_active():
+	if traversal.is_active():
+		# Regla de hierro 1: mientras el traversal está activo, ÉL es el
+		# dueño absoluto del body. Mueve global_position directamente.
+		# NO debe correr move_and_slide() acá: reprocesaría la cápsula
+		# con colisión y le pelearía la posición al traversal cada frame
+		# (esto rompía el SNAPPING y el shimmy).
+		traversal.process(delta)
+	else:
 		var direction = _get_input_direction()
 		movement.process(delta, direction)
 		parkour_detector.process(delta)

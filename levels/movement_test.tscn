@@ -90,6 +90,12 @@ size = Vector3(3, 3, 3)
 [sub_resource type="BoxShape3D" id="BoxShape3D_gpyf4"]
 size = Vector3(3, 3, 3)
 
+[sub_resource type="BoxShape3D" id="BoxShape3D_0l33h"]
+size = Vector3(2, 1, 2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_okx0b"]
+size = Vector3(2, 1, 2)
+
 [sub_resource type="ViewportTexture" id="ViewportTexture_kcpfy"]
 viewport_path = NodePath("../../../../../entities/screen osci/SubViewport")
 
@@ -235,6 +241,17 @@ mesh = SubResource("BoxMesh_co54g")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/bloques/cuboprueba 1" unique_id=934372045]
 shape = SubResource("BoxShape3D_gpyf4")
+
+[node name="peldaños verticales" type="Node3D" parent="world/enviroment/static/bloques" unique_id=2066475943]
+
+[node name="peldaños" type="StaticBody3D" parent="world/enviroment/static/bloques/peldaños verticales" unique_id=249080085]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.836724, 5.877958, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/bloques/peldaños verticales/peldaños" unique_id=1661192029]
+shape = SubResource("BoxShape3D_0l33h")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/bloques/peldaños verticales/peldaños" unique_id=1479300631]
+mesh = SubResource("BoxMesh_okx0b")
 
 [node name="puertas" type="Node3D" parent="world/enviroment/static" unique_id=125387660]
 

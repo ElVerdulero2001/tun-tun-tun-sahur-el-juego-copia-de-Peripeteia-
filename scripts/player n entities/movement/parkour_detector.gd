@@ -14,7 +14,7 @@ signal candidate_lost()
 @export var detection_distance   : float = 0.85   # distancia frontal al raycast de pared
 @export var edge_probe_up        : float = 0.15   # cuánto sube el probe para buscar el borde
 @export var min_edge_height      : float = 0.5    # altura mínima del borde sobre el jugador
-@export var max_edge_height      : float = 2.6    # altura máxima del borde sobre el jugador
+@export var max_edge_height      : float = 1.5    # altura máxima del borde sobre el jugador
 @export var clearance_height     : float = 1.2    # espacio libre necesario arriba del borde
 @export var clearance_radius     : float = 0.25   # radio del capsule check de clearance
 @export var min_score            : float = 0.35   # score mínimo para emitir candidate_found
@@ -26,11 +26,12 @@ signal candidate_lost()
 
 # ── Alturas de sondeo (relativas al centro del jugador) ───────────
 # Se lanzan raycasts frontales en cada una de estas alturas.
-const PROBE_HEIGHTS : Array = [0.6, 0.9, 1.2, 1.5, 1.8]
+const PROBE_HEIGHTS : Array = [0.3, 0.6, 0.9, 1.2, 1.5]
 
 # ── Referencias ───────────────────────────────────────────────────
-var body   : CharacterBody3D
-var camera : Camera3D
+var body      : CharacterBody3D
+var camera    : Camera3D
+var traversal : Node   # para leer last_hanging_pos
 
 # ── Estado interno ────────────────────────────────────────────────
 var _last_candidate : Dictionary = {}
@@ -39,13 +40,14 @@ var _has_candidate  : bool = false
 # ── Cooldown ──────────────────────────────────────────────────────
 # Tras soltar un borde, el detector queda "ciego" este tiempo para
 # evitar que el jugador se re-enganche al mismo borde inmediatamente.
-@export var detection_cooldown : float = 0.4
+@export var detection_cooldown : float = 0.8
 var _cooldown_timer : float = 0.0
 
 # ─────────────────────────────────────────────────────────────────
-func setup(p_body: CharacterBody3D, p_camera: Camera3D) -> void:
-	body   = p_body
-	camera = p_camera
+func setup(p_body: CharacterBody3D, p_camera: Camera3D, p_traversal: Node = null) -> void:
+	body      = p_body
+	camera    = p_camera
+	traversal = p_traversal
 
 # ─────────────────────────────────────────────────────────────────
 # Llamado desde el TraversalController al soltar un borde.
@@ -71,6 +73,19 @@ func process(delta: float) -> void:
 	if best.is_empty() or best["score"] < min_score:
 		_clear_candidate()
 		return
+
+	# Filtro de distancia radial — rechazar candidatos demasiado cerca
+	# del último agarre. Evita el re-enganche en bucle al caer con Control.
+	# Se compara el edge_point detectado Y la posición del body contra
+	# last_hanging_pos para cubrir el milímetro de movimiento en el aire.
+	if traversal and traversal.last_hanging_pos != Vector3.ZERO:
+		var last = traversal.last_hanging_pos
+		if best["edge_point"].distance_to(last) < 2.0:
+			_clear_candidate()
+			return
+		if body.global_position.distance_to(last) < 2.0:
+			_clear_candidate()
+			return
 
 	_last_candidate = best
 	_has_candidate  = true

@@ -8,10 +8,12 @@ const MOUSE_SENSITIVITY = 0.003
 
 @onready var camera            : Camera3D        = $Camera3D
 @onready var collision         : CollisionShape3D = $CollisionShape3D
-@onready var salud                               = $Salud
-@onready var movement          : Node            = $MovementController
-@onready var parkour_detector  : Node            = $ParkourDetector
-@onready var traversal         : Node            = $TraversalController
+@onready var salud                               = $hudnscreen/Salud
+@onready var movement          : Node            = $movement/MovementController
+@onready var parkour_detector  : Node            = $movement/ParkourDetector
+@onready var traversal         : Node            = $movement/TraversalController
+@onready var kick              : Node            = $movement/KickController
+@onready var raycast           : Node            = $Camera3D/raycast_interaccion
 
 func _ready() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
@@ -20,8 +22,9 @@ func _ready() -> void:
 	floor_snap_length   = 0.5
 
 	movement.setup(self, camera, collision)
-	parkour_detector.setup(self, camera, traversal)
+	parkour_detector.setup(self, camera)
 	traversal.setup(self, camera, movement, parkour_detector)
+	kick.setup(self, camera, raycast)
 	salud.murio.connect(_on_murio)
 
 func _on_murio() -> void:
@@ -41,8 +44,6 @@ func _input(event: InputEvent) -> void:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 	if event.is_action_pressed("crouch"):
-		# Guardia: si el traversal está activo, o si se acaba de soltar
-		# la cornisa y el jugador mantiene Control, ignorar el crouch.
 		if traversal.is_active() or traversal.is_crouch_blocked_after_drop:
 			return
 		if movement.is_crouching and _hay_techo():
@@ -58,20 +59,15 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	# El TraversalController tiene prioridad cuando está activo.
-	# Cuando está en IDLE, el MovementController tiene el control.
 	if traversal.is_active():
-		# Regla de hierro 1: mientras el traversal está activo, ÉL es el
-		# dueño absoluto del body. Mueve global_position directamente.
-		# NO debe correr move_and_slide() acá: reprocesaría la cápsula
-		# con colisión y le pelearía la posición al traversal cada frame
-		# (esto rompía el SNAPPING y el shimmy).
 		traversal.process(delta)
 	else:
 		var direction = _get_input_direction()
 		movement.process(delta, direction)
 		parkour_detector.process(delta)
 		move_and_slide()
+
+	kick.process(delta)
 
 # ── Helpers ───────────────────────────────────────────────────────
 func _get_input_direction() -> Vector3:

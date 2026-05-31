@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bmknlxq61koen"]
 
-[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/interactable.gd" id="1_qpm16"]
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/inventory/interactable.gd" id="1_qpm16"]
 [ext_resource type="Resource" uid="uid://undo17gx4vw4" path="res://assets/data/non_collectibles/mesa.tres" id="2_ltqmi"]
 [ext_resource type="PackedScene" uid="uid://cp3i3p8f71hco" path="res://assets/models/no_collectibles/mesa_fea_9.glb" id="3_eyrvg"]
 

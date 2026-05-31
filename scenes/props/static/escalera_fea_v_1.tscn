@@ -1,0 +1,23 @@
+[gd_scene format=3 uid="uid://csxv50ydgh7d5"]
+
+[ext_resource type="PackedScene" uid="uid://bat8m73kq58od" path="res://assets/models/no_collectibles/escalera pedorra3.glb" id="1_avxx5"]
+[ext_resource type="Script" uid="uid://b61p14e6n3vnh" path="res://scripts/player n entities/movement/traversal_segment.gd" id="1_qyp5k"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_qyp5k"]
+size = Vector3(1.39, 8.77, 0.28)
+
+[node name="escalera fea v1" type="StaticBody3D" unique_id=2057852000 groups=["ladder"]]
+script = ExtResource("1_qyp5k")
+
+[node name="escalera pedorra3" parent="." unique_id=1545879886 instance=ExtResource("1_avxx5")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.062, 0)
+
+[node name="carcasa" type="CollisionShape3D" parent="." unique_id=1171411348]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.385, 0)
+shape = SubResource("BoxShape3D_qyp5k")
+
+[node name="StartMarker" type="Marker3D" parent="." unique_id=1847870763]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9999223, 0.80568457)
+
+[node name="EndMarker" type="Marker3D" parent="." unique_id=606831496]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.2, 0.806)

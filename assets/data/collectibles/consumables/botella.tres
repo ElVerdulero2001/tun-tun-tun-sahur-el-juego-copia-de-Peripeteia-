@@ -12,5 +12,5 @@ se_puede_romper = true
 peso = 2.0
 item_id = 2
 fuerza_lanzamiento = 18.0
-velocidad_angular = 10.0
+velocidad_angular = 0.0
 metadata/_custom_type_script = "uid://d3keoy2al2m6a"

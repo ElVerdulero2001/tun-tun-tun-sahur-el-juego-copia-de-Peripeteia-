@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://c0qytjvt5exhd"]
 
-[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/interactable.gd" id="1_4cwt5"]
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/inventory/interactable.gd" id="1_4cwt5"]
 [ext_resource type="Resource" uid="uid://dcmxocufit3pl" path="res://assets/data/collectibles/consumables/key.tres" id="2_ac8da"]
 [ext_resource type="PackedScene" uid="uid://c5vwhwuprkqfu" path="res://assets/models/collectibles/llave2.glb" id="3_4cwt5"]
 

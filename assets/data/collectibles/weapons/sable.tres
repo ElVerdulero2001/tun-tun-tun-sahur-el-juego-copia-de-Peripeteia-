@@ -11,5 +11,5 @@ es_recogible = true
 peso = 2.5
 item_id = 3
 fuerza_lanzamiento = 14.0
-velocidad_angular = 8.0
+velocidad_angular = 4.0
 metadata/_custom_type_script = "uid://d3keoy2al2m6a"

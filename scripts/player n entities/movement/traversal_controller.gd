@@ -15,20 +15,23 @@ signal traversal_started()
 signal traversal_ended()
 
 # ── Estados ───────────────────────────────────────────────────────
-enum State { IDLE, SNAPPING, HANGING, CLIMBING }
+enum State { IDLE, SNAPPING, HANGING, CLIMBING, LADDER }
 var state : State = State.IDLE
 
 # ── Parámetros ────────────────────────────────────────────────────
-@export var snap_speed     : float = 14.0
-@export var snap_threshold : float = 0.2
-@export var climb_speed    : float = 4.0
-@export var shimmy_speed   : float = 2.5
-@export var shimmy_max_dist: float = 0.5    # pegado al radio de la cápsula (1m de diámetro)
-@export var jump_force     : float = 6.5
+@export var snap_speed          : float = 14.0
+@export var snap_threshold      : float = 0.2
+@export var climb_speed         : float = 4.0
+@export var shimmy_speed        : float = 2.5
+@export var shimmy_max_dist     : float = 0.5
+@export var jump_force          : float = 6.5
+
+# Parámetros de la escalera
+@export var ladder_pulse_speed   : float = 0.8   # cuánto avanza progress por segundo
+@export var ladder_pulse_time    : float = 0.18  # segundos entre pulsos (el ritmo)
+@export var ladder_snap_strength : float = 0.3   # atracción al centro XZ al entrar
 
 # Probes internos para suavizado de curvas.
-# Negativos = lado izquierdo, positivos = lado derecho.
-# La resta centroid_right - centroid_left da la tangente en la dirección correcta.
 const PROBE_OFFSETS_INNER : Array = [-0.7, -0.4, -0.1, 0.1, 0.4, 0.7]
 
 # ── Referencias ───────────────────────────────────────────────────
@@ -37,67 +40,45 @@ var camera   : Camera3D
 var movement : Node
 var detector : Node
 
-# ── Estado interno ────────────────────────────────────────────────
-var _hang_position        : Vector3 = Vector3.ZERO   # donde esta el cuerpo ahora
-var _hang_position_target : Vector3 = Vector3.ZERO   # hacia donde va (destino del lerp)
-var _transitioning_face   : bool    = false            # true mientras suaviza cambio de cara
-var _hang_normal   : Vector3 = Vector3.ZERO   # normal de la pared (apunta hacia afuera)
-var _along_wall    : Vector3 = Vector3.ZERO   # vector lateral a lo largo de la pared
+# ── Estado interno — hanging/shimmy ──────────────────────────────
+var _hang_position        : Vector3 = Vector3.ZERO
+var _hang_position_target : Vector3 = Vector3.ZERO
+var _transitioning_face   : bool    = false
+var _hang_normal          : Vector3 = Vector3.ZERO
+var _along_wall           : Vector3 = Vector3.ZERO
 
-# ── Estado del shimmy — se recalcula cada frame en HANGING ────────
-# Guardamos el resultado del chequeo lateral para poder dibujarlo
-# y usarlo sin recalcularlo. Se actualiza en _update_shimmy_probes().
 var _can_go_left  : bool = false
 var _can_go_right : bool = false
 
-# Última posición de agarre — leída por parkour_detector para el filtro
-# de distancia radial que evita el re-enganche inmediato.
-var last_hanging_pos : Vector3 = Vector3.ZERO
-var _last_hang_clear_timer : float = 0.0  # cuenta regresiva hasta limpiar last_hanging_pos
+var last_hanging_pos             : Vector3 = Vector3.ZERO
+var _last_hang_clear_timer       : float   = 0.0
+var is_crouch_blocked_after_drop : bool    = false
+var _shimmy_dir                  : float   = 0.0
 
-# Booleano público — leído por player.gd para bloquear el crouch
-# mientras el jugador mantenga Control presionado tras caer de la cornisa.
-# Se vuelve false únicamente cuando la tecla es soltada.
-var is_crouch_blocked_after_drop : bool = false
-
-# ── Dirección de shimmy del último frame ──────────────────────────
-# Guardamos qué hizo el shimmy en el frame actual para poder mostrarlo
-# en el panel de debug. 0 = quieto, -1 = izquierda, +1 = derecha.
-# Cuando es 0 pero el jugador SÍ apretaba una tecla, significa que el
-# borde estaba bloqueado de ese lado — un dato clave para debuggear.
-var _shimmy_dir : float = 0.0
+# ── Estado interno — ladder (segment-based) ───────────────────────
+# El jugador ya no se mueve sobre el eje Y.
+# Se mueve sobre "progress": 0.0 = StartMarker, 1.0 = EndMarker.
+# La posición mundial se reconstruye cada frame desde el segmento.
+var _current_segment     : Node   = null   # TraversalSegment activo
+var _current_progress    : float  = 0.0   # 0.0 → 1.0
+var _ladder_pulse_timer  : float  = 0.0   # timer del ritmo de peldaños
+var _ladder_dir          : float  = 0.0   # +1 subir, -1 bajar, 0 quieto
 
 # ── Log de eventos ────────────────────────────────────────────────
-# Lista circular de las últimas transiciones y decisiones importantes.
-# Solo se escribe cuando PASA algo — nunca cada frame. Así el log es
-# la HISTORIA del sistema, no ruido. El panel de debug lo lee tal cual.
 const LOG_MAX : int = 12
-var _event_log : Array = []   # cada uno: { "t": tiempo, "msg": texto }
+var _event_log : Array = []
 
-# Registra un evento en el log con marca de tiempo.
 func _log(msg: String) -> void:
 	var t = Time.get_ticks_msec() / 1000.0
 	_event_log.append({ "t": t, "msg": msg })
-	# Mantener la lista acotada: descartar lo más viejo.
 	while _event_log.size() > LOG_MAX:
 		_event_log.pop_front()
 
-# Desfase vertical del CENTRO del body respecto al borde, al colgarse.
-# El body es una cápsula de 2.0 m → su centro está a 1.0 m de la cabeza.
-# -1.15 deja la cabeza apenas debajo del borde y el cuerpo colgando.
-# OJO: este valor depende de la altura de la cápsula. Si cambia, ajustar.
-const HANG_OFFSET_Y : float = -0.55
-
-# Separación del CENTRO del body respecto a la cara de la pared.
-# Tiene que ser >= el radio de la cápsula (0.5) o el body penetra la
-# pared y el motor lo frena antes de llegar al destino del snap.
-const HANG_WALL_GAP : float = -0.68
-
-# Red de seguridad: si el SNAPPING no termina en este tiempo, algo
-# salió mal (destino inalcanzable). En vez de quedar clavados para
-# siempre, abortamos y soltamos. Nunca un estado sin salida.
-const SNAP_TIMEOUT : float = 1.0
-var _snap_timer : float = 0.0
+# ── Constantes de hanging ─────────────────────────────────────────
+const HANG_OFFSET_Y  : float = -0.55
+const HANG_WALL_GAP  : float = -0.68
+const SNAP_TIMEOUT   : float = 1.0
+var _snap_timer      : float = 0.0
 
 # ─────────────────────────────────────────────────────────────────
 func setup(p_body: CharacterBody3D, p_camera: Camera3D, p_movement: Node, p_detector: Node) -> void:
@@ -106,6 +87,7 @@ func setup(p_body: CharacterBody3D, p_camera: Camera3D, p_movement: Node, p_dete
 	movement = p_movement
 	detector = p_detector
 	detector.candidate_found.connect(_on_candidate_found)
+	detector.ladder_candidate_found.connect(_on_ladder_candidate_found)
 
 func is_active() -> bool:
 	return state != State.IDLE
@@ -113,21 +95,11 @@ func is_active() -> bool:
 func process(delta: float) -> void:
 	_physics_process(delta)
 
-# Devuelve el nombre del estado actual como texto, para debug.
 func get_state_name() -> String:
 	return State.keys()[state]
 
 # ─────────────────────────────────────────────────────────────────
-# ── REPORTE DE DEBUG ─────────────────────────────────────────────
-# El panel de debug lee de acá. El TraversalController no sabe NADA
-# del panel — solo expone su estado interno. El panel se acopla a
-# este diccionario, no a las variables privadas. Si mañana cambia
-# algo interno, solo se toca este método.
-# ─────────────────────────────────────────────────────────────────
 func get_debug_state() -> Dictionary:
-	# Leemos el input crudo acá mismo para que el panel pueda mostrar
-	# QUÉ teclas estás apretando vs. qué decide el sistema. La brecha
-	# entre esas dos cosas es donde viven la mayoría de los bugs.
 	return {
 		"state"        : get_state_name(),
 		"active"       : is_active(),
@@ -139,7 +111,8 @@ func get_debug_state() -> Dictionary:
 		"shimmy_dir"   : _shimmy_dir,
 		"snap_timer"   : _snap_timer,
 		"snap_dist"    : body.global_position.distance_to(_hang_position) if body else 0.0,
-		# Input crudo — lo que el jugador APRIETA, sin filtrar.
+		"ladder_dir"   : _ladder_dir,
+		"ladder_progress" : _current_progress,
 		"in_left"      : Input.is_action_pressed("move_left"),
 		"in_right"     : Input.is_action_pressed("move_right"),
 		"in_fwd"       : Input.is_action_pressed("move_forward"),
@@ -147,7 +120,6 @@ func get_debug_state() -> Dictionary:
 		"in_jump"      : Input.is_action_pressed("jump"),
 	}
 
-# Devuelve el log de eventos para que el panel lo muestre.
 func get_event_log() -> Array:
 	return _event_log
 
@@ -155,19 +127,12 @@ func get_event_log() -> Array:
 func _physics_process(delta: float) -> void:
 	DebugDraw.clear()
 
-	# Solo corre cuando el traversal esta activo.
-	# Cuando esta en IDLE, el MovementController tiene el control.
 	if state == State.IDLE:
-		# Desbloquear crouch en cuanto se suelta la tecla.
 		if is_crouch_blocked_after_drop and not Input.is_action_pressed("crouch"):
 			is_crouch_blocked_after_drop = false
-
-		# Reset por suelo: tocar el piso limpia el historial de parkour.
 		if body.is_on_floor():
 			last_hanging_pos = Vector3.ZERO
 			_last_hang_clear_timer = 0.0
-		# Reset por tiempo: la exclusión solo dura mientras el cooldown del
-		# detector esté activo. Una vez que expira, se puede volver a agarrar.
 		elif _last_hang_clear_timer > 0.0:
 			_last_hang_clear_timer -= delta
 			if _last_hang_clear_timer <= 0.0:
@@ -178,20 +143,19 @@ func _physics_process(delta: float) -> void:
 		State.SNAPPING: _state_snapping(delta)
 		State.HANGING:  _state_hanging(delta)
 		State.CLIMBING: _state_climbing(delta)
+		State.LADDER:   _state_ladder(delta)
 
 	_draw_debug()
 
 # ─────────────────────────────────────────────────────────────────
-# ── ENTRADA ──────────────────────────────────────────────────────
+# ── ENTRADA — hanging ─────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────────
 
 func _on_candidate_found(candidate: Dictionary) -> void:
-	# Solo enganchamos si estamos completamente libres.
 	if state != State.IDLE:
 		return
 
 	_hang_normal = candidate["wall_normal"]
-	# El vector lateral a lo largo de la pared (perpendicular a la normal y a UP).
 	_along_wall  = Vector3.UP.cross(_hang_normal).normalized()
 
 	var edge = candidate["edge_point"]
@@ -204,23 +168,51 @@ func _on_candidate_found(candidate: Dictionary) -> void:
 	_change_state(State.SNAPPING)
 
 # ─────────────────────────────────────────────────────────────────
-# ── SNAPPING — mover el body hacia el borde, sin aceptar input ───
+# ── ENTRADA — ladder ──────────────────────────────────────────────
+# Recibe el LadderCandidate del detector y entra al estado LADDER.
+# ─────────────────────────────────────────────────────────────────
+
+func _on_ladder_candidate_found(candidate: Dictionary) -> void:
+	if state != State.IDLE:
+		return
+
+	_current_segment = candidate["area"]
+
+	# Calcular progress inicial — qué tan avanzado está el jugador
+	# en el segmento al momento de entrar.
+	# Se proyecta la posición del jugador sobre el eje del segmento.
+	var seg_start = _current_segment.start_marker.global_position
+	var seg_end   = _current_segment.end_marker.global_position
+	var seg_vec   = seg_end - seg_start
+	var seg_len   = seg_vec.length()
+
+	if seg_len > 0.001:
+		var to_player = body.global_position - seg_start
+		_current_progress = clamp(to_player.dot(seg_vec.normalized()) / seg_len, 0.0, 1.0)
+	else:
+		_current_progress = 0.0
+
+	_ladder_pulse_timer = 0.0
+	_ladder_dir         = 0.0
+
+	_log("escalera — entrada | segment: %s | progress: %.2f" % [_current_segment.name, _current_progress])
+	_change_state(State.LADDER)
+
+# ─────────────────────────────────────────────────────────────────
+# ── SNAPPING ─────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────────
 
 func _state_snapping(delta: float) -> void:
 	body.velocity = Vector3.ZERO
 
-	# Único input aceptado: cancelar con salto.
 	if Input.is_action_just_pressed("jump"):
 		_release(Vector3.UP * jump_force)
 		return
 
-	# Red de seguridad: si el snap tarda demasiado, el destino es
-	# inalcanzable. Abortamos en vez de quedar clavados para siempre.
 	_snap_timer += delta
 	if _snap_timer > SNAP_TIMEOUT:
-		push_warning("TraversalController: SNAPPING abortado por timeout — destino inalcanzable.")
-		_log("SNAP abortado — TIMEOUT (destino inalcanzable)")
+		push_warning("TraversalController: SNAPPING abortado por timeout.")
+		_log("SNAP abortado — TIMEOUT")
 		_release(_hang_normal * 2.0)
 		return
 
@@ -231,28 +223,22 @@ func _state_snapping(delta: float) -> void:
 		_change_state(State.HANGING)
 
 # ─────────────────────────────────────────────────────────────────
-# ── HANGING — colgado. Acepta TODO el input. ─────────────────────
-# Maneja tanto quedarse quieto como el shimmy lateral.
+# ── HANGING ──────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────────
 
 func _state_hanging(delta: float) -> void:
 	body.velocity = Vector3.ZERO
 
-	# ── Salir hacia arriba (salto) ────────────────────────────────
 	if Input.is_action_just_pressed("jump"):
-		_log("release por SALTO")
-		_release(Vector3.UP * jump_force)
+		_log("hanging → CLIMBING")
+		_change_state(State.CLIMBING)
 		return
 
-	# ── Soltar el borde (hacia atrás) ─────────────────────────────
 	if Input.is_action_just_pressed("move_back"):
 		_log("release por SOLTAR (atras)")
 		_release(_hang_normal * 3.5 + Vector3.UP * 1.0)
 		return
 
-	# ── Soltar con Control — caída pasiva, sin impulso ────────────
-	# Guardamos last_hanging_pos ANTES de llamar a _release para que
-	# parkour_detector pueda leerla en el mismo frame.
 	if Input.is_action_just_pressed("crouch"):
 		_log("release por CONTROL — caída pasiva")
 		last_hanging_pos = _hang_position
@@ -261,20 +247,8 @@ func _state_hanging(delta: float) -> void:
 		_release(Vector3.ZERO)
 		return
 
-	# ── Trepar ────────────────────────────────────────────────────
-	# (sin input asignado por ahora)
-
-	# ── Chequeo del terreno — SIEMPRE, ambos lados, todos los frames.
-	# Esto corre haya o no input. Así sus rayos de debug se dibujan
-	# de forma continua y vemos el estado del borde sin tocar nada.
 	_update_shimmy_probes()
 
-	# ── Shimmy lateral ────────────────────────────────────────────
-	# El input solo decide si nos movemos. El chequeo ya está hecho.
-	# Distinguimos tres casos para el log:
-	#   - apretás y hay borde  → te movés (no se loggea, es cada frame)
-	#   - apretás y NO hay borde → bloqueado (se loggea una vez)
-	#   - no apretás → quieto
 	var dir := 0.0
 	var pressing_left  = Input.is_action_pressed("move_left")
 	var pressing_right = Input.is_action_pressed("move_right")
@@ -284,10 +258,6 @@ func _state_hanging(delta: float) -> void:
 	elif pressing_right and _can_go_right:
 		dir = 1.0
 
-	# Detección de "shimmy bloqueado": apretás hacia un lado pero ese
-	# lado no tiene borde. Solo se loggea en el FRAME en que empieza
-	# el bloqueo (cuando antes nos movíamos o estábamos quietos), no
-	# cada frame, para no inundar el log.
 	if pressing_left and not _can_go_left and _shimmy_dir != -99.0:
 		_log("shimmy IZQUIERDA bloqueado — sin borde")
 		_shimmy_dir = -99.0
@@ -302,12 +272,6 @@ func _state_hanging(delta: float) -> void:
 		_hang_position        += step
 		_hang_position_target += step
 
-	# Alineación a la curva.
-	# Con input: lerp suave para no teletransportar mid-shimmy.
-	# Sin input: normal virtual promediada de todos los probes internos
-	# que estén colisionando. Si el jugador se detiene en la arista entre
-	# dos caras, la normal virtual queda a mitad de camino entre ambas,
-	# eliminando el salto de cámara.
 	if _transitioning_face:
 		if dir == 0.0:
 			body.velocity = Vector3.ZERO
@@ -321,11 +285,10 @@ func _state_hanging(delta: float) -> void:
 			if dist_xz < 0.01:
 				_transitioning_face = false
 
-	# Anclar SIEMPRE el body a _hang_position.
 	body.global_position = _hang_position
 
 # ─────────────────────────────────────────────────────────────────
-# ── CLIMBING — trepar por encima del borde ───────────────────────
+# ── CLIMBING ─────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────────
 
 func _state_climbing(delta: float) -> void:
@@ -339,25 +302,99 @@ func _state_climbing(delta: float) -> void:
 		_release(-_hang_normal * 1.5)
 
 # ─────────────────────────────────────────────────────────────────
-# ── VALIDACIÓN DEL BORDE PARA SHIMMY ─────────────────────────────
+# ── LADDER ───────────────────────────────────────────────────────
+# El jugador se mueve sobre "progress" (0.0 → 1.0) dentro del segmento.
+# La posición mundial se reconstruye cada frame desde el segmento.
+# ─────────────────────────────────────────────────────────────────
+
+func _state_ladder(delta: float) -> void:
+	body.velocity = Vector3.ZERO
+
+	if _current_segment == null:
+		_release(Vector3.ZERO)
+		return
+
+	# ── Saltar fuera ──────────────────────────────────────────────
+	if Input.is_action_just_pressed("jump"):
+		_log("escalera — salto afuera")
+		var cam_fwd = -camera.global_transform.basis.z
+		cam_fwd.y   = 0.0
+		cam_fwd     = cam_fwd.normalized()
+		_release(cam_fwd * 4.0 + Vector3.UP * 3.0)
+		return
+
+	# ── Soltarse ──────────────────────────────────────────────────
+	if Input.is_action_just_pressed("crouch"):
+		_log("escalera — suelta (control)")
+		_release(Vector3.ZERO)
+		return
+
+	# ── Input de movimiento ───────────────────────────────────────
+	var pressing_up   = Input.is_action_pressed("move_forward")
+	var pressing_down = Input.is_action_pressed("move_back")
+
+	if pressing_up and not pressing_down:
+		_ladder_dir = 1.0
+	elif pressing_down and not pressing_up:
+		_ladder_dir = -1.0
+	else:
+		_ladder_dir = 0.0
+		_ladder_pulse_timer = 0.0
+		body.global_position = _current_segment.get_position_at(_current_progress)
+		return
+
+	# ── Pulso rítmico ─────────────────────────────────────────────
+	var pulse_time = ladder_pulse_time
+	if _current_segment.get("move_speed"):
+		pulse_time /= max(_current_segment.move_speed, 0.1)
+
+	_ladder_pulse_timer += delta
+
+	if _ladder_pulse_timer >= pulse_time:
+		_ladder_pulse_timer -= pulse_time
+
+		# Avanzar progress según la longitud real del segmento.
+		# Así la velocidad es consistente independientemente del largo.
+		var seg_len      = _current_segment.get_length()
+		var progress_step = ladder_pulse_speed * pulse_time / max(seg_len, 0.001)
+		var new_progress  = _current_progress + _ladder_dir * progress_step
+
+		# ── Transición entre segmentos (stacking) ─────────────────
+		if new_progress > 1.0:
+			var neighbour = _current_segment.get_neighbour_up()
+			if neighbour != null:
+				_current_segment  = neighbour
+				_current_progress = 0.0
+				_log("escalera — transición a vecino superior: %s" % neighbour.name)
+			else:
+				_current_progress = 1.0  # tope — no hay más segmento
+		elif new_progress < 0.0:
+			var neighbour = _current_segment.get_neighbour_down()
+			if neighbour != null:
+				_current_segment  = neighbour
+				_current_progress = 1.0
+				_log("escalera — transición a vecino inferior: %s" % neighbour.name)
+			else:
+				_current_progress = 0.0  # fondo — no hay más segmento
+		else:
+			_current_progress = new_progress
+
+		_log("escalera — progress: %.2f" % _current_progress)
+
+	# Reconstruir posición mundial desde el segmento.
+	body.global_position = _current_segment.get_position_at(_current_progress)
+
+# ─────────────────────────────────────────────────────────────────
+# ── SHIMMY — validación de borde ─────────────────────────────────
 # ─────────────────────────────────────────────────────────────────
 
 func _update_shimmy_probes() -> void:
-	# Recalcula si el borde continua a izquierda y derecha.
-	# Si encuentra pared valida, actualiza _hang_normal y _along_wall
-	# para que el shimmy pueda seguir bordes curvos o pasar entre caras.
 	var result_left  : Dictionary = _edge_continues(_along_wall * -1.0)
 	var result_right : Dictionary = _edge_continues(_along_wall *  1.0)
 
 	_can_go_left  = not result_left.is_empty()
 	_can_go_right = not result_right.is_empty()
 
-	# Actualizar la normal con la cara que encontro el probe activo.
-	# Priorizamos el lado hacia donde nos movemos.
-	# Solo actualizar la normal si nos estamos moviendo activamente.
-	# Si shimmy_dir es 0 (quieto o bloqueado), conservar la normal actual.
-	# Esto evita la oscilacion cuando uno de los probes esta en la cara
-	# nueva y el otro en la vieja al soltar la tecla.
 	var new_normal : Vector3 = Vector3.ZERO
 	if _shimmy_dir < 0.0 and _can_go_left:
 		new_normal = result_left["wall_normal"]
@@ -366,13 +403,10 @@ func _update_shimmy_probes() -> void:
 
 	if new_normal != Vector3.ZERO and new_normal != _hang_normal:
 		var lado : String = "derecha" if (_shimmy_dir > 0.0 or (not _can_go_left and _can_go_right)) else "izquierda"
-		_log("normal cambia: " + str(_hang_normal.snapped(Vector3(0.01,0.01,0.01))) + " -> " + str(new_normal.snapped(Vector3(0.01,0.01,0.01))) + " | lado: " + lado + " | dir: " + str(_shimmy_dir) + " | L:" + ("SI" if _can_go_left else "NO") + " R:" + ("SI" if _can_go_right else "NO") + " | pos: " + str(_hang_position.snapped(Vector3(0.01,0.01,0.01))) + " target: " + str(_hang_position_target.snapped(Vector3(0.01,0.01,0.01))))
+		_log("normal cambia: " + str(_hang_normal.snapped(Vector3(0.01,0.01,0.01))) + " -> " + str(new_normal.snapped(Vector3(0.01,0.01,0.01))) + " | lado: " + lado)
 		_hang_normal = new_normal
 		_along_wall  = Vector3.UP.cross(_hang_normal).normalized()
 
-		# Reposicionar _hang_position respecto a la nueva pared.
-		# Tomamos el wall_point del lado activo y lo usamos como
-		# referencia para recalcular la posicion de agarre correcta.
 		var ref_point : Vector3 = Vector3.ZERO
 		if _shimmy_dir < 0.0 and _can_go_left:
 			ref_point = result_left["wall_point"]
@@ -384,19 +418,13 @@ func _update_shimmy_probes() -> void:
 			ref_point = result_left["wall_point"]
 
 		if ref_point != Vector3.ZERO:
-			# Asignar al TARGET, no a _hang_position directamente.
-			# _state_hanging interpolara suavemente hacia este valor.
 			_hang_position_target = Vector3(ref_point.x, _hang_position.y, ref_point.z)
 			_hang_position_target -= _hang_normal * HANG_WALL_GAP
 			_transitioning_face = true
 
-	# (tangente manejada puramente por el bloque de new_normal de arriba)
-	# Suavizado adicional para curvas via probes internos.
 	_calculate_tangent()
 
 func _calculate_tangent() -> void:
-	# Suaviza _along_wall en curvas usando 6 probes internos simétricos.
-	# Solo corre al moverse activamente — en reposo no tocamos la tangente.
 	if _shimmy_dir == 0.0:
 		return
 
@@ -416,23 +444,18 @@ func _calculate_tangent() -> void:
 			centroid_right += r["wall_point"]
 			count_right    += 1
 
-	# Necesitamos al menos un punto de cada lado para definir la tangente.
 	if count_left == 0 or count_right == 0:
 		return
 
 	centroid_left  /= float(count_left)
 	centroid_right /= float(count_right)
 
-	# CORRECCIÓN MATEMÁTICA: centroid_right - centroid_left da la tangente
-	# en el sentido correcto del movimiento (derecha positiva).
 	var raw_tangent : Vector3 = centroid_right - centroid_left
 	raw_tangent.y = 0.0
 	if raw_tangent.length() < 0.001:
 		return
 	var target_tangent : Vector3 = raw_tangent.normalized()
 
-	# Lerp suave — no reemplazo directo. Evita jitter en rectas y
-	# suaviza la transición en curvas sin generar el loop inestable.
 	_along_wall = _along_wall.lerp(target_tangent, 0.15)
 	_along_wall.y = 0.0
 	if _along_wall.length() < 0.001:
@@ -440,11 +463,6 @@ func _calculate_tangent() -> void:
 	_along_wall = _along_wall.normalized()
 
 func _apply_virtual_normal() -> void:
-	# Promedia posiciones y normales de todos los probes internos que
-	# estén colisionando en este frame. Si el jugador se detuvo en la
-	# arista entre dos caras, los probes de cada lado devuelven normales
-	# distintas — el promedio da una normal virtual intermedia que evita
-	# el salto instantáneo de cámara y posición.
 	var sum_normal   : Vector3 = Vector3.ZERO
 	var sum_position : Vector3 = Vector3.ZERO
 	var count        : int     = 0
@@ -472,15 +490,12 @@ func _apply_virtual_normal() -> void:
 		sum_position += hit["position"]
 		count        += 1
 
-	# Si ningún probe tocó nada, no cambiar nada.
 	if count == 0:
 		return
 
 	var avg_normal   : Vector3 = (sum_normal / float(count)).normalized()
 	var avg_position : Vector3 = sum_position / float(count)
 
-	# Actualizar normal y posición desde el promedio.
-	# Y se conserva — solo movemos en el plano XZ.
 	_hang_normal  = avg_normal
 	_along_wall   = Vector3.UP.cross(_hang_normal).normalized()
 	_hang_position = Vector3(
@@ -490,9 +505,6 @@ func _apply_virtual_normal() -> void:
 	)
 
 func _edge_continues(lateral_dir: Vector3, dist: float = -1.0) -> Dictionary:
-	# Devuelve diccionario vacio si no hay borde valido.
-	# Devuelve { "wall_normal": normal, "wall_point": punto } si hay borde agarrable.
-	# dist: distancia del probe. Si es -1, usa shimmy_max_dist (probe extremo).
 	var probe_dist : float = dist if dist > 0.0 else shimmy_max_dist
 	var edge_y_offset : float = abs(HANG_OFFSET_Y) - 0.15
 	var probe_origin : Vector3 = _hang_position + Vector3(0.0, edge_y_offset, 0.0)
@@ -500,8 +512,6 @@ func _edge_continues(lateral_dir: Vector3, dist: float = -1.0) -> Dictionary:
 
 	var probe = probe_origin + lateral_dir * probe_dist
 
-	# Raycast desde fuera hacia la pared.
-	# to_wall apunta desde el jugador hacia la pared (-_hang_normal).
 	var to_wall   : Vector3 = -_hang_normal
 	var wall_from = probe + to_wall * -0.2
 	var wall_to   = probe + to_wall *  1.0
@@ -510,7 +520,6 @@ func _edge_continues(lateral_dir: Vector3, dist: float = -1.0) -> Dictionary:
 	var wall_hit = space.intersect_ray(wall_q)
 
 	DebugDraw.ray(wall_from, wall_to, Color.BLUE if wall_hit else Color.GRAY)
-	print("probe dist:", probe_dist, " wall_hit:", not wall_hit.is_empty(), " from:", wall_from, " to:", wall_to)
 
 	if wall_hit.is_empty():
 		return {}
@@ -538,23 +547,19 @@ func _edge_continues(lateral_dir: Vector3, dist: float = -1.0) -> Dictionary:
 # ─────────────────────────────────────────────────────────────────
 
 func _release(exit_velocity: Vector3) -> void:
-	body.velocity = exit_velocity
+	body.velocity    = exit_velocity
+	_current_segment = null
 	detector.start_cooldown()
 	_change_state(State.IDLE)
 
-# ─────────────────────────────────────────────────────────────────
 func _change_state(new_state: State) -> void:
 	var was_active = is_active()
-	var old_name = State.keys()[state]
-	state = new_state
-	var new_name = State.keys()[new_state]
+	var old_name   = State.keys()[state]
+	state          = new_state
 	var now_active = is_active()
 
-	# Registrar la transición en el log — esto es la espina dorsal
-	# del debug: cada cambio de estado queda anotado con su tiempo.
-	_log("%s → %s" % [old_name, new_name])
+	_log("%s → %s" % [old_name, State.keys()[new_state]])
 
-	# Al salir de HANGING, los probes laterales dejan de tener sentido.
 	if new_state != State.HANGING:
 		_can_go_left  = false
 		_can_go_right = false
@@ -568,31 +573,39 @@ func _change_state(new_state: State) -> void:
 
 # ─────────────────────────────────────────────────────────────────
 # ── DEBUG ────────────────────────────────────────────────────────
-# Se dibuja SIEMPRE que el traversal está activo. Nunca a ciegas.
 # ─────────────────────────────────────────────────────────────────
 
 func _draw_debug() -> void:
 	if state == State.IDLE:
 		return
 
-	# Punto de agarre — esfera magenta.
-	DebugDraw.sphere(_hang_position, 0.2, Color.MAGENTA)
-	# Normal de la pared — flecha magenta hacia afuera.
-	DebugDraw.ray(_hang_position, _hang_position + _hang_normal * 0.8, Color.MAGENTA)
-	# Vector lateral a lo largo de la pared — flecha amarilla a ambos lados.
-	DebugDraw.ray(_hang_position - _along_wall * 0.5,
-				  _hang_position + _along_wall * 0.5, Color.YELLOW)
+	if state != State.LADDER:
+		DebugDraw.sphere(_hang_position, 0.2, Color.MAGENTA)
+		DebugDraw.ray(_hang_position, _hang_position + _hang_normal * 0.8, Color.MAGENTA)
+		DebugDraw.ray(_hang_position - _along_wall * 0.5,
+					  _hang_position + _along_wall * 0.5, Color.YELLOW)
 
-	# Marcadores de los puntos de sondeo lateral — esferas chicas.
-	# Verde si el borde continúa por ese lado, rojo si no.
-	# Quedan visibles SIEMPRE que estás colgado.
-	if state == State.HANGING:
-		# Probes extremos -- determinan si puede moverse
-		var probe_left  = _hang_position + _along_wall * -shimmy_max_dist
-		var probe_right = _hang_position + _along_wall *  shimmy_max_dist
-		DebugDraw.sphere(probe_left,  0.1, Color.GREEN if _can_go_left  else Color.RED)
-		DebugDraw.sphere(probe_right, 0.1, Color.GREEN if _can_go_right else Color.RED)
-		# Probes internos -- muestran el escaneo de la curva en tiempo real
-		for offset in PROBE_OFFSETS_INNER:
-			var col = Color.CYAN if offset < 0.0 else Color.YELLOW
-			DebugDraw.sphere(_hang_position + _along_wall * offset, 0.06, col)
+		if state == State.HANGING:
+			var probe_left  = _hang_position + _along_wall * -shimmy_max_dist
+			var probe_right = _hang_position + _along_wall *  shimmy_max_dist
+			DebugDraw.sphere(probe_left,  0.1, Color.GREEN if _can_go_left  else Color.RED)
+			DebugDraw.sphere(probe_right, 0.1, Color.GREEN if _can_go_right else Color.RED)
+			for offset in PROBE_OFFSETS_INNER:
+				var col = Color.CYAN if offset < 0.0 else Color.YELLOW
+				DebugDraw.sphere(_hang_position + _along_wall * offset, 0.06, col)
+
+	if state == State.LADDER and _current_segment != null:
+		var pos = _current_segment.get_position_at(_current_progress)
+		DebugDraw.sphere(pos, 0.2, Color.ORANGE)
+		# Mostrar el eje del segmento completo
+		if _current_segment.start_marker and _current_segment.end_marker:
+			DebugDraw.ray(
+				_current_segment.start_marker.global_position,
+				_current_segment.end_marker.global_position,
+				Color.ORANGE
+			)
+		# Esfera en start y end
+		if _current_segment.start_marker:
+			DebugDraw.sphere(_current_segment.start_marker.global_position, 0.15, Color.GREEN)
+		if _current_segment.end_marker:
+			DebugDraw.sphere(_current_segment.end_marker.global_position, 0.15, Color.RED)

@@ -11,6 +11,7 @@
 [ext_resource type="Script" uid="uid://dsjsxgd8b8y5n" path="res://scripts/player n entities/movement/parkour_detector.gd" id="9_fgeo0"]
 [ext_resource type="PackedScene" uid="uid://dbgecuc6y840g" path="res://scenes/components/traversal_ui.tscn" id="10_2b5yf"]
 [ext_resource type="Script" uid="uid://hrek7du53wl" path="res://scripts/player n entities/visuals/free_camera.gd" id="10_lkd77"]
+[ext_resource type="Script" uid="uid://kx22emr4w65b" path="res://scripts/player n entities/movement/kick_controller.gd" id="11_o1rqo"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_u8vuu"]
 
@@ -38,29 +39,38 @@ fov = 81.0
 
 [node name="raycast_interaccion" parent="player/Camera3D" unique_id=498661126 instance=ExtResource("1_sjsxr")]
 
-[node name="Salud" parent="player" unique_id=579747584 instance=ExtResource("1_6mmc7")]
+[node name="movement" type="Node" parent="player" unique_id=1651121374]
 
-[node name="TirarItem" parent="player" unique_id=1374972594 instance=ExtResource("2_h3cwf")]
-
-[node name="HUD" parent="player" unique_id=1676478594 node_paths=PackedStringArray("raycast") instance=ExtResource("4_acvb7")]
-raycast = NodePath("../Camera3D/raycast_interaccion")
-
-[node name="DebugUI" parent="player" unique_id=1589060079 instance=ExtResource("5_ps70n")]
-
-[node name="UIHacking" parent="player" unique_id=20736175 instance=ExtResource("6_v4i73")]
-
-[node name="MovementController" type="Node" parent="player" unique_id=179593937]
+[node name="MovementController" type="Node" parent="player/movement" unique_id=179593937]
 script = ExtResource("7_ypwcc")
 
-[node name="TraversalController" type="Node" parent="player" unique_id=1131840832]
+[node name="TraversalController" type="Node" parent="player/movement" unique_id=1131840832]
 script = ExtResource("8_2l1sc")
 
-[node name="ParkourDetector" type="Node" parent="player" unique_id=832609161]
+[node name="ParkourDetector" type="Node" parent="player/movement" unique_id=832609161]
 script = ExtResource("9_fgeo0")
 
-[node name="traversal_ui" parent="player" unique_id=2025065989 instance=ExtResource("10_2b5yf")]
+[node name="traversal_ui" parent="player/movement" unique_id=2025065989 instance=ExtResource("10_2b5yf")]
+
+[node name="KickController" type="Node" parent="player/movement" unique_id=702578145]
+script = ExtResource("11_o1rqo")
+
+[node name="hudnscreen" type="Node" parent="player" unique_id=16812079]
+
+[node name="HUD" parent="player/hudnscreen" unique_id=1676478594 node_paths=PackedStringArray("raycast") instance=ExtResource("4_acvb7")]
+raycast = NodePath("../../Camera3D/raycast_interaccion")
+
+[node name="DebugUI" parent="player/hudnscreen" unique_id=1589060079 instance=ExtResource("5_ps70n")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+
+[node name="UIHacking" parent="player/hudnscreen" unique_id=20736175 instance=ExtResource("6_v4i73")]
+
+[node name="Salud" parent="player/hudnscreen" unique_id=579747584 instance=ExtResource("1_6mmc7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+
+[node name="TirarItem" parent="player/hudnscreen" unique_id=1374972594 instance=ExtResource("2_h3cwf")]
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=1884290946]
 script = ExtResource("10_lkd77")
 
-[editable path="player/DebugUI"]
+[editable path="player/hudnscreen/DebugUI"]

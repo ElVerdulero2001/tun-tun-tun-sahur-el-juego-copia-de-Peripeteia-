@@ -2,44 +2,50 @@
 # Nodo hijo del Player.
 # Responsabilidad ÚNICA: detectar oportunidades de traversal y emitir señales.
 # NO modifica velocity. NO cambia estados. Solo detecta y puntúa.
+#
+# Detecta dos tipos de candidatos:
+#   - LedgeCandidate  → señal candidate_found
+#   - LadderCandidate → señal ladder_candidate_found
 
 extends Node
 
 # ── Señales ───────────────────────────────────────────────────────
-# Emitida cada frame con el mejor candidato encontrado (o null si ninguno).
 signal candidate_found(candidate: Dictionary)
 signal candidate_lost()
+signal ladder_candidate_found(candidate: Dictionary)
+signal ladder_candidate_lost()
 
-# ── Parámetros de detección ───────────────────────────────────────
-@export var detection_distance   : float = 0.85   # distancia frontal al raycast de pared
-@export var edge_probe_up        : float = 0.15   # cuánto sube el probe para buscar el borde
-@export var min_edge_height      : float = 0.5    # altura mínima del borde sobre el jugador
-@export var max_edge_height      : float = 1.5    # altura máxima del borde sobre el jugador
-@export var clearance_height     : float = 1.2    # espacio libre necesario arriba del borde
-@export var clearance_radius     : float = 0.25   # radio del capsule check de clearance
-@export var min_score            : float = 0.35   # score mínimo para emitir candidate_found
-
-# Inclinación máxima de la superficie respecto a la vertical, en grados.
-# 0° = pared perfectamente vertical. Una superficie más inclinada que esto
-# se considera rampa/piso y NO es agarrable.
+# ── Parámetros de detección — ledge ──────────────────────────────
+@export var detection_distance   : float = 0.85
+@export var edge_probe_up        : float = 0.15
+@export var min_edge_height      : float = 0.5
+@export var max_edge_height      : float = 1.5
+@export var clearance_height     : float = 1.2
+@export var clearance_radius     : float = 0.25
+@export var min_score            : float = 0.35
 @export var max_surface_tilt_deg : float = 30.0
 
-# ── Alturas de sondeo (relativas al centro del jugador) ───────────
-# Se lanzan raycasts frontales en cada una de estas alturas.
+# ── Parámetros de detección — ladder ─────────────────────────────
+@export var ladder_detection_radius : float = 1.2
+@export var ladder_max_distance     : float = 2.0
+
+# ── Alturas de sondeo ─────────────────────────────────────────────
 const PROBE_HEIGHTS : Array = [0.3, 0.6, 0.9, 1.2, 1.5]
 
 # ── Referencias ───────────────────────────────────────────────────
 var body      : CharacterBody3D
 var camera    : Camera3D
-var traversal : Node   # para leer last_hanging_pos
+var traversal : Node
 
-# ── Estado interno ────────────────────────────────────────────────
+# ── Estado interno — ledge ────────────────────────────────────────
 var _last_candidate : Dictionary = {}
 var _has_candidate  : bool = false
 
+# ── Estado interno — ladder ───────────────────────────────────────
+var _has_ladder_candidate  : bool       = false
+var _last_ladder_candidate : Dictionary = {}
+
 # ── Cooldown ──────────────────────────────────────────────────────
-# Tras soltar un borde, el detector queda "ciego" este tiempo para
-# evitar que el jugador se re-enganche al mismo borde inmediatamente.
 @export var detection_cooldown : float = 0.8
 var _cooldown_timer : float = 0.0
 
@@ -49,35 +55,35 @@ func setup(p_body: CharacterBody3D, p_camera: Camera3D, p_traversal: Node = null
 	camera    = p_camera
 	traversal = p_traversal
 
-# ─────────────────────────────────────────────────────────────────
-# Llamado desde el TraversalController al soltar un borde.
 func start_cooldown() -> void:
 	_cooldown_timer = detection_cooldown
 
 # ─────────────────────────────────────────────────────────────────
-# Llamado desde player.gd en _physics_process.
-# Solo corre cuando el jugador está en el aire o saltando.
 func process(delta: float) -> void:
-	# Descontar cooldown — mientras esté activo, no detectar nada.
 	if _cooldown_timer > 0.0:
 		_cooldown_timer -= delta
 		_clear_candidate()
+		_clear_ladder_candidate()
 		return
 
 	if body.is_on_floor():
 		_clear_candidate()
-		return
+	else:
+		_process_ledge()
 
+	_process_ladder()
+
+# ─────────────────────────────────────────────────────────────────
+# ── LEDGE ────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
+
+func _process_ledge() -> void:
 	var best = _find_best_candidate()
 
 	if best.is_empty() or best["score"] < min_score:
 		_clear_candidate()
 		return
 
-	# Filtro de distancia radial — rechazar candidatos demasiado cerca
-	# del último agarre. Evita el re-enganche en bucle al caer con Control.
-	# Se compara el edge_point detectado Y la posición del body contra
-	# last_hanging_pos para cubrir el milímetro de movimiento en el aire.
 	if traversal and traversal.last_hanging_pos != Vector3.ZERO:
 		var last = traversal.last_hanging_pos
 		if best["edge_point"].distance_to(last) < 2.0:
@@ -91,7 +97,6 @@ func process(delta: float) -> void:
 	_has_candidate  = true
 	candidate_found.emit(best)
 
-# ─────────────────────────────────────────────────────────────────
 func get_current_candidate() -> Dictionary:
 	return _last_candidate
 
@@ -99,12 +104,119 @@ func has_candidate() -> bool:
 	return _has_candidate
 
 # ─────────────────────────────────────────────────────────────────
-# ── DETECCIÓN ────────────────────────────────────────────────────
+# ── LADDER ───────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
+
+func _process_ladder() -> void:
+	var space    = body.get_world_3d().direct_space_state
+	var shape    = SphereShape3D.new()
+	shape.radius = ladder_detection_radius
+
+	var params            = PhysicsShapeQueryParameters3D.new()
+	params.shape          = shape
+	params.transform      = Transform3D(Basis.IDENTITY, body.global_position)
+	params.exclude        = [body]
+	params.collision_mask = body.collision_mask
+
+	var results = space.intersect_shape(params)
+
+	for result in results:
+		var collider = result.get("collider", null)
+		if collider == null:
+			continue
+
+		# Buscar el nodo con grupo "ladder" subiendo por la jerarquía.
+		var segment = _find_ladder_area(collider)
+		if segment == null:
+			continue
+
+		# Validar que el segmento tiene los markers necesarios.
+		# Sin markers no hay segmento válido — descartamos.
+		if segment.get("start_marker") == null or segment.get("end_marker") == null:
+			continue
+		if segment.start_marker == null or segment.end_marker == null:
+			continue
+
+		# Validar distancia.
+		var dist = body.global_position.distance_to(segment.start_marker.global_position)
+		if dist > ladder_max_distance:
+			continue
+
+		# Validar intención.
+		if not _has_ladder_intent(segment):
+			continue
+
+		# Candidato válido — construir y emitir.
+		var candidate = {
+			"type"     : "ladder",
+			"area"     : segment,   # el TraversalSegment
+			"distance" : dist,
+		}
+
+		# Debug — mostrar markers
+		DebugDraw.sphere(segment.start_marker.global_position, 0.15, Color.GREEN)
+		DebugDraw.sphere(segment.end_marker.global_position,   0.15, Color.RED)
+		DebugDraw.ray(
+			segment.start_marker.global_position,
+			segment.end_marker.global_position,
+			Color.ORANGE
+		)
+
+		if not ladder_detected() or _last_ladder_candidate.get("area") != segment:
+			_last_ladder_candidate = candidate
+			_has_ladder_candidate  = true
+			ladder_candidate_found.emit(candidate)
+		return
+
+	_clear_ladder_candidate()
+
+func _find_ladder_area(node: Node) -> Node:
+	var current = node
+	for _i in range(4):
+		if current == null:
+			break
+		if current.is_in_group("ladder"):
+			return current
+		current = current.get_parent()
+	return null
+
+func _has_ladder_intent(segment: Node) -> bool:
+	if Input.is_action_pressed("move_forward"):
+		return true
+
+	var to_ladder = (segment.start_marker.global_position - body.global_position)
+	to_ladder.y   = 0.0
+	if to_ladder.length() < 0.01:
+		return true
+
+	to_ladder = to_ladder.normalized()
+	var cam_fwd = -camera.global_transform.basis.z
+	cam_fwd.y   = 0.0
+	if cam_fwd.length() < 0.01:
+		return false
+	cam_fwd = cam_fwd.normalized()
+
+	return cam_fwd.dot(to_ladder) > 0.3
+
+func ladder_detected() -> bool:
+	return _has_ladder_candidate
+
+func get_current_ladder_candidate() -> Dictionary:
+	return _last_ladder_candidate
+
+func _clear_ladder_candidate() -> void:
+	if _has_ladder_candidate:
+		_has_ladder_candidate  = false
+		_last_ladder_candidate = {}
+		ladder_candidate_lost.emit()
+
+# ─────────────────────────────────────────────────────────────────
+# ── DETECCIÓN DE LEDGE — sin cambios ─────────────────────────────
 # ─────────────────────────────────────────────────────────────────
 
 func _find_best_candidate() -> Dictionary:
 	var space     = body.get_world_3d().direct_space_state
-	var facing    = -body.transform.basis.z  # dirección frontal del jugador
+	var facing    = -body.transform.basis.z
 	var best      : Dictionary = {}
 	var best_score: float = -1.0
 
@@ -117,7 +229,6 @@ func _find_best_candidate() -> Dictionary:
 		var score = _score_candidate(candidate)
 		candidate["score"] = score
 
-		# Debug: punto en el borde, color según score (rojo bajo → verde alto)
 		var col = Color(1.0 - score, score, 0.0)
 		DebugDraw.point(candidate["edge_point"], col, 0.12)
 		DebugDraw.sphere(candidate["edge_point"], 0.15, col)
@@ -126,19 +237,15 @@ func _find_best_candidate() -> Dictionary:
 			best_score = score
 			best       = candidate
 
-	# Debug: marcar el ganador con una esfera más grande cyan
 	if not best.is_empty():
 		DebugDraw.sphere(best["edge_point"], 0.28, Color.CYAN)
 
 	return best
 
-# ─────────────────────────────────────────────────────────────────
 func _probe_at(space, origin: Vector3, facing: Vector3) -> Dictionary:
-	# 1. Raycast frontal — busca una superficie
-	var ray_end = origin + facing * detection_distance
+	var ray_end  = origin + facing * detection_distance
 	var wall_hit = _raycast(space, origin, ray_end)
 
-	# Debug: el raycast frontal — gris si no pega, blanco si pega
 	DebugDraw.ray(origin, ray_end, Color.GRAY if wall_hit.is_empty() else Color.WHITE)
 
 	if wall_hit.is_empty():
@@ -147,24 +254,15 @@ func _probe_at(space, origin: Vector3, facing: Vector3) -> Dictionary:
 	var wall_normal : Vector3 = wall_hit["normal"]
 	var wall_point  : Vector3 = wall_hit["position"]
 
-	# 2. Validar que la superficie es suficientemente vertical.
-	# La normal de una pared vertical es horizontal → su componente Y es ~0.
-	# Una superficie inclinada X grados respecto a la vertical tiene
-	# abs(normal.y) = sin(X). Rechazamos todo lo que supere el umbral.
 	var max_normal_y = sin(deg_to_rad(max_surface_tilt_deg))
 	if abs(wall_normal.y) > max_normal_y:
-		return {}   # demasiado inclinada → rampa o piso, no agarrable
+		return {}
 
-	# 3. Buscar el borde superior de la pared.
-	# Arrancamos el raycast bien por encima del jugador (en el techo del
-	# rango alcanzable) y bajamos hasta el punto de contacto de la pared.
-	# Así cubrimos toda la altura agarrable sin quedarnos cortos.
-	var search_top    = body.global_position.y + max_edge_height + 0.3
+	var search_top         = body.global_position.y + max_edge_height + 0.3
 	var edge_search_origin = Vector3(wall_point.x, search_top, wall_point.z) - wall_normal * 0.08
 	var edge_search_end    = Vector3(wall_point.x, wall_point.y, wall_point.z) - wall_normal * 0.08
-	var edge_hit = _raycast(space, edge_search_origin, edge_search_end)
+	var edge_hit           = _raycast(space, edge_search_origin, edge_search_end)
 
-	# Debug: el raycast de búsqueda de borde
 	DebugDraw.ray(edge_search_origin, edge_search_end,
 				  Color.GRAY if edge_hit.is_empty() else Color.AQUA)
 
@@ -173,74 +271,52 @@ func _probe_at(space, origin: Vector3, facing: Vector3) -> Dictionary:
 
 	var edge_point : Vector3 = edge_hit["position"]
 
-	# 3b. COHERENCIA: el borde tiene que estar casi pegado a la pared.
-	# Un borde real está justo encima de su pared. Si el punto detectado
-	# está lejos en horizontal del punto de la pared, es un fantasma
-	# geométrico (otra cara, un saliente, geometría amontonada).
 	var horiz_pared = Vector2(wall_point.x, wall_point.z)
 	var horiz_borde = Vector2(edge_point.x, edge_point.z)
 	if horiz_pared.distance_to(horiz_borde) > 0.35:
-		return {}   # el "borde" no corresponde a esta pared
+		return {}
 
-	# 3b. Validar que lo detectado es un BORDE real, no la cara de una rampa.
-	# Un borde verdadero tiene una superficie horizontal (piso) encima.
-	# Si la normal del punto de "borde" no apunta hacia arriba, es una
-	# superficie inclinada y no sirve para colgarse.
 	var edge_normal : Vector3 = edge_hit["normal"]
 	if edge_normal.dot(Vector3.UP) < cos(deg_to_rad(max_surface_tilt_deg)):
-		return {}   # la cara superior está demasiado inclinada → no es un borde
+		return {}
 
-	# 4. Validar que el borde está en el rango de altura alcanzable
 	var height_diff = edge_point.y - body.global_position.y
 	if height_diff < min_edge_height or height_diff > max_edge_height:
 		return {}
 
-	# 5. Validar clearance (espacio libre arriba del borde)
 	if not _check_clearance(space, edge_point):
 		return {}
 
 	return {
-		"wall_normal"  : wall_normal,
-		"wall_point"   : wall_point,
-		"edge_point"   : edge_point,
-		"height_diff"  : height_diff,
-		"score"        : 0.0   # se calcula después
+		"type"        : "ledge",
+		"wall_normal" : wall_normal,
+		"wall_point"  : wall_point,
+		"edge_point"  : edge_point,
+		"height_diff" : height_diff,
+		"score"       : 0.0
 	}
-
-# ─────────────────────────────────────────────────────────────────
-# ── SCORING ──────────────────────────────────────────────────────
-# ─────────────────────────────────────────────────────────────────
 
 func _score_candidate(c: Dictionary) -> float:
 	var score : float = 0.0
 
-	# ── Alineación jugador → pared ────────────────────────────────
-	# Qué tan de frente está el jugador a la pared.
-	# dot entre facing y -normal: 1.0 = perfectamente alineado
-	var facing    = -body.transform.basis.z
-	var wall_dot  = facing.dot(-c["wall_normal"])
-	if wall_dot < 0.3:   # demasiado de lado → descartar
+	var facing   = -body.transform.basis.z
+	var wall_dot = facing.dot(-c["wall_normal"])
+	if wall_dot < 0.3:
 		return 0.0
 	score += wall_dot * 0.35
 
-	# ── Coherencia de velocidad ────────────────────────────────────
-	# El jugador se mueve en la dirección del borde.
 	var vel_h = Vector2(body.velocity.x, body.velocity.z)
 	if vel_h.length() > 0.5:
-		var vel_dir    = Vector3(vel_h.x, 0.0, vel_h.y).normalized()
-		var vel_dot    = vel_dir.dot(-c["wall_normal"])
+		var vel_dir = Vector3(vel_h.x, 0.0, vel_h.y).normalized()
+		var vel_dot = vel_dir.dot(-c["wall_normal"])
 		score += clamp(vel_dot, 0.0, 1.0) * 0.30
 
-	# ── Dirección de cámara ────────────────────────────────────────
-	# La cámara mira hacia la pared.
 	var cam_forward = -camera.global_transform.basis.z
 	cam_forward.y   = 0.0
 	cam_forward     = cam_forward.normalized()
 	var cam_dot     = cam_forward.dot(-c["wall_normal"])
 	score += clamp(cam_dot, 0.0, 1.0) * 0.20
 
-	# ── Distancia al borde ─────────────────────────────────────────
-	# Penaliza bordes muy lejanos, premia los alcanzables.
 	var dist = body.global_position.distance_to(c["edge_point"])
 	var dist_score = 1.0 - clamp(dist / (detection_distance * 2.5), 0.0, 1.0)
 	score += dist_score * 0.15
@@ -257,16 +333,15 @@ func _raycast(space, from: Vector3, to: Vector3) -> Dictionary:
 	return space.intersect_ray(query)
 
 func _check_clearance(space, edge_point: Vector3) -> bool:
-	# Capsule check: hay espacio suficiente arriba del borde para que entre el jugador.
-	var shape  = CapsuleShape3D.new()
-	shape.radius = clearance_radius
-	shape.height = clearance_height
+	var shape        = CapsuleShape3D.new()
+	shape.radius     = clearance_radius
+	shape.height     = clearance_height
 
-	var params                    = PhysicsShapeQueryParameters3D.new()
-	params.shape                  = shape
-	params.transform              = Transform3D(Basis.IDENTITY, edge_point + Vector3.UP * (clearance_height * 0.5 + 0.1))
-	params.exclude                = [body]
-	params.collision_mask         = body.collision_mask
+	var params               = PhysicsShapeQueryParameters3D.new()
+	params.shape             = shape
+	params.transform         = Transform3D(Basis.IDENTITY, edge_point + Vector3.UP * (clearance_height * 0.5 + 0.1))
+	params.exclude           = [body]
+	params.collision_mask    = body.collision_mask
 
 	var results = space.intersect_shape(params)
 	return results.is_empty()

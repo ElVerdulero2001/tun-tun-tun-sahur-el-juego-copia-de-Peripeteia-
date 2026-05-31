@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://c7dl0cwwdn0vp"]
 
 [ext_resource type="PackedScene" uid="uid://l4mkmga0sqmh" path="res://assets/models/collectibles/granada1.glb" id="1_fusaa"]
-[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/interactable.gd" id="1_xk7dm"]
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/inventory/interactable.gd" id="1_xk7dm"]
 [ext_resource type="Resource" uid="uid://cgmbp2odwkc88" path="res://assets/data/collectibles/weapons/granada.tres" id="2_jpvmg"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_jpvmg"]

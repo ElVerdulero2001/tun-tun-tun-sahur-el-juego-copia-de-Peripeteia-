@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://dw51wthqro71g"]
 
-[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/interactable.gd" id="1_ppfc1"]
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/inventory/interactable.gd" id="1_ppfc1"]
 [ext_resource type="PackedScene" uid="uid://bxjn7fsrompfd" path="res://assets/models/no_collectibles/osciloscopio5.glb" id="1_y8k1p"]
 [ext_resource type="Resource" uid="uid://d1kxhnxnkan5k" path="res://assets/data/non_collectibles/osciloscopio.tres" id="2_weci0"]
 

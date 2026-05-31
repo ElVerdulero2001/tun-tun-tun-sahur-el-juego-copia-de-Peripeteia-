@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://derv7f5stbi5f"]
 
-[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/interactable.gd" id="1_2fu4y"]
+[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/inventory/interactable.gd" id="1_2fu4y"]
 [ext_resource type="Resource" uid="uid://5c2lon8qkibf" path="res://assets/data/collectibles/consumables/botella.tres" id="2_3xdfp"]
 [ext_resource type="PackedScene" uid="uid://b6bccki5m1ngx" path="res://assets/models/collectibles/botella_horrible4.glb" id="3_w7sxs"]
 

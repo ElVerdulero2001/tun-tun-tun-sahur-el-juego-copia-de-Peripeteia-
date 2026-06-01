@@ -22,7 +22,7 @@ func _ready() -> void:
 	floor_snap_length   = 0.5
 
 	movement.setup(self, camera, collision)
-	parkour_detector.setup(self, camera)
+	parkour_detector.setup(self, camera, traversal)
 	traversal.setup(self, camera, movement, parkour_detector)
 	kick.setup(self, camera, raycast)
 	salud.murio.connect(_on_murio)

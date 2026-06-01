@@ -59,10 +59,10 @@ var _shimmy_dir                  : float   = 0.0
 # El jugador ya no se mueve sobre el eje Y.
 # Se mueve sobre "progress": 0.0 = StartMarker, 1.0 = EndMarker.
 # La posición mundial se reconstruye cada frame desde el segmento.
-var _current_segment     : Node   = null   # TraversalSegment activo
-var _current_progress    : float  = 0.0   # 0.0 → 1.0
-var _ladder_pulse_timer  : float  = 0.0   # timer del ritmo de peldaños
-var _ladder_dir          : float  = 0.0   # +1 subir, -1 bajar, 0 quieto
+var _current_segment     : Node   = null
+var _current_progress    : float  = 0.0
+var _ladder_pulse_timer  : float  = 0.0
+var _ladder_dir          : float  = 0.0
 
 # ── Log de eventos ────────────────────────────────────────────────
 const LOG_MAX : int = 12
@@ -323,10 +323,10 @@ func _state_ladder(delta: float) -> void:
 		_release(cam_fwd * 4.0 + Vector3.UP * 3.0)
 		return
 
-	# ── Soltarse ──────────────────────────────────────────────────
+	# ── Soltarse ────────────────────────────────────────────────
 	if Input.is_action_just_pressed("crouch"):
-		_log("escalera — suelta (control)")
-		_release(Vector3.ZERO)
+		_log("escalera — suelta (control) — caída libre")
+		_release(Vector3.DOWN * 3.0, false)
 		return
 
 	# ── Input de movimiento ───────────────────────────────────────
@@ -546,10 +546,13 @@ func _edge_continues(lateral_dir: Vector3, dist: float = -1.0) -> Dictionary:
 # ── SALIDA ───────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────────
 
-func _release(exit_velocity: Vector3) -> void:
+func _release(exit_velocity: Vector3, use_cooldown: bool = true) -> void:
 	body.velocity    = exit_velocity
 	_current_segment = null
-	detector.start_cooldown()
+
+	if use_cooldown:
+		detector.start_cooldown()
+
 	_change_state(State.IDLE)
 
 func _change_state(new_state: State) -> void:

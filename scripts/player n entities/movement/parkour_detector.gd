@@ -120,13 +120,23 @@ func _process_ladder() -> void:
 
 	var results = space.intersect_shape(params)
 
+	print("ladder query | resultados: ", results.size())
+	for result in results:
+		var c = result.get("collider", null)
+		if c:
+			var seg = _find_segment(c)
+			print("  collider: ", c.name, " | segment: ", seg)
+			if seg:
+				print("  start_marker: ", seg.get("start_marker"))
+				print("  end_marker: ", seg.get("end_marker"))
+
 	for result in results:
 		var collider = result.get("collider", null)
 		if collider == null:
 			continue
 
 		# Buscar el nodo con grupo "ladder" subiendo por la jerarquía.
-		var segment = _find_ladder_area(collider)
+		var segment = _find_segment(collider)
 		if segment == null:
 			continue
 
@@ -170,7 +180,7 @@ func _process_ladder() -> void:
 
 	_clear_ladder_candidate()
 
-func _find_ladder_area(node: Node) -> Node:
+func _find_segment(node: Node) -> Node:
 	var current = node
 	for _i in range(4):
 		if current == null:
@@ -181,22 +191,40 @@ func _find_ladder_area(node: Node) -> Node:
 	return null
 
 func _has_ladder_intent(segment: Node) -> bool:
-	if Input.is_action_pressed("move_forward"):
-		return true
 
-	var to_ladder = (segment.start_marker.global_position - body.global_position)
-	to_ladder.y   = 0.0
-	if to_ladder.length() < 0.01:
-		return true
-
-	to_ladder = to_ladder.normalized()
-	var cam_fwd = -camera.global_transform.basis.z
-	cam_fwd.y   = 0.0
-	if cam_fwd.length() < 0.01:
+	if body.is_on_floor():
 		return false
-	cam_fwd = cam_fwd.normalized()
 
-	return cam_fwd.dot(to_ladder) > 0.3
+	# Mientras mantiene CTRL, no puede agarrar escaleras.
+	if Input.is_action_pressed("crouch"):
+		return false
+
+	return _is_within_segment_volume(segment)
+
+func _is_within_segment_volume(segment: Node) -> bool:
+	# Proyecta la posición del jugador sobre el eje del segmento.
+	# Si el progress cae entre 0.0 y 1.0, está dentro del volumen útil.
+	var seg_start = segment.start_marker.global_position
+	var seg_end   = segment.end_marker.global_position
+	var seg_vec   = seg_end - seg_start
+	var seg_len   = seg_vec.length()
+
+	if seg_len < 0.001:
+		return false
+
+	var seg_dir   = seg_vec / seg_len
+	var to_player = body.global_position - seg_start
+	var progress  = to_player.dot(seg_dir) / seg_len
+
+	# Fuera del rango del segmento — no reenganchar.
+	if progress < 0.0 or progress > 1.0:
+		return false
+
+	# Distancia lateral al eje del segmento — margen de captura.
+	var projected    = seg_start + seg_dir * (progress * seg_len)
+	var lateral_dist = body.global_position.distance_to(projected)
+
+	return lateral_dist <= ladder_detection_radius
 
 func ladder_detected() -> bool:
 	return _has_ladder_candidate

@@ -173,14 +173,21 @@ func _on_candidate_found(candidate: Dictionary) -> void:
 # ─────────────────────────────────────────────────────────────────
 
 func _on_ladder_candidate_found(candidate: Dictionary) -> void:
+	print(
+		"LADDER EVENT | state=",
+		get_state_name(),
+		" | active=",
+		is_active()
+	)
+
 	if state != State.IDLE:
+		print("LADDER BLOQUEADA | state no es IDLE")
 		return
+
+	print("LADDER ACEPTADA | entrando")
 
 	_current_segment = candidate["area"]
 
-	# Calcular progress inicial — qué tan avanzado está el jugador
-	# en el segmento al momento de entrar.
-	# Se proyecta la posición del jugador sobre el eje del segmento.
 	var seg_start = _current_segment.start_marker.global_position
 	var seg_end   = _current_segment.end_marker.global_position
 	var seg_vec   = seg_end - seg_start
@@ -188,16 +195,23 @@ func _on_ladder_candidate_found(candidate: Dictionary) -> void:
 
 	if seg_len > 0.001:
 		var to_player = body.global_position - seg_start
-		_current_progress = clamp(to_player.dot(seg_vec.normalized()) / seg_len, 0.0, 1.0)
+		_current_progress = clamp(
+			to_player.dot(seg_vec.normalized()) / seg_len,
+			0.0,
+			1.0
+		)
 	else:
 		_current_progress = 0.0
 
 	_ladder_pulse_timer = 0.0
 	_ladder_dir         = 0.0
 
-	_log("escalera — entrada | segment: %s | progress: %.2f" % [_current_segment.name, _current_progress])
-	_change_state(State.LADDER)
+	_log(
+		"escalera — entrada | segment: %s | progress: %.2f"
+		% [_current_segment.name, _current_progress]
+	)
 
+	_change_state(State.LADDER)
 # ─────────────────────────────────────────────────────────────────
 # ── SNAPPING ─────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────────
@@ -308,9 +322,17 @@ func _state_climbing(delta: float) -> void:
 # ─────────────────────────────────────────────────────────────────
 
 func _state_ladder(delta: float) -> void:
+	print("LADDER TICK | segment=", _current_segment)
+
 	body.velocity = Vector3.ZERO
 
 	if _current_segment == null:
+		print("LADDER EXIT | SEGMENT NULL")
+		_release(Vector3.ZERO)
+		return
+
+	if _current_segment == null:
+		print("LADDER EXIT | SEGMENT NULL")
 		_release(Vector3.ZERO)
 		return
 
@@ -326,7 +348,7 @@ func _state_ladder(delta: float) -> void:
 	# ── Soltarse ────────────────────────────────────────────────
 	if Input.is_action_just_pressed("crouch"):
 		_log("escalera — suelta (control) — caída libre")
-		_release(Vector3.DOWN * 3.0, false)
+		_release(Vector3.ZERO, false)
 		return
 
 	# ── Input de movimiento ───────────────────────────────────────
@@ -556,6 +578,14 @@ func _release(exit_velocity: Vector3, use_cooldown: bool = true) -> void:
 	_change_state(State.IDLE)
 
 func _change_state(new_state: State) -> void:
+
+	print(
+		"STATE:",
+		State.keys()[state],
+		" -> ",
+		State.keys()[new_state]
+	)
+
 	var was_active = is_active()
 	var old_name   = State.keys()[state]
 	state          = new_state
@@ -573,7 +603,6 @@ func _change_state(new_state: State) -> void:
 		traversal_started.emit()
 	elif was_active and not now_active:
 		traversal_ended.emit()
-
 # ─────────────────────────────────────────────────────────────────
 # ── DEBUG ────────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────────

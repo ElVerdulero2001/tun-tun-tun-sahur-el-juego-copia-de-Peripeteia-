@@ -27,7 +27,7 @@ signal ladder_candidate_lost()
 
 # ── Parámetros de detección — ladder ─────────────────────────────
 @export var ladder_detection_radius : float = 1.2
-@export var ladder_max_distance     : float = 2.0
+@export var ladder_max_distance     : float = 800
 
 # ── Alturas de sondeo ─────────────────────────────────────────────
 const PROBE_HEIGHTS : Array = [0.3, 0.6, 0.9, 1.2, 1.5]
@@ -190,20 +190,19 @@ func _find_segment(node: Node) -> Node:
 		current = current.get_parent()
 	return null
 
-func _has_ladder_intent(segment: Node) -> bool:
+func _has_ladder_intent(_segment: Node) -> bool:
 
 	if body.is_on_floor():
 		return false
 
-	# Mientras mantiene CTRL, no puede agarrar escaleras.
 	if Input.is_action_pressed("crouch"):
 		return false
 
-	return _is_within_segment_volume(segment)
+	print("LADDER ACEPTADA")
+
+	return true
 
 func _is_within_segment_volume(segment: Node) -> bool:
-	# Proyecta la posición del jugador sobre el eje del segmento.
-	# Si el progress cae entre 0.0 y 1.0, está dentro del volumen útil.
 	var seg_start = segment.start_marker.global_position
 	var seg_end   = segment.end_marker.global_position
 	var seg_vec   = seg_end - seg_start
@@ -216,11 +215,9 @@ func _is_within_segment_volume(segment: Node) -> bool:
 	var to_player = body.global_position - seg_start
 	var progress  = to_player.dot(seg_dir) / seg_len
 
-	# Fuera del rango del segmento — no reenganchar.
 	if progress < 0.0 or progress > 1.0:
 		return false
 
-	# Distancia lateral al eje del segmento — margen de captura.
 	var projected    = seg_start + seg_dir * (progress * seg_len)
 	var lateral_dist = body.global_position.distance_to(projected)
 

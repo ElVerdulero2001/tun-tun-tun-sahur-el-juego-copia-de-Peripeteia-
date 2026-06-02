@@ -27,7 +27,6 @@ signal ladder_candidate_lost()
 
 # ── Parámetros de detección — ladder ─────────────────────────────
 @export var ladder_detection_radius : float = 1.2
-@export var ladder_max_distance     : float = 800
 
 # ── Alturas de sondeo ─────────────────────────────────────────────
 const PROBE_HEIGHTS : Array = [0.3, 0.6, 0.9, 1.2, 1.5]
@@ -120,16 +119,6 @@ func _process_ladder() -> void:
 
 	var results = space.intersect_shape(params)
 
-	print("ladder query | resultados: ", results.size())
-	for result in results:
-		var c = result.get("collider", null)
-		if c:
-			var seg = _find_segment(c)
-			print("  collider: ", c.name, " | segment: ", seg)
-			if seg:
-				print("  start_marker: ", seg.get("start_marker"))
-				print("  end_marker: ", seg.get("end_marker"))
-
 	for result in results:
 		var collider = result.get("collider", null)
 		if collider == null:
@@ -147,11 +136,6 @@ func _process_ladder() -> void:
 		if segment.start_marker == null or segment.end_marker == null:
 			continue
 
-		# Validar distancia.
-		var dist = body.global_position.distance_to(segment.start_marker.global_position)
-		if dist > ladder_max_distance:
-			continue
-
 		# Validar intención.
 		if not _has_ladder_intent(segment):
 			continue
@@ -160,7 +144,6 @@ func _process_ladder() -> void:
 		var candidate = {
 			"type"     : "ladder",
 			"area"     : segment,   # el TraversalSegment
-			"distance" : dist,
 		}
 
 		# Debug — mostrar markers
@@ -197,8 +180,6 @@ func _has_ladder_intent(_segment: Node) -> bool:
 
 	if Input.is_action_pressed("crouch"):
 		return false
-
-	print("LADDER ACEPTADA")
 
 	return true
 

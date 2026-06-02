@@ -173,18 +173,6 @@ func _on_candidate_found(candidate: Dictionary) -> void:
 # ─────────────────────────────────────────────────────────────────
 
 func _on_ladder_candidate_found(candidate: Dictionary) -> void:
-	print(
-		"LADDER EVENT | state=",
-		get_state_name(),
-		" | active=",
-		is_active()
-	)
-
-	if state != State.IDLE:
-		print("LADDER BLOQUEADA | state no es IDLE")
-		return
-
-	print("LADDER ACEPTADA | entrando")
 
 	_current_segment = candidate["area"]
 
@@ -322,19 +310,8 @@ func _state_climbing(delta: float) -> void:
 # ─────────────────────────────────────────────────────────────────
 
 func _state_ladder(delta: float) -> void:
-	print("LADDER TICK | segment=", _current_segment)
 
 	body.velocity = Vector3.ZERO
-
-	if _current_segment == null:
-		print("LADDER EXIT | SEGMENT NULL")
-		_release(Vector3.ZERO)
-		return
-
-	if _current_segment == null:
-		print("LADDER EXIT | SEGMENT NULL")
-		_release(Vector3.ZERO)
-		return
 
 	# ── Saltar fuera ──────────────────────────────────────────────
 	if Input.is_action_just_pressed("jump"):
@@ -386,7 +363,7 @@ func _state_ladder(delta: float) -> void:
 			var neighbour = _current_segment.get_neighbour_up()
 			if neighbour != null:
 				_current_segment  = neighbour
-				_current_progress = 0.0
+				_current_progress = new_progress - 1.0
 				_log("escalera — transición a vecino superior: %s" % neighbour.name)
 			else:
 				_current_progress = 1.0  # tope — no hay más segmento
@@ -394,7 +371,7 @@ func _state_ladder(delta: float) -> void:
 			var neighbour = _current_segment.get_neighbour_down()
 			if neighbour != null:
 				_current_segment  = neighbour
-				_current_progress = 1.0
+				_current_progress = 1.0 + new_progress
 				_log("escalera — transición a vecino inferior: %s" % neighbour.name)
 			else:
 				_current_progress = 0.0  # fondo — no hay más segmento
@@ -578,14 +555,6 @@ func _release(exit_velocity: Vector3, use_cooldown: bool = true) -> void:
 	_change_state(State.IDLE)
 
 func _change_state(new_state: State) -> void:
-
-	print(
-		"STATE:",
-		State.keys()[state],
-		" -> ",
-		State.keys()[new_state]
-	)
-
 	var was_active = is_active()
 	var old_name   = State.keys()[state]
 	state          = new_state

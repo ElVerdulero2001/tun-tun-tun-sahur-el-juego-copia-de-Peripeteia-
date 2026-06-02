@@ -273,6 +273,7 @@ objetivo = NodePath("../puertas/door_rust_01")
 
 [node name="escalera 1" parent="world/enviroment/static/escaleras" unique_id=2057852000 instance=ExtResource("23_co54g")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -10.327127, 4.800875, -9.641181)
+neighbour_up = NodePath("../escalera 3")
 
 [node name="escalera 2" parent="world/enviroment/static/escaleras" unique_id=863226712 instance=ExtResource("23_co54g")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.035, -1.6125276, -8.602)
@@ -281,13 +282,25 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.035, -1.6125276, -8.602)
 transform = Transform3D(1, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0.062, 0)
 
 [node name="carcasa" parent="world/enviroment/static/escaleras/escalera 2" index="1" unique_id=1171411348]
-transform = Transform3D(1, 0, 0, 0, 4, 0, 0, 0, 1, 0, 17.286621, 0)
+transform = Transform3D(1, 0, 0, 0, 4, 0, 0, 0, 1, 0, 17.322027, 0)
 
 [node name="StartMarker" parent="world/enviroment/static/escaleras/escalera 2" index="2" unique_id=1847870763]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.816892, 0.80568457)
 
 [node name="EndMarker" parent="world/enviroment/static/escaleras/escalera 2" index="3" unique_id=606831496]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 33.95176, 0.80599976)
+
+[node name="escalera 3" parent="world/enviroment/static/escaleras" unique_id=603716692 instance=ExtResource("23_co54g")]
+transform = Transform3D(-4.0001844e-08, 0.4031461, 0.91513574, 1.7622071e-08, 0.91513574, -0.4031461, -1, 1.5137438e-15, -4.3711385e-08, -10.664811, 12.413293, -9.640672)
+neighbour_down = NodePath("../escalera 1")
+
+[node name="escalera 4" parent="world/enviroment/static/escaleras" unique_id=1261544001 instance=ExtResource("23_co54g")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.070879, 0.09999943, -6.4042616)
+neighbour_up = NodePath("../escalera 5")
+
+[node name="escalera 5" parent="world/enviroment/static/escaleras" unique_id=1838846607 instance=ExtResource("23_co54g")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.071, 7.3, -6.405)
+neighbour_down = NodePath("../escalera 4")
 
 [node name="dinamic" type="Node3D" parent="world/enviroment" unique_id=637697114]
 

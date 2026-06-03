@@ -296,7 +296,7 @@ func _state_hanging(delta: float) -> void:
 func _state_climbing(delta: float) -> void:
 	body.velocity = Vector3.ZERO
 
-	var target = _hang_position + Vector3.UP * 1.9 - _hang_normal * 0.4
+	var target = _hang_position + Vector3.UP * 2.2 - _hang_normal * 0.4
 	body.global_position = body.global_position.lerp(target, climb_speed * delta)
 
 	if body.global_position.distance_to(target) < 0.12:
@@ -319,7 +319,7 @@ func _state_ladder(delta: float) -> void:
 		var cam_fwd = -camera.global_transform.basis.z
 		cam_fwd.y   = 0.0
 		cam_fwd     = cam_fwd.normalized()
-		_release(cam_fwd * 4.0 + Vector3.UP * 3.0)
+		_release(cam_fwd * 4.0 + Vector3.UP * 5.0)
 		return
 
 	# ── Soltarse ────────────────────────────────────────────────

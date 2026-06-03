@@ -26,7 +26,7 @@ signal ladder_candidate_lost()
 @export var max_surface_tilt_deg : float = 30.0
 
 # ── Parámetros de detección — ladder ─────────────────────────────
-@export var ladder_detection_radius : float = 1.2
+@export var ladder_detection_radius : float = 1.0
 
 # ── Alturas de sondeo ─────────────────────────────────────────────
 const PROBE_HEIGHTS : Array = [0.3, 0.6, 0.9, 1.2, 1.5]
@@ -136,6 +136,10 @@ func _process_ladder() -> void:
 		if segment.start_marker == null or segment.end_marker == null:
 			continue
 
+		# Validar volumen del segmento.
+		if not _is_within_segment_volume(segment):
+			continue
+
 		# Validar intención.
 		if not _has_ladder_intent(segment):
 			continue
@@ -143,7 +147,7 @@ func _process_ladder() -> void:
 		# Candidato válido — construir y emitir.
 		var candidate = {
 			"type"     : "ladder",
-			"area"     : segment,   # el TraversalSegment
+			"area"     : segment,
 		}
 
 		# Debug — mostrar markers

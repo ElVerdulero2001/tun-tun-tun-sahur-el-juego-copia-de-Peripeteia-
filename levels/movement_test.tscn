@@ -97,6 +97,18 @@ size = Vector3(2, 1, 2)
 [sub_resource type="BoxMesh" id="BoxMesh_okx0b"]
 size = Vector3(2, 1, 2)
 
+[sub_resource type="BoxMesh" id="BoxMesh_gpyf4"]
+size = Vector3(5, 1, 5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_okx0b"]
+size = Vector3(5, 1, 5)
+
+[sub_resource type="BoxMesh" id="BoxMesh_0l33h"]
+size = Vector3(3, 3, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_jm7au"]
+size = Vector3(3, 3, 0.2)
+
 [sub_resource type="ViewportTexture" id="ViewportTexture_co54g"]
 viewport_path = NodePath("../../../../../entities/screen osci/SubViewport")
 
@@ -302,6 +314,33 @@ neighbour_up = NodePath("../escalera 5")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.071, 7.3, -6.405)
 neighbour_down = NodePath("../escalera 4")
 
+[node name="EndMarker" parent="world/enviroment/static/escaleras/escalera 5" index="3" unique_id=606831496]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 9, 0.806)
+
+[node name="plataformas" type="Node" parent="world/enviroment/static" unique_id=1780864834]
+
+[node name="StaticBody3D" type="StaticBody3D" parent="world/enviroment/static/plataformas" unique_id=307871211]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.84499, 15.3767, -9.003332)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/plataformas/StaticBody3D" unique_id=467001174]
+mesh = SubResource("BoxMesh_gpyf4")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/plataformas/StaticBody3D" unique_id=1598648341]
+shape = SubResource("BoxShape3D_okx0b")
+
+[node name="muros" type="Node" parent="world/enviroment/static/plataformas" unique_id=2132840712]
+
+[node name="StaticBody3D" type="StaticBody3D" parent="world/enviroment/static/plataformas/muros" unique_id=1032794656]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.9978175, 1.6823325, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/plataformas/muros/StaticBody3D" unique_id=1473106577]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.117571, -0.06318736, -6.5972486)
+mesh = SubResource("BoxMesh_0l33h")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/plataformas/muros/StaticBody3D" unique_id=1231238556]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.118, -0.063, -6.597)
+shape = SubResource("BoxShape3D_jm7au")
+
 [node name="dinamic" type="Node3D" parent="world/enviroment" unique_id=637697114]
 
 [node name="botella_standar_1" parent="world/enviroment/dinamic" unique_id=1598823837 instance=ExtResource("14_8rkqj")]
@@ -365,6 +404,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.789009, 4.6441727, 8.405916
 
 [editable path="world/enviroment/static/escaleras/escalera 1"]
 [editable path="world/enviroment/static/escaleras/escalera 2"]
+[editable path="world/enviroment/static/escaleras/escalera 5"]
 [editable path="world/enviroment/dinamic/osciloscopio_01"]
 [editable path="world/enviroment/dinamic/osciloscopio_01/osciloscopio5"]
 [editable path="entities/player/player"]

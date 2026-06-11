@@ -23,6 +23,7 @@
 [ext_resource type="PackedScene" uid="uid://cfgfx6u5ccnn7" path="res://scenes/props/static/escritorio_01.tscn" id="20_yig0p"]
 [ext_resource type="PackedScene" uid="uid://ddf7ji16h0jt3" path="res://scenes/props/static/circulo_circuloso.tscn" id="22_kcpfy"]
 [ext_resource type="PackedScene" uid="uid://csxv50ydgh7d5" path="res://scenes/props/static/escalera_fea_v_1.tscn" id="23_co54g"]
+[ext_resource type="PackedScene" uid="uid://d1hcnv1fk1ld0" path="res://assets/models/no_collectibles/taladro_choto_1.glb" id="24_gpyf4"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_755td"]
 
@@ -109,12 +110,27 @@ size = Vector3(3, 3, 0.2)
 [sub_resource type="BoxShape3D" id="BoxShape3D_jm7au"]
 size = Vector3(3, 3, 0.2)
 
-[sub_resource type="ViewportTexture" id="ViewportTexture_co54g"]
+[sub_resource type="BoxMesh" id="BoxMesh_jm7au"]
+size = Vector3(300, 1, 300)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_7ued8"]
+size = Vector3(300, 1, 300)
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_gpyf4"]
+height = 100.0
+radius = 10.0
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_0l33h"]
+top_radius = 10.0
+bottom_radius = 10.0
+height = 100.0
+
+[sub_resource type="ViewportTexture" id="ViewportTexture_6fxmk"]
 viewport_path = NodePath("../../../../../entities/screen osci/SubViewport")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gpyf4"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8rkqj"]
 resource_local_to_scene = true
-albedo_texture = SubResource("ViewportTexture_co54g")
+albedo_texture = SubResource("ViewportTexture_6fxmk")
 
 [node name="MovementTest" type="Node3D" unique_id=15402342 groups=["raycast"]]
 
@@ -300,7 +316,7 @@ transform = Transform3D(1, 0, 0, 0, 4, 0, 0, 0, 1, 0, 17.322027, 0)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.816892, 0.80568457)
 
 [node name="EndMarker" parent="world/enviroment/static/escaleras/escalera 2" index="3" unique_id=606831496]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 33.95176, 0.80599976)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 34.867695, 0.80599976)
 
 [node name="escalera 3" parent="world/enviroment/static/escaleras" unique_id=603716692 instance=ExtResource("23_co54g")]
 transform = Transform3D(-4.0001844e-08, 0.4031461, 0.91513574, 1.7622071e-08, 0.91513574, -0.4031461, -1, 1.5137438e-15, -4.3711385e-08, -10.664811, 12.413293, -9.640672)
@@ -341,6 +357,26 @@ mesh = SubResource("BoxMesh_0l33h")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.118, -0.063, -6.597)
 shape = SubResource("BoxShape3D_jm7au")
 
+[node name="piso" type="Node" parent="world/enviroment/static" unique_id=2105610730]
+
+[node name="StaticBody3D" type="StaticBody3D" parent="world/enviroment/static/piso" unique_id=2003677839]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.522871, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/piso/StaticBody3D" unique_id=995999665]
+mesh = SubResource("BoxMesh_jm7au")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/piso/StaticBody3D" unique_id=332336769]
+shape = SubResource("BoxShape3D_7ued8")
+
+[node name="StaticBody3D2" type="StaticBody3D" parent="world/enviroment/static/piso" unique_id=1954703886]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 120.349556, 48.879692, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/piso/StaticBody3D2" unique_id=180297685]
+shape = SubResource("CylinderShape3D_gpyf4")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/piso/StaticBody3D2" unique_id=2038885298]
+mesh = SubResource("CylinderMesh_0l33h")
+
 [node name="dinamic" type="Node3D" parent="world/enviroment" unique_id=637697114]
 
 [node name="botella_standar_1" parent="world/enviroment/dinamic" unique_id=1598823837 instance=ExtResource("14_8rkqj")]
@@ -371,7 +407,7 @@ transform = Transform3D(0.99997795, 0.0060523394, -0.0027255674, -0.006050634, 0
 mass = 10.0
 
 [node name="pantalla" parent="world/enviroment/dinamic/osciloscopio_01/osciloscopio5" parent_id_path=PackedInt32Array(471919506, 1264347502) index="5" unique_id=1963793558]
-surface_material_override/0 = SubResource("StandardMaterial3D_gpyf4")
+surface_material_override/0 = SubResource("StandardMaterial3D_8rkqj")
 
 [node name="entities" type="Node3D" parent="." unique_id=2102854069]
 
@@ -401,6 +437,9 @@ transform = Transform3D(-0.009670533, 0.7019665, -0.7121442, 0.009531449, 0.7122
 
 [node name="circulo circuloso" parent="." unique_id=252392807 instance=ExtResource("22_kcpfy")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.789009, 4.6441727, 8.405916)
+
+[node name="taladro_choto_1" parent="." unique_id=1656400893 instance=ExtResource("24_gpyf4")]
+transform = Transform3D(0.03831803, 0, 0.9992656, 0, 1, 0, -0.9992656, 0, 0.03831803, -11.331757, 0.099999905, 1.3258138)
 
 [editable path="world/enviroment/static/escaleras/escalera 1"]
 [editable path="world/enviroment/static/escaleras/escalera 2"]

@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://d4ayikfcgq2bq"
-path.s3tc="res://.godot/imported/taladro_choto_1_Gemini_Generated_Image_u8y3ztu8y3ztu8y3ff.png-2d447afbdc010a659b5dc06a307103d7.s3tc.ctex"
+uid="uid://blg6y28ak0oey"
+path.s3tc="res://.godot/imported/taladro_choto_1_taladro_verde_00.webp-5e12a2d6e64e037adcc4160e57e00cc2.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "d7218f4e7b2750c83b5d12c2ee27e5ad"
+"md5": "e0a08b0b1df1f8241587f1a39c3f4f9d"
 }
 
 [deps]
 
-source_file="res://assets/models/no_collectibles/taladro_choto_1_Gemini_Generated_Image_u8y3ztu8y3ztu8y3ff.png"
-dest_files=["res://.godot/imported/taladro_choto_1_Gemini_Generated_Image_u8y3ztu8y3ztu8y3ff.png-2d447afbdc010a659b5dc06a307103d7.s3tc.ctex"]
+source_file="res://assets/textures/taladro_choto_1_taladro_verde_00.webp"
+dest_files=["res://.godot/imported/taladro_choto_1_taladro_verde_00.webp-5e12a2d6e64e037adcc4160e57e00cc2.s3tc.ctex"]
 
 [params]
 

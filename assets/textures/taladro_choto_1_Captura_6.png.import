@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://blg6y28ak0oey"
-path.s3tc="res://.godot/imported/taladro_choto_1_taladro_verde_00.webp-f47fd61ab2c333677db4bafe4e244127.s3tc.ctex"
+uid="uid://b3ar6q0irei3g"
+path.s3tc="res://.godot/imported/taladro_choto_1_Captura_6.png-b30e3cdacb4c30ff3e88d301b81a8ed4.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "e0a08b0b1df1f8241587f1a39c3f4f9d"
+"md5": "2fd77eff0943abd291082ef398716511"
 }
 
 [deps]
 
-source_file="res://assets/models/no_collectibles/taladro_choto_1_taladro_verde_00.webp"
-dest_files=["res://.godot/imported/taladro_choto_1_taladro_verde_00.webp-f47fd61ab2c333677db4bafe4e244127.s3tc.ctex"]
+source_file="res://assets/textures/taladro_choto_1_Captura_6.png"
+dest_files=["res://.godot/imported/taladro_choto_1_Captura_6.png-b30e3cdacb4c30ff3e88d301b81a8ed4.s3tc.ctex"]
 
 [params]
 

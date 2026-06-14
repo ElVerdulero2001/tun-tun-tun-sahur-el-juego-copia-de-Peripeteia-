@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dxtc14xf8hbjf"
-path.s3tc="res://.godot/imported/taladro_choto_1_ChatGPT Image 6 jun 2026, 14_37_44ee.png-f62a73a1257db6973d48c0d444fe5eb8.s3tc.ctex"
+uid="uid://d36b4gkfhsvxf"
+path.s3tc="res://.godot/imported/taladro_choto_1_fffffffafaaff.jpg-10cf66c07149aa0e3ed6de30c75191dd.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "860eb3295a7e0de13d1ef304c30b31ba"
+"md5": "e8583520a77cbeb159b472d5aa95885c"
 }
 
 [deps]
 
-source_file="res://assets/models/no_collectibles/taladro_choto_1_ChatGPT Image 6 jun 2026, 14_37_44ee.png"
-dest_files=["res://.godot/imported/taladro_choto_1_ChatGPT Image 6 jun 2026, 14_37_44ee.png-f62a73a1257db6973d48c0d444fe5eb8.s3tc.ctex"]
+source_file="res://assets/textures/taladro_choto_1_fffffffafaaff.jpg"
+dest_files=["res://.godot/imported/taladro_choto_1_fffffffafaaff.jpg-10cf66c07149aa0e3ed6de30c75191dd.s3tc.ctex"]
 
 [params]
 

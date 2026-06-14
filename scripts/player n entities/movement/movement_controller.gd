@@ -1,47 +1,34 @@
 # movement_controller.gd
-# Nodo hijo del Player (CharacterBody3D).
-# Responsabilidad ÚNICA: manejar velocidad, aceleración, salto,
-# agacharse y fricción aérea. No sabe nada de parkour ni de combate.
-
 extends Node
 
-# ── Constantes de movimiento ──────────────────────────────────────
 const SPEED               = 5.0
 const RUN_SPEED           = 9.0
 const CROUCH_SPEED        = 2.5
 const JUMP_VELOCITY       = 4.5
 const ACCELERATION        = 14.0
 const CROUCH_TRANSITION   = 8.0
-const AIR_CONTROL_FAST    = 0.3     # control aéreo con mucha velocidad horizontal
-const AIR_CONTROL_SLOW    = 1.5     # control aéreo con poca velocidad horizontal
-const AIR_FRICTION        = 0.8     # fricción al caer con impulso (ej: post-salto)
-const FALL_FRICTION       = 3.0     # fricción al caer sin impulso
+const AIR_CONTROL_FAST    = 0.3
+const AIR_CONTROL_SLOW    = 1.5
+const AIR_FRICTION        = 0.8
+const FALL_FRICTION       = 3.0
 
-# ── Estado interno ────────────────────────────────────────────────
 var current_speed : float = SPEED
 var is_crouching  : bool  = false
-var _jumped       : bool  = false   # privado, expuesto via propiedad
+var on_platform   : bool  = false  # suspende gravedad mientras está en plataforma
+var _jumped       : bool  = false
 
-# ── Referencias (se asignan desde player.gd en _ready) ───────────
-var body   : CharacterBody3D   # el CharacterBody3D del jugador
+var body   : CharacterBody3D
 var camera : Camera3D
 var collision_shape : CollisionShape3D
 
-# ── Propiedad de solo lectura ─────────────────────────────────────
 var jumped : bool:
 	get: return _jumped
 
-# ─────────────────────────────────────────────────────────────────
 func setup(p_body: CharacterBody3D, p_camera: Camera3D, p_collision: CollisionShape3D) -> void:
-	body           = p_body
-	camera         = p_camera
+	body            = p_body
+	camera          = p_camera
 	collision_shape = p_collision
 
-# ─────────────────────────────────────────────────────────────────
-# Llamado desde player.gd en _physics_process.
-# Recibe delta y la dirección de input ya normalizada.
-# Devuelve true si el movimiento fue procesado normalmente,
-# false si algo externo (ej: TraversalController) debe tomar control.
 func process(delta: float, direction: Vector3) -> void:
 	_update_jump_state()
 	_apply_gravity(delta)
@@ -50,9 +37,6 @@ func process(delta: float, direction: Vector3) -> void:
 	_update_speed(delta)
 	_apply_movement(delta, direction)
 
-# ─────────────────────────────────────────────────────────────────
-# API pública para que TraversalController pueda suspender
-# o reanudar el movimiento normal.
 func freeze() -> void:
 	body.velocity.x = 0.0
 	body.velocity.z = 0.0
@@ -60,12 +44,21 @@ func freeze() -> void:
 func set_crouching(value: bool) -> void:
 	is_crouching = value
 
-# ─────────────────────────────────────────────────────────────────
+func set_on_platform(value: bool) -> void:
+	on_platform = value
+	if value:
+		# Al subir a la plataforma, cancelar velocidad vertical
+		body.velocity.y = 0.0
+
 func _update_jump_state() -> void:
 	if body.is_on_floor():
 		_jumped = false
 
 func _apply_gravity(delta: float) -> void:
+	# No aplicar gravedad si estamos en una plataforma
+	if on_platform:
+		body.velocity.y = 0.0
+		return
 	if not body.is_on_floor():
 		body.velocity += body.get_gravity() * delta
 
@@ -75,8 +68,8 @@ func _handle_jump() -> void:
 		_jumped = true
 
 func _update_crouch(delta: float) -> void:
-	var target_height    = 0.8   if is_crouching else 2.0
-	var target_camera_y  = 0.4   if is_crouching else 0.706
+	var target_height    = 0.8  if is_crouching else 2.0
+	var target_camera_y  = 0.4  if is_crouching else 0.706
 	collision_shape.shape.height = lerp(
 		collision_shape.shape.height, target_height, CROUCH_TRANSITION * delta
 	)
@@ -95,13 +88,12 @@ func _update_speed(delta: float) -> void:
 	current_speed = lerp(current_speed, target_speed, ACCELERATION * delta)
 
 func _apply_movement(delta: float, direction: Vector3) -> void:
-	if body.is_on_floor():
+	if body.is_on_floor() or on_platform:
 		var target_vx = direction.x * current_speed
 		var target_vz = direction.z * current_speed
 		body.velocity.x = lerp(body.velocity.x, target_vx, ACCELERATION * delta)
 		body.velocity.z = lerp(body.velocity.z, target_vz, ACCELERATION * delta)
 
-		# Clamp de velocidad horizontal en piso
 		var horizontal = Vector2(body.velocity.x, body.velocity.z)
 		if horizontal.length() > current_speed:
 			horizontal = horizontal.normalized() * current_speed

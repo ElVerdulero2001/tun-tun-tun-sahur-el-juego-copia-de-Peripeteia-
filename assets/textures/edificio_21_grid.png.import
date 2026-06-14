@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://blelqyxqnujxf"
-path.s3tc="res://.godot/imported/taladro_choto_1_empty-brushed-metal-surface-abstract-background-design-backdrop_230115-442.webp-764d71fb45354682f163a73d0472d55b.s3tc.ctex"
+uid="uid://cjxt8uybh0aco"
+path.s3tc="res://.godot/imported/edificio_21_grid.png-13d0d6742184067e9651c3b9ef7fb6c0.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "0273869e52e2c697bcae57537088a3d4"
+"md5": "5251a685620ecec968e08d819a2a66a5"
 }
 
 [deps]
 
-source_file="res://assets/models/no_collectibles/taladro_choto_1_empty-brushed-metal-surface-abstract-background-design-backdrop_230115-442.webp"
-dest_files=["res://.godot/imported/taladro_choto_1_empty-brushed-metal-surface-abstract-background-design-backdrop_230115-442.webp-764d71fb45354682f163a73d0472d55b.s3tc.ctex"]
+source_file="res://assets/textures/edificio_21_grid.png"
+dest_files=["res://.godot/imported/edificio_21_grid.png-13d0d6742184067e9651c3b9ef7fb6c0.s3tc.ctex"]
 
 [params]
 

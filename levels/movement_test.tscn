@@ -140,6 +140,10 @@ viewport_path = NodePath("../../../../../entities/screen osci/SubViewport")
 resource_local_to_scene = true
 albedo_texture = SubResource("ViewportTexture_7ued8")
 
+[sub_resource type="Curve" id="Curve_okx0b"]
+_data = [Vector2(0, 0.0968771), 0.0, 0.0, 0, 0, Vector2(0.50199205, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.0968771), 0.0, 0.0, 0, 0]
+point_count = 3
+
 [sub_resource type="BoxShape3D" id="BoxShape3D_8rkqj"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_2fbo5"]
@@ -454,6 +458,8 @@ surface_material_override/0 = SubResource("StandardMaterial3D_6fxmk")
 [node name="plataforma_prueba" type="AnimatableBody3D" parent="world/enviroment/platfoms/elevador_prueba" unique_id=179752016 node_paths=PackedStringArray("start_marker", "end_marker", "detect_area")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.126125, 0.6522926, 4.2103806)
 script = ExtResource("23_okx0b")
+move_speed = 1.0
+speed_curve = SubResource("Curve_okx0b")
 start_marker = NodePath("../StartMarker")
 end_marker = NodePath("../EndMarker")
 detect_area = NodePath("../DetectArea")

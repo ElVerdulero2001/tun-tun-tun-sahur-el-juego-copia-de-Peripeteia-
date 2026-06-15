@@ -25,7 +25,7 @@
 [ext_resource type="PackedScene" uid="uid://csxv50ydgh7d5" path="res://scenes/props/static/escalera_fea_v_1.tscn" id="23_co54g"]
 [ext_resource type="Script" uid="uid://floa4q7wjgeg" path="res://scripts/player n entities/systems/transport_platform.gd" id="23_okx0b"]
 [ext_resource type="PackedScene" uid="uid://d1hcnv1fk1ld0" path="res://assets/models/no_collectibles/taladro_choto_1.glb" id="24_gpyf4"]
-[ext_resource type="Script" uid="uid://c3srp7xdagw6t" path="res://scripts/player n entities/systems/transport_station.gd" id="24_jm7au"]
+[ext_resource type="Script" uid="uid://besyllyjqg2m0" path="res://scripts/player n entities/systems/elevator_button.gd" id="24_okx0b"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_755td"]
 
@@ -133,27 +133,39 @@ size = Vector3(3, 1, 3)
 [sub_resource type="BoxMesh" id="BoxMesh_8rkqj"]
 size = Vector3(3, 1, 3)
 
-[sub_resource type="ViewportTexture" id="ViewportTexture_7ued8"]
+[sub_resource type="ViewportTexture" id="ViewportTexture_okx0b"]
 viewport_path = NodePath("../../../../../entities/screen osci/SubViewport")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6fxmk"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jm7au"]
 resource_local_to_scene = true
-albedo_texture = SubResource("ViewportTexture_7ued8")
-
-[sub_resource type="Curve" id="Curve_okx0b"]
-_data = [Vector2(0, 0.0968771), 0.0, 0.0, 0, 0, Vector2(0.50199205, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.0968771), 0.0, 0.0, 0, 0]
-point_count = 3
+albedo_texture = SubResource("ViewportTexture_okx0b")
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_8rkqj"]
+size = Vector3(2, 1, 2)
 
 [sub_resource type="BoxMesh" id="BoxMesh_2fbo5"]
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_ittlt"]
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_fby0v"]
+size = Vector3(2, 1, 2)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_hwk1c"]
-size = Vector3(1, 0.5, 1)
+size = Vector3(2, 1, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_2fbo5"]
+size = Vector3(0.2, 0.2, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_hwk1c"]
+size = Vector3(0.2, 0.2, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ittlt"]
+size = Vector3(0.2, 0.2, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_fby0v"]
+size = Vector3(0.2, 0.2, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ql40f"]
+size = Vector3(0.2, 0.2, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_1tter"]
+size = Vector3(0.2, 0.2, 0.2)
 
 [node name="MovementTest" type="Node3D" unique_id=15402342 groups=["raycast"]]
 
@@ -449,20 +461,20 @@ transform = Transform3D(0.99997795, 0.0060523394, -0.0027255674, -0.006050634, 0
 mass = 10.0
 
 [node name="pantalla" parent="world/enviroment/dinamic/osciloscopio_01/osciloscopio5" parent_id_path=PackedInt32Array(471919506, 1264347502) index="5" unique_id=1963793558]
-surface_material_override/0 = SubResource("StandardMaterial3D_6fxmk")
+surface_material_override/0 = SubResource("StandardMaterial3D_jm7au")
 
 [node name="platfoms" type="Node" parent="world/enviroment" unique_id=1207606238]
 
 [node name="elevador_prueba" type="Node" parent="world/enviroment/platfoms" unique_id=367250419]
 
-[node name="plataforma_prueba" type="AnimatableBody3D" parent="world/enviroment/platfoms/elevador_prueba" unique_id=179752016 node_paths=PackedStringArray("start_marker", "end_marker", "detect_area")]
+[node name="plataforma_prueba" type="AnimatableBody3D" parent="world/enviroment/platfoms/elevador_prueba" unique_id=179752016 node_paths=PackedStringArray("stations", "detect_area")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.126125, 0.6522926, 4.2103806)
 script = ExtResource("23_okx0b")
-move_speed = 1.0
-speed_curve = SubResource("Curve_okx0b")
-start_marker = NodePath("../StartMarker")
-end_marker = NodePath("../EndMarker")
-detect_area = NodePath("../DetectArea")
+move_speed = 5.0
+accel_distance = 1.0
+decel_distance = 1.0
+stations = [NodePath("../estaciones/station_0"), NodePath("../estaciones/station_1"), NodePath("../estaciones/station_2")]
+detect_area = NodePath("DetectArea")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba" unique_id=1148833530]
 shape = SubResource("BoxShape3D_8rkqj")
@@ -470,39 +482,71 @@ shape = SubResource("BoxShape3D_8rkqj")
 [node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba" unique_id=466864056]
 mesh = SubResource("BoxMesh_2fbo5")
 
-[node name="StationBottom" type="Area3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba" unique_id=1896254816]
-collision_mask = 4
-script = ExtResource("24_jm7au")
-platform = NodePath("..")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/StationBottom" unique_id=358349637]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.09688872, 0)
-shape = SubResource("BoxShape3D_ittlt")
-
-[node name="StationTop" type="Area3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba" unique_id=993972616]
-collision_mask = 4
-script = ExtResource("24_jm7au")
-platform = NodePath("..")
-station_type = 1
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/StationTop" unique_id=1862899648]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.09633291, 0)
-shape = SubResource("BoxShape3D_fby0v")
-
-[node name="StartMarker" type="Node3D" parent="world/enviroment/platfoms/elevador_prueba" unique_id=1387866361]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.126125, 0.6522926, 4.2103806)
-
-[node name="EndMarker" type="Node3D" parent="world/enviroment/platfoms/elevador_prueba" unique_id=510004719]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.126125, 11.892651, 4.2103806)
-
-[node name="DetectArea" type="Area3D" parent="world/enviroment/platfoms/elevador_prueba" unique_id=1544696403]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.126125, 0.6522926, 4.2103806)
+[node name="DetectArea" type="Area3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba" unique_id=1544696403]
 collision_layer = 2
 collision_mask = 4
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/DetectArea" unique_id=1556822377]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2087533, 0)
+[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/DetectArea" unique_id=1556822377]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0023365, 0)
 shape = SubResource("BoxShape3D_hwk1c")
+
+[node name="botones" type="Node3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba" unique_id=589045134]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6674323, 1.3761493, -0.8936682)
+
+[node name="boton_0" type="StaticBody3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones" unique_id=647933023]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.115912676, 0)
+collision_layer = 2
+collision_mask = 0
+script = ExtResource("24_okx0b")
+platform = NodePath("../..")
+floor_name = "planta baja"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones/boton_0" unique_id=2095574890]
+shape = SubResource("BoxShape3D_2fbo5")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones/boton_0" unique_id=928509674]
+mesh = SubResource("BoxMesh_hwk1c")
+
+[node name="boton_1" type="StaticBody3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones" unique_id=1291010388]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16936517, 0)
+collision_layer = 2
+collision_mask = 0
+script = ExtResource("24_okx0b")
+platform = NodePath("../..")
+station_index = 1
+floor_name = "matadero"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones/boton_1" unique_id=715307997]
+shape = SubResource("BoxShape3D_ittlt")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones/boton_1" unique_id=1807456761]
+mesh = SubResource("BoxMesh_fby0v")
+
+[node name="boton_2" type="StaticBody3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones" unique_id=956177226]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.46204615, 0)
+collision_layer = 2
+collision_mask = 0
+script = ExtResource("24_okx0b")
+platform = NodePath("../..")
+station_index = 2
+floor_name = "carniceria el Piru"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones/boton_2" unique_id=235804740]
+shape = SubResource("BoxShape3D_ql40f")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones/boton_2" unique_id=1905994235]
+mesh = SubResource("BoxMesh_1tter")
+
+[node name="estaciones" type="Node" parent="world/enviroment/platfoms/elevador_prueba" unique_id=1054466985]
+
+[node name="station_0" type="Node3D" parent="world/enviroment/platfoms/elevador_prueba/estaciones" unique_id=746032084]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.078, 1, 4.207)
+
+[node name="station_1" type="Node3D" parent="world/enviroment/platfoms/elevador_prueba/estaciones" unique_id=28968118]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.078, 12, 4.207)
+
+[node name="station_2" type="Node3D" parent="world/enviroment/platfoms/elevador_prueba/estaciones" unique_id=740553270]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.078, 35, 4.207)
 
 [node name="entities" type="Node3D" parent="." unique_id=2102854069]
 

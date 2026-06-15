@@ -1,38 +1,45 @@
 # transport_platform.gd
 extends AnimatableBody3D
 
-@export var move_speed      : float = 2.0   # velocidad máxima en progreso/segundo
-@export var speed_curve     : Curve          # curva de velocidad 0.0→1.0 (diseñada en Inspector)
-@export var start_marker    : Node3D
-@export var end_marker      : Node3D
+@export var move_speed      : float = 4.0   # velocidad de crucero en m/s
+@export var accel_distance  : float = 3.0   # metros de aceleración
+@export var decel_distance  : float = 3.0   # metros de frenado
+@export var stations        : Array[Node3D] = []
 @export var detect_area     : Area3D
 
-enum PlatformState { IDLE, MOVING_UP, MOVING_DOWN }
-var _state         : PlatformState = PlatformState.IDLE
-var _progress      : float = 0.0
-var _passenger     : CharacterBody3D = null
-var _movement_ctrl : Node = null
+enum PlatformState { IDLE, MOVING }
+var _state            : PlatformState = PlatformState.IDLE
+var _current_station  : int     = 0
+var _target_station   : int     = 0
+var _journey_distance : float   = 0.0   # distancia total del viaje en metros
+var _meters_traveled  : float   = 0.0   # metros recorridos en el viaje actual
+var _origin_pos       : Vector3 = Vector3.ZERO
+var _target_pos       : Vector3 = Vector3.ZERO
+var _accel_dist_real  : float   = 0.0   # accel_distance ajustada para viajes cortos
+var _decel_dist_real  : float   = 0.0   # decel_distance ajustada para viajes cortos
+var _passenger        : CharacterBody3D = null
+var _movement_ctrl    : Node    = null
 
-signal arrived_at_bottom()
-signal arrived_at_top()
+signal arrived_at_station(index: int)
 
 func _ready() -> void:
-	detect_area.body_entered.connect(_on_body_entered)
-	detect_area.body_exited.connect(_on_body_exited)
+	if detect_area:
+		detect_area.body_entered.connect(_on_body_entered)
+		detect_area.body_exited.connect(_on_body_exited)
 	call_deferred("_init_position")
 
 func _init_position() -> void:
-	if start_marker:
-		global_position = start_marker.global_position
+	if stations.size() > 0 and stations[0] != null:
+		global_position = stations[0].global_position
 	else:
-		push_error("[TransportPlatform] StartMarker no encontrado.")
+		push_error("[TransportPlatform] No hay estaciones definidas.")
 
 func _physics_process(delta: float) -> void:
 	if _state == PlatformState.IDLE:
 		return
 
 	var pos_before = global_position
-	_update_progress(delta)
+	_update_journey(delta)
 	_apply_position()
 
 	var platform_delta = global_position - pos_before
@@ -40,55 +47,74 @@ func _physics_process(delta: float) -> void:
 		if platform_delta != Vector3.ZERO:
 			_passenger.global_position += platform_delta
 
-func call_to_bottom() -> void:
-	if _progress <= 0.01:
+func go_to_station(index: int) -> void:
+	if index < 0 or index >= stations.size():
+		push_error("[TransportPlatform] Índice inválido: " + str(index))
 		return
-	_state = PlatformState.MOVING_DOWN
-	print("[TransportPlatform] Bajando...")
-
-func call_to_top() -> void:
-	if _progress >= 0.99:
+	if index == _current_station and _state == PlatformState.IDLE:
+		print("[TransportPlatform] Ya estamos en estación: ", index)
 		return
-	_state = PlatformState.MOVING_UP
-	print("[TransportPlatform] Subiendo...")
 
-func get_progress() -> float:
-	return _progress
+	_target_station   = index
+	_origin_pos       = global_position
+	_target_pos       = stations[index].global_position
+	_journey_distance = _origin_pos.distance_to(_target_pos)
+	_meters_traveled  = 0.0
 
-func _get_speed_multiplier() -> float:
-	if speed_curve:
-		# La curva se samplea según el progreso actual
-		# Para bajada, invertimos el progreso para que la curva sea simétrica
-		var t = _progress if _state == PlatformState.MOVING_UP else 1.0 - _progress
-		return speed_curve.sample(t)
-	# Sin curva: velocidad constante
-	return 1.0
+	# Ajustar aceleración y frenado si el viaje es muy corto
+	var total = accel_distance + decel_distance
+	if total > _journey_distance:
+		var ratio = _journey_distance / total
+		_accel_dist_real = accel_distance * ratio
+		_decel_dist_real = decel_distance * ratio
+	else:
+		_accel_dist_real = accel_distance
+		_decel_dist_real = decel_distance
 
-func _update_progress(delta: float) -> void:
-	var speed = move_speed * _get_speed_multiplier()
-	match _state:
-		PlatformState.MOVING_UP:
-			_progress += speed * delta
-			if _progress >= 1.0:
-				_progress = 1.0
-				_state = PlatformState.IDLE
-				print("[TransportPlatform] Llegó arriba.")
-				arrived_at_top.emit()
-		PlatformState.MOVING_DOWN:
-			_progress -= speed * delta
-			if _progress <= 0.0:
-				_progress = 0.0
-				_state = PlatformState.IDLE
-				print("[TransportPlatform] Llegó abajo.")
-				arrived_at_bottom.emit()
+	_state = PlatformState.MOVING
+	print("[TransportPlatform] Viajando a estación ", index, " — ", snappedf(_journey_distance, 0.01), "m")
+
+func get_current_station() -> int:
+	return _current_station
+
+func get_station_count() -> int:
+	return stations.size()
+
+func _get_speed() -> float:
+	var meters_remaining = _journey_distance - _meters_traveled
+
+	if _meters_traveled < _accel_dist_real:
+		# Zona de aceleración
+		return move_speed * max(_meters_traveled / _accel_dist_real, 0.02)
+	elif meters_remaining < _decel_dist_real:
+		# Zona de frenado
+		return move_speed * max(meters_remaining / _decel_dist_real, 0.02)
+	else:
+		# Crucero
+		return move_speed
+
+func _update_journey(delta: float) -> void:
+	if _journey_distance <= 0.0:
+		_arrive()
+		return
+
+	var speed = _get_speed()
+	_meters_traveled += speed * delta
+
+	if _meters_traveled >= _journey_distance:
+		_meters_traveled = _journey_distance
+		_arrive()
+
+func _arrive() -> void:
+	_current_station = _target_station
+	_state           = PlatformState.IDLE
+	print("[TransportPlatform] Llegó a estación: ", _current_station)
+	arrived_at_station.emit(_current_station)
 
 func _apply_position() -> void:
-	if not start_marker or not end_marker:
-		return
-	var from      : Vector3 = start_marker.global_position
-	var to        : Vector3 = end_marker.global_position
-	var target    : Vector3 = from.lerp(to, _progress)
-	var delta_pos : Vector3 = target - global_position
+	var t         = _meters_traveled / _journey_distance
+	var target    = _origin_pos.lerp(_target_pos, t)
+	var delta_pos = target - global_position
 	move_and_collide(delta_pos)
 
 func _on_body_entered(body: Node3D) -> void:

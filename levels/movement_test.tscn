@@ -22,10 +22,9 @@
 [ext_resource type="PackedScene" uid="uid://c7dl0cwwdn0vp" path="res://scenes/props/dinamic/granada_01.tscn" id="20_00m5o"]
 [ext_resource type="PackedScene" uid="uid://cfgfx6u5ccnn7" path="res://scenes/props/static/escritorio_01.tscn" id="20_yig0p"]
 [ext_resource type="PackedScene" uid="uid://ddf7ji16h0jt3" path="res://scenes/props/static/circulo_circuloso.tscn" id="22_kcpfy"]
+[ext_resource type="Script" uid="uid://cw6roo4rhom6s" path="res://scripts/player n entities/systems/transport/caja.gd" id="23_0l33h"]
 [ext_resource type="PackedScene" uid="uid://csxv50ydgh7d5" path="res://scenes/props/static/escalera_fea_v_1.tscn" id="23_co54g"]
-[ext_resource type="Script" uid="uid://floa4q7wjgeg" path="res://scripts/player n entities/systems/transport_platform.gd" id="23_okx0b"]
 [ext_resource type="PackedScene" uid="uid://d1hcnv1fk1ld0" path="res://assets/models/no_collectibles/taladro_choto_1.glb" id="24_gpyf4"]
-[ext_resource type="Script" uid="uid://besyllyjqg2m0" path="res://scripts/player n entities/systems/elevator_button.gd" id="24_okx0b"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_755td"]
 
@@ -118,6 +117,12 @@ size = Vector3(300, 1, 300)
 [sub_resource type="BoxShape3D" id="BoxShape3D_7ued8"]
 size = Vector3(300, 1, 300)
 
+[sub_resource type="BoxShape3D" id="BoxShape3D_6fxmk"]
+size = Vector3(3, 1, 3)
+
+[sub_resource type="BoxMesh" id="BoxMesh_8rkqj"]
+size = Vector3(3, 1, 3)
+
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_gpyf4"]
 height = 100.0
 radius = 10.0
@@ -127,45 +132,178 @@ top_radius = 10.0
 bottom_radius = 10.0
 height = 100.0
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_6fxmk"]
-size = Vector3(3, 1, 3)
+[sub_resource type="CylinderMesh" id="CylinderMesh_okx0b"]
+top_radius = 4.0
+bottom_radius = 4.0
+height = 60.0
 
-[sub_resource type="BoxMesh" id="BoxMesh_8rkqj"]
-size = Vector3(3, 1, 3)
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_jm7au"]
+height = 60.0
+radius = 4.0
 
-[sub_resource type="ViewportTexture" id="ViewportTexture_okx0b"]
+[sub_resource type="ViewportTexture" id="ViewportTexture_gpyf4"]
 viewport_path = NodePath("../../../../../entities/screen osci/SubViewport")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jm7au"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0l33h"]
 resource_local_to_scene = true
-albedo_texture = SubResource("ViewportTexture_okx0b")
+albedo_texture = SubResource("ViewportTexture_gpyf4")
+
+[sub_resource type="GDScript" id="GDScript_gpyf4"]
+script/source = "# elevator_platform.gd
+extends AnimatableBody3D
+
+@export var move_speed      : float = 4.0   # velocidad de crucero en m/s
+@export var accel_distance  : float = 3.0   # metros de aceleración
+@export var decel_distance  : float = 3.0   # metros de frenado
+@export var stations        : Array[Node3D] = []
+@export var detect_area     : Area3D
+
+enum PlatformState { IDLE, MOVING }
+var _state            : PlatformState = PlatformState.IDLE
+var _current_station  : int     = 0
+var _target_station   : int     = 0
+var _journey_distance : float   = 0.0   # distancia total del viaje en metros
+var _meters_traveled  : float   = 0.0   # metros recorridos en el viaje actual
+var _origin_pos       : Vector3 = Vector3.ZERO
+var _target_pos       : Vector3 = Vector3.ZERO
+var _accel_dist_real  : float   = 0.0   # accel_distance ajustada para viajes cortos
+var _decel_dist_real  : float   = 0.0   # decel_distance ajustada para viajes cortos
+var _passenger        : CharacterBody3D = null
+var _movement_ctrl    : Node    = null
+
+signal arrived_at_station(index: int)
+
+func _ready() -> void:
+	if detect_area:
+		detect_area.body_entered.connect(_on_body_entered)
+		detect_area.body_exited.connect(_on_body_exited)
+	call_deferred(\"_init_position\")
+
+func _init_position() -> void:
+	if stations.size() > 0 and stations[0] != null:
+		global_position = stations[0].global_position
+	else:
+		push_error(\"[TransportPlatform] No hay estaciones definidas.\")
+
+func _physics_process(delta: float) -> void:
+	if _state == PlatformState.IDLE:
+		return
+
+	var pos_before = global_position
+	_update_journey(delta)
+	_apply_position()
+
+	var platform_delta = global_position - pos_before
+	if _passenger != null and is_instance_valid(_passenger):
+		if platform_delta != Vector3.ZERO:
+			_passenger.global_position += platform_delta
+
+func go_to_station(index: int) -> void:
+	if index < 0 or index >= stations.size():
+		push_error(\"[TransportPlatform] Índice inválido: \" + str(index))
+		return
+	if index == _current_station and _state == PlatformState.IDLE:
+		print(\"[TransportPlatform] Ya estamos en estación: \", index)
+		return
+
+	_target_station   = index
+	_origin_pos       = global_position
+	_target_pos       = stations[index].global_position
+	_journey_distance = _origin_pos.distance_to(_target_pos)
+	_meters_traveled  = 0.0
+
+	# Ajustar aceleración y frenado si el viaje es muy corto
+	var total = accel_distance + decel_distance
+	if total > _journey_distance:
+		var ratio = _journey_distance / total
+		_accel_dist_real = accel_distance * ratio
+		_decel_dist_real = decel_distance * ratio
+	else:
+		_accel_dist_real = accel_distance
+		_decel_dist_real = decel_distance
+
+	_state = PlatformState.MOVING
+	print(\"[TransportPlatform] Viajando a estación \", index, \" — \", snappedf(_journey_distance, 0.01), \"m\")
+
+func get_current_station() -> int:
+	return _current_station
+
+func get_station_count() -> int:
+	return stations.size()
+
+func _get_speed() -> float:
+	var meters_remaining = _journey_distance - _meters_traveled
+
+	if _meters_traveled < _accel_dist_real:
+		# Zona de aceleración
+		return move_speed * max(_meters_traveled / _accel_dist_real, 0.02)
+	elif meters_remaining < _decel_dist_real:
+		# Zona de frenado
+		return move_speed * max(meters_remaining / _decel_dist_real, 0.02)
+	else:
+		# Crucero
+		return move_speed
+
+func _update_journey(delta: float) -> void:
+	if _journey_distance <= 0.0:
+		_arrive()
+		return
+
+	var speed = _get_speed()
+	_meters_traveled += speed * delta
+
+	if _meters_traveled >= _journey_distance:
+		_meters_traveled = _journey_distance
+		_arrive()
+
+func _arrive() -> void:
+	_current_station = _target_station
+	_state           = PlatformState.IDLE
+	print(\"[TransportPlatform] Llegó a estación: \", _current_station)
+	arrived_at_station.emit(_current_station)
+
+func _apply_position() -> void:
+	var t         = _meters_traveled / _journey_distance
+	var target    = _origin_pos.lerp(_target_pos, t)
+	var delta_pos = target - global_position
+	move_and_collide(delta_pos)
+
+func _on_body_entered(body: Node3D) -> void:
+	if not body is CharacterBody3D:
+		return
+	if _passenger != null:
+		return
+	_passenger = body
+	var movement_node = body.get_node_or_null(\"movement/MovementController\")
+	if movement_node:
+		_movement_ctrl = movement_node
+		_movement_ctrl.set_on_platform(true)
+	print(\"[TransportPlatform] Pasajero subió: \", body.name)
+
+func _on_body_exited(body: Node3D) -> void:
+	if body != _passenger:
+		return
+	if _movement_ctrl:
+		_movement_ctrl.set_on_platform(false)
+	if _state == PlatformState.IDLE:
+		_passenger = null
+		_movement_ctrl = null
+		print(\"[TransportPlatform] Pasajero bajó.\")
+"
+
+[sub_resource type="Curve3D" id="Curve3D_okx0b"]
+bake_interval = 37.9
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -20.627132, -16.185905, 29.436228, 0, 0, 0, 0, 0, 0, 2.4390488, -14.854205, -7.7412167, 0, 0, 0, 0, 0, 0, 10.193867, 2.7864227, -16.407587, 0, 0, 0, 0, 0, 0, 27.52988, 6.2211723, -31.660341, 0, 0, 0, 0, 0, 0, 40.46262, 10.630636, -36.050774, 0, 0, 0, 0, 0, 0, 49.51873, 15.893721, -24.171476, 0, 0, 0, 0, 0, 0, 40.375755, 24.25067, -13.314203, 0, 0, 0, 0, 0, 0, 26.62772, 33.14431, -18.967031, 0, 0, 0, 0, 0, 0, 28.700554, 39.604187, -34.544052, 0, 0, 0, 0, 0, 0, 49.59726, 49.90708, -34.143143, 0, 0, 0, 0, 0, 0, 93.48369, 68.90746, -6.5280094, 0, 0, 0, 0, 0, 0, 116.401, 77.75782, 9.957012, 0, 0, 0, 0, 0, 0, 124.18045, 82.76849, 15.608015),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 13
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_8rkqj"]
-size = Vector3(2, 1, 2)
+size = Vector3(3, 1, 3)
 
 [sub_resource type="BoxMesh" id="BoxMesh_2fbo5"]
-size = Vector3(2, 1, 2)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_hwk1c"]
-size = Vector3(2, 1, 2)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_2fbo5"]
-size = Vector3(0.2, 0.2, 0.2)
-
-[sub_resource type="BoxMesh" id="BoxMesh_hwk1c"]
-size = Vector3(0.2, 0.2, 0.2)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_ittlt"]
-size = Vector3(0.2, 0.2, 0.2)
-
-[sub_resource type="BoxMesh" id="BoxMesh_fby0v"]
-size = Vector3(0.2, 0.2, 0.2)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_ql40f"]
-size = Vector3(0.2, 0.2, 0.2)
-
-[sub_resource type="BoxMesh" id="BoxMesh_1tter"]
-size = Vector3(0.2, 0.2, 0.2)
+size = Vector3(3, 1, 3)
 
 [node name="MovementTest" type="Node3D" unique_id=15402342 groups=["raycast"]]
 
@@ -405,15 +543,6 @@ mesh = SubResource("BoxMesh_jm7au")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/cosas/piso/StaticBody3D" unique_id=332336769]
 shape = SubResource("BoxShape3D_7ued8")
 
-[node name="StaticBody3D2" type="StaticBody3D" parent="world/enviroment/static/cosas/piso" unique_id=1954703886]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 120.349556, 48.879692, 0)
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/cosas/piso/StaticBody3D2" unique_id=180297685]
-shape = SubResource("CylinderShape3D_gpyf4")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/cosas/piso/StaticBody3D2" unique_id=2038885298]
-mesh = SubResource("CylinderMesh_0l33h")
-
 [node name="circulo circuloso" parent="world/enviroment/static/cosas" unique_id=252392807 instance=ExtResource("22_kcpfy")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.789009, 4.6441727, 8.405916)
 
@@ -430,6 +559,24 @@ shape = SubResource("BoxShape3D_6fxmk")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/varios/StaticBody3D" unique_id=906041556]
 mesh = SubResource("BoxMesh_8rkqj")
+
+[node name="torre" type="StaticBody3D" parent="world/enviroment/static/varios" unique_id=1954703886]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 120.349556, 48.879692, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/varios/torre" unique_id=180297685]
+shape = SubResource("CylinderShape3D_gpyf4")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/varios/torre" unique_id=2038885298]
+mesh = SubResource("CylinderMesh_0l33h")
+
+[node name="torre_1" type="StaticBody3D" parent="world/enviroment/static/varios" unique_id=94522307]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21.654682, 23.614014, -37.96277)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/varios/torre_1" unique_id=727813819]
+mesh = SubResource("CylinderMesh_okx0b")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/varios/torre_1" unique_id=241598185]
+shape = SubResource("CylinderShape3D_jm7au")
 
 [node name="dinamic" type="Node3D" parent="world/enviroment" unique_id=637697114]
 
@@ -461,81 +608,19 @@ transform = Transform3D(0.99997795, 0.0060523394, -0.0027255674, -0.006050634, 0
 mass = 10.0
 
 [node name="pantalla" parent="world/enviroment/dinamic/osciloscopio_01/osciloscopio5" parent_id_path=PackedInt32Array(471919506, 1264347502) index="5" unique_id=1963793558]
-surface_material_override/0 = SubResource("StandardMaterial3D_jm7au")
+surface_material_override/0 = SubResource("StandardMaterial3D_0l33h")
 
 [node name="platfoms" type="Node" parent="world/enviroment" unique_id=1207606238]
 
 [node name="elevador_prueba" type="Node" parent="world/enviroment/platfoms" unique_id=367250419]
 
-[node name="plataforma_prueba" type="AnimatableBody3D" parent="world/enviroment/platfoms/elevador_prueba" unique_id=179752016 node_paths=PackedStringArray("stations", "detect_area")]
+[node name="plataforma_prueba" type="AnimatableBody3D" parent="world/enviroment/platfoms/elevador_prueba" unique_id=179752016 node_paths=PackedStringArray("stations")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.126125, 0.6522926, 4.2103806)
-script = ExtResource("23_okx0b")
+script = SubResource("GDScript_gpyf4")
 move_speed = 5.0
 accel_distance = 1.0
 decel_distance = 1.0
 stations = [NodePath("../estaciones/station_0"), NodePath("../estaciones/station_1"), NodePath("../estaciones/station_2")]
-detect_area = NodePath("DetectArea")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba" unique_id=1148833530]
-shape = SubResource("BoxShape3D_8rkqj")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba" unique_id=466864056]
-mesh = SubResource("BoxMesh_2fbo5")
-
-[node name="DetectArea" type="Area3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba" unique_id=1544696403]
-collision_layer = 2
-collision_mask = 4
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/DetectArea" unique_id=1556822377]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0023365, 0)
-shape = SubResource("BoxShape3D_hwk1c")
-
-[node name="botones" type="Node3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba" unique_id=589045134]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6674323, 1.3761493, -0.8936682)
-
-[node name="boton_0" type="StaticBody3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones" unique_id=647933023]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.115912676, 0)
-collision_layer = 2
-collision_mask = 0
-script = ExtResource("24_okx0b")
-platform = NodePath("../..")
-floor_name = "planta baja"
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones/boton_0" unique_id=2095574890]
-shape = SubResource("BoxShape3D_2fbo5")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones/boton_0" unique_id=928509674]
-mesh = SubResource("BoxMesh_hwk1c")
-
-[node name="boton_1" type="StaticBody3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones" unique_id=1291010388]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16936517, 0)
-collision_layer = 2
-collision_mask = 0
-script = ExtResource("24_okx0b")
-platform = NodePath("../..")
-station_index = 1
-floor_name = "matadero"
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones/boton_1" unique_id=715307997]
-shape = SubResource("BoxShape3D_ittlt")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones/boton_1" unique_id=1807456761]
-mesh = SubResource("BoxMesh_fby0v")
-
-[node name="boton_2" type="StaticBody3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones" unique_id=956177226]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.46204615, 0)
-collision_layer = 2
-collision_mask = 0
-script = ExtResource("24_okx0b")
-platform = NodePath("../..")
-station_index = 2
-floor_name = "carniceria el Piru"
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones/boton_2" unique_id=235804740]
-shape = SubResource("BoxShape3D_ql40f")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/platfoms/elevador_prueba/plataforma_prueba/botones/boton_2" unique_id=1905994235]
-mesh = SubResource("BoxMesh_1tter")
 
 [node name="estaciones" type="Node" parent="world/enviroment/platfoms/elevador_prueba" unique_id=1054466985]
 
@@ -547,6 +632,24 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.078, 12, 4.207)
 
 [node name="station_2" type="Node3D" parent="world/enviroment/platfoms/elevador_prueba/estaciones" unique_id=740553270]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.078, 35, 4.207)
+
+[node name="paths" type="Node3D" parent="world/enviroment" unique_id=1832831257]
+
+[node name="teleferico_prueba" type="Node3D" parent="world/enviroment/paths" unique_id=73706920]
+
+[node name="Path3D" type="Path3D" parent="world/enviroment/paths/teleferico_prueba" unique_id=1704004717]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.37373, 16.39992, -12.512152)
+curve = SubResource("Curve3D_okx0b")
+
+[node name="AnimatableBody3D" type="AnimatableBody3D" parent="world/enviroment/paths/teleferico_prueba/Path3D" unique_id=131920961]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18.475594, -12.925449, 32.26104)
+script = ExtResource("23_0l33h")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/paths/teleferico_prueba/Path3D/AnimatableBody3D" unique_id=2087154655]
+shape = SubResource("BoxShape3D_8rkqj")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/paths/teleferico_prueba/Path3D/AnimatableBody3D" unique_id=37369337]
+mesh = SubResource("BoxMesh_2fbo5")
 
 [node name="entities" type="Node3D" parent="." unique_id=2102854069]
 

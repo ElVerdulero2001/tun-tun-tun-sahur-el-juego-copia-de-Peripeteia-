@@ -1,0 +1,68 @@
+[gd_scene format=3 uid="uid://cuxvg6tl2g2as"]
+
+[ext_resource type="Script" uid="uid://c22oma7x5kusi" path="res://scripts/player n entities/systems/transport/guided_vehicle.gd" id="1_oq8ym"]
+[ext_resource type="Script" uid="uid://c5wv5kluh505r" path="res://scripts/player n entities/systems/transport/vehicle_button.gd" id="2_r45pb"]
+
+[sub_resource type="Curve" id="Curve_8rkqj"]
+_data = [Vector2(0, 0.022457838), 0.0, 0.97754216, 0, 1, Vector2(1, 1), 0.97754216, 0.0, 1, 0]
+point_count = 2
+
+[sub_resource type="BoxMesh" id="BoxMesh_2fbo5"]
+size = Vector3(2, 0.5, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_hwk1c"]
+size = Vector3(2, 0.5, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_8rkqj"]
+size = Vector3(0.1, 0.1, 0.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_hwk1c"]
+size = Vector3(0.1, 0.1, 0.1)
+
+[node name="vehicle" type="AnimatableBody3D" unique_id=519298639 node_paths=PackedStringArray("path", "stop_inicial")]
+script = ExtResource("1_oq8ym")
+path = NodePath("")
+stop_inicial = NodePath("")
+epsilon = 0.05
+curva_velocidad = SubResource("Curve_8rkqj")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=212306376]
+mesh = SubResource("BoxMesh_2fbo5")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1620751988]
+shape = SubResource("BoxShape3D_hwk1c")
+
+[node name="buttons" type="Node3D" parent="." unique_id=614979132]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.80420613, -0.6534548)
+
+[node name="button_0" type="StaticBody3D" parent="buttons" unique_id=641616126 node_paths=PackedStringArray("stop_destino")]
+script = ExtResource("2_r45pb")
+stop_destino = NodePath("")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="buttons/button_0" unique_id=579153150]
+shape = SubResource("BoxShape3D_8rkqj")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="buttons/button_0" unique_id=1534116371]
+mesh = SubResource("BoxMesh_hwk1c")
+
+[node name="button_1" type="StaticBody3D" parent="buttons" unique_id=2109975104 node_paths=PackedStringArray("stop_destino")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.22402954, 0, 0)
+script = ExtResource("2_r45pb")
+stop_destino = NodePath("")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="buttons/button_1" unique_id=909542591]
+shape = SubResource("BoxShape3D_8rkqj")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="buttons/button_1" unique_id=1360722481]
+mesh = SubResource("BoxMesh_hwk1c")
+
+[node name="button_2" type="StaticBody3D" parent="buttons" unique_id=922382350 node_paths=PackedStringArray("stop_destino")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.20679593, 0)
+script = ExtResource("2_r45pb")
+stop_destino = NodePath("")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="buttons/button_2" unique_id=185265399]
+shape = SubResource("BoxShape3D_8rkqj")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="buttons/button_2" unique_id=12650014]
+mesh = SubResource("BoxMesh_hwk1c")

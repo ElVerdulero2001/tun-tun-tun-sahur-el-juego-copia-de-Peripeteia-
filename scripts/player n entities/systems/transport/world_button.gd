@@ -7,8 +7,10 @@ extends StaticBody3D
 
 @export var vehiculo: GuidedVehicle
 @export var stop_destino: StopPoint
+@export var nombre: String = "Llamar"
 
-var data: Resource = null  # Requerido por raycast_interaction.gd
+var data: Dictionary:
+	get: return {"nombre": nombre}
 
 func interactuar() -> void:
 	assert(vehiculo != null, "CallButton: falta asignar 'vehiculo' en el Inspector.")

@@ -6,8 +6,10 @@ extends StaticBody3D
 ## Debe vivir en la capa de física 2 para ser detectado por el raycast de interacción.
 
 @export var stop_destino: StopPoint
+@export var nombre: String = "Botón"
 
-var data: Resource = null  # Requerido por raycast_interaction.gd
+var data: Dictionary:
+	get: return {"nombre": nombre}
 
 @onready var vehiculo: GuidedVehicle = get_parent().get_parent()
 

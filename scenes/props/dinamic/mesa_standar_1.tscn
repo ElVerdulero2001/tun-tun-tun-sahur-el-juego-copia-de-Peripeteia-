@@ -1,8 +1,9 @@
 [gd_scene format=3 uid="uid://bmknlxq61koen"]
 
-[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/inventory/interactable.gd" id="1_qpm16"]
-[ext_resource type="Resource" uid="uid://undo17gx4vw4" path="res://assets/data/non_collectibles/mesa.tres" id="2_ltqmi"]
+[ext_resource type="Script" uid="uid://yknnpaeu8ldo" path="res://scripts/player n entities/Item.gd" id="1_224s8"]
+[ext_resource type="Resource" uid="uid://undo17gx4vw4" path="res://assets/data/non_collectibles/mesa.tres" id="2_f8nbh"]
 [ext_resource type="PackedScene" uid="uid://cp3i3p8f71hco" path="res://assets/models/no_collectibles/mesa_fea_9.glb" id="3_eyrvg"]
+[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="4_2jb7b"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_qpm16"]
 size = Vector3(0.2, 1.01, 0.2)
@@ -22,8 +23,8 @@ size = Vector3(3.355, 0.145, 1.69)
 [node name="mesa_standar_1" type="RigidBody3D" unique_id=389089462]
 collision_layer = 10
 collision_mask = 9
-script = ExtResource("1_qpm16")
-data = ExtResource("2_ltqmi")
+script = ExtResource("1_224s8")
+data = ExtResource("2_f8nbh")
 
 [node name="mesa_fea_9" parent="." unique_id=879468227 instance=ExtResource("3_eyrvg")]
 
@@ -46,3 +47,6 @@ shape = SubResource("BoxShape3D_ikxew")
 [node name="tabla" type="CollisionShape3D" parent="." unique_id=1368665823]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1191161, 0)
 shape = SubResource("BoxShape3D_prv31")
+
+[node name="InteractionComponent" type="Node" parent="." unique_id=1269826937]
+script = ExtResource("4_2jb7b")

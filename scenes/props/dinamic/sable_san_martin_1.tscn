@@ -1,8 +1,9 @@
 [gd_scene format=3 uid="uid://ce5sanae8y4jr"]
 
 [ext_resource type="PackedScene" uid="uid://bhr8u0r0meas0" path="res://assets/models/collectibles/machetedesanmartin4.glb" id="1_et5r5"]
-[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/inventory/interactable.gd" id="1_kchcn"]
-[ext_resource type="Resource" uid="uid://s5ycp1augdjr" path="res://assets/data/collectibles/weapons/sable.tres" id="2_idbr6"]
+[ext_resource type="Script" uid="uid://yknnpaeu8ldo" path="res://scripts/player n entities/Item.gd" id="1_pj8pe"]
+[ext_resource type="Resource" uid="uid://s5ycp1augdjr" path="res://assets/data/collectibles/weapons/sable.tres" id="2_c6eu7"]
+[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="4_rv58q"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_kchcn"]
 size = Vector3(1.82, 0.1, 0.315)
@@ -10,8 +11,8 @@ size = Vector3(1.82, 0.1, 0.315)
 [node name="sable_san_martin_1" type="RigidBody3D" unique_id=1154772102]
 collision_layer = 10
 collision_mask = 9
-script = ExtResource("1_kchcn")
-data = ExtResource("2_idbr6")
+script = ExtResource("1_pj8pe")
+data = ExtResource("2_c6eu7")
 
 [node name="machetedesanmartin4" parent="." unique_id=578579898 instance=ExtResource("1_et5r5")]
 transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, 0, 0.91, 0.088514805)
@@ -19,3 +20,6 @@ transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, 0, 0
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=591493475]
 transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, 0, 0.91, 0)
 shape = SubResource("BoxShape3D_kchcn")
+
+[node name="InteractionComponent" type="Node" parent="." unique_id=1511060656]
+script = ExtResource("4_rv58q")

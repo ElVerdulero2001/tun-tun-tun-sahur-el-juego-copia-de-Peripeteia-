@@ -8,24 +8,21 @@
 [ext_resource type="PackedScene" uid="uid://c1167onhhefh" path="res://assets/models/stairs/escalera_xlarga.glb" id="10_okx0b"]
 [ext_resource type="PackedScene" uid="uid://cfw7j1gbqx2yh" path="res://assets/models/stairs/escalera_xlarga2.glb" id="11_jm7au"]
 [ext_resource type="PackedScene" uid="uid://bnkcn1b174ahh" path="res://scenes/props/static/door_rust_01.tscn" id="11_kcpfy"]
-[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/inventory/interactable.gd" id="12_7ued8"]
 [ext_resource type="PackedScene" uid="uid://d0vjdy7sg5k" path="res://scenes/props/static/monitor_01.tscn" id="13_yig0p"]
-[ext_resource type="PackedScene" uid="uid://derv7f5stbi5f" path="res://scenes/props/dinamic/botella_standar_1.tscn" id="14_8rkqj"]
-[ext_resource type="PackedScene" uid="uid://ce5sanae8y4jr" path="res://scenes/props/dinamic/sable_san_martin_1.tscn" id="15_2fbo5"]
 [ext_resource type="PackedScene" uid="uid://bmknlxq61koen" path="res://scenes/props/dinamic/mesa_standar_1.tscn" id="16_hwk1c"]
 [ext_resource type="PackedScene" uid="uid://dw51wthqro71g" path="res://scenes/props/dinamic/osciloscopio_01.tscn" id="16_yig0p"]
 [ext_resource type="PackedScene" uid="uid://ct6tfm3gtwy22" path="res://scenes/props/static/fuente_vieja_01.tscn" id="17_djgoh"]
-[ext_resource type="PackedScene" uid="uid://c0qytjvt5exhd" path="res://scenes/props/dinamic/llave_comun_1.tscn" id="17_ittlt"]
 [ext_resource type="PackedScene" uid="uid://bkmlbvilr8mps" path="res://scenes/props/static/farola_vieja_01.tscn" id="18_88gl0"]
 [ext_resource type="Texture2D" uid="uid://cvc38q08ijnas" path="res://assets/textures/piso_piedra_01.webp" id="19_00m5o"]
 [ext_resource type="PackedScene" uid="uid://dtjyj444v5jty" path="res://scenes/props/static/banquitobrutalista_01.tscn" id="19_ptivj"]
-[ext_resource type="PackedScene" uid="uid://c7dl0cwwdn0vp" path="res://scenes/props/dinamic/granada_01.tscn" id="20_00m5o"]
 [ext_resource type="PackedScene" uid="uid://cfgfx6u5ccnn7" path="res://scenes/props/static/escritorio_01.tscn" id="20_yig0p"]
+[ext_resource type="PackedScene" uid="uid://ce5sanae8y4jr" path="res://scenes/props/dinamic/sable_san_martin_1.tscn" id="22_gpyf4"]
 [ext_resource type="PackedScene" uid="uid://ddf7ji16h0jt3" path="res://scenes/props/static/circulo_circuloso.tscn" id="22_kcpfy"]
 [ext_resource type="PackedScene" uid="uid://csxv50ydgh7d5" path="res://scenes/props/static/escalera_fea_v_1.tscn" id="23_co54g"]
 [ext_resource type="Script" uid="uid://ca4fumw4h1l56" path="res://scripts/player n entities/systems/transport/stop_point.gd" id="23_okx0b"]
 [ext_resource type="PackedScene" uid="uid://d1hcnv1fk1ld0" path="res://assets/models/no_collectibles/taladro_choto_1.glb" id="24_gpyf4"]
 [ext_resource type="Script" uid="uid://c0ihq5s8xhhkr" path="res://scripts/player n entities/systems/transport/transition_point.gd" id="24_jm7au"]
+[ext_resource type="PackedScene" uid="uid://c0qytjvt5exhd" path="res://scenes/props/dinamic/llave_comun_1.tscn" id="25_0l33h"]
 [ext_resource type="PackedScene" uid="uid://cuxvg6tl2g2as" path="res://scenes/components/systems/transport/vehicle.tscn" id="25_jm7au"]
 [ext_resource type="PackedScene" uid="uid://cj0rdigkf8ugr" path="res://scenes/props/static/edificio_02.tscn" id="26_7ued8"]
 
@@ -48,10 +45,6 @@ size = Vector3(15, 0.5, 20)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ptivj"]
 size = Vector3(15, 0.5, 20)
-
-[sub_resource type="BoxMesh" id="BoxMesh_t354w"]
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_s4463"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gdjh5"]
 albedo_texture = ExtResource("5_yig0p")
@@ -143,13 +136,6 @@ height = 60.0
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_jm7au"]
 height = 60.0
 radius = 4.0
-
-[sub_resource type="ViewportTexture" id="ViewportTexture_7ued8"]
-viewport_path = NodePath("../../../../../entities/screen osci/SubViewport")
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6fxmk"]
-resource_local_to_scene = true
-albedo_texture = SubResource("ViewportTexture_7ued8")
 
 [sub_resource type="GDScript" id="GDScript_gpyf4"]
 script/source = "# elevator_platform.gd
@@ -347,19 +333,6 @@ shape = SubResource("BoxShape3D_ptivj")
 [node name="farola_vieja_02" parent="world/enviroment/static/cosas" unique_id=564835908 instance=ExtResource("18_88gl0")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, 0.099, -6.5)
 
-[node name="ammobox1" type="StaticBody3D" parent="world/enviroment/static/cosas" unique_id=416009230]
-transform = Transform3D(0.2, 0, 0, 0, 0.2, 0, 0, 0, 0.2, -4.556244, 3.1720858, -0.10647118)
-collision_layer = 3
-collision_mask = 2
-script = ExtResource("12_7ued8")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="world/enviroment/static/cosas/ammobox1" unique_id=699511387]
-layers = 3
-mesh = SubResource("BoxMesh_t354w")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/cosas/ammobox1" unique_id=348794615]
-shape = SubResource("BoxShape3D_s4463")
-
 [node name="bloques" type="Node3D" parent="world/enviroment/static/cosas" unique_id=987092061]
 
 [node name="escalera_grande2" parent="world/enviroment/static/cosas/bloques" unique_id=66060748 instance=ExtResource("8_gpyf4")]
@@ -383,6 +356,12 @@ mesh = SubResource("BoxMesh_755td")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="world/enviroment/static/cosas/bloques/StaticBody3D" unique_id=1885951137]
 shape = SubResource("BoxShape3D_08uda")
+
+[node name="llave_comun_1" parent="world/enviroment/static/cosas/bloques/StaticBody3D" unique_id=625194610 instance=ExtResource("25_0l33h")]
+transform = Transform3D(0.99999994, 0, 0, 0, 1, 0, 0, 0, 0.99999994, -5.0719337, 0.09999943, 3.0798626)
+
+[node name="llave_comun_2" parent="world/enviroment/static/cosas/bloques/StaticBody3D" unique_id=1792408119 instance=ExtResource("25_0l33h")]
+transform = Transform3D(0.99999994, 0, 0, 0, 1, 0, 0, 0, 0.99999994, -1.9240675, 0.099999905, 1.0066533)
 
 [node name="StaticBody3D2" type="StaticBody3D" parent="world/enviroment/static/cosas/bloques" unique_id=23530118]
 transform = Transform3D(-3.090862e-08, 3.090862e-08, 1, 0.70710677, 0.70710677, 0, -0.70710677, 0.70710677, -4.371139e-08, 0, 2.9757617, -5.5168304)
@@ -584,36 +563,6 @@ shape = SubResource("CylinderShape3D_jm7au")
 
 [node name="dinamic" type="Node3D" parent="world/enviroment" unique_id=637697114]
 
-[node name="botella_standar_1" parent="world/enviroment/dinamic" unique_id=1598823837 instance=ExtResource("14_8rkqj")]
-transform = Transform3D(0.99999213, -0.003589724, 0.0016199998, 0.003589023, 0.9999934, 0.00043423104, -0.0016215518, -0.000428399, 0.99999845, -6.1183968, 1.2745622, -2.928712)
-mass = 0.3
-gravity_scale = 2.0
-
-[node name="sable_san_martin_1" parent="world/enviroment/dinamic" unique_id=1154772102 instance=ExtResource("15_2fbo5")]
-transform = Transform3D(-4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0, 1, -4.787467, 1.3623137, -3.4483767)
-mass = 2.5
-
-[node name="mesa_standar_1" parent="world/enviroment/dinamic" unique_id=389089462 instance=ExtResource("16_hwk1c")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.09225929, -3)
-mass = 12.0
-gravity_scale = 2.0
-
-[node name="llave_comun_1" parent="world/enviroment/dinamic" unique_id=625194610 instance=ExtResource("17_ittlt")]
-transform = Transform3D(-4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0, 1, -5.4886527, 1.3281126, -2.4619324)
-mass = 0.1
-
-[node name="granada_01" parent="world/enviroment/dinamic" unique_id=1896426358 instance=ExtResource("20_00m5o")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.09862, 1.3785677, -2.3285449)
-mass = 0.1
-linear_damp = 0.0
-
-[node name="osciloscopio_01" parent="world/enviroment/dinamic" unique_id=471919506 instance=ExtResource("16_yig0p")]
-transform = Transform3D(0.99997795, 0.0060523394, -0.0027255674, -0.006050634, 0.99998146, 0.00063339557, 0.0027293519, -0.00061688496, 0.99999607, -7.540926, 1.4057808, -2.8426342)
-mass = 10.0
-
-[node name="pantalla" parent="world/enviroment/dinamic/osciloscopio_01/osciloscopio5" parent_id_path=PackedInt32Array(471919506, 1264347502) index="5" unique_id=1963793558]
-surface_material_override/0 = SubResource("StandardMaterial3D_6fxmk")
-
 [node name="platfoms" type="Node" parent="world/enviroment" unique_id=1207606238]
 
 [node name="elevador_prueba" type="Node" parent="world/enviroment/platfoms" unique_id=367250419]
@@ -713,7 +662,6 @@ mesh = SubResource("SphereMesh_0l33h")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34.951694, 0.9886322, 4.995748)
 path = NodePath("../path_prueba")
 stop_inicial = NodePath("../path_prueba/stop_0")
-velocidad_crucero = 20.0
 
 [node name="button_0" parent="world/enviroment/paths/teleferico_prueba/vehicle/buttons" parent_id_path=PackedInt32Array(519298639, 614979132) index="0" unique_id=641616126 node_paths=PackedStringArray("stop_destino")]
 stop_destino = NodePath("../../../path_prueba/stop_0")
@@ -760,6 +708,15 @@ nombre = "boton vehicle stop_1"
 stop_destino = NodePath("../../../path_edificio/stop_2")
 nombre = "boton vehicle stop_2"
 
+[node name="osciloscopio_01" parent="world/enviroment" unique_id=471919506 instance=ExtResource("16_yig0p")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.808938, 1.4868155, 1.142704)
+
+[node name="mesa_standar_1" parent="world/enviroment" unique_id=389089462 instance=ExtResource("16_hwk1c")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.123844, 0.099999905, 2.247661)
+
+[node name="sable_san_martin_1" parent="world/enviroment" unique_id=1154772102 instance=ExtResource("22_gpyf4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5648985, 0.099999905, 1.4063187)
+
 [node name="entities" type="Node3D" parent="." unique_id=2102854069]
 
 [node name="player" type="Node3D" parent="entities" unique_id=143539223]
@@ -778,6 +735,9 @@ current = true
 mostrar_raycast = false
 capa_interaccion = 3
 
+[node name="KickController" parent="entities/player/player/player/movement" parent_id_path=PackedInt32Array(189769782, 1651121374) index="4" unique_id=702578145]
+kick_force = 40.0
+
 [node name="screen osci" type="Node3D" parent="entities" unique_id=538461892]
 
 [node name="SubViewport" type="SubViewport" parent="entities/screen osci" unique_id=820303445]
@@ -789,8 +749,6 @@ transform = Transform3D(-0.009670533, 0.7019665, -0.7121442, 0.009531449, 0.7122
 [editable path="world/enviroment/static/cosas/escaleras/escalera 1"]
 [editable path="world/enviroment/static/cosas/escaleras/escalera 2"]
 [editable path="world/enviroment/static/cosas/escaleras/escalera 5"]
-[editable path="world/enviroment/dinamic/osciloscopio_01"]
-[editable path="world/enviroment/dinamic/osciloscopio_01/osciloscopio5"]
 [editable path="world/enviroment/paths/teleferico_prueba/vehicle"]
 [editable path="world/enviroment/paths/edificio_02"]
 [editable path="world/enviroment/paths/edificio_02/modelo_fisiacs/edificio_21"]

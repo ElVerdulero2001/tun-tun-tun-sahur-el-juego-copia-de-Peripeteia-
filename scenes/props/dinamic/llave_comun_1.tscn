@@ -1,7 +1,8 @@
 [gd_scene format=3 uid="uid://c0qytjvt5exhd"]
 
-[ext_resource type="Script" uid="uid://b8651sadk2hwi" path="res://scripts/player n entities/inventory/interactable.gd" id="1_4cwt5"]
-[ext_resource type="Resource" uid="uid://dcmxocufit3pl" path="res://assets/data/collectibles/consumables/key.tres" id="2_ac8da"]
+[ext_resource type="Script" uid="uid://yknnpaeu8ldo" path="res://scripts/player n entities/Item.gd" id="1_eh0yp"]
+[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="2_ee2ru"]
+[ext_resource type="Resource" uid="uid://dcmxocufit3pl" path="res://assets/data/collectibles/consumables/key.tres" id="2_fq1kw"]
 [ext_resource type="PackedScene" uid="uid://c5vwhwuprkqfu" path="res://assets/models/collectibles/llave2.glb" id="3_4cwt5"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_4cwt5"]
@@ -11,8 +12,8 @@ size = Vector3(0.38, 0.085, 0.135)
 transform = Transform3D(0.99999994, 0, 0, 0, 1, 0, 0, 0, 0.99999994, 0, 0, 0)
 collision_layer = 10
 collision_mask = 9
-script = ExtResource("1_4cwt5")
-data = ExtResource("2_ac8da")
+script = ExtResource("1_eh0yp")
+data = ExtResource("2_fq1kw")
 
 [node name="llave2" parent="." unique_id=1875975665 instance=ExtResource("3_4cwt5")]
 transform = Transform3D(-3.4969112e-08, 0.8, -3.4969112e-08, 0, -3.4969112e-08, -0.8, -0.8, -3.4969112e-08, 1.5285484e-15, 0, 0.08841553, 0)
@@ -20,3 +21,6 @@ transform = Transform3D(-3.4969112e-08, 0.8, -3.4969112e-08, 0, -3.4969112e-08, 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=260852261]
 transform = Transform3D(4.3711232e-08, 0.9999966, 8.742274e-08, 0.9999968, -4.371125e-08, 0, 3.821357e-15, 8.742247e-08, -0.99999964, 0, 0.21254396, 0)
 shape = SubResource("BoxShape3D_4cwt5")
+
+[node name="InteractionComponent" type="Node" parent="." unique_id=1584191495]
+script = ExtResource("2_ee2ru")

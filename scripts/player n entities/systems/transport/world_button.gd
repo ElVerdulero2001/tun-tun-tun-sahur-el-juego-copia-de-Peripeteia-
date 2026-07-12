@@ -12,7 +12,15 @@ extends StaticBody3D
 var data: Dictionary:
 	get: return {"nombre": nombre}
 
-func interactuar() -> void:
+func _on_interact(interaction: Interaction) -> Variant:
+	match interaction.accion:
+		&"usar":
+			return _llamar()
+		_:
+			return false
+
+func _llamar() -> bool:
 	assert(vehiculo != null, "CallButton: falta asignar 'vehiculo' en el Inspector.")
 	assert(stop_destino != null, "CallButton: falta asignar 'stop_destino' en el Inspector.")
 	vehiculo.solicitar_destino(stop_destino)
+	return true

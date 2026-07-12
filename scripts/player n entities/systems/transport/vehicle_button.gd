@@ -13,6 +13,14 @@ var data: Dictionary:
 
 @onready var vehiculo: GuidedVehicle = get_parent().get_parent()
 
-func interactuar() -> void:
+func _on_interact(interaction: Interaction) -> Variant:
+	match interaction.accion:
+		&"usar":
+			return _viajar()
+		_:
+			return false
+
+func _viajar() -> bool:
 	assert(stop_destino != null, "VehicleButton: falta asignar 'stop_destino' en el Inspector.")
 	vehiculo.solicitar_destino(stop_destino)
+	return true

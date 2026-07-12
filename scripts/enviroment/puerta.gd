@@ -12,28 +12,38 @@ var angulo_actual: float = 0.0
 var direccion: float = 1.0
 var desbloqueada: bool = false
 
-func interactuar():
+func _on_interact(interaction: Interaction) -> Variant:
+	match interaction.accion:
+		&"usar":
+			return _toggle()
+		_:
+			return false
+
+func _toggle() -> bool:
 	if requiere_llave and not desbloqueada:
-		var tiene_llave = false
+		var tiene_llave := false
 		for instancia in Inventario.items:
 			if instancia["data"].item_id == id_llave:
 				tiene_llave = true
 				break
 		if not tiene_llave:
-			print("Necesitas una llave")
-			return
-	
+			# Antes iba un print acá ("Necesitas una llave"). Ese feedback
+			# es de UI, no de esta lógica — el sistema que consuma este
+			# false todavía no está diseñado.
+			return false
+
 	if moviendose:
-		return
-	
+		return false
+
 	abierta = !abierta
 	direccion = 1.0 if abierta else -1.0
 	angulo_actual = 0.0
 	moviendose = true
+	return true
 
-func desbloquear():
+func desbloquear() -> void:
 	desbloqueada = true
-	interactuar()
+	_toggle()
 
 func _physics_process(delta):
 	if not moviendose:

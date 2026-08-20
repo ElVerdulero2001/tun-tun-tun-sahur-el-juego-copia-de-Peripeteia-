@@ -135,6 +135,16 @@ var progress_inicio_aceleracion: float = 0.0
 var distancia_total_aceleracion: float = 0.0
 var distancia_total_frenado: float = 0.0
 
+# Commit 2 del plan de implementación del híbrido: _plan_actual se construye
+# y se guarda en paralelo al viaje normal, pero todavía NO es leída por
+# _estado_accelerating() / _estado_cruising() / _estado_braking(). Esas
+# funciones siguen usando _transition_salida / _transition_llegada /
+# progress_inicio_aceleracion / distancia_total_aceleracion /
+# distancia_total_frenado exactamente igual que antes de este commit. Este
+# campo existe para poder verificar, antes del Commit 3, que el planner
+# calcula los mismos números que el sistema viejo.
+var _plan_actual: PlanDeViaje = null
+
 # ---------------------------------------------------------------------------
 # Flag de inicialización diferida
 # ---------------------------------------------------------------------------
@@ -291,7 +301,81 @@ func _planificar_desde_stop(nuevo_stop: StopPoint, nuevo_progress_obj: float) ->
 	_transition_salida  = nueva_transition_salida
 	_transition_llegada = nueva_transition_llegada
 
+	# Commit 2 del híbrido: se construye el PlanDeViaje en paralelo, con los
+	# mismos nodos ya validados arriba. Todavía no lo usa nadie para mover
+	# el vehículo — ver nota en la declaración de _plan_actual.
+	_plan_actual = _construir_plan_normal(
+		nuevo_stop, nueva_direccion, nueva_transition_salida, nueva_transition_llegada
+	)
+
 	_entrar_accelerating()
+
+# ---------------------------------------------------------------------------
+# TravelPlanner — construcción de PlanDeViaje (Commit 2 del híbrido)
+#
+# _construir_plan_normal() arma los tres tramos de un viaje STOPPED → STOPPED
+# (ACELERACION, CRUCERO, FRENADO) a partir de los mismos StopPoint/
+# TransitionPoint que ya calculó y validó _planificar_desde_stop(). No
+# recalcula ni revalida nada por su cuenta: recibe los nodos ya resueltos
+# para no duplicar lógica de selección/validación.
+#
+# progress_fin de cada tramo es el valor que, a partir del Commit 3, va a
+# reemplazar la lectura en vivo de _transition_salida.progress /
+# _transition_llegada.progress / _stop_destino.progress dentro de los
+# _estado_*(). Acá todavía es solo un dato calculado y guardado, sin
+# consumidor.
+# ---------------------------------------------------------------------------
+
+func _construir_plan_normal(
+	destino: StopPoint,
+	direccion: int,
+	transition_salida: TransitionPoint,
+	transition_llegada: TransitionPoint
+) -> PlanDeViaje:
+	var plan := PlanDeViaje.new()
+	plan.destino_final = destino
+	plan.indice_actual = 0
+
+	var progress_origen: float = _progress_actual
+
+	var tramo_aceleracion := TramoMovimiento.new()
+	tramo_aceleracion.tipo = TramoMovimiento.Tipo.ACELERACION
+	tramo_aceleracion.progress_inicio = progress_origen
+	tramo_aceleracion.progress_fin = transition_salida.progress
+	tramo_aceleracion.direccion = direccion
+	tramo_aceleracion.factor_inicio = 0.0
+	tramo_aceleracion.factor_fin = 1.0
+	tramo_aceleracion.distancia_aceleracion_ref = abs(transition_salida.progress - progress_origen)
+	tramo_aceleracion.distancia_frenado_ref = 0.0
+	tramo_aceleracion.destino_final = destino
+	tramo_aceleracion.origen = OrigenTramo.VIAJE_NORMAL
+
+	var tramo_crucero := TramoMovimiento.new()
+	tramo_crucero.tipo = TramoMovimiento.Tipo.CRUCERO
+	tramo_crucero.progress_inicio = transition_salida.progress
+	tramo_crucero.progress_fin = transition_llegada.progress
+	tramo_crucero.direccion = direccion
+	tramo_crucero.factor_inicio = 1.0
+	tramo_crucero.factor_fin = 1.0
+	tramo_crucero.distancia_aceleracion_ref = 0.0
+	tramo_crucero.distancia_frenado_ref = 0.0
+	tramo_crucero.destino_final = destino
+	tramo_crucero.origen = OrigenTramo.VIAJE_NORMAL
+
+	var tramo_frenado := TramoMovimiento.new()
+	tramo_frenado.tipo = TramoMovimiento.Tipo.FRENADO
+	tramo_frenado.progress_inicio = transition_llegada.progress
+	tramo_frenado.progress_fin = destino.progress
+	tramo_frenado.direccion = direccion
+	tramo_frenado.factor_inicio = 1.0
+	tramo_frenado.factor_fin = 0.0
+	tramo_frenado.distancia_aceleracion_ref = 0.0
+	tramo_frenado.distancia_frenado_ref = abs(destino.progress - transition_llegada.progress)
+	tramo_frenado.destino_final = destino
+	tramo_frenado.origen = OrigenTramo.VIAJE_NORMAL
+
+	plan.tramos = [tramo_aceleracion, tramo_crucero, tramo_frenado]
+	return plan
 
 # ---------------------------------------------------------------------------
 # Re-targeting desde movimiento (ACCELERATING, CRUISING, BRAKING)

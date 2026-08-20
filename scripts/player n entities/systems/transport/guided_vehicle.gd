@@ -19,6 +19,75 @@ enum Estado {
 }
 
 # ---------------------------------------------------------------------------
+# TramoMovimiento / PlanDeViaje — estructuras internas del sistema híbrido.
+#
+# NOTA (Commit 1 del plan de implementación): estas clases se declaran acá
+# como andamiaje. Todavía NO son leídas ni escritas por ninguna función del
+# vehículo. _entrar_accelerating(), _entrar_braking(), _estado_accelerating(),
+# _estado_cruising() y _estado_braking() siguen operando exactamente igual
+# que antes de este commit, sobre _transition_salida / _transition_llegada /
+# progress_inicio_aceleracion / distancia_total_aceleracion /
+# distancia_total_frenado. Este commit no cambia ningún comportamiento
+# observable del vehículo.
+#
+# StopPoint sigue siendo el destino real.
+# TransitionPoint sigue siendo el marcador geométrico real.
+# TramoMovimiento es la fase ejecutable: su fin (progress_fin) es un valor
+# propio calculado una vez al construir el tramo, no una lectura en vivo de
+# un nodo. Los TransitionPoint/StopPoint reales sirven de insumo para
+# calcular ese valor, pero dejan de ser la fuente que el movimiento consulta
+# cuadro a cuadro.
+# PlanDeViaje agrupa la secuencia de tramos que llevan hasta un StopPoint
+# real.
+# ---------------------------------------------------------------------------
+
+## Origen de un TramoMovimiento. Uso exclusivamente informativo (debug /
+## trazabilidad) — ninguna decisión de comportamiento depende de este valor.
+enum OrigenTramo {
+	VIAJE_NORMAL,          # Construido por _planificar_desde_stop() desde STOPPED.
+	RETARGET_MISMA_DIR,    # Construido por _retarget() sin cambio de dirección.
+	FRENADO_INVERSION,     # Construido al detectar retarget con dirección opuesta.
+	LLEGADA_CORTA,         # Construido cuando el destino cae dentro de una zona
+							# StopPoint-TransitionPoint corta (ver escenario L).
+}
+
+## Representa una única fase de movimiento con límites propios en progress,
+## independientes de si esos límites provienen de un nodo real o de un punto
+## arbitrario del Path3D (como el punto donde el vehículo frena al invertir).
+class TramoMovimiento extends RefCounted:
+	enum Tipo {
+		ACELERACION,
+		CRUCERO,
+		FRENADO,
+		FRENADO_INVERSION,
+		LLEGADA_CORTA,
+	}
+
+	var tipo: Tipo
+	var progress_inicio: float = 0.0
+	var progress_fin: float = 0.0
+	var direccion: int = 1
+
+	var factor_inicio: float = 0.0
+	var factor_fin: float = 0.0
+
+	# Distancias de referencia para el cálculo de factor_permitido (ver
+	# Commit 4 del plan: fórmula de distancia insuficiente). El estado no
+	# debe adivinar estos denominadores: el planner los escribe acá al
+	# construir el tramo.
+	var distancia_aceleracion_ref: float = 0.0
+	var distancia_frenado_ref: float = 0.0
+
+	var destino_final: StopPoint = null
+	var origen: OrigenTramo = OrigenTramo.VIAJE_NORMAL
+
+## Agrupa la secuencia de TramoMovimiento que llevan hasta un StopPoint real.
+class PlanDeViaje extends RefCounted:
+	var destino_final: StopPoint = null
+	var tramos: Array[TramoMovimiento] = []
+	var indice_actual: int = 0
+
+# ---------------------------------------------------------------------------
 # Constantes internas
 # ---------------------------------------------------------------------------
 

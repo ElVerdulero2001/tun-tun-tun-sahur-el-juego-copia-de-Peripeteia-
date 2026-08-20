@@ -663,14 +663,17 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34.951694, 0.9886322, 4.99574
 path = NodePath("../path_prueba")
 stop_inicial = NodePath("../path_prueba/stop_0")
 
-[node name="button_0" parent="world/enviroment/paths/teleferico_prueba/vehicle/buttons" parent_id_path=PackedInt32Array(519298639, 614979132) index="0" unique_id=641616126 node_paths=PackedStringArray("stop_destino")]
+[node name="button_0" parent="world/enviroment/paths/teleferico_prueba/vehicle/buttons" parent_id_path=PackedInt32Array(519298639, 614979132) index="0" unique_id=641616126 node_paths=PackedStringArray("stop_destino", "vehiculo")]
 stop_destino = NodePath("../../../path_prueba/stop_0")
+vehiculo = NodePath("../..")
 
-[node name="button_1" parent="world/enviroment/paths/teleferico_prueba/vehicle/buttons" parent_id_path=PackedInt32Array(519298639, 614979132) index="1" unique_id=2109975104 node_paths=PackedStringArray("stop_destino")]
+[node name="button_1" parent="world/enviroment/paths/teleferico_prueba/vehicle/buttons" parent_id_path=PackedInt32Array(519298639, 614979132) index="1" unique_id=2109975104 node_paths=PackedStringArray("stop_destino", "vehiculo")]
 stop_destino = NodePath("../../../path_prueba/stop_1")
+vehiculo = NodePath("../..")
 
-[node name="button_2" parent="world/enviroment/paths/teleferico_prueba/vehicle/buttons" parent_id_path=PackedInt32Array(519298639, 614979132) index="2" unique_id=922382350 node_paths=PackedStringArray("stop_destino")]
+[node name="button_2" parent="world/enviroment/paths/teleferico_prueba/vehicle/buttons" parent_id_path=PackedInt32Array(519298639, 614979132) index="2" unique_id=922382350 node_paths=PackedStringArray("stop_destino", "vehiculo")]
 stop_destino = NodePath("../../../path_prueba/stop_2")
+vehiculo = NodePath("../..")
 
 [node name="edificio_02" parent="world/enviroment/paths" unique_id=1336851442 instance=ExtResource("26_7ued8")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -38.58111, -0.4628601, -1.071415)

@@ -151,6 +151,14 @@ var _plan_actual: PlanDeViaje = null
 
 var _initialized: bool = false
 
+# Commit 4 del híbrido (corrección de contrato): curva_velocidad es una
+# curva de FACTOR normalizado, no de velocidad absoluta — su contrato es
+# 0.0 = detenido, 1.0 = velocidad máxima normal, cualquier valor fuera de
+# [0,1] es configuración inválida. Esta bandera asegura que el warning de
+# "la curva devolvió un valor fuera de contrato" se emite una sola vez por
+# vehículo, no una vez por frame.
+var _warning_curva_fuera_de_rango_emitido: bool = false
+
 # ---------------------------------------------------------------------------
 # _ready — no inicializa nada; el árbol puede no estar listo
 # ---------------------------------------------------------------------------
@@ -717,6 +725,37 @@ func _calcular_inicio_frenado() -> float:
 		return _progress_actual
 
 # ---------------------------------------------------------------------------
+# _sample_factor_curva — única puerta de entrada para samplear
+# curva_velocidad, aplicando el contrato de curva de FACTOR normalizado
+# (no de velocidad absoluta):
+#   0.0 = detenido
+#   1.0 = velocidad máxima normal
+#   valores > 1.0 o < 0.0 son configuración inválida en el Inspector.
+#
+# Toda lectura de curva_velocidad.sample() en el script pasa por acá.
+#
+# NOTA: Godot clampea internamente el eje de valores de un recurso Curve a
+# [0,1] salvo que se edite fuera de ese rango explícitamente (min_value/
+# max_value del Curve), así que en la práctica curva_velocidad.sample() ya
+# debería devolver siempre algo dentro de [0,1] antes de llegar acá. El
+# clamp final y el push_warning de esta función son una defensa explícita
+# del contrato, documentada para quien lea el script, no una situación
+# validada con un caso real reproducible — no hay forma conocida de forzar
+# que el warning se dispare con un Curve configurado normalmente desde el
+# Inspector.
+# ---------------------------------------------------------------------------
+
+func _sample_factor_curva(t: float) -> float:
+	var t_clampeado: float = clampf(t, 0.0, 1.0)
+	var valor: float = curva_velocidad.sample(t_clampeado)
+
+	if (valor < 0.0 or valor > 1.0) and not _warning_curva_fuera_de_rango_emitido:
+		push_warning("GuidedVehicle: curva_velocidad devolvió %.3f para t=%.3f, fuera del rango [0,1] esperado para una curva de factor normalizado. Revisá la configuración de 'curva_velocidad' en el Inspector. Este warning solo se emite una vez por vehículo." % [valor, t_clampeado])
+		_warning_curva_fuera_de_rango_emitido = true
+
+	return clampf(valor, 0.0, 1.0)
+
+# ---------------------------------------------------------------------------
 # Commit 4 del híbrido: factor_permitido — fórmula de distancia insuficiente.
 #
 # _calcular_factor_permitido() no reemplaza el cálculo de _factor que ya
@@ -751,13 +790,13 @@ func _calcular_factor_permitido(tramo: TramoMovimiento, progress_actual: float) 
 	if tramo.distancia_aceleracion_ref > epsilon:
 		var dist_desde_inicio: float = abs(progress_actual - tramo.progress_inicio)
 		var t_salida: float = clampf(dist_desde_inicio / tramo.distancia_aceleracion_ref, 0.0, 1.0)
-		limite_salida = curva_velocidad.sample(t_salida)
+		limite_salida = _sample_factor_curva(t_salida)
 
 	var limite_llegada: float = 1.0
 	if tramo.distancia_frenado_ref > epsilon:
 		var dist_hasta_fin: float = abs(tramo.progress_fin - progress_actual)
 		var t_llegada: float = clampf(dist_hasta_fin / tramo.distancia_frenado_ref, 0.0, 1.0)
-		limite_llegada = curva_velocidad.sample(t_llegada)
+		limite_llegada = _sample_factor_curva(t_llegada)
 
 	return minf(limite_salida, limite_llegada)
 
@@ -785,7 +824,7 @@ func _estado_accelerating(delta: float, profundidad: int = 0) -> void:
 
 	var distancia_recorrida: float = abs(_progress_actual - progress_inicio_aceleracion)
 	var t: float = clampf(distancia_recorrida / distancia_total_aceleracion, 0.0, 1.0)
-	_factor = curva_velocidad.sample(t)
+	_factor = _sample_factor_curva(t)
 
 	# Commit 4 del híbrido: factor_permitido aplicado como límite superior
 	# real. Verificado con logs (viaje normal: 0 divergencias en accel/
@@ -867,7 +906,7 @@ func _estado_braking(delta: float, _profundidad: int = 0) -> void:
 
 	var distancia_restante: float = abs(progress_fin_tramo - _progress_actual)
 	var t: float = clampf(distancia_restante / distancia_total_frenado, 0.0, 1.0)
-	_factor = curva_velocidad.sample(t)
+	_factor = _sample_factor_curva(t)
 
 	# Commit 4 del híbrido: factor_permitido aplicado como límite superior
 	# real. Verificado con logs (primera ronda: 455 divergencias por

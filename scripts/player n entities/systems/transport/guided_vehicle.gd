@@ -574,6 +574,14 @@ func _entrar_accelerating() -> void:
 		tramo_fallback.progress_inicio = progress_inicio_aceleracion
 		tramo_fallback.progress_fin = _transition_salida.progress
 		tramo_fallback.direccion = _direccion
+		# Corrección al Commit 4: el fallback debe llenar
+		# distancia_aceleracion_ref igual que _construir_plan_normal(), o
+		# _calcular_factor_permitido() trata este tramo como "sin
+		# restricción de salida" (limite_salida=1.0) en vez de aplicar la
+		# curva real (bug confirmado con log: divergencia en BRAKING por
+		# el mismo motivo, distancia_frenado_ref sin asignar).
+		tramo_fallback.distancia_aceleracion_ref = abs(_transition_salida.progress - progress_inicio_aceleracion)
+		tramo_fallback.distancia_frenado_ref = 0.0
 		tramo_fallback.destino_final = _stop_destino
 		tramo_fallback.origen = OrigenTramo.RETARGET_MISMA_DIR
 
@@ -672,6 +680,16 @@ func _entrar_braking() -> void:
 		tramo_fallback.progress_inicio = inicio_frenado
 		tramo_fallback.progress_fin = _progress_objetivo
 		tramo_fallback.direccion = _direccion
+		# Corrección al Commit 4 (bug confirmado con log real): el fallback
+		# debe llenar distancia_frenado_ref igual que
+		# _construir_plan_normal(), o _calcular_factor_permitido() trata
+		# este tramo como "sin restricción de llegada" (limite_llegada=1.0)
+		# en vez de aplicar la curva real. En el log, esto se veía como
+		# _factor bajando por la curva de frenado mientras
+		# factor_permitido se quedaba fijo en 1.0 — divergencia real, no
+		# un falso positivo del diagnóstico.
+		tramo_fallback.distancia_aceleracion_ref = 0.0
+		tramo_fallback.distancia_frenado_ref = abs(_progress_objetivo - inicio_frenado)
 		tramo_fallback.destino_final = _stop_destino
 		tramo_fallback.origen = OrigenTramo.RETARGET_MISMA_DIR
 
@@ -698,6 +716,51 @@ func _calcular_inicio_frenado() -> float:
 	else:
 		return _progress_actual
 
+# ---------------------------------------------------------------------------
+# Commit 4 del híbrido: factor_permitido — fórmula de distancia insuficiente.
+#
+# _calcular_factor_permitido() no reemplaza el cálculo de _factor que ya
+# hacen _estado_accelerating() / _estado_braking() — es un LÍMITE adicional,
+# pensado para tramos donde aceleración y frenado se solapan en el mismo
+# espacio (tramos cortos/compuestos, todavía no construidos por ningún
+# planner hasta el Commit 5/6). El resultado de esta función debe usarse
+# como cota superior de _factor, nunca como el valor directo.
+#
+# Un TramoMovimiento del viaje normal solo trae UNA de las dos referencias
+# activa (ACELERACION trae distancia_aceleracion_ref, FRENADO trae
+# distancia_frenado_ref; CRUCERO no trae ninguna). Cuando una referencia es
+# <= epsilon, ese lado no aplica ninguna restricción — se trata como
+# "límite 1.0", no como error ni como división por cero.
+#
+# Verificado con logs reales en dos rondas: primera ronda encontró 455
+# divergencias, todas en BRAKING, causadas por los tramos de fallback
+# (Commit 3) que no llenaban distancia_aceleracion_ref/
+# distancia_frenado_ref — corregido en ambos fallbacks. Segunda ronda:
+# 0 divergencias en accel/cruise/braking, tanto en viaje normal como en
+# retarget con fallback. Con eso confirmado, factor_permitido ya está
+# conectado como límite real (min() sobre _factor) en
+# _estado_accelerating() y _estado_braking(). En CRUCERO no hace falta
+# aplicarlo — _factor ya vale 1.0 y ese estado no lo recalcula por frame.
+# En tramos largos (viaje normal) el límite es matemáticamente un no-op.
+# Solo limita de verdad en tramos cortos/compuestos, todavía no
+# construidos por ningún planner hasta el Commit 5/6.
+# ---------------------------------------------------------------------------
+
+func _calcular_factor_permitido(tramo: TramoMovimiento, progress_actual: float) -> float:
+	var limite_salida: float = 1.0
+	if tramo.distancia_aceleracion_ref > epsilon:
+		var dist_desde_inicio: float = abs(progress_actual - tramo.progress_inicio)
+		var t_salida: float = clampf(dist_desde_inicio / tramo.distancia_aceleracion_ref, 0.0, 1.0)
+		limite_salida = curva_velocidad.sample(t_salida)
+
+	var limite_llegada: float = 1.0
+	if tramo.distancia_frenado_ref > epsilon:
+		var dist_hasta_fin: float = abs(tramo.progress_fin - progress_actual)
+		var t_llegada: float = clampf(dist_hasta_fin / tramo.distancia_frenado_ref, 0.0, 1.0)
+		limite_llegada = curva_velocidad.sample(t_llegada)
+
+	return minf(limite_salida, limite_llegada)
+
 func _entrar_stopped() -> void:
 	_progress_actual = _progress_objetivo
 	_factor          = 0.0
@@ -723,6 +786,16 @@ func _estado_accelerating(delta: float, profundidad: int = 0) -> void:
 	var distancia_recorrida: float = abs(_progress_actual - progress_inicio_aceleracion)
 	var t: float = clampf(distancia_recorrida / distancia_total_aceleracion, 0.0, 1.0)
 	_factor = curva_velocidad.sample(t)
+
+	# Commit 4 del híbrido: factor_permitido aplicado como límite superior
+	# real. Verificado con logs (viaje normal: 0 divergencias en accel/
+	# cruise/braking; retarget con fallback: 455 divergencias detectadas y
+	# corregidas — los fallbacks no llenaban distancia_aceleracion_ref/
+	# distancia_frenado_ref; segunda ronda de logs: 0 divergencias). En
+	# tramos largos (viaje normal) esto es un no-op matemático. Solo limita
+	# de verdad en tramos cortos/compuestos (todavía no construidos hasta
+	# el Commit 5/6).
+	_factor = minf(_factor, _calcular_factor_permitido(tramo, _progress_actual))
 
 	var progress_inicial_frame: float = _progress_actual
 	var dist_antes: float = (progress_fin_tramo - _progress_actual) * _direccion
@@ -753,6 +826,13 @@ func _estado_cruising(delta: float, profundidad: int = 0) -> void:
 	# _estado_accelerating(): la aritmética no cambia, solo la fuente.
 	var tramo: TramoMovimiento = _plan_actual.tramos[_plan_actual.indice_actual]
 	var progress_fin_tramo: float = tramo.progress_fin
+
+	# Commit 4 del híbrido: en CRUCERO no hace falta aplicar
+	# factor_permitido — _factor ya vale 1.0 (fijado por _entrar_cruising())
+	# y este estado no lo recalcula por frame, mueve _progress_actual con
+	# velocidad_crucero directo. Verificado con logs: factor_permitido da
+	# 1.0 también acá (ambas distancias de referencia en 0 para CRUCERO),
+	# así que no hay nada que limitar.
 
 	var progress_inicial_frame: float = _progress_actual
 	var dist_antes: float = (progress_fin_tramo - _progress_actual) * _direccion
@@ -788,6 +868,15 @@ func _estado_braking(delta: float, _profundidad: int = 0) -> void:
 	var distancia_restante: float = abs(progress_fin_tramo - _progress_actual)
 	var t: float = clampf(distancia_restante / distancia_total_frenado, 0.0, 1.0)
 	_factor = curva_velocidad.sample(t)
+
+	# Commit 4 del híbrido: factor_permitido aplicado como límite superior
+	# real. Verificado con logs (primera ronda: 455 divergencias por
+	# fallback sin distancia_frenado_ref asignada, corregido; segunda
+	# ronda: 0 divergencias). En tramos largos (viaje normal) es un no-op
+	# matemático. Solo limita de verdad en tramos cortos/compuestos
+	# (todavía no construidos hasta el Commit 5/6).
+	_factor = minf(_factor, _calcular_factor_permitido(tramo, _progress_actual))
+
 	_progress_actual += velocidad_crucero * _factor * _direccion * delta
 
 	# Invariante: _progress_actual nunca puede quedar más allá de progress_fin_tramo

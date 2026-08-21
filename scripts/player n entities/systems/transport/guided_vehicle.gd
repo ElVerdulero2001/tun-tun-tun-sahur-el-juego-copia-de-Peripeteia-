@@ -108,6 +108,26 @@ const LIMITE_ENCADENAMIENTO_ESTADO: int = 2
 @export var epsilon: float = 0.01
 @export var curva_velocidad: Curve
 
+## Commit 5 del híbrido: distancia de referencia para el frenado de
+## inversión (FRENADO_INVERSION), usada en la fórmula
+## distancia_frenado = distancia_frenado_max_inversion * _factor.
+## No existe ningún valor de distancia de frenado configurable en el
+## sistema hoy — todas las distancias de frenado normales se derivan de
+## geometría real (StopPoint↔TransitionPoint). Este valor es nuevo, sin
+## precedente en el código; el default (8.0) se tomó como referencia de
+## los tramos existentes en la escena de prueba, pero conviene ajustarlo
+## por ruta según el feel deseado.
+@export var distancia_frenado_max_inversion: float = 8.0
+
+## Commit 5 del híbrido: distancia de referencia para la fase de
+## aceleración cuando el viaje arranca desde un progress arbitrario (post-
+## inversión), sin TransitionPoint de salida real que la determine. Mismo
+## motivo que distancia_frenado_max_inversion: no hay precedente de un
+## valor configurable así en el sistema; el default se tomó igual al de
+## frenado por consistencia, pero son exports independientes por si el
+## feel deseado de arranque y frenado de inversión difiere.
+@export var distancia_aceleracion_max: float = 8.0
+
 # ---------------------------------------------------------------------------
 # Variables persistentes — fuente de verdad del sistema
 # ---------------------------------------------------------------------------
@@ -144,6 +164,16 @@ var distancia_total_frenado: float = 0.0
 # campo existe para poder verificar, antes del Commit 3, que el planner
 # calcula los mismos números que el sistema viejo.
 var _plan_actual: PlanDeViaje = null
+
+# Commit 5 del híbrido: _destino_pendiente guarda el StopPoint real pedido
+# cuando _retarget() detecta cambio de dirección y arma un tramo
+# FRENADO_INVERSION en vez del viaje normal. Mientras la maniobra está en
+# curso, _stop_destino/_progress_objetivo siguen representando el viaje
+# activo real (el frenado hacia el punto de inversión) — nunca quedan
+# representando el destino pendiente. _destino_pendiente se consume en
+# _entrar_stopped() con el patrón leer→limpiar→planificar, para evitar
+# doble consumo.
+var _destino_pendiente: StopPoint = null
 
 # ---------------------------------------------------------------------------
 # Flag de inicialización diferida
@@ -395,10 +425,31 @@ func _construir_plan_normal(
 
 func _retarget(nuevo_stop: StopPoint, nuevo_progress_obj: float) -> void:
 	# Si el destino es el mismo que el actual, ignorar la orden.
+	#
+	# AVISO para el Commit 6: durante una maniobra de FRENADO_INVERSION,
+	# _stop_destino queda INTACTO con el valor del viaje anterior a la
+	# orden de inversión (ver _iniciar_frenado_inversion()) — no es el
+	# destino real pendiente, ese vive en _destino_pendiente. Esto significa
+	# que, tal como está hoy, una segunda orden hacia ese _stop_destino
+	# viejo mientras se está frenando para invertir cae acá y se ignora
+	# como "redundante", sin tocar _destino_pendiente. No está confirmado
+	# si ese es el comportamiento deseado para el escenario V (orden
+	# redundante durante inversión) — queda sin resolver a propósito, es
+	# alcance del Commit 6, no de este.
 	if nuevo_stop == _stop_destino:
 		return
 
 	var nueva_direccion: int = _calcular_direccion(nuevo_progress_obj)
+
+	# Commit 5 del híbrido: inversión de sentido. Se bifurca ANTES de buscar
+	# _transition_llegada porque ese cálculo asume una zona geométrica real
+	# de llegada — el tramo FRENADO_INVERSION no tiene una TransitionPoint
+	# de llegada real (frena hacia un progress arbitrario, no hacia un
+	# StopPoint), así que no corresponde ni buscarla ni forzar el error si
+	# no se encuentra.
+	if nueva_direccion != _direccion:
+		_iniciar_frenado_inversion(nuevo_stop)
+		return
 
 	var nueva_transition_llegada: TransitionPoint = _seleccionar_transition_llegada(
 		nuevo_stop, nueva_direccion
@@ -417,6 +468,12 @@ func _retarget(nuevo_stop: StopPoint, nuevo_progress_obj: float) -> void:
 	# mismo stop de origen desde el cual arrancó esta fase ACCELERATING.
 	# Fuera de este caso exacto (CRUISING, BRAKING, o ACCELERATING sin cambio
 	# de dirección) _transition_salida permanece intacta, sin excepciones.
+	#
+	# NOTA: esta rama de E1/E2 ya no puede dispararse en la práctica desde
+	# que existe la bifurcación de inversión arriba (nueva_direccion !=
+	# _direccion siempre desvía a _iniciar_frenado_inversion() antes de
+	# llegar acá). Se deja sin tocar por directiva explícita: no reabrir ni
+	# tocar el mecanismo de E1/E2 en este commit.
 	var nueva_transition_salida: TransitionPoint = _transition_salida
 	if _estado_actual == Estado.ACCELERATING and nueva_direccion != _direccion:
 		if _stop_origen_viaje == null:
@@ -469,6 +526,84 @@ func _retarget(nuevo_stop: StopPoint, nuevo_progress_obj: float) -> void:
 		_entrar_cruising()
 	else:
 		_entrar_braking()
+
+# ---------------------------------------------------------------------------
+# Commit 5 del híbrido: inversión de sentido.
+#
+# Secuencia completa: CRUISING/ACCELERATING/BRAKING → (orden en dirección
+# opuesta) → FRENADO_INVERSION (mismo camino de BRAKING, sin tocar
+# _estado_braking()) → STOPPED real → invertir dirección (derivada del
+# destino, no ciega) → planificar viaje nuevo desde progress arbitrario.
+#
+# _iniciar_frenado_inversion() arma el tramo y entra a BRAKING. El resto de
+# la maniobra (frenar, detectar llegada a progress_fin, entrar a STOPPED)
+# lo hace el código ya existente sin cambios — la inversión no necesita
+# tocar _estado_braking() ni _entrar_braking() para ejecutarse, solo para
+# armarse.
+# ---------------------------------------------------------------------------
+
+func _iniciar_frenado_inversion(destino_real: StopPoint) -> void:
+	_destino_pendiente = destino_real
+
+	var progress_inicio_tramo: float = _progress_actual
+	var distancia_frenado: float = distancia_frenado_max_inversion * _factor
+	var progress_fin_tramo: float = clampf(
+		progress_inicio_tramo + _direccion * distancia_frenado,
+		0.0,
+		path.curve.get_baked_length()
+	)
+
+	# Corrección pedida explícitamente: si la distancia resultante (tras
+	# clamp a los bordes del path) es <= epsilon — caso H, inversión
+	# pedida con _factor casi 0, muy cerca de STOPPED — no construir un
+	# tramo FRENADO_INVERSION real. El assert de distancia_total_frenado >
+	# epsilon en _entrar_braking() explotaría en un caso que en realidad es
+	# válido (parada casi inmediata), no un error de configuración. Se
+	# trata como parada inmediata: se salta directo a STOPPED sin pasar
+	# por BRAKING, sin mover al vehículo del punto donde ya estaba.
+	var distancia_frenado_real: float = abs(progress_fin_tramo - progress_inicio_tramo)
+	if distancia_frenado_real <= epsilon:
+		_factor = 0.0
+		_progress_objetivo = progress_inicio_tramo   # No se mueve del punto actual.
+		_entrar_stopped()
+		return
+
+	var tramo := TramoMovimiento.new()
+	tramo.tipo = TramoMovimiento.Tipo.FRENADO_INVERSION
+	tramo.progress_inicio = progress_inicio_tramo
+	tramo.progress_fin = progress_fin_tramo
+	tramo.direccion = _direccion   # Dirección VIEJA — no se invierte hasta STOPPED real.
+	tramo.factor_inicio = _factor
+	tramo.factor_fin = 0.0
+	tramo.distancia_aceleracion_ref = 0.0
+	tramo.distancia_frenado_ref = distancia_frenado_real
+	tramo.destino_final = destino_real   # Informativo — el destino real pendiente,
+										  # no el punto de esta maniobra.
+	tramo.origen = OrigenTramo.FRENADO_INVERSION
+
+	var plan := PlanDeViaje.new()
+	plan.destino_final = destino_real
+	plan.tramos = [tramo]
+	plan.indice_actual = 0
+	_plan_actual = plan
+
+	# _progress_objetivo representa el viaje activo real durante la
+	# maniobra: el frenado hacia el punto de inversión, NO el destino real
+	# pendiente (ese vive únicamente en _destino_pendiente).
+	#
+	# _stop_destino se deja INTACTO (con el valor del viaje anterior a esta
+	# orden), no se pisa con null ni con destino_real. Ponerlo en null
+	# rompería el invariante de coherencia con _progress_objetivo (un
+	# _stop_destino=null junto a un _progress_objetivo con valor real es
+	# exactamente el tipo de estado ambiguo que se venía evitando). Pisarlo
+	# con destino_real sería peor: haría creer a cualquier código que lea
+	# _stop_destino durante la maniobra que ya se está viajando hacia el
+	# destino real, cuando en realidad se está frenando hacia un punto
+	# intermedio. _destino_pendiente es la única fuente de verdad del
+	# destino real mientras dura la maniobra.
+	_progress_objetivo = progress_fin_tramo
+
+	_entrar_braking()
 
 # ---------------------------------------------------------------------------
 # Helpers de selección de TransitionPoints
@@ -553,8 +688,21 @@ func _transition_pertenece_a_path(transition: TransitionPoint) -> bool:
 # ---------------------------------------------------------------------------
 
 func _entrar_accelerating() -> void:
-	assert(_transition_salida != null,
-		"GuidedVehicle: _transition_salida es null al entrar en ACCELERATING.")
+	# Commit 5 del híbrido: el assert original exigía _transition_salida !=
+	# null incondicionalmente. Eso deja de ser cierto para un viaje armado
+	# por _construir_plan_desde_progress_actual() (post-inversión), donde
+	# el origen es un progress arbitrario y la TransitionPoint de salida NO
+	# es obligatoria (confirmado explícitamente: no buscarla, no inventarla).
+	# El assert ahora solo exige _transition_salida cuando de verdad se va
+	# a usar — es decir, cuando el plan actual NO trae ya un tramo
+	# ACELERACION propio (el camino de fallback, más abajo, que sí sigue
+	# dependiendo de _transition_salida.progress para tramos de viaje
+	# normal/retarget).
+	var plan_ya_trae_tramo_aceleracion: bool = _plan_actual != null \
+		and _plan_actual.indice_actual < _plan_actual.tramos.size() \
+		and _plan_actual.tramos[_plan_actual.indice_actual].tipo == TramoMovimiento.Tipo.ACELERACION
+	assert(plan_ya_trae_tramo_aceleracion or _transition_salida != null,
+		"GuidedVehicle: _transition_salida es null al entrar en ACCELERATING, y _plan_actual no trae un tramo ACELERACION propio para reemplazarla.")
 
 	# Commit 3 del híbrido: distancia_total_aceleracion se lee del tramo de
 	# ACELERACION en vez de recalcularse en vivo desde _transition_salida.
@@ -653,13 +801,27 @@ func _entrar_cruising() -> void:
 		_plan_actual = plan_fallback
 
 func _entrar_braking() -> void:
-	assert(_transition_llegada != null,
-		"GuidedVehicle: _transition_llegada es null al entrar en BRAKING.")
+	# Commit 5 del híbrido: el assert original exigía _transition_llegada !=
+	# null incondicionalmente. Para un tramo FRENADO_INVERSION o
+	# LLEGADA_CORTA, no existe una TransitionPoint de llegada real (frena
+	# hacia un progress arbitrario o hacia un StopPoint sin geometría de
+	# aproximación conocida) — confirmado explícitamente: no inventarla, no
+	# reutilizar la vieja como si representara la maniobra. El assert ahora
+	# solo exige _transition_llegada cuando el tramo actual del plan no
+	# trae ya su propio progress_inicio/progress_fin resueltos.
+	var tramo_actual_resuelto: bool = _plan_actual != null \
+		and _plan_actual.indice_actual < _plan_actual.tramos.size() \
+		and (_plan_actual.tramos[_plan_actual.indice_actual].tipo == TramoMovimiento.Tipo.FRENADO_INVERSION \
+			or _plan_actual.tramos[_plan_actual.indice_actual].tipo == TramoMovimiento.Tipo.LLEGADA_CORTA)
+	assert(tramo_actual_resuelto or _transition_llegada != null,
+		"GuidedVehicle: _transition_llegada es null al entrar en BRAKING, y el tramo actual no trae progress_inicio/progress_fin propios para reemplazarla.")
 
 	# Commit 3 del híbrido: distancia_total_frenado se lee del tramo de
 	# FRENADO en vez de recalcularse en vivo desde _progress_objetivo.
 	# _calcular_inicio_frenado() no se toca: sigue siendo el criterio
-	# geométrico que decide desde dónde arranca el frenado este viaje.
+	# geométrico que decide desde dónde arranca el frenado este viaje —
+	# pero solo es válido cuando ese criterio geométrico (basado en
+	# _transition_llegada real) tiene sentido para el tramo actual.
 	#
 	# Corrección al Commit 3 (mismo motivo que en _entrar_cruising()): el
 	# chequeo correcto es sobre el PRÓXIMO tramo del plan, no sobre el
@@ -667,13 +829,34 @@ func _entrar_braking() -> void:
 	# desde _estado_cruising(), _plan_actual.indice_actual todavía apunta
 	# al tramo CRUCERO recién completado — el tramo FRENADO es el
 	# siguiente, todavía no el actual.
-	var inicio_frenado: float = _calcular_inicio_frenado()
+	#
+	# Commit 5: para FRENADO_INVERSION/LLEGADA_CORTA, inicio_frenado sale
+	# directo de tramo.progress_inicio (ya resuelto por quien armó el
+	# tramo), no de _calcular_inicio_frenado() — esa función depende de
+	# _transition_llegada.progress, que para estos tramos no representa
+	# nada real.
+	var inicio_frenado: float
+	if tramo_actual_resuelto:
+		inicio_frenado = _plan_actual.tramos[_plan_actual.indice_actual].progress_inicio
+	else:
+		inicio_frenado = _calcular_inicio_frenado()
 
+	# Commit 5 del híbrido: los tramos FRENADO_INVERSION y LLEGADA_CORTA
+	# armados por _iniciar_frenado_inversion() / _construir_plan_desde_
+	# progress_actual() ya están en indice_actual=0 de un plan de un solo
+	# tramo — no son "el próximo", son el actual. Sin este chequeo (ya
+	# calculado arriba como tramo_actual_resuelto), hay_proximo_frenado da
+	# falso (indice_actual+1 no es < tramos.size() en un plan de tamaño 1)
+	# y el fallback de abajo reconstruye un tramo FRENADO genérico en vez
+	# de respetar el tramo real — funcionaría por coincidencia numérica
+	# pero perdería tipo y destino_final correctos.
 	var hay_proximo_frenado: bool = _plan_actual != null \
 		and _plan_actual.indice_actual + 1 < _plan_actual.tramos.size() \
 		and _plan_actual.tramos[_plan_actual.indice_actual + 1].tipo == TramoMovimiento.Tipo.FRENADO
 
-	if hay_proximo_frenado:
+	if tramo_actual_resuelto:
+		pass   # El tramo ya está en la posición correcta, no hay nada que avanzar ni reconstruir.
+	elif hay_proximo_frenado:
 		# Viaje normal: el tramo FRENADO es el siguiente en el plan ya
 		# construido por _construir_plan_normal(). Avanzamos el índice.
 		_plan_actual.indice_actual += 1
@@ -709,6 +892,14 @@ func _entrar_braking() -> void:
 
 	var tramo_frenado: TramoMovimiento = _plan_actual.tramos[_plan_actual.indice_actual]
 	distancia_total_frenado = abs(tramo_frenado.progress_fin - inicio_frenado)
+
+	# AVISO sin resolver (Commit 5): si _iniciar_frenado_inversion() se
+	# dispara con _factor muy chico (caso H — inversión pedida casi al
+	# llegar a STOPPED), distancia_frenado_max_inversion * _factor puede
+	# dar una distancia menor a epsilon, y este assert explotaría en un
+	# caso que en realidad es válido (llegada casi inmediata al punto de
+	# inversión), no un error de configuración. No se toca en este commit
+	# — queda para verificar con logs reales al probar el escenario H.
 	assert(distancia_total_frenado > epsilon,
 		"GuidedVehicle: distancia_total_frenado <= epsilon. Revisá la posición del TransitionPoint de llegada.")
 	_estado_actual = Estado.BRAKING
@@ -804,6 +995,147 @@ func _entrar_stopped() -> void:
 	_progress_actual = _progress_objetivo
 	_factor          = 0.0
 	_estado_actual   = Estado.STOPPED
+
+	# Commit 5 del híbrido: disparador de la maniobra de inversión. Patrón
+	# leer→limpiar→planificar, para evitar doble consumo si _entrar_stopped()
+	# se llamara más de una vez en el mismo frame (no debería pasar hoy,
+	# pero el patrón se mantiene igual por seguridad).
+	if _destino_pendiente != null:
+		var destino: StopPoint = _destino_pendiente
+		_destino_pendiente = null
+		_stop_origen_viaje = null   # No hay StopPoint real de origen — el
+									# viaje arranca desde un progress
+									# arbitrario. Cualquier función que lea
+									# _stop_origen_viaje debe tratar null
+									# como "origen arbitrario, no usar
+									# selección de transition_salida basada
+									# en StopPoint".
+		_direccion = _calcular_direccion(destino.progress)   # Derivada del
+									# destino real, no invertida a ciegas —
+									# coherente incluso si durante el
+									# frenado llegó una orden distinta a
+									# la que originó la inversión.
+
+		_construir_plan_desde_progress_actual(destino)
+
+# ---------------------------------------------------------------------------
+# Commit 5 del híbrido: planificación post-inversión desde progress
+# arbitrario.
+#
+# Arranca desde progress_inicio = _progress_actual — nunca busca una
+# TransitionPoint de salida cercana (eso reintroduciría la dependencia
+# geométrica falsa que se descartó explícitamente). Para el lado de salida
+# se usa distancia_aceleracion_max (export, sin precedente geométrico real
+# — ver declaración). Para el lado de llegada, SÍ se busca una
+# TransitionPoint real si existe para el destino (regla: TransitionPoint
+# de llegada = real, si existe para el lado de aproximación), porque ahí
+# el destino ES un StopPoint real con geometría real asociada.
+#
+# Si la distancia total no da para aceleración + crucero + frenado
+# completos, se arma un único tramo corto y se apoya en
+# _calcular_factor_permitido() (Commits 3/4) para no forzar el viaje
+# normal donde no cabe.
+# ---------------------------------------------------------------------------
+
+func _construir_plan_desde_progress_actual(destino: StopPoint) -> void:
+	# AVISO sin resolver (Commit 5): a diferencia de _planificar_desde_stop()
+	# y _retarget(), esta función no revalida _stop_pertenece_a_path(destino)
+	# antes de operar. destino viene de _destino_pendiente, que sí fue
+	# validado por B1/A4/H2 en el momento en que entró por
+	# solicitar_destino() — no hay reparenting dinámico en este sistema, así
+	# que no debería poder dejar de pertenecer al path en el medio de la
+	# maniobra. No es un bug funcional conocido, pero es una asimetría
+	# defensiva respecto al resto del código. No se agrega la guarda sin
+	# confirmación explícita, para no exceder el alcance de este commit.
+	var progress_origen: float = _progress_actual
+	var direccion: int = _direccion
+
+	var transition_llegada: TransitionPoint = _seleccionar_transition_llegada(destino, direccion)
+	if transition_llegada != null and not _transition_pertenece_a_path(transition_llegada):
+		push_error("GuidedVehicle: la _transition_llegada resuelta ('%s') para el destino post-inversión ('%s') no pertenece al Path3D asignado en 'path'." % [transition_llegada.name, destino.name])
+		transition_llegada = null
+
+	var progress_fin_aceleracion: float = progress_origen + direccion * distancia_aceleracion_max
+	var progress_inicio_frenado: float = transition_llegada.progress if transition_llegada != null \
+		else destino.progress - direccion * distancia_frenado_max_inversion
+
+	# ¿Alcanza la distancia total para aceleración + crucero + frenado
+	# completos, sin que se pisen entre sí? Si el punto donde termina la
+	# aceleración ya pasó (o coincide con) el punto donde debería empezar
+	# el frenado, no hay espacio para un crucero real.
+	var hay_espacio_para_crucero: bool = (progress_fin_aceleracion - progress_inicio_frenado) * direccion < 0.0
+
+	var plan := PlanDeViaje.new()
+	plan.destino_final = destino
+	plan.indice_actual = 0
+
+	if hay_espacio_para_crucero:
+		var tramo_aceleracion := TramoMovimiento.new()
+		tramo_aceleracion.tipo = TramoMovimiento.Tipo.ACELERACION
+		tramo_aceleracion.progress_inicio = progress_origen
+		tramo_aceleracion.progress_fin = progress_fin_aceleracion
+		tramo_aceleracion.direccion = direccion
+		tramo_aceleracion.factor_inicio = 0.0
+		tramo_aceleracion.factor_fin = 1.0
+		tramo_aceleracion.distancia_aceleracion_ref = distancia_aceleracion_max
+		tramo_aceleracion.distancia_frenado_ref = 0.0
+		tramo_aceleracion.destino_final = destino
+		tramo_aceleracion.origen = OrigenTramo.FRENADO_INVERSION
+
+		var tramo_crucero := TramoMovimiento.new()
+		tramo_crucero.tipo = TramoMovimiento.Tipo.CRUCERO
+		tramo_crucero.progress_inicio = progress_fin_aceleracion
+		tramo_crucero.progress_fin = progress_inicio_frenado
+		tramo_crucero.direccion = direccion
+		tramo_crucero.factor_inicio = 1.0
+		tramo_crucero.factor_fin = 1.0
+		tramo_crucero.distancia_aceleracion_ref = 0.0
+		tramo_crucero.distancia_frenado_ref = 0.0
+		tramo_crucero.destino_final = destino
+		tramo_crucero.origen = OrigenTramo.FRENADO_INVERSION
+
+		var tramo_frenado := TramoMovimiento.new()
+		tramo_frenado.tipo = TramoMovimiento.Tipo.FRENADO
+		tramo_frenado.progress_inicio = progress_inicio_frenado
+		tramo_frenado.progress_fin = destino.progress
+		tramo_frenado.direccion = direccion
+		tramo_frenado.factor_inicio = 1.0
+		tramo_frenado.factor_fin = 0.0
+		tramo_frenado.distancia_aceleracion_ref = 0.0
+		tramo_frenado.distancia_frenado_ref = abs(destino.progress - progress_inicio_frenado)
+		tramo_frenado.destino_final = destino
+		tramo_frenado.origen = OrigenTramo.FRENADO_INVERSION
+
+		plan.tramos = [tramo_aceleracion, tramo_crucero, tramo_frenado]
+	else:
+		# No hay espacio para los tres tramos por separado: se arma un
+		# único tramo LLEGADA_CORTA de progress_origen a destino.progress.
+		# _calcular_factor_permitido() (Commits 3/4) ya sabe limitar el
+		# factor tanto por distancia de salida como de llegada dentro de
+		# un mismo tramo — es exactamente el mecanismo pensado para esto,
+		# sin necesitar lógica nueva acá.
+		var tramo_corto := TramoMovimiento.new()
+		tramo_corto.tipo = TramoMovimiento.Tipo.LLEGADA_CORTA
+		tramo_corto.progress_inicio = progress_origen
+		tramo_corto.progress_fin = destino.progress
+		tramo_corto.direccion = direccion
+		tramo_corto.factor_inicio = _factor
+		tramo_corto.factor_fin = 0.0
+		tramo_corto.distancia_aceleracion_ref = distancia_aceleracion_max
+		tramo_corto.distancia_frenado_ref = distancia_frenado_max_inversion
+		tramo_corto.destino_final = destino
+		tramo_corto.origen = OrigenTramo.LLEGADA_CORTA
+
+		plan.tramos = [tramo_corto]
+
+	_plan_actual = plan
+	_stop_destino = destino
+	_progress_objetivo = destino.progress
+
+	if hay_espacio_para_crucero:
+		_entrar_accelerating()
+	else:
+		_entrar_braking()
 
 # ---------------------------------------------------------------------------
 # Lógica por estado

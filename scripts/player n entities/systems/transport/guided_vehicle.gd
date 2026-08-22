@@ -437,6 +437,11 @@ func _retarget(nuevo_stop: StopPoint, nuevo_progress_obj: float) -> void:
 	# redundante durante inversión) — queda sin resolver a propósito, es
 	# alcance del Commit 6, no de este.
 	if nuevo_stop == _stop_destino:
+		print("[DEBUG BUG2] _retarget IGNORADO por redundancia: nuevo_stop=%s == _stop_destino=%s. _destino_pendiente_actual=%s _estado_actual=%s" % [
+			nuevo_stop.name, (str(_stop_destino.name) if _stop_destino != null else "null"),
+			(str(_destino_pendiente.name) if _destino_pendiente != null else "null"),
+			Estado.keys()[_estado_actual]
+		])
 		return
 
 	var nueva_direccion: int = _calcular_direccion(nuevo_progress_obj)
@@ -499,33 +504,16 @@ func _retarget(nuevo_stop: StopPoint, nuevo_progress_obj: float) -> void:
 	_transition_salida  = nueva_transition_salida
 	_transition_llegada = nueva_transition_llegada
 
-	# Corrección al Commit 3 del híbrido: _plan_actual pertenece al viaje que
-	# estaba en curso ANTES de este retarget. Si se deja como está, un
-	# _plan_actual con un tramo del mismo tipo (por ejemplo FRENADO) que el
-	# que corresponde ahora puede pasar la guarda de tipo en _entrar_braking()
-	# / _entrar_accelerating() por pura coincidencia, y el sistema termina
-	# leyendo progress_fin de un stop viejo en vez del destino real de este
-	# retarget (bug confirmado con log real: indice_actual quedaba pegado en
-	# el último tramo de un plan viejo tras varios retargets sucesivos).
-	#
-	# Se invalida acá, después de confirmar que el destino cambia de verdad
-	# (ya pasamos la guarda de redundancia al principio de la función) y
-	# antes de decidir el estado resultante. _entrar_accelerating() /
-	# _entrar_braking() / _entrar_cruising() ya saben reconstruir un tramo
-	# de reemplazo cuando _plan_actual es null (fallback agregado en el
-	# Commit 3). Esto NO reconstruye un PlanDeViaje real para el retarget —
-	# eso es trabajo del Commit 6. Solo evita que un plan viejo contamine
-	# el viaje nuevo.
-	_plan_actual = null
-
-	# Determinar estado resultante según posición relativa a la nueva zona de frenado.
-	# dist_a_llegada > 0: la zona de frenado está adelante → CRUISING.
-	# dist_a_llegada <= 0: ya estamos dentro o pasamos la zona de frenado → BRAKING.
-	var dist_a_llegada: float = (_transition_llegada.progress - _progress_actual) * _direccion
-	if dist_a_llegada > 0.0:
-		_entrar_cruising()
-	else:
-		_entrar_braking()
+	# Commit 5.5: la decisión de estado resultante y la construcción del
+	# plan ya no viven acá — _construir_plan_retarget_misma_direccion()
+	# hace ambas cosas juntas (decide entre ACCELERATING/CRUISING/BRAKING
+	# según _factor y distancia real, y arma el PlanDeViaje real en vez de
+	# depender del fallback del Commit 3). _stop_destino/_progress_objetivo
+	# ya están fijados arriba con los valores validados de esta función;
+	# _construir_plan_retarget_misma_direccion() los vuelve a fijar con los
+	# mismos valores (destino, destino.progress) por construcción propia,
+	# así que no hay conflicto.
+	_construir_plan_retarget_misma_direccion(nuevo_stop)
 
 # ---------------------------------------------------------------------------
 # Commit 5 del híbrido: inversión de sentido.
@@ -543,6 +531,13 @@ func _retarget(nuevo_stop: StopPoint, nuevo_progress_obj: float) -> void:
 # ---------------------------------------------------------------------------
 
 func _iniciar_frenado_inversion(destino_real: StopPoint) -> void:
+	var destino_pendiente_anterior_str: String = str(_destino_pendiente.name) if _destino_pendiente != null else "null"
+	print("[DEBUG BUG2] _iniciar_frenado_inversion ENTRADA: destino_real=%s _progress_actual=%.3f _factor=%.5f _direccion=%d _estado_actual=%s _destino_pendiente_ANTES_de_pisar=%s _stop_destino_actual=%s" % [
+		destino_real.name, _progress_actual, _factor, _direccion, Estado.keys()[_estado_actual],
+		destino_pendiente_anterior_str,
+		(str(_stop_destino.name) if _stop_destino != null else "null")
+	])
+
 	_destino_pendiente = destino_real
 
 	var progress_inicio_tramo: float = _progress_actual
@@ -552,6 +547,10 @@ func _iniciar_frenado_inversion(destino_real: StopPoint) -> void:
 		0.0,
 		path.curve.get_baked_length()
 	)
+
+	print("[DEBUG BUG2] _iniciar_frenado_inversion: destino_real=%s _progress_actual=%.3f _factor=%.5f _direccion=%d distancia_frenado=%.3f progress_fin_tramo(clampeado)=%.3f" % [
+		destino_real.name, _progress_actual, _factor, _direccion, distancia_frenado, progress_fin_tramo
+	])
 
 	# Corrección pedida explícitamente: si la distancia resultante (tras
 	# clamp a los bordes del path) es <= epsilon — caso H, inversión
@@ -563,6 +562,9 @@ func _iniciar_frenado_inversion(destino_real: StopPoint) -> void:
 	# por BRAKING, sin mover al vehículo del punto donde ya estaba.
 	var distancia_frenado_real: float = abs(progress_fin_tramo - progress_inicio_tramo)
 	if distancia_frenado_real <= epsilon:
+		print("[DEBUG BUG2] _iniciar_frenado_inversion: PARADA INMEDIATA (distancia_frenado_real=%.5f <= epsilon=%.5f). _destino_pendiente queda en %s, va directo a _entrar_stopped() SIN pasar por BRAKING." % [
+			distancia_frenado_real, epsilon, destino_real.name
+		])
 		_factor = 0.0
 		_progress_objetivo = progress_inicio_tramo   # No se mueve del punto actual.
 		_entrar_stopped()
@@ -730,12 +732,20 @@ func _entrar_accelerating() -> void:
 		tramo_fallback.progress_inicio = progress_inicio_aceleracion
 		tramo_fallback.progress_fin = _transition_salida.progress
 		tramo_fallback.direccion = _direccion
+		tramo_fallback.factor_inicio = 0.0
+		tramo_fallback.factor_fin = 1.0
 		# Corrección al Commit 4: el fallback debe llenar
 		# distancia_aceleracion_ref igual que _construir_plan_normal(), o
 		# _calcular_factor_permitido() trata este tramo como "sin
 		# restricción de salida" (limite_salida=1.0) en vez de aplicar la
 		# curva real (bug confirmado con log: divergencia en BRAKING por
 		# el mismo motivo, distancia_frenado_ref sin asignar).
+		#
+		# Corrección al Commit 5.5: factor_inicio/factor_fin también deben
+		# quedar explícitos, o _estado_accelerating() (que ahora hace
+		# lerp(tramo.factor_inicio, tramo.factor_fin, curva_t)) recibiría
+		# 0.0/0.0 por default de la clase, y _factor quedaría pegado en 0
+		# durante todo este tramo de respaldo.
 		tramo_fallback.distancia_aceleracion_ref = abs(_transition_salida.progress - progress_inicio_aceleracion)
 		tramo_fallback.distancia_frenado_ref = 0.0
 		tramo_fallback.destino_final = _stop_destino
@@ -772,11 +782,22 @@ func _entrar_cruising() -> void:
 	# contra el tramo actual (en vez del próximo) disparaba el fallback
 	# también en el viaje normal, rompiendo el avance de índice que ya
 	# funcionaba.
+	# Commit 5.5: mismo patrón que ya se usó en _entrar_braking() para
+	# FRENADO_INVERSION/LLEGADA_CORTA. Cuando _construir_plan_retarget_
+	# misma_direccion() arma un plan que arranca directo en CRUCERO (caso
+	# factor_origen ya ≈ 1.0, sin tramo ACELERACION), el tramo CRUCERO ya
+	# está en indice_actual=0 — no es "el próximo", es el actual.
+	var tramo_actual_es_crucero: bool = _plan_actual != null \
+		and _plan_actual.indice_actual < _plan_actual.tramos.size() \
+		and _plan_actual.tramos[_plan_actual.indice_actual].tipo == TramoMovimiento.Tipo.CRUCERO
+
 	var hay_proximo_cruero: bool = _plan_actual != null \
 		and _plan_actual.indice_actual + 1 < _plan_actual.tramos.size() \
 		and _plan_actual.tramos[_plan_actual.indice_actual + 1].tipo == TramoMovimiento.Tipo.CRUCERO
 
-	if hay_proximo_cruero:
+	if tramo_actual_es_crucero:
+		pass   # El tramo ya está en la posición correcta, no hay nada que avanzar ni reconstruir.
+	elif hay_proximo_cruero:
 		# Viaje normal: el tramo CRUCERO es el siguiente en el plan ya
 		# construido por _construir_plan_normal(). Avanzamos el índice.
 		_plan_actual.indice_actual += 1
@@ -791,6 +812,8 @@ func _entrar_cruising() -> void:
 		tramo_fallback.progress_inicio = _progress_actual
 		tramo_fallback.progress_fin = _transition_llegada.progress
 		tramo_fallback.direccion = _direccion
+		tramo_fallback.factor_inicio = 1.0
+		tramo_fallback.factor_fin = 1.0
 		tramo_fallback.destino_final = _stop_destino
 		tramo_fallback.origen = OrigenTramo.RETARGET_MISMA_DIR
 
@@ -871,6 +894,14 @@ func _entrar_braking() -> void:
 		tramo_fallback.progress_inicio = inicio_frenado
 		tramo_fallback.progress_fin = _progress_objetivo
 		tramo_fallback.direccion = _direccion
+		# Corrección al Commit 5.5: un tramo de frenado reconstruido en
+		# caliente (retarget que cae directo a BRAKING sin haber llegado a
+		# CRUISING) no debe asumir que arranca en factor 1.0 — el vehículo
+		# puede venir acelerando (factor < 1.0) o ya frenando (factor < 1.0
+		# de otro tramo). factor_inicio = _factor actual evita el salto
+		# brusco; factor_fin sigue siendo 0.0, siempre se frena hasta parar.
+		tramo_fallback.factor_inicio = _factor
+		tramo_fallback.factor_fin = 0.0
 		# Corrección al Commit 4 (bug confirmado con log real): el fallback
 		# debe llenar distancia_frenado_ref igual que
 		# _construir_plan_normal(), o _calcular_factor_permitido() trata
@@ -996,6 +1027,13 @@ func _entrar_stopped() -> void:
 	_factor          = 0.0
 	_estado_actual   = Estado.STOPPED
 
+	print("[DEBUG BUG2] _entrar_stopped: _progress_actual=%.3f _destino_pendiente=%s _stop_destino=%s _plan_actual=%s" % [
+		_progress_actual,
+		(str(_destino_pendiente.name) if _destino_pendiente != null else "null"),
+		(str(_stop_destino.name) if _stop_destino != null else "null"),
+		("presente (%d tramos, indice_actual=%d)" % [_plan_actual.tramos.size(), _plan_actual.indice_actual]) if _plan_actual != null else "null"
+	])
+
 	# Commit 5 del híbrido: disparador de la maniobra de inversión. Patrón
 	# leer→limpiar→planificar, para evitar doble consumo si _entrar_stopped()
 	# se llamara más de una vez en el mismo frame (no debería pasar hoy,
@@ -1016,7 +1054,13 @@ func _entrar_stopped() -> void:
 									# frenado llegó una orden distinta a
 									# la que originó la inversión.
 
+		print("[DEBUG BUG2] _entrar_stopped CONSUME destino_pendiente: destino=%s _direccion_nueva=%d" % [
+			destino.name, _direccion
+		])
+
 		_construir_plan_desde_progress_actual(destino)
+	else:
+		print("[DEBUG BUG2] _entrar_stopped: SIN destino_pendiente -> vehiculo queda en STOPPED, esperando solicitar_destino() externa")
 
 # ---------------------------------------------------------------------------
 # Commit 5 del híbrido: planificación post-inversión desde progress
@@ -1064,6 +1108,11 @@ func _construir_plan_desde_progress_actual(destino: StopPoint) -> void:
 	# aceleración ya pasó (o coincide con) el punto donde debería empezar
 	# el frenado, no hay espacio para un crucero real.
 	var hay_espacio_para_crucero: bool = (progress_fin_aceleracion - progress_inicio_frenado) * direccion < 0.0
+
+	print("[DEBUG BUG2] _construir_plan_desde_progress_actual: destino=%s progress_origen=%.3f direccion=%d progress_fin_aceleracion=%.3f progress_inicio_frenado=%.3f distancia_destino_progress_origen=%.3f hay_espacio_para_crucero=%s" % [
+		destino.name, progress_origen, direccion, progress_fin_aceleracion, progress_inicio_frenado,
+		abs(destino.progress - progress_origen), hay_espacio_para_crucero
+	])
 
 	var plan := PlanDeViaje.new()
 	plan.destino_final = destino
@@ -1138,6 +1187,154 @@ func _construir_plan_desde_progress_actual(destino: StopPoint) -> void:
 		_entrar_braking()
 
 # ---------------------------------------------------------------------------
+# Commit 5.5: planificación de retarget en misma dirección, sin cambio de
+# dirección y sin parada real.
+#
+# A diferencia de _construir_plan_desde_progress_actual() (post-inversión,
+# donde el vehículo pasó por STOPPED y factor_inicio = 0.0 siempre es
+# correcto), acá el vehículo nunca se detuvo — arranca desde
+# progress_inicio = _progress_actual, factor_inicio = _factor (el que
+# tenía en el instante del retarget), sin resetear velocidad ganada.
+#
+# Decide entre tres salidas, no dos:
+#   - _factor < 1.0 y hay espacio útil hasta el destino → sigue/entra en
+#     ACCELERATING, arrancando desde el factor actual.
+#   - _factor ≈ 1.0 y hay espacio → CRUISING.
+#   - No hay espacio para acelerar/crucerear → BRAKING / LLEGADA_CORTA.
+# La distancia manda: un destino muy cerca no fuerza ACCELERATING solo
+# porque _factor < 1.0.
+# ---------------------------------------------------------------------------
+
+func _construir_plan_retarget_misma_direccion(destino: StopPoint) -> void:
+	print("[DEBUG BUG2] _construir_plan_retarget_misma_direccion ENTRADA: destino=%s _progress_actual=%.3f _factor=%.5f _direccion=%d _estado_actual=%s _stop_destino_actual=%s" % [
+		destino.name, _progress_actual, _factor, _direccion, Estado.keys()[_estado_actual],
+		(str(_stop_destino.name) if _stop_destino != null else "null")
+	])
+
+	var progress_origen: float = _progress_actual
+	var factor_origen: float = _factor
+	var direccion: int = _direccion
+
+	var transition_llegada: TransitionPoint = _seleccionar_transition_llegada(destino, direccion)
+	if transition_llegada != null and not _transition_pertenece_a_path(transition_llegada):
+		push_error("GuidedVehicle: la _transition_llegada resuelta ('%s') para retarget misma dirección ('%s') no pertenece al Path3D asignado en 'path'." % [transition_llegada.name, destino.name])
+		transition_llegada = null
+
+	var progress_fin_aceleracion: float = progress_origen + direccion * distancia_aceleracion_max
+	var progress_inicio_frenado: float = transition_llegada.progress if transition_llegada != null \
+		else destino.progress - direccion * distancia_frenado_max_inversion
+
+	# Mismo criterio geométrico que _construir_plan_desde_progress_actual():
+	# ¿alcanza la distancia para aceleración + crucero + frenado completos?
+	var hay_espacio_para_crucero: bool = (progress_fin_aceleracion - progress_inicio_frenado) * direccion < 0.0
+
+	var plan := PlanDeViaje.new()
+	plan.destino_final = destino
+	plan.indice_actual = 0
+
+	if hay_espacio_para_crucero:
+		var tramo_aceleracion := TramoMovimiento.new()
+		tramo_aceleracion.tipo = TramoMovimiento.Tipo.ACELERACION
+		tramo_aceleracion.progress_inicio = progress_origen
+		tramo_aceleracion.progress_fin = progress_fin_aceleracion
+		tramo_aceleracion.direccion = direccion
+		tramo_aceleracion.factor_inicio = factor_origen   # NO resetea a 0.0 — el vehículo nunca se detuvo.
+		tramo_aceleracion.factor_fin = 1.0
+		tramo_aceleracion.distancia_aceleracion_ref = distancia_aceleracion_max
+		tramo_aceleracion.distancia_frenado_ref = 0.0
+		tramo_aceleracion.destino_final = destino
+		tramo_aceleracion.origen = OrigenTramo.RETARGET_MISMA_DIR
+
+		var tramo_crucero := TramoMovimiento.new()
+		tramo_crucero.tipo = TramoMovimiento.Tipo.CRUCERO
+		tramo_crucero.progress_inicio = progress_fin_aceleracion
+		tramo_crucero.progress_fin = progress_inicio_frenado
+		tramo_crucero.direccion = direccion
+		tramo_crucero.factor_inicio = 1.0
+		tramo_crucero.factor_fin = 1.0
+		tramo_crucero.distancia_aceleracion_ref = 0.0
+		tramo_crucero.distancia_frenado_ref = 0.0
+		tramo_crucero.destino_final = destino
+		tramo_crucero.origen = OrigenTramo.RETARGET_MISMA_DIR
+
+		var tramo_frenado := TramoMovimiento.new()
+		tramo_frenado.tipo = TramoMovimiento.Tipo.FRENADO
+		tramo_frenado.progress_inicio = progress_inicio_frenado
+		tramo_frenado.progress_fin = destino.progress
+		tramo_frenado.direccion = direccion
+		tramo_frenado.factor_inicio = 1.0
+		tramo_frenado.factor_fin = 0.0
+		tramo_frenado.distancia_aceleracion_ref = 0.0
+		tramo_frenado.distancia_frenado_ref = abs(destino.progress - progress_inicio_frenado)
+		tramo_frenado.destino_final = destino
+		tramo_frenado.origen = OrigenTramo.RETARGET_MISMA_DIR
+
+		# ¿Con qué tramo arranca? Si factor_origen ya llegó a 1.0, no tiene
+		# sentido re-entrar a ACCELERATING (quedaría con factor_inicio=
+		# factor_fin=1.0, un tramo "de mentira") — arranca directo en
+		# CRUCERO. Si factor_origen < 1.0, arranca en ACELERACION desde
+		# donde estaba.
+		if factor_origen >= 1.0 - epsilon:
+			plan.tramos = [tramo_crucero, tramo_frenado]
+			plan.indice_actual = 0
+		else:
+			plan.tramos = [tramo_aceleracion, tramo_crucero, tramo_frenado]
+			plan.indice_actual = 0
+	else:
+		# Sin espacio para los tres tramos por separado: tramo único
+		# LLEGADA_CORTA, igual mecanismo que post-inversión — la distancia
+		# manda, no se fuerza ACCELERATING aunque factor_origen < 1.0.
+		var tramo_corto := TramoMovimiento.new()
+		tramo_corto.tipo = TramoMovimiento.Tipo.LLEGADA_CORTA
+		tramo_corto.progress_inicio = progress_origen
+		tramo_corto.progress_fin = destino.progress
+		tramo_corto.direccion = direccion
+		tramo_corto.factor_inicio = factor_origen
+		tramo_corto.factor_fin = 0.0
+		tramo_corto.distancia_aceleracion_ref = distancia_aceleracion_max
+		tramo_corto.distancia_frenado_ref = distancia_frenado_max_inversion
+		tramo_corto.destino_final = destino
+		tramo_corto.origen = OrigenTramo.RETARGET_MISMA_DIR
+
+		plan.tramos = [tramo_corto]
+
+	# Punto 6 de la confirmación: reemplazo directo, no invalidar y caer en
+	# fallback viejo — este commit existe justamente para que retarget en
+	# misma dirección tenga plan real.
+	_plan_actual = plan
+	_stop_destino = destino
+	_progress_objetivo = destino.progress
+
+	print("[DEBUG C5.5] plan reconstruido (%d tramos):" % plan.tramos.size())
+	for i in range(plan.tramos.size()):
+		var tr: TramoMovimiento = plan.tramos[i]
+		print("[DEBUG C5.5]   tramo[%d] tipo=%s progress_inicio=%.3f progress_fin=%.3f factor_inicio=%.3f factor_fin=%.3f" % [
+			i, TramoMovimiento.Tipo.keys()[tr.tipo], tr.progress_inicio, tr.progress_fin, tr.factor_inicio, tr.factor_fin
+		])
+
+	var primer_tramo: TramoMovimiento = plan.tramos[0]
+	var estado_anterior_str: String = Estado.keys()[_estado_actual]
+
+	if not hay_espacio_para_crucero:
+		print("[DEBUG C5.5] retarget misma dir: estado_anterior=%s factor_origen=%.5f destino=%s direccion=%d hay_espacio_para_crucero=false -> BRAKING/LLEGADA_CORTA. primer_tramo.tipo=%s factor_inicio=%.3f factor_fin=%.3f" % [
+			estado_anterior_str, factor_origen, destino.name, direccion,
+			TramoMovimiento.Tipo.keys()[primer_tramo.tipo], primer_tramo.factor_inicio, primer_tramo.factor_fin
+		])
+		_entrar_braking()
+	elif factor_origen >= 1.0 - epsilon:
+		print("[DEBUG C5.5] retarget misma dir: estado_anterior=%s factor_origen=%.5f destino=%s direccion=%d hay_espacio_para_crucero=true, factor_origen>=1.0-epsilon -> CRUISING directo. primer_tramo.tipo=%s factor_inicio=%.3f factor_fin=%.3f" % [
+			estado_anterior_str, factor_origen, destino.name, direccion,
+			TramoMovimiento.Tipo.keys()[primer_tramo.tipo], primer_tramo.factor_inicio, primer_tramo.factor_fin
+		])
+		_entrar_cruising()
+	else:
+		print("[DEBUG C5.5] retarget misma dir: estado_anterior=%s factor_origen=%.5f destino=%s direccion=%d hay_espacio_para_crucero=true, factor_origen<1.0 -> ACCELERATING desde factor actual. primer_tramo.tipo=%s factor_inicio=%.3f factor_fin=%.3f" % [
+			estado_anterior_str, factor_origen, destino.name, direccion,
+			TramoMovimiento.Tipo.keys()[primer_tramo.tipo], primer_tramo.factor_inicio, primer_tramo.factor_fin
+		])
+		_entrar_accelerating()
+
+# ---------------------------------------------------------------------------
 # Lógica por estado
 # ---------------------------------------------------------------------------
 
@@ -1156,7 +1353,19 @@ func _estado_accelerating(delta: float, profundidad: int = 0) -> void:
 
 	var distancia_recorrida: float = abs(_progress_actual - progress_inicio_aceleracion)
 	var t: float = clampf(distancia_recorrida / distancia_total_aceleracion, 0.0, 1.0)
-	_factor = _sample_factor_curva(t)
+
+	# Commit 5.5: _factor ya no es directamente el sample de la curva — es
+	# una interpolación entre tramo.factor_inicio y tramo.factor_fin, guiada
+	# por la curva. Para el viaje normal y post-inversión, factor_inicio=0.0
+	# y factor_fin=1.0 en todo tramo ACELERACION (confirmado revisando los
+	# tres constructores existentes), así que lerp(0.0, 1.0, curva_t) ==
+	# curva_t — no-op matemático, igual que ya se validó con
+	# _calcular_factor_permitido() en el Commit 4. Solo cambia el resultado
+	# real para retarget en misma dirección durante ACCELERATING, donde
+	# factor_inicio = _factor del momento del retarget (no 0.0) — así la
+	# velocidad ya ganada no se resetea.
+	var curva_t: float = _sample_factor_curva(t)
+	_factor = lerp(tramo.factor_inicio, tramo.factor_fin, curva_t)
 
 	# Commit 4 del híbrido: factor_permitido aplicado como límite superior
 	# real. Verificado con logs (viaje normal: 0 divergencias en accel/
@@ -1238,7 +1447,20 @@ func _estado_braking(delta: float, _profundidad: int = 0) -> void:
 
 	var distancia_restante: float = abs(progress_fin_tramo - _progress_actual)
 	var t: float = clampf(distancia_restante / distancia_total_frenado, 0.0, 1.0)
-	_factor = _sample_factor_curva(t)
+
+	# Commit 5.5: mismo criterio que en _estado_accelerating() — _factor es
+	# una interpolación entre tramo.factor_inicio y tramo.factor_fin. Todo
+	# tramo FRENADO/FRENADO_INVERSION/LLEGADA_CORTA existente ya tiene
+	# factor_fin=0.0; factor_inicio es 1.0 para frenado normal (viene de
+	# crucero completo) o _factor del momento para FRENADO_INVERSION/
+	# LLEGADA_CORTA (ya validado en Commit 5) — no-op matemático para esos
+	# casos. Nota: como t decrece de 1.0 a 0.0 con la distancia restante
+	# (no crece como en aceleración), la curva ya sampleaba "hacia atrás";
+	# aquí el lerp respeta ese mismo sentido: en t=1.0 (recién entrado)
+	# curva_t≈1.0 → _factor≈factor_inicio; en t=0.0 (llegando) curva_t≈0.0
+	# → _factor≈factor_fin(=0.0).
+	var curva_t: float = _sample_factor_curva(t)
+	_factor = lerp(tramo.factor_fin, tramo.factor_inicio, curva_t)
 
 	# Commit 4 del híbrido: factor_permitido aplicado como límite superior
 	# real. Verificado con logs (primera ronda: 455 divergencias por

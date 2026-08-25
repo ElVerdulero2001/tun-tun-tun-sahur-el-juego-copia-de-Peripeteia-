@@ -88,6 +88,82 @@ class PlanDeViaje extends RefCounted:
 	var indice_actual: int = 0
 
 # ---------------------------------------------------------------------------
+# Refactor de unificación de planners (rama guided-vehicle-plan-refactor).
+#
+# Antes de este refactor, _construir_plan_normal(), _construir_plan_desde_
+# progress_actual() y _construir_plan_retarget_misma_direccion() duplicaban
+# ~95% de la lógica de construcción de tramos (confirmado línea por línea
+# antes de tocar código — ver diff conceptual aprobado). La única diferencia
+# real entre ellas era de dónde salían progress_fin_aceleracion/progress_
+# inicio_frenado (de una TransitionPoint real recibida, o calculados con
+# distancia_aceleracion_max/distancia_frenado_max_inversion), factor_inicio
+# del primer tramo (0.0 fijo vs. el factor real del vehículo), y si estaba
+# permitido degradar a un tramo único LLEGADA_CORTA cuando no hay espacio.
+#
+# PlanBuildSpec encapsula esas diferencias como datos, no como comportamiento
+# distinto por función. _construir_plan(spec) es la única fuente de verdad
+# para construir tramos; los tres wrappers semánticos (_construir_plan_
+# normal(), _construir_plan_desde_progress_actual(), _construir_plan_
+# retarget_misma_direccion()) siguen existiendo, con su firma pública
+# intacta, y siguen siendo responsables de: preparar el spec correcto,
+# asignar _plan_actual/_stop_destino/_progress_objetivo, y decidir qué
+# _entrar_*() corresponde. _construir_plan(spec) NUNCA decide entrada de
+# estado ni toca ninguna variable de instancia — solo recibe un spec y
+# devuelve un PlanDeViaje, igual que ya hacía _construir_plan_normal() antes
+# de este refactor.
+# ---------------------------------------------------------------------------
+
+## Controla si _construir_plan() puede degradar a un tramo único LLEGADA_CORTA
+## cuando la distancia disponible no alcanza para ACELERACION+CRUCERO+FRENADO
+## completos, o si debe forzar siempre los tres tramos completos.
+##
+## FORZAR_TRES_TRAMOS existe exclusivamente para preservar el comportamiento
+## exacto de _construir_plan_normal() de antes de este refactor: esa función
+## nunca evaluó "¿hay espacio?" — siempre asumió que sí, porque el viaje
+## normal parte de TransitionPoints reales ya validadas. Sin este flag, la
+## unificación introduciría una decisión nueva (degradar a LLEGADA_CORTA) en
+## un caso que hoy nunca la toma — cambio de comportamiento no autorizado
+## para este refactor.
+enum ModoDistanciaInsuficiente {
+	FORZAR_TRES_TRAMOS,
+	PERMITIR_LLEGADA_CORTA,
+}
+
+## Datos de entrada para _construir_plan(). Reemplaza pasar 6-7 parámetros
+## sueltos entre los wrappers y la función central — reduce el riesgo de
+## cruzar argumentos por posición.
+class PlanBuildSpec extends RefCounted:
+	var destino: StopPoint = null
+	var progress_inicio: float = 0.0
+	var factor_inicio: float = 0.0
+	var direccion: int = 1
+
+	## null = no hay TransitionPoint real de salida; _construir_plan() calcula
+	## progress_fin_aceleracion como progress_inicio + direccion *
+	## distancia_aceleracion_max. No-null = usa transition_salida.progress
+	## directo, igual que _construir_plan_normal() hacía antes del refactor.
+	var transition_salida: TransitionPoint = null
+
+	## Mismo criterio simétrico para el lado de llegada, con
+	## distancia_frenado_max_inversion como referencia calculada.
+	var transition_llegada: TransitionPoint = null
+
+	var modo_distancia_insuficiente: ModoDistanciaInsuficiente = ModoDistanciaInsuficiente.PERMITIR_LLEGADA_CORTA
+	var origen: OrigenTramo = OrigenTramo.VIAJE_NORMAL
+
+	## Origen específico para el tramo LLEGADA_CORTA, si difiere de `origen`.
+	## Preserva una inconsistencia real del código pre-refactor:
+	## _construir_plan_desde_progress_actual() marcaba sus tramos de 3 vías
+	## con FRENADO_INVERSION, pero su LLEGADA_CORTA con OrigenTramo.
+	## LLEGADA_CORTA — distinto al resto de tramos de esa misma función.
+	## Es un campo puramente informativo/de trazabilidad, sin efecto en
+	## comportamiento, pero este refactor no tiene mandato para "corregir"
+	## esa inconsistencia — solo unificar construcción. null = usar `origen`
+	## también para LLEGADA_CORTA (comportamiento de _construir_plan_
+	## retarget_misma_direccion(), que sí era consistente).
+	var origen_llegada_corta = null
+
+# ---------------------------------------------------------------------------
 # Constantes internas
 # ---------------------------------------------------------------------------
 
@@ -407,56 +483,137 @@ func _planificar_desde_stop(nuevo_stop: StopPoint, nuevo_progress_obj: float) ->
 # consumidor.
 # ---------------------------------------------------------------------------
 
+## Función central única de construcción de planes (refactor guided-vehicle-
+## plan-refactor). Recibe un PlanBuildSpec, devuelve un PlanDeViaje. No
+## decide entrada de estado, no toca _plan_actual/_stop_destino/_progress_
+## objetivo ni ninguna otra variable de instancia — eso es responsabilidad
+## de cada wrapper semántico.
+##
+## Bifurcación por transition_salida/transition_llegada null-o-no-null: es
+## la unificación real de lo que antes eran tres cálculos casi idénticos
+## repetidos. Cuando la transition es real (no null), su .progress se usa
+## directo como límite de la fase, igual que _construir_plan_normal() hacía
+## antes del refactor. Cuando es null, el límite se calcula con distancia_
+## aceleracion_max / distancia_frenado_max_inversion desde progress_inicio o
+## destino.progress — igual que _construir_plan_desde_progress_actual() y
+## _construir_plan_retarget_misma_direccion() hacían antes del refactor.
+func _construir_plan(spec: PlanBuildSpec) -> PlanDeViaje:
+	var progress_fin_aceleracion: float = spec.transition_salida.progress if spec.transition_salida != null \
+		else spec.progress_inicio + spec.direccion * distancia_aceleracion_max
+	var progress_inicio_frenado: float = spec.transition_llegada.progress if spec.transition_llegada != null \
+		else spec.destino.progress - spec.direccion * distancia_frenado_max_inversion
+
+	# distancia_aceleracion_ref/distancia_frenado_ref del tramo ACELERACION/
+	# FRENADO: si la transition es real, la referencia es la distancia real
+	# hasta ella (igual que _construir_plan_normal() calculaba antes); si no
+	# hay transition real, la referencia es la distancia máxima configurada
+	# (igual que las otras dos funciones calculaban antes). Preservado
+	# exactamente para no cambiar el comportamiento de _calcular_factor_
+	# permitido() en ningún caso.
+	var distancia_aceleracion_ref_real: float = abs(progress_fin_aceleracion - spec.progress_inicio) \
+		if spec.transition_salida != null else distancia_aceleracion_max
+	var distancia_frenado_ref_real: float = abs(spec.destino.progress - progress_inicio_frenado) \
+		if spec.transition_llegada != null else distancia_frenado_max_inversion
+
+	var hay_espacio_para_crucero: bool = (progress_fin_aceleracion - progress_inicio_frenado) * spec.direccion < 0.0
+	if spec.modo_distancia_insuficiente == ModoDistanciaInsuficiente.FORZAR_TRES_TRAMOS:
+		# _construir_plan_normal() nunca evaluó esta condición antes del
+		# refactor — siempre asumió que había espacio. Se preserva ese
+		# comportamiento exacto forzando el camino de tres tramos, sin
+		# importar lo que diga hay_espacio_para_crucero.
+		hay_espacio_para_crucero = true
+
+	var plan := PlanDeViaje.new()
+	plan.destino_final = spec.destino
+	plan.indice_actual = 0
+
+	if hay_espacio_para_crucero:
+		var tramo_aceleracion := TramoMovimiento.new()
+		tramo_aceleracion.tipo = TramoMovimiento.Tipo.ACELERACION
+		tramo_aceleracion.progress_inicio = spec.progress_inicio
+		tramo_aceleracion.progress_fin = progress_fin_aceleracion
+		tramo_aceleracion.direccion = spec.direccion
+		tramo_aceleracion.factor_inicio = spec.factor_inicio
+		tramo_aceleracion.factor_fin = 1.0
+		tramo_aceleracion.distancia_aceleracion_ref = distancia_aceleracion_ref_real
+		tramo_aceleracion.distancia_frenado_ref = 0.0
+		tramo_aceleracion.destino_final = spec.destino
+		tramo_aceleracion.origen = spec.origen
+
+		var tramo_crucero := TramoMovimiento.new()
+		tramo_crucero.tipo = TramoMovimiento.Tipo.CRUCERO
+		tramo_crucero.progress_inicio = progress_fin_aceleracion
+		tramo_crucero.progress_fin = progress_inicio_frenado
+		tramo_crucero.direccion = spec.direccion
+		tramo_crucero.factor_inicio = 1.0
+		tramo_crucero.factor_fin = 1.0
+		tramo_crucero.distancia_aceleracion_ref = 0.0
+		tramo_crucero.distancia_frenado_ref = 0.0
+		tramo_crucero.destino_final = spec.destino
+		tramo_crucero.origen = spec.origen
+
+		var tramo_frenado := TramoMovimiento.new()
+		tramo_frenado.tipo = TramoMovimiento.Tipo.FRENADO
+		tramo_frenado.progress_inicio = progress_inicio_frenado
+		tramo_frenado.progress_fin = spec.destino.progress
+		tramo_frenado.direccion = spec.direccion
+		tramo_frenado.factor_inicio = 1.0
+		tramo_frenado.factor_fin = 0.0
+		tramo_frenado.distancia_aceleracion_ref = 0.0
+		tramo_frenado.distancia_frenado_ref = distancia_frenado_ref_real
+		tramo_frenado.destino_final = spec.destino
+		tramo_frenado.origen = spec.origen
+
+		# Si factor_inicio ya está en 1.0 (caso retarget con el vehículo ya
+		# en crucero), el tramo ACELERACION quedaría con factor_inicio ==
+		# factor_fin == 1.0 — un tramo "de mentira". En ese caso se omite,
+		# igual que _construir_plan_retarget_misma_direccion() ya hacía
+		# antes del refactor (_construir_plan_normal() y _construir_plan_
+		# desde_progress_actual() siempre llaman con factor_inicio = 0.0,
+		# así que para ellas esta condición nunca se cumple — mismo
+		# comportamiento exacto de antes).
+		if spec.factor_inicio >= 1.0 - epsilon:
+			plan.tramos = [tramo_crucero, tramo_frenado]
+		else:
+			plan.tramos = [tramo_aceleracion, tramo_crucero, tramo_frenado]
+	else:
+		var tramo_corto := TramoMovimiento.new()
+		tramo_corto.tipo = TramoMovimiento.Tipo.LLEGADA_CORTA
+		tramo_corto.progress_inicio = spec.progress_inicio
+		tramo_corto.progress_fin = spec.destino.progress
+		tramo_corto.direccion = spec.direccion
+		tramo_corto.factor_inicio = spec.factor_inicio
+		tramo_corto.factor_fin = 0.0
+		tramo_corto.distancia_aceleracion_ref = distancia_aceleracion_max
+		tramo_corto.distancia_frenado_ref = distancia_frenado_max_inversion
+		tramo_corto.destino_final = spec.destino
+		tramo_corto.origen = spec.origen_llegada_corta if spec.origen_llegada_corta != null else spec.origen
+
+		plan.tramos = [tramo_corto]
+
+	return plan
+
+## Wrapper semántico: viaje normal desde STOPPED. Firma y llamador sin
+## cambios (_planificar_desde_stop()). FORZAR_TRES_TRAMOS preserva el
+## comportamiento de antes del refactor: nunca evalúa si hay espacio,
+## siempre arma los tres tramos completos.
 func _construir_plan_normal(
 	destino: StopPoint,
 	direccion: int,
 	transition_salida: TransitionPoint,
 	transition_llegada: TransitionPoint
 ) -> PlanDeViaje:
-	var plan := PlanDeViaje.new()
-	plan.destino_final = destino
-	plan.indice_actual = 0
+	var spec := PlanBuildSpec.new()
+	spec.destino = destino
+	spec.progress_inicio = _progress_actual
+	spec.factor_inicio = 0.0
+	spec.direccion = direccion
+	spec.transition_salida = transition_salida
+	spec.transition_llegada = transition_llegada
+	spec.modo_distancia_insuficiente = ModoDistanciaInsuficiente.FORZAR_TRES_TRAMOS
+	spec.origen = OrigenTramo.VIAJE_NORMAL
 
-	var progress_origen: float = _progress_actual
-
-	var tramo_aceleracion := TramoMovimiento.new()
-	tramo_aceleracion.tipo = TramoMovimiento.Tipo.ACELERACION
-	tramo_aceleracion.progress_inicio = progress_origen
-	tramo_aceleracion.progress_fin = transition_salida.progress
-	tramo_aceleracion.direccion = direccion
-	tramo_aceleracion.factor_inicio = 0.0
-	tramo_aceleracion.factor_fin = 1.0
-	tramo_aceleracion.distancia_aceleracion_ref = abs(transition_salida.progress - progress_origen)
-	tramo_aceleracion.distancia_frenado_ref = 0.0
-	tramo_aceleracion.destino_final = destino
-	tramo_aceleracion.origen = OrigenTramo.VIAJE_NORMAL
-
-	var tramo_crucero := TramoMovimiento.new()
-	tramo_crucero.tipo = TramoMovimiento.Tipo.CRUCERO
-	tramo_crucero.progress_inicio = transition_salida.progress
-	tramo_crucero.progress_fin = transition_llegada.progress
-	tramo_crucero.direccion = direccion
-	tramo_crucero.factor_inicio = 1.0
-	tramo_crucero.factor_fin = 1.0
-	tramo_crucero.distancia_aceleracion_ref = 0.0
-	tramo_crucero.distancia_frenado_ref = 0.0
-	tramo_crucero.destino_final = destino
-	tramo_crucero.origen = OrigenTramo.VIAJE_NORMAL
-
-	var tramo_frenado := TramoMovimiento.new()
-	tramo_frenado.tipo = TramoMovimiento.Tipo.FRENADO
-	tramo_frenado.progress_inicio = transition_llegada.progress
-	tramo_frenado.progress_fin = destino.progress
-	tramo_frenado.direccion = direccion
-	tramo_frenado.factor_inicio = 1.0
-	tramo_frenado.factor_fin = 0.0
-	tramo_frenado.distancia_aceleracion_ref = 0.0
-	tramo_frenado.distancia_frenado_ref = abs(destino.progress - transition_llegada.progress)
-	tramo_frenado.destino_final = destino
-	tramo_frenado.origen = OrigenTramo.VIAJE_NORMAL
-
-	plan.tramos = [tramo_aceleracion, tramo_crucero, tramo_frenado]
-	return plan
+	return _construir_plan(spec)
 
 # ---------------------------------------------------------------------------
 # Re-targeting desde movimiento (ACCELERATING, CRUISING, BRAKING)
@@ -1184,6 +1341,10 @@ func _entrar_stopped() -> void:
 # normal donde no cabe.
 # ---------------------------------------------------------------------------
 
+## Wrapper semántico: planificación post-inversión desde progress arbitrario.
+## Firma y llamador sin cambios (_entrar_stopped()). PERMITIR_LLEGADA_CORTA
+## preserva el comportamiento de antes del refactor: si la distancia real no
+## alcanza para los tres tramos, degrada a un tramo único.
 func _construir_plan_desde_progress_actual(destino: StopPoint) -> void:
 	# AVISO sin resolver (Commit 5): a diferencia de _planificar_desde_stop()
 	# y _retarget(), esta función no revalida _stop_pertenece_a_path(destino)
@@ -1202,78 +1363,30 @@ func _construir_plan_desde_progress_actual(destino: StopPoint) -> void:
 		push_error("GuidedVehicle: la _transition_llegada resuelta ('%s') para el destino post-inversión ('%s') no pertenece al Path3D asignado en 'path'." % [transition_llegada.name, destino.name])
 		transition_llegada = null
 
+	var spec := PlanBuildSpec.new()
+	spec.destino = destino
+	spec.progress_inicio = progress_origen
+	spec.factor_inicio = 0.0
+	spec.direccion = direccion
+	spec.transition_salida = null
+	spec.transition_llegada = transition_llegada
+	spec.modo_distancia_insuficiente = ModoDistanciaInsuficiente.PERMITIR_LLEGADA_CORTA
+	spec.origen = OrigenTramo.FRENADO_INVERSION
+	spec.origen_llegada_corta = OrigenTramo.LLEGADA_CORTA   # Preserva la
+		# inconsistencia real del código pre-refactor: esta función marcaba
+		# su LLEGADA_CORTA distinto al resto de sus tramos. Ver nota en
+		# PlanBuildSpec.
+
+	var plan: PlanDeViaje = _construir_plan(spec)
+
+	# Mismo criterio geométrico que la función central usa internamente,
+	# recalculado acá para decidir la entrada de estado — la función central
+	# no expone hay_espacio_para_crucero como valor de retorno, así que se
+	# recalcula con los mismos datos (determinístico, mismo resultado).
 	var progress_fin_aceleracion: float = progress_origen + direccion * distancia_aceleracion_max
 	var progress_inicio_frenado: float = transition_llegada.progress if transition_llegada != null \
 		else destino.progress - direccion * distancia_frenado_max_inversion
-
-	# ¿Alcanza la distancia total para aceleración + crucero + frenado
-	# completos, sin que se pisen entre sí? Si el punto donde termina la
-	# aceleración ya pasó (o coincide con) el punto donde debería empezar
-	# el frenado, no hay espacio para un crucero real.
 	var hay_espacio_para_crucero: bool = (progress_fin_aceleracion - progress_inicio_frenado) * direccion < 0.0
-
-	var plan := PlanDeViaje.new()
-	plan.destino_final = destino
-	plan.indice_actual = 0
-
-	if hay_espacio_para_crucero:
-		var tramo_aceleracion := TramoMovimiento.new()
-		tramo_aceleracion.tipo = TramoMovimiento.Tipo.ACELERACION
-		tramo_aceleracion.progress_inicio = progress_origen
-		tramo_aceleracion.progress_fin = progress_fin_aceleracion
-		tramo_aceleracion.direccion = direccion
-		tramo_aceleracion.factor_inicio = 0.0
-		tramo_aceleracion.factor_fin = 1.0
-		tramo_aceleracion.distancia_aceleracion_ref = distancia_aceleracion_max
-		tramo_aceleracion.distancia_frenado_ref = 0.0
-		tramo_aceleracion.destino_final = destino
-		tramo_aceleracion.origen = OrigenTramo.FRENADO_INVERSION
-
-		var tramo_crucero := TramoMovimiento.new()
-		tramo_crucero.tipo = TramoMovimiento.Tipo.CRUCERO
-		tramo_crucero.progress_inicio = progress_fin_aceleracion
-		tramo_crucero.progress_fin = progress_inicio_frenado
-		tramo_crucero.direccion = direccion
-		tramo_crucero.factor_inicio = 1.0
-		tramo_crucero.factor_fin = 1.0
-		tramo_crucero.distancia_aceleracion_ref = 0.0
-		tramo_crucero.distancia_frenado_ref = 0.0
-		tramo_crucero.destino_final = destino
-		tramo_crucero.origen = OrigenTramo.FRENADO_INVERSION
-
-		var tramo_frenado := TramoMovimiento.new()
-		tramo_frenado.tipo = TramoMovimiento.Tipo.FRENADO
-		tramo_frenado.progress_inicio = progress_inicio_frenado
-		tramo_frenado.progress_fin = destino.progress
-		tramo_frenado.direccion = direccion
-		tramo_frenado.factor_inicio = 1.0
-		tramo_frenado.factor_fin = 0.0
-		tramo_frenado.distancia_aceleracion_ref = 0.0
-		tramo_frenado.distancia_frenado_ref = abs(destino.progress - progress_inicio_frenado)
-		tramo_frenado.destino_final = destino
-		tramo_frenado.origen = OrigenTramo.FRENADO_INVERSION
-
-		plan.tramos = [tramo_aceleracion, tramo_crucero, tramo_frenado]
-	else:
-		# No hay espacio para los tres tramos por separado: se arma un
-		# único tramo LLEGADA_CORTA de progress_origen a destino.progress.
-		# _calcular_factor_permitido() (Commits 3/4) ya sabe limitar el
-		# factor tanto por distancia de salida como de llegada dentro de
-		# un mismo tramo — es exactamente el mecanismo pensado para esto,
-		# sin necesitar lógica nueva acá.
-		var tramo_corto := TramoMovimiento.new()
-		tramo_corto.tipo = TramoMovimiento.Tipo.LLEGADA_CORTA
-		tramo_corto.progress_inicio = progress_origen
-		tramo_corto.progress_fin = destino.progress
-		tramo_corto.direccion = direccion
-		tramo_corto.factor_inicio = _factor
-		tramo_corto.factor_fin = 0.0
-		tramo_corto.distancia_aceleracion_ref = distancia_aceleracion_max
-		tramo_corto.distancia_frenado_ref = distancia_frenado_max_inversion
-		tramo_corto.destino_final = destino
-		tramo_corto.origen = OrigenTramo.LLEGADA_CORTA
-
-		plan.tramos = [tramo_corto]
 
 	_plan_actual = plan
 	_stop_destino = destino
@@ -1303,6 +1416,12 @@ func _construir_plan_desde_progress_actual(destino: StopPoint) -> void:
 # porque _factor < 1.0.
 # ---------------------------------------------------------------------------
 
+## Wrapper semántico: retarget en misma dirección, sin parada real. Firma y
+## llamador sin cambios (_retarget()). factor_inicio = _factor real (nunca
+## resetea a 0.0, el vehículo nunca se detuvo). origen_llegada_corta no se
+## define porque, en esta función, el LLEGADA_CORTA original ya usaba el
+## mismo origen que el resto de sus tramos (RETARGET_MISMA_DIR) — el default
+## de spec (usar spec.origen) reproduce eso exacto.
 func _construir_plan_retarget_misma_direccion(destino: StopPoint) -> void:
 	var progress_origen: float = _progress_actual
 	var factor_origen: float = _factor
@@ -1313,87 +1432,29 @@ func _construir_plan_retarget_misma_direccion(destino: StopPoint) -> void:
 		push_error("GuidedVehicle: la _transition_llegada resuelta ('%s') para retarget misma dirección ('%s') no pertenece al Path3D asignado en 'path'." % [transition_llegada.name, destino.name])
 		transition_llegada = null
 
+	var spec := PlanBuildSpec.new()
+	spec.destino = destino
+	spec.progress_inicio = progress_origen
+	spec.factor_inicio = factor_origen
+	spec.direccion = direccion
+	spec.transition_salida = null
+	spec.transition_llegada = transition_llegada
+	spec.modo_distancia_insuficiente = ModoDistanciaInsuficiente.PERMITIR_LLEGADA_CORTA
+	spec.origen = OrigenTramo.RETARGET_MISMA_DIR
+
+	var plan: PlanDeViaje = _construir_plan(spec)
+
+	# Mismo criterio geométrico que la función central usa internamente,
+	# recalculado acá para decidir la entrada de estado — ver misma nota en
+	# _construir_plan_desde_progress_actual().
 	var progress_fin_aceleracion: float = progress_origen + direccion * distancia_aceleracion_max
 	var progress_inicio_frenado: float = transition_llegada.progress if transition_llegada != null \
 		else destino.progress - direccion * distancia_frenado_max_inversion
-
-	# Mismo criterio geométrico que _construir_plan_desde_progress_actual():
-	# ¿alcanza la distancia para aceleración + crucero + frenado completos?
 	var hay_espacio_para_crucero: bool = (progress_fin_aceleracion - progress_inicio_frenado) * direccion < 0.0
 
-	var plan := PlanDeViaje.new()
-	plan.destino_final = destino
-	plan.indice_actual = 0
-
-	if hay_espacio_para_crucero:
-		var tramo_aceleracion := TramoMovimiento.new()
-		tramo_aceleracion.tipo = TramoMovimiento.Tipo.ACELERACION
-		tramo_aceleracion.progress_inicio = progress_origen
-		tramo_aceleracion.progress_fin = progress_fin_aceleracion
-		tramo_aceleracion.direccion = direccion
-		tramo_aceleracion.factor_inicio = factor_origen   # NO resetea a 0.0 — el vehículo nunca se detuvo.
-		tramo_aceleracion.factor_fin = 1.0
-		tramo_aceleracion.distancia_aceleracion_ref = distancia_aceleracion_max
-		tramo_aceleracion.distancia_frenado_ref = 0.0
-		tramo_aceleracion.destino_final = destino
-		tramo_aceleracion.origen = OrigenTramo.RETARGET_MISMA_DIR
-
-		var tramo_crucero := TramoMovimiento.new()
-		tramo_crucero.tipo = TramoMovimiento.Tipo.CRUCERO
-		tramo_crucero.progress_inicio = progress_fin_aceleracion
-		tramo_crucero.progress_fin = progress_inicio_frenado
-		tramo_crucero.direccion = direccion
-		tramo_crucero.factor_inicio = 1.0
-		tramo_crucero.factor_fin = 1.0
-		tramo_crucero.distancia_aceleracion_ref = 0.0
-		tramo_crucero.distancia_frenado_ref = 0.0
-		tramo_crucero.destino_final = destino
-		tramo_crucero.origen = OrigenTramo.RETARGET_MISMA_DIR
-
-		var tramo_frenado := TramoMovimiento.new()
-		tramo_frenado.tipo = TramoMovimiento.Tipo.FRENADO
-		tramo_frenado.progress_inicio = progress_inicio_frenado
-		tramo_frenado.progress_fin = destino.progress
-		tramo_frenado.direccion = direccion
-		tramo_frenado.factor_inicio = 1.0
-		tramo_frenado.factor_fin = 0.0
-		tramo_frenado.distancia_aceleracion_ref = 0.0
-		tramo_frenado.distancia_frenado_ref = abs(destino.progress - progress_inicio_frenado)
-		tramo_frenado.destino_final = destino
-		tramo_frenado.origen = OrigenTramo.RETARGET_MISMA_DIR
-
-		# ¿Con qué tramo arranca? Si factor_origen ya llegó a 1.0, no tiene
-		# sentido re-entrar a ACCELERATING (quedaría con factor_inicio=
-		# factor_fin=1.0, un tramo "de mentira") — arranca directo en
-		# CRUCERO. Si factor_origen < 1.0, arranca en ACELERACION desde
-		# donde estaba.
-		if factor_origen >= 1.0 - epsilon:
-			plan.tramos = [tramo_crucero, tramo_frenado]
-			plan.indice_actual = 0
-		else:
-			plan.tramos = [tramo_aceleracion, tramo_crucero, tramo_frenado]
-			plan.indice_actual = 0
-	else:
-		# Sin espacio para los tres tramos por separado: tramo único
-		# LLEGADA_CORTA, igual mecanismo que post-inversión — la distancia
-		# manda, no se fuerza ACCELERATING aunque factor_origen < 1.0.
-		var tramo_corto := TramoMovimiento.new()
-		tramo_corto.tipo = TramoMovimiento.Tipo.LLEGADA_CORTA
-		tramo_corto.progress_inicio = progress_origen
-		tramo_corto.progress_fin = destino.progress
-		tramo_corto.direccion = direccion
-		tramo_corto.factor_inicio = factor_origen
-		tramo_corto.factor_fin = 0.0
-		tramo_corto.distancia_aceleracion_ref = distancia_aceleracion_max
-		tramo_corto.distancia_frenado_ref = distancia_frenado_max_inversion
-		tramo_corto.destino_final = destino
-		tramo_corto.origen = OrigenTramo.RETARGET_MISMA_DIR
-
-		plan.tramos = [tramo_corto]
-
-	# Punto 6 de la confirmación: reemplazo directo, no invalidar y caer en
-	# fallback viejo — este commit existe justamente para que retarget en
-	# misma dirección tenga plan real.
+	# Punto 6 de la confirmación (Commit 6): reemplazo directo, no invalidar
+	# y caer en fallback viejo — este commit existe justamente para que
+	# retarget en misma dirección tenga plan real.
 	_plan_actual = plan
 	_stop_destino = destino
 	_progress_objetivo = destino.progress

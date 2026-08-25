@@ -295,6 +295,10 @@ height = 0.6
 radius = 0.3
 height = 0.6
 
+[sub_resource type="Curve" id="Curve_0l33h"]
+_data = [Vector2(0, 0.022457838), 0.0, 0.97754216, 0, 1, Vector2(1, 1), 0.97754216, 0.0, 1, 0]
+point_count = 2
+
 [node name="MovementTest" type="Node3D" unique_id=15402342 groups=["raycast"]]
 
 [node name="world" type="Node3D" parent="." unique_id=310311505]
@@ -662,6 +666,11 @@ mesh = SubResource("SphereMesh_0l33h")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34.951694, 0.9886322, 4.995748)
 path = NodePath("../path_prueba")
 stop_inicial = NodePath("../path_prueba/stop_0")
+epsilon = 0.001
+curva_velocidad = SubResource("Curve_0l33h")
+debug_guided_vehicle = true
+distancia_captura_stop = 0.2
+factor_captura_max = 0.1
 
 [node name="button_0" parent="world/enviroment/paths/teleferico_prueba/vehicle/buttons" parent_id_path=PackedInt32Array(519298639, 614979132) index="0" unique_id=641616126 node_paths=PackedStringArray("stop_destino", "vehiculo")]
 stop_destino = NodePath("../../../path_prueba/stop_0")

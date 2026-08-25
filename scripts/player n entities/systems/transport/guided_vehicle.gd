@@ -135,6 +135,16 @@ const LIMITE_ENCADENAMIENTO_ESTADO: int = 2
 ## feel deseado de arranque y frenado de inversión difiere.
 @export var distancia_aceleracion_max: float = 8.0
 
+## Commit 6: ventana de captura para el caso de frontera "pedir un
+## StopPoint que ya está a muy poca distancia (o que se acaba de cruzar
+## por muy poco), viniendo con factor bajo/medio-bajo". Sin esta guarda,
+## el sistema arma un tramo real de movimiento (LLEGADA_CORTA o
+## FRENADO_INVERSION) cuyo pico de factor es tan corto que se siente como
+## un tirón — bug reproducido con evidencia real (log-35/36). Valores
+## iniciales sugeridos, a ajustar según el feel real de cada ruta.
+@export var distancia_captura_stop: float = 0.5
+@export var factor_captura_max: float = 0.2
+
 # ---------------------------------------------------------------------------
 # Variables persistentes — fuente de verdad del sistema
 # ---------------------------------------------------------------------------
@@ -457,24 +467,89 @@ func _construir_plan_normal(
 # ---------------------------------------------------------------------------
 
 func _retarget(nuevo_stop: StopPoint, nuevo_progress_obj: float) -> void:
-	# Si el destino es el mismo que el actual, ignorar la orden.
+	# ---------------------------------------------------------------------
+	# Commit 6: guarda de captura de StopPoint cercano. Caso de frontera
+	# reproducido con evidencia real (secuencia: A→B misma dirección,
+	# inversión hacia C, al volver se cruza o casi cruza un StopPoint
+	# intermedio, y ahí se pide justo ese StopPoint): si el destino pedido
+	# está dentro de una ventana chica respecto a _progress_actual y el
+	# vehículo viene con factor bajo/medio-bajo, NO corresponde armar
+	# ningún tramo de movimiento (ni FRENADO_INVERSION, ni un plan largo,
+	# ni un LLEGADA_CORTA con pico de factor demasiado corto para sentirse
+	# bien) — corresponde tratarlo como llegada directa al stop, porque en
+	# los hechos el vehículo ya está ahí o casi ahí.
 	#
-	# AVISO para el Commit 6: durante una maniobra de FRENADO_INVERSION,
-	# _stop_destino queda INTACTO con el valor del viaje anterior a la
-	# orden de inversión (ver _iniciar_frenado_inversion()) — no es el
-	# destino real pendiente, ese vive en _destino_pendiente. Esto significa
-	# que, tal como está hoy, una segunda orden hacia ese _stop_destino
-	# viejo mientras se está frenando para invertir cae acá y se ignora
-	# como "redundante", sin tocar _destino_pendiente. No está confirmado
-	# si ese es el comportamiento deseado para el escenario V (orden
-	# redundante durante inversión) — queda sin resolver a propósito, es
-	# alcance del Commit 6, no de este.
-	if nuevo_stop == _stop_destino:
-		_debug_print("[DEBUG BUG2] _retarget IGNORADO por redundancia: nuevo_stop=%s == _stop_destino=%s. _destino_pendiente_actual=%s _estado_actual=%s" % [
-			nuevo_stop.name, (str(_stop_destino.name) if _stop_destino != null else "null"),
-			(str(_destino_pendiente.name) if _destino_pendiente != null else "null"),
-			Estado.keys()[_estado_actual]
+	# Si el factor es alto (vehículo yendo rápido), NO se captura mágicamente
+	# — ahí sí sigue la lógica normal (inversión o retarget), porque clavar
+	# en seco a un vehículo que va rápido sería un salto brusco peor que el
+	# que se está evitando.
+	if abs(_progress_actual - nuevo_progress_obj) <= distancia_captura_stop \
+			and _factor <= factor_captura_max:
+		_debug_print("[DEBUG C6] _retarget CAPTURA stop cercano: nuevo_stop=%s _progress_actual=%.3f nuevo_stop.progress=%.3f distancia=%.3f _factor=%.5f (umbrales: distancia<=%.3f, factor<=%.3f)" % [
+			nuevo_stop.name, _progress_actual, nuevo_progress_obj,
+			abs(_progress_actual - nuevo_progress_obj), _factor,
+			distancia_captura_stop, factor_captura_max
 		])
+		_capturar_stop_cercano(nuevo_stop)
+		return
+	# ---------------------------------------------------------------------
+
+	# ---------------------------------------------------------------------
+	# Commit 6: guarda de concurrencia. Si ya hay una maniobra de inversión
+	# en curso (_destino_pendiente != null, o el tramo actual del plan es
+	# FRENADO_INVERSION), ninguna orden nueva puede volver a llamar
+	# _iniciar_frenado_inversion() — eso apilaría un segundo frenado sobre
+	# el primero, con _factor heredado casi siempre chico, produciendo el
+	# vehículo prácticamente clavado (bug confirmado con logs reales en
+	# log-22/23/24, casos K/U).
+	#
+	# Mientras la inversión está en curso, el contrato es: primero termina
+	# de frenar el tramo FRENADO_INVERSION físico (sin tocarlo), entra a
+	# STOPPED real, recién ahí consume _destino_pendiente y deriva la
+	# nueva dirección desde el destino real. Esto aplica SIEMPRE, incluso
+	# si la orden nueva coincide con la dirección vieja (no se cancela el
+	# frenado ni se mete un retarget-misma-dirección normal a mitad de la
+	# maniobra — eso es una puerta distinta, fuera del alcance de este
+	# commit).
+	#
+	# "Última orden gana" se resuelve acá sin apilar frenados: la orden
+	# válida y distinta más reciente simplemente reemplaza el valor de
+	# _destino_pendiente. El tramo físico sigue ejecutándose exactamente
+	# igual que antes de la orden nueva.
+	var hay_inversion_en_curso: bool = _destino_pendiente != null \
+		or (_plan_actual != null and _plan_actual.indice_actual < _plan_actual.tramos.size() \
+			and _plan_actual.tramos[_plan_actual.indice_actual].tipo == TramoMovimiento.Tipo.FRENADO_INVERSION)
+
+	if hay_inversion_en_curso:
+		if nuevo_stop == _destino_pendiente:
+			# Escenario V: orden redundante durante inversión — mismo
+			# destino que ya se está persiguiendo. Se ignora sin tocar nada.
+			_debug_print("[DEBUG C6] _retarget IGNORADO (redundante durante inversión): nuevo_stop=%s == _destino_pendiente actual" % nuevo_stop.name)
+			return
+
+		if not _stop_pertenece_a_path(nuevo_stop):
+			# Escenario U: en la práctica, solicitar_destino() ya valida
+			# _stop_pertenece_a_path() ANTES de llamar a _retarget() — este
+			# chequeo es defensivo/redundante (no debería poder dispararse
+			# hoy), pero se deja explícito para que la guarda de este
+			# commit no dependa silenciosamente de que ese orden de
+			# llamadas se mantenga igual para siempre.
+			push_error("GuidedVehicle: solicitar_destino() rechazó '%s' durante una maniobra de inversión en curso porque no pertenece al Path3D asignado en 'path'. _destino_pendiente conservado sin cambios." % nuevo_stop.name)
+			return
+
+		# Escenario K (y W, que cae en esta misma rama): orden válida y
+		# distinta durante inversión. Se actualiza la intención, el tramo
+		# FRENADO_INVERSION físico sigue igual — no se reinicia, no se
+		# apila un segundo frenado.
+		_debug_print("[DEBUG C6] _retarget ACTUALIZA destino_pendiente durante inversión en curso: %s -> %s (tramo FRENADO_INVERSION no se toca)" % [
+			(str(_destino_pendiente.name) if _destino_pendiente != null else "null"), nuevo_stop.name
+		])
+		_destino_pendiente = nuevo_stop
+		return
+	# ---------------------------------------------------------------------
+
+	# Si el destino es el mismo que el actual, ignorar la orden.
+	if nuevo_stop == _stop_destino:
 		return
 
 	var nueva_direccion: int = _calcular_direccion(nuevo_progress_obj)
@@ -1040,6 +1115,28 @@ func _calcular_factor_permitido(tramo: TramoMovimiento, progress_actual: float) 
 		limite_llegada = _sample_factor_curva(t_llegada)
 
 	return minf(limite_salida, limite_llegada)
+
+# ---------------------------------------------------------------------------
+# Commit 6: captura de StopPoint cercano — caso de frontera.
+#
+# No arma ningún tramo de movimiento. El vehículo se trata como si ya
+# hubiera llegado: progress fijado al del stop, factor en 0, estado
+# STOPPED real, _stop_destino actualizado al stop capturado. Si había una
+# maniobra de inversión en curso (_destino_pendiente != null), se limpia
+# sin consumirla — la captura reemplaza cualquier intención pendiente, no
+# se encadena con ella (llegar "ya" a un stop cierra cualquier viaje que
+# estuviera en marcha, no dispara uno nuevo).
+# ---------------------------------------------------------------------------
+
+func _capturar_stop_cercano(nuevo_stop: StopPoint) -> void:
+	_progress_actual    = nuevo_stop.progress
+	_progress_objetivo  = nuevo_stop.progress
+	_factor             = 0.0
+	_estado_actual      = Estado.STOPPED
+	_stop_destino       = nuevo_stop
+	_plan_actual        = null
+	_destino_pendiente  = null   # La captura reemplaza cualquier intención
+								  # pendiente — no se consume ni se encadena.
 
 func _entrar_stopped() -> void:
 	_progress_actual = _progress_objetivo

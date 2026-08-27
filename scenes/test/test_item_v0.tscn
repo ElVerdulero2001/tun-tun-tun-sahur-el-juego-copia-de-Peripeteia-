@@ -1,0 +1,24 @@
+[gd_scene load_steps=5 format=3 uid="uid://bwtv0itemtest1"]
+
+[ext_resource type="Script" uid="uid://cowfc2ykbs6rb" path="res://scripts/player n entities/inventory_v2/world_item.gd" id="1_world"]
+[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="2_intercomp"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_item"]
+size = Vector3(0.8, 1.2, 0.8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_item"]
+size = Vector3(0.8, 1.2, 0.8)
+
+[node name="test_item_v0" type="RigidBody3D"]
+collision_layer = 2
+collision_mask = 1
+script = ExtResource("1_world")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_item")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_item")
+
+[node name="InteractionComponent" type="Node" parent="."]
+script = ExtResource("2_intercomp")

@@ -1,0 +1,60 @@
+[gd_scene format=3 uid="uid://cghnbs2rn35sm"]
+
+[ext_resource type="Script" uid="uid://c4ad3hwk7p1np" path="res://scripts/player n entities/inventory_v2/inventory_v0_test_scene.gd" id="1_harness"]
+[ext_resource type="Script" uid="uid://cvry6r1i8yoko" path="res://scripts/player n entities/inventory_v2/local_authority.gd" id="2_authority"]
+[ext_resource type="Script" uid="uid://bokafhmy5nxc5" path="res://scripts/player n entities/inventory_v2/inventory.gd" id="3_inventory"]
+[ext_resource type="PackedScene" uid="uid://bwtv0itemtest1" path="res://scenes/test/test_item_v0.tscn" id="4_item"]
+[ext_resource type="PackedScene" uid="uid://dg7creso2b5yf" path="res://scenes/components/raycast_interaccion.tscn" id="5_raycast"]
+[ext_resource type="Resource" uid="uid://bs28esuanu3ea" path="res://assets/data/test_inventory_v2/item_definition_test.tres" id="6_def"]
+
+[sub_resource type="Environment" id="Environment_test"]
+background_mode = 1
+background_color = Color(0.25, 0.3, 0.35, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.65, 0.7, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(20, 1, 20)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_floor"]
+size = Vector2(20, 20)
+
+[node name="InventoryV0Test" type="Node3D" unique_id=1163700733]
+script = ExtResource("1_harness")
+item_definition_test = ExtResource("6_def")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=560018035]
+environment = SubResource("Environment_test")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=445354010]
+transform = Transform3D(1, 0, 0, 0, 0.573576, 0.819152, 0, -0.819152, 0.573576, 0, 6, 0)
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="." unique_id=1409474588]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor" unique_id=987272987]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=41364008]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("PlaneMesh_floor")
+
+[node name="LocalAuthority" type="Node" parent="." unique_id=725573606]
+script = ExtResource("2_authority")
+
+[node name="EntidadConInventario" type="Node3D" parent="." unique_id=2077908440 groups=["player"]]
+
+[node name="InventoryV2" type="Node" parent="EntidadConInventario" unique_id=29606253]
+script = ExtResource("3_inventory")
+
+[node name="Camera3D" type="Camera3D" parent="EntidadConInventario" unique_id=1953725886]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+
+[node name="raycast_interaccion" parent="EntidadConInventario" unique_id=82920936 instance=ExtResource("5_raycast")]
+
+[node name="test_item_v0" parent="." unique_id=1509319216 instance=ExtResource("4_item")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, -1.6)
+
+[node name="PuntoSpawnMundo" type="Marker3D" parent="." unique_id=1199608908]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.054085374, 0.9644661, -1.5)

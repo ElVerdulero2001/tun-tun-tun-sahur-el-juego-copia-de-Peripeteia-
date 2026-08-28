@@ -2,8 +2,8 @@ class_name ItemDefinition
 extends Resource
 
 ## Describe QUE tipo de objeto es. Informacion compartida entre todas las
-## instancias de este tipo; inmutable durante la partida (INV-02, doc V0
-## seccion 3.1).
+## instancias de este tipo; inmutable durante la partida (INV-02;
+## docs/inventory_system_v0_v1.md seccion 4).
 ##
 ## No confundir con ItemInstance: esto es "AK-74" en abstracto, no
 ## "esta copia concreta con 17 balas".

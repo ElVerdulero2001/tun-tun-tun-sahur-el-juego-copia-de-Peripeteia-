@@ -1,7 +1,8 @@
 class_name LocalAuthority
 extends Node
 
-## Frontera explicita de autoridad (INV-08, doc V0 seccion 7 del encargo).
+## Frontera explicita de autoridad (INV-08; docs/inventory_system_v0_v1.md
+## secciones 6 y 13).
 ##
 ## Este nodo es el UNICO lugar de esta escena de prueba con permiso para
 ## invocar TransferOperation.validate() / commit(). Cualquier componente
@@ -85,11 +86,13 @@ func solicitar_reubicacion(item_instance: ItemInstance, inventory: InventoryV2, 
 	_log("COMMIT reubicacion: %s -> exito=%s | celda ahora=%s rotated=%s" % [item_instance, resultado, nueva_pos, nuevo_rotated])
 	return resultado
 
-## En V0 solo hay un inventario receptor posible: el hijo InventoryV2
-## de la entidad "jugador" de prueba. Esto es deliberadamente ingenuo
-## (ver deuda tecnica en el resumen final) — resolver "a que inventario
-## va este pickup" con criterio real (cual jugador, que entidad) es
-## logica de interaccion/targeting que esta fuera del alcance de V0.
+## AFORDANCIA DE ARNES DE PRUEBA: set_inventory_receptor() fija UN unico
+## InventoryV2 destino para los pickups, y los arneses lo cablean a mano.
+## No hay routing real de "a que inventario va este pickup" (cual jugador,
+## que entidad): eso es logica de interaccion/targeting y hoy no existe
+## ninguna interaccion de pickup fuera de los tests. Se resolvera cuando
+## exista esa capacidad concreta, no antes; NO requiere multiplayer.
+## (docs/inventory_system_v0_v1.md seccion 17, D2.)
 var _inventory_receptor: InventoryV2 = null
 
 func set_inventory_receptor(inventory: InventoryV2) -> void:

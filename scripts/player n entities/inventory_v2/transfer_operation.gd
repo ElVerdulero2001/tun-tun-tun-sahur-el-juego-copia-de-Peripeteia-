@@ -2,10 +2,10 @@ class_name TransferOperation
 extends RefCounted
 
 ## Unica forma valida de cambiar la custodia de un ItemInstance entre
-## contextos (mundo <-> inventario) (INV-07, doc V0 seccion 6), y —desde
-## V1— tambien de reubicar un ItemInstance DENTRO de un mismo InventoryV2
-## (tipo REUBICAR_EN_INVENTARIO). El contrato request->validate->commit y
-## la atomicidad valen igual para los tres tipos.
+## contextos (mundo <-> inventario) (INV-07; docs/inventory_system_v0_v1.md
+## seccion 6), y —desde V1— tambien de reubicar un ItemInstance DENTRO de un
+## mismo InventoryV2 (tipo REUBICAR_EN_INVENTARIO). El contrato
+## request->validate->commit y la atomicidad valen igual para los tres tipos.
 ##
 ## Contrato: request -> validate() -> commit().
 ## Si validate() falla, commit() no debe llamarse y NADA cambia: el

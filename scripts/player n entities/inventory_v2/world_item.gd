@@ -2,7 +2,7 @@ class_name WorldItemV2
 extends RigidBody3D
 
 ## Carcasa fisica y visual TEMPORAL de un ItemInstance mientras existe en
-## el mundo (doc V0 seccion 3.4). Puede crearse y destruirse sin destruir
+## el mundo (docs/inventory_system_v0_v1.md seccion 3). Puede crearse y destruirse sin destruir
 ## la identidad logica del objeto (INV-02): item_instance sigue siendo el
 ## mismo ItemInstance # aunque este nodo se destruya y se cree otro nuevo
 ## al devolver el item al mundo.

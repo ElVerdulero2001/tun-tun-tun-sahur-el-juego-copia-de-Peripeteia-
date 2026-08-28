@@ -10,10 +10,11 @@ extends Node
 ##
 ## INV-05: la ocupacion por celda es informacion DERIVADA. La fuente de
 ## verdad son las entries: item, posicion, orientacion. No se mantiene
-## una matriz de ocupacion como estado independiente en V0 — se
-## recalcula bajo demanda con _celda_ocupada(). Si en el futuro hace
-## falta una cache por rendimiento, debe poder reconstruirse a partir
-## de esta lista sin cambiar el contrato de este script.
+## una matriz de ocupacion como estado independiente — se recalcula bajo
+## demanda (entry_en_celda / posicion_valida / celdas_ocupadas_por). Si en
+## el futuro hace falta una cache por rendimiento, debe poder reconstruirse
+## a partir de esta lista sin cambiar el contrato de este script.
+## (Lista completa de consultas: docs/inventory_system_v0_v1.md seccion 8.)
 ##
 ## IMPORTANTE (INV-07/INV-08): este componente NUNCA debe ser mutado
 ## directamente desde afuera (UI, otros nodos). Las unicas tres formas

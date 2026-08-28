@@ -2,7 +2,7 @@ class_name InventoryEntry
 extends RefCounted
 
 ## Relaciona un ItemInstance con su posicion y orientacion dentro de UN
-## Inventory concreto (doc V0 seccion 3.3).
+## Inventory concreto (docs/inventory_system_v0_v1.md secciones 3 y 4).
 ##
 ## Las coordenadas NO forman parte del ItemInstance: solo tienen sentido
 ## mientras la instancia esta colocada en este inventario. Por eso viven

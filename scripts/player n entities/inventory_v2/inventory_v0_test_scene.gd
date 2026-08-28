@@ -36,7 +36,7 @@ func _unhandled_input(event: InputEvent) -> void:
 ## Devuelve al mundo el primer item que encuentre en el inventario de
 ## prueba. Es deliberadamente el metodo mas simple posible: V0 no
 ## implementa todavia drop/throw/place/give/equip, solo UNA forma
-## generica de devolucion (ver alcance del encargo, seccion B).
+## generica de devolucion (docs/inventory_system_v0_v1.md seccion 18).
 func _solicitar_devolucion_debug() -> void:
 	var entries := inventory.get_entries()
 	if entries.is_empty():

@@ -1,12 +1,12 @@
 # Inventory System — V0 + V1
 
 > Documentación técnica del sistema de inventario `scripts/player n entities/inventory_v2/`.
-> Describe **lo que existe hasta HEAD `51d106f`** (V0 + V1 + saldo de deuda técnica Batch A/B/B.2/C1). No describe planes de V2.
+> Describe **lo que existe hasta Batch C2** (V0 + V1 + toda la deuda técnica V1 planificada, saldada). No describe planes de V2.
 >
 > Baseline:
 > - **V0** — `1505ed514378c58d420b20f9e145c0c5c26b98da` — *"Inventory V0: sistema mundo<->inventario + arnes de pruebas"* (2026-08-27)
 > - **V1** — `e2e406da2f209489af637366d956882a28ff7e90` — *"Inventory V1: manipulacion de la grilla (UI + mover/rotar) sobre InventoryV2"* (2026-08-27)
-> - **Deuda técnica** — `7463866` (Batch A) → `43fc2f4` (Batch B, D1) → `29adfa3` (Batch B.2, D8) → `51d106f` (Batch C1, D5 parcial). Ver sección 2 y sección 17.
+> - **Deuda técnica** — `7463866` (Batch A) → `43fc2f4` (Batch B, D1) → `29adfa3` (Batch B.2, D8) → `51d106f` (Batch C1, D5 parcial) → `cff09fe` (Batch C2-a, D4) → `2893a70` (Batch C2-b, D5). Ver sección 2 y sección 17.
 > - Este `.md` se creó en `2871f87`, que es **anterior** a Batch A. V2 no iniciado.
 
 ---
@@ -108,14 +108,16 @@ Arnés V1: 8 tests automáticos (`consultas`, `reubicar`, `operacion_reubicar`, 
 
 ### Deuda técnica saldada tras V1
 
-Orden de commits (del más viejo al más nuevo): `e2e406d` (V1) → `2871f87` (**este documento**, primera foto de V0+V1) → `7463866` (Batch A) → `43fc2f4` (Batch B) → `29adfa3` (Batch B.2) → `51d106f` (Batch C1). Es decir, **la primera versión del doc es ANTERIOR a Batch A**; este documento se actualiza para reflejar hasta `51d106f`.
+Orden de commits (del más viejo al más nuevo): `e2e406d` (V1) → `2871f87` (**este documento**, primera foto de V0+V1) → `7463866` (Batch A) → `43fc2f4` (Batch B) → `29adfa3` (Batch B.2) → `51d106f` (Batch C1) → `cff09fe` (Batch C2-a) → `2893a70` (Batch C2-b). Es decir, **la primera versión del doc es ANTERIOR a Batch A**; este documento se actualiza para reflejar hasta C2.
 
 | Commit | Batch | Qué cambió |
 |---|---|---|
 | `7463866` | **A** | Solo comentarios `##` en `inventory_v2/*.gd`: corrige D3 (método inexistente citado) y D7 (referencias a un doc no versionado → apuntan acá), aclara D2/D6. Cero comportamiento. |
 | `43fc2f4` | **B** | **D1 PAGADA** por barrera *estructural*: `InventoryV2` conserva las `InventoryEntry` vivas en `_entries`; `get_entries()` y `entry_en_celda()` devuelven **snapshots detached** (`InventoryEntry.snapshot()`). Mutar una snapshot no toca el modelo. `posicion_valida` excluye por `ItemInstance` (param `excluir_item`). INV-09 "misma `InventoryEntry`" pasó a invariante **interna** (white-box). Test nuevo `inventory_v1_entry_readonly_test` (29). |
 | `29adfa3` | **B.2** | **D8** (identidad `ItemInstance`/`ItemDefinition` mutable desde una referencia viva) registrada como **LIMITACIÓN DELIBERADA** + contrato explícito C-D8.1..4 en comentarios + tripwire `inventory_v1_identity_contract_test` (22). `InventoryGridView.layout_entries()` dejó de exponer `ItemInstance`. |
-| `51d106f` | **C1** | **D5 PARCIALMENTE PAGADA** — nuevo componente reusable `InventoryPanel` (`scenes/components/inventory/inventory_panel.tscn` + `inventory_panel.gd`, sección 3) que encapsula el wiring V1 (`GridView` + `Manipulator`, `setup`/`abrir`/`cerrar`, 5 señales reenviadas). **Aditivo puro: 6 archivos nuevos, 0 modificaciones**; ninguna escena existente migrada (eso es C2). Test nuevo `inventory_panel_test` (56). |
+| `51d106f` | **C1** | Nuevo componente reusable `InventoryPanel` (`scenes/components/inventory/inventory_panel.tscn` + `inventory_panel.gd`, sección 3) que encapsula el wiring V1 (`GridView` + `Manipulator`, `setup`/`abrir`/`cerrar`, 5 señales reenviadas). **Aditivo puro: 6 archivos nuevos, 0 modificaciones**. Test nuevo `inventory_panel_test` (56). |
+| `cff09fe` | **C2-a** | **D4 PAGADA.** `inventory_grid_view.tscn` movido `scenes/test/` → `scenes/components/inventory/`. `git mv` (rename 100%) + 7 swaps de `ext_resource path=` (el panel + los 6 test `.tscn`). `uid://dv1gridview01` intacto. Cero comportamiento, gate 459/0. `project.godot` sin tocar. |
+| `2893a70` | **C2-b** | **D5 PAGADA.** `inventory_v1_manual_test` migrado a `InventoryPanel` (único arnés de open/close real). `inventory_panel.tscn` gana `mouse_filter = 2` en root + GridView interno (completa la encapsulación del wiring, sin API nueva). Validación manual: OK. Los 4 tests de componente + `negatives` quedan directos **por diseño** (sección 17, D5). |
 
 ---
 
@@ -187,6 +189,7 @@ Todos los archivos de producción están en `scripts/player n entities/inventory
 - **Relaciones:** su `world_scene` (en `ItemDefinition`) es la escena que se re-instancia al devolver el item al mundo.
 
 ### `inventory_grid_view.gd` — `class_name InventoryGridView extends Control` (V1)
+- Script en `scripts/player n entities/inventory_v2/`. Escena `scenes/components/inventory/inventory_grid_view.tscn` (movida de `scenes/test/` en C2-a, `cff09fe`; uid `uid://dv1gridview01`).
 - **Responsabilidad:** dibujar la grilla `grid_width × grid_height` y un rect por cada `InventoryEntry`. Ver sección 9.
 - **Estrictamente READ-ONLY:** solo lee `get_entries()`, `grid_width`, `grid_height`; se suscribe a `contenido_cambiado`.
 - **Campos:** `cell_size` (`@export`, default 40), colores (`@export`), `refrescos: int` (contador de diagnóstico), `_inventory` (privado).
@@ -204,15 +207,15 @@ Todos los archivos de producción están en `scripts/player n entities/inventory
 - **NO debería:** llamar mutadores de `InventoryV2`; mutar `entry.position`/`entry.rotated`; depender de `visible` para saber si está activo.
 - **Relaciones:** en el arnés se agrega como **hijo `Control` del `InventoryGridView`** (mismas coordenadas locales), con `mouse_filter = IGNORE`. Desde C1 ese wiring está encapsulado en `InventoryPanel` (abajo).
 
-### `inventory_panel.gd` — `class_name InventoryPanel extends Control` (C1, `51d106f`)
+### `inventory_panel.gd` — `class_name InventoryPanel extends Control` (C1 `51d106f`, wiring completado en C2-b `2893a70`)
 - **Responsabilidad:** componente reusable de producción que **encapsula el wiring V1** entre `InventoryGridView` e `InventoryManipulator` (deuda D5). **Composición pura** sobre APIs públicas existentes — **cero lógica de modelo**.
 - **Estructura de la escena** `scenes/components/inventory/inventory_panel.tscn`:
   ```
-  InventoryPanel                (Control)
-  └── InventoryGridView         (instance de inventory_grid_view.tscn)
+  InventoryPanel                (Control, mouse_filter IGNORE)
+  └── InventoryGridView         (instance de scenes/components/inventory/inventory_grid_view.tscn, mouse_filter IGNORE)
       └── InventoryManipulator  (Control hijo, anchors_preset 15, mouse_filter IGNORE)
   ```
-  (El `.tscn` referencia HOY `res://scenes/test/inventory_grid_view.tscn` — se actualiza en C2 cuando esa escena se mueva; D4.)
+  Los 3 niveles con `mouse_filter = IGNORE` (C2-b): el input real cae al `_unhandled_input` del manipulator sin que el panel ni la vista lo consuman. Es wiring encapsulado, no API.
 - **API:** `setup(inventory, authority)` (→ `grid_view.set_inventory` + `manipulator.setup`; re-llamable: si está abierto, `cerrar()` primero), `abrir()`, `cerrar()`, `esta_abierto()`, `esta_configurado()`.
 - **`abrir()` es IDEMPOTENTE:** sin `setup()` previo → no-op; ya abierto → no-op (NO re-llama `manipulator.activar()`, que resetearía un grab en curso); cerrado + configurado → `visible = true` + `manipulator.activar()`.
 - **`cerrar()`:** `manipulator.desactivar()` (→ `cancelar()`: descarta cualquier held, emite `cancelado`, **modelo y custodia intactos** — INV-12) → `visible = false`. Es el par correcto visibilidad+input que exige el bug 15.2.
@@ -221,7 +224,8 @@ Todos los archivos de producción están en `scripts/player n entities/inventory
 - **Estado interno:** solo `_configurado: bool` y `_abierto: bool`. El estado de manipulación (held/preview/rotación) vive en el manipulator; el panel NO lo duplica.
 - **`InventoryPanel` NO:** maneja `toggle_inventario`; agrega un `CanvasLayer` (lo provee el consumidor); busca/crea `InventoryV2` ni `LocalAuthority`; toca `InventoryV2` / `LocalAuthority` / `TransferOperation`; agrega features.
 - **Relaciones:** el consumidor lo pone bajo su propio `CanvasLayer` (o host `Control`), llama `setup()` con el `InventoryV2` y la `LocalAuthority` que él ya tiene, y `abrir()`/`cerrar()` desde su propia lógica de input.
-- **C1 NO migró ninguna escena existente** — el wiring duplicado sigue ahí (eso es C2). Ver sección 17, D5.
+- **Consumidor real:** `inventory_v1_manual_test` (migrado en C2-b). Ese arnés hace lo suyo (mitigar `UiInventario` legacy, `toggle_inventario`, `Input.set_mouse_mode`, `set_input_as_handled`, ocultar/mostrar su `CanvasLayer` completo con TAB, labels de status) **por fuera** del panel — el panel solo aporta `setup`/`abrir`/`cerrar` + señales. `manual_test.gd` NO accede a `panel.grid_view` ni `panel.manipulator`.
+- **Tests de componente que NO usan el panel** (`inventory_v1_vista_test`, `manipulator_test`, `activacion_test`, `rotacion_offset_test`, `negatives_test`): instancian `View`/`Manipulator` directo **a propósito** — prueban esos componentes en aislamiento (incluido white-box: `manip._unhandled_input`, `manip._agarre_rel_normal`, `inv._entries`). No es deuda (sección 17, D5).
 
 ### Diagrama de flujo — V0 (pickup, mundo → inventario)
 
@@ -448,7 +452,7 @@ Geometría interna:
 - **`contenido_cambiado`:** `set_inventory()` conecta la señal del inventario nuevo y **desconecta** la del anterior. `_on_contenido_cambiado` → `_refrescar()` → `refrescos += 1` + `queue_redraw()`.
 - **Consultas de layout puras** (mismas que usa `_draw`, expuestas para tests): `cantidad_celdas()`, `rect_de_celda()`, `rect_de_entry()`, `layout_entries()` — lista de `{position: Vector2i, rotated: bool, footprint: Vector2i, rect: Rect2}`, **por valor, sin `ItemInstance` ni id** (`43fc2f4`+`29adfa3`: la vista no maneja identidad y no se promueve `instance_id` a contrato público — sección 17, D8). Los consumidores que necesitaban distinguir una entry lo hacen por `position` (tests) o por la referencia de `ItemInstance` de `get_entries()`.
 - **`refrescos`** es un contador de diagnóstico/observabilidad (arranca en 0; +1 por `_refrescar`).
-- Su escena `inventory_grid_view.tscn` (un `Control` con el script) vive en `scenes/test/` — ver deuda sección 17.
+- Su escena `inventory_grid_view.tscn` (un `Control` con el script) vive en `scenes/components/inventory/` desde C2-a (`cff09fe`).
 
 ---
 
@@ -540,7 +544,7 @@ Estado explícito de activación **+** habilitar/deshabilitar el procesamiento d
 - `desactivar()` — al CERRAR la UI: `cancelar()` (cancela cualquier held) + `_activo = false` + `set_process_unhandled_input(false)`.
 - `_unhandled_input` arranca con `if not _activo: return` — gate único común a **todos** los eventos.
 
-El arnés (`inventory_v1_manual_test.gd`) llama `manip.activar()` al abrir y `manip.desactivar()` al cerrar.
+Desde C2-b el arnés (`inventory_v1_manual_test.gd`) llama `panel.abrir()` / `panel.cerrar()` (que internamente hacen `manip.activar()` / `manip.desactivar()`), más `capa.visible = true/false` para ocultar/mostrar su `CanvasLayer` completo. Orden: al cerrar `panel.cerrar()` **antes de** `capa.visible = false`; al abrir `capa.visible = true` **antes de** `panel.abrir()`. Los tests de componente (`activacion_test`, etc.) siguen llamando `manip.activar()` / `manip.desactivar()` directo.
 
 **Regla funcional:** con el inventario cerrado — ningún clic selecciona; el mouse no actualiza held/preview; `R` no rota; ningún drop ocurre; no se genera ninguna interacción. Al cerrar, cualquier held se cancela y el manipulator queda inerte. Al abrir, arranca limpio.
 
@@ -599,10 +603,10 @@ Ubicación: `scenes/test/`. Los `.gd` de arnés terminan con `assert(_fallos == 
 | `inventory_v1_rotacion_offset_test` | automático | 50 | fix del punto de agarre al rotar: agarre 1ª/2ª celda, rotar ida/vuelta, mover mouse rotado, 20 rotaciones sin drift, ítem ya rotado al agarrar | (regresión del bug de offset) |
 | `inventory_v1_activacion_test` | automático | 40 | gate de activación: inactivo tras `_ready`; cerrado → click/R/mouse no interactúan; cerrar con held → cancela + inerte; reabrir → limpio + procesa input; 10 ciclos abrir/cerrar + spam | INV-12 |
 | `inventory_v1_negatives_test` | automático | 65 | suite de aceptación end-to-end a través del manipulator: N1 solapamiento, N2 fuera de límites, N3 `can_rotate=false`, N4 rotar+drop inválido, N5 cerrar con held, N6 invariante de custodia en una sesión, N7 stress; P5 abrir/cerrar sin mutar; P6 reubicar en V1 + devolver al mundo (identidad end-to-end) | INV-09, INV-10, INV-11, INV-12, INV-13, INV-15, INV-16 |
-| `inventory_v1_manual_test` | manual (input real) | — | abrir/cerrar UI, agarrar, mover ghost, rotar, soltar (válido/OOB/solapado), `can_rotate=false`, cerrar con held; incluye la mitigación del `UiInventario` legacy | (verificación humana de todo lo anterior) |
+| `inventory_v1_manual_test` | manual (input real) | — | **usa `InventoryPanel`** (C2-b). abrir/cerrar UI con TAB (oculta/muestra todo el `CanvasLayer`), agarrar, mover ghost, rotar, soltar (válido/OOB/solapado), `can_rotate=false`, cancelar (ESC), cerrar con held; incluye la mitigación del `UiInventario` legacy. Validación manual C2-b: **OK** (todos los casos). | (verificación humana de todo lo anterior + del `InventoryPanel` end-to-end con input real) |
 | `inventory_panel_test` | automático | 56 | `51d106f` (C1) — `InventoryPanel` como composición: arranca cerrado + input inactivo + `cell_size` del `.tscn` aplicado; `abrir()` antes de `setup()` = no-op; `setup()`+`abrir()` + proxy de `cell_size` post-`_ready`; `cerrar()` desactiva `unhandled_input` (guard bug 15.2); `cerrar()` con held → `cancelado` 1 vez, modelo/custodia intactos, sin `contenido_cambiado`; las 5 señales reenviadas exactamente +1; `setup()` x3 → sin doble-connect; `abrir()` x2 idempotente y NO cancela held; reubicación end-to-end vía `LocalAuthority` | INV-12, INV-13, INV-16 (composición; no cambia comportamiento del modelo) |
 
-### Estado final validado (gate tras Batch C1, HEAD `51d106f`)
+### Estado final validado (gate tras Batch C2, HEAD `2893a70`)
 
 ```
 V1 automático (comportamiento):  32 + 26 + 31 + 29 + 57 + 50 + 40 + 65  =  330 chequeos, 0 fallas
@@ -611,9 +615,11 @@ V0:                              22 negativos (0 fallas)  +  ruta feliz (carga O
 Total: 459 chequeos, 0 fallas. Godot 4.6.3, --headless. Sin warnings de parseo. 0 líneas ERROR: intencionales.
 ```
 
-El conteo de comportamiento V1 pasó de 328 (`e2e406d`) a 330: `+2` en `inventory_v1_manipulator_test` (chequeo white-box INV-09 + `item_agarrado`). El resto de los conteos no cambió — Batch B/B.2/C1 no alteraron comportamiento. C1 es aditivo puro (6 archivos nuevos, 0 modificaciones).
+El conteo de comportamiento V1 pasó de 328 (`e2e406d`) a 330: `+2` en `inventory_v1_manipulator_test` (chequeo white-box INV-09 + `item_agarrado`). El resto de los conteos **no cambió en ningún batch de deuda** (A / B / B.2 / C1 / C2). C2-a fue move + strings de path; C2-b migró `manual_test` (que es manual, no cuenta en el gate) + `.tscn` del panel. Ninguno alteró comportamiento del modelo ni de los componentes.
 
-Además hubo **stress manual** en V1 (mover/rotar/soltar, rechazos, `can_rotate=false`, cerrar con held, gate de UI cerrada, spam de input y de abrir/cerrar) — aprobado sin comportamiento raro.
+**Validación manual `inventory_v1_manual_test` tras C2-b: aprobada** — TAB abre/cierra (oculta/muestra todo el `CanvasLayer`); clic real agarra ítems; hover/rotación/drop válido/drop inválido/`can_rotate=false`/ESC/cerrar-con-held/reabrir-limpio/input-muerto-cerrado: todos OK.
+
+Antes hubo **stress manual** en V1 (mover/rotar/soltar, rechazos, `can_rotate=false`, cerrar con held, gate de UI cerrada, spam de input y de abrir/cerrar) — aprobado sin comportamiento raro.
 
 ---
 
@@ -651,19 +657,20 @@ Además hubo **stress manual** en V1 (mover/rotar/soltar, rechazos, `can_rotate=
 
 ## 17. Deuda / riesgos conocidos
 
-Deuda **realmente observada** en el código/tests. Estado a HEAD `51d106f`.
+Deuda **realmente observada** en el código/tests. Estado a HEAD `2893a70` (Batch C2 cerrado).
 
 ### DEUDA SALDADA
 
 1. **~~`get_entries()` devuelve referencias compartidas~~ — PAGADA (`43fc2f4`, Batch B).** Antes: `_entries.duplicate()` shallow → código externo podía `entry.position = …` y saltarse `LocalAuthority`. Ahora la barrera es **estructural**: `InventoryV2` conserva las `InventoryEntry` vivas en `_entries` y `get_entries()` / `entry_en_celda()` devuelven **snapshots detached** (`InventoryEntry.snapshot()`). Mutar una snapshot no toca el modelo. `_` no era barrera en GDScript; no entregar la referencia viva sí lo es. `TransferOperation._buscar_entry` ahora usa una snapshot (solo lee `.rotated`); la exclusión en `posicion_valida` es por `ItemInstance` (`excluir_item`). "Misma `InventoryEntry`" (INV-09) pasó a invariante interna, verificada white-box.
 3. **~~Comentario de cabecera de `inventory.gd` desactualizado~~ — PAGADA (`7463866`, Batch A).** Los comentarios `_celda_ocupada()` inexistente / enmarcado "V0" se corrigieron; solo comentarios `##`.
+4. **~~Escena de un componente de producción bajo `scenes/test/`~~ — PAGADA (`cff09fe`, Batch C2-a).** `inventory_grid_view.tscn` se movió a `scenes/components/inventory/inventory_grid_view.tscn`. `git mv` (rename 100%) + 7 swaps de `ext_resource path=` (`inventory_panel.tscn` + los 6 `inventory_v1_*_test.tscn`). `uid://dv1gridview01` intacto. Reimport limpio, gate 459/0, `project.godot` sin tocar. Cero comportamiento.
+5. **~~Wiring `GridView`+`Manipulator` duplicado en cada consumidor~~ — PAGADA (`51d106f` C1 + `2893a70` C2-b).** El componente reusable `InventoryPanel` (`scenes/components/inventory/inventory_panel.tscn` + `inventory_panel.gd`) encapsula el wiring completo: subárbol `GridView → Manipulator`, `mouse_filter = IGNORE` en los 3 niveles, `set_inventory` + `manipulator.setup` (via `setup()`), el par `visible`+`activar/desactivar` (via `abrir()/cerrar()`), y las 5 señales reenviadas. Test propio `inventory_panel_test` (56/0). **Consumidor real:** `inventory_v1_manual_test` (migrado en C2-b, validado a mano).
+   **Residuo (NO deuda):** `inventory_v1_vista_test`, `manipulator_test`, `activacion_test`, `rotacion_offset_test` y `negatives_test` siguen instanciando `View`/`Manipulator` directo bajo un `CanvasLayer` propio. Es **fixture deliberado de testing de componente**: esos tests prueban `InventoryGridView` / `InventoryManipulator` en aislamiento (incluido white-box: `manip._unhandled_input`, `manip._agarre_rel_normal`, `inv._entries`). Hacer que dependan de `InventoryPanel` los acoplaría a un componente que no están probando y obligaría a atravesar `panel.manipulator.<privado>`. No es wiring de producción sin encapsular.
 7. **~~Referencias a un documento de diseño no versionado~~ — PAGADA (`7463866`, Batch A).** Los comentarios que citaban "el encargo" / "doc V0 seccion N" ahora apuntan a este archivo.
 
 ### DEUDA CONOCIDA (pendiente)
 
 2. **`LocalAuthority` inyectado manualmente, receptor único.** Se pasa vía `setup()` en cada arné, y el inventario receptor de pickup se fija con `set_inventory_receptor()` (un solo `_inventory_receptor`). No hay targeting real ("a qué inventario / de qué entidad"). Documentado como deliberado en `local_authority.gd`. Se paga cuando exista gameplay concreto de pickup; **no** requiere multiplayer.
-4. **Escena de un componente de producción bajo `scenes/test/` — PENDIENTE.** `inventory_grid_view.tscn` (escena del `Control` `InventoryGridView`, que es producción) vive en `scenes/test/`. Lo instancian ~6 escenas de test **y ahora también `scenes/components/inventory/inventory_panel.tscn`** (que lo referencia temporalmente por `res://scenes/test/...`). Reubicar + actualizar todos los `ext_resource path=` (el `uid` no cambia). Planeado para Batch C2. **C1 NO creó una D4 nueva**: `inventory_panel.tscn` sí está en el directorio definitivo (`scenes/components/inventory/`).
-5. **El manipulator debe cablearse manualmente en cada consumidor — PARCIALMENTE PAGADA EN C1 (`51d106f`).** El wiring `GridView → Manipulator(hijo, full-rect, mouse_filter IGNORE)` + `set_inventory` + `manipulator.setup` + el par `activar()/desactivar()`+`visible` está ahora **encapsulado en `InventoryPanel`** (`scenes/components/inventory/inventory_panel.tscn` + `inventory_panel.gd`), componente reusable con su propio test (`inventory_panel_test`, 56/0). **La duplicación existente en las ~5 escenas/tests que usan View+Manipulator NO se eliminó** — C1 fue deliberadamente aditivo, sin migrar nada. C2 hará la **migración selectiva** y recién entonces se reevaluará D5 como PAGADA.
 6. **`ItemInstance._siguiente_id` es `static` global de proceso.** Los `instance_id` son únicos por corrida, no persisten, no son por-inventario. **Formalizado en `29adfa3` como C-D8.3/C-D8.4:** `instance_id` es solo aid de logs/tests, ninguna lógica de producción depende de su valor; los tests afirman identidad por **referencia**. Se vuelve deuda real solo si aparece persistencia/red (fuera de alcance). No introducir UUID para esto.
 8. **Identidad `ItemInstance` / `ItemDefinition` mutable desde una referencia viva — LIMITACIÓN DELIBERADA (`29adfa3`, Batch B.2).** GDScript 4.6.3 no tiene `private`/`protected`; un consumidor que sostiene un `ItemInstance` puede hacer `ii.definition = otra`, `ii.definition.grid_width = 99`, `ii.instance_id = x`. Auditoría Batch B.2: **0 consumidores en el repo lo hacen** y las 4 reglas de contrato (C-D8.1..4) se cumplen de facto. El filo grave es `ii.definition` (mutar el `.tres` compartido rompería footprint/render/validación para todas las instancias del tipo a la vez). Los tenedores de `ItemInstance` vivo restantes (`WorldItemV2`, `LocalAuthority`, `TransferOperation`) son el core controlado, no puntos de extensión. Cerrarlo de verdad exigiría un registro de handles opacos (≈ otro Batch B de churn) o migrar el modelo a C# (fuerza build .NET en todo el proyecto + CI; descartado). **Se acepta el contrato por convención + tripwire (`inventory_v1_identity_contract_test`).** Hardening ya aplicado en B.2: contrato en comentarios de `item_instance.gd`/`item_definition.gd`; `InventoryGridView.layout_entries()` dejó de exponer `ItemInstance`. **Triggers para revisar:** UI/gameplay nuevo que sostenga un `ItemInstance` más allá de la vista pura; persistencia/save-load o networking; consumidores externos al módulo / segundo equipo.
 
@@ -711,7 +718,7 @@ Que estén listados acá **no significa que V2 vaya a implementarlos todos**. Es
 ## 20. Estado actual
 
 ```
-HEAD : 51d106f   (+ el commit de este .md; este documento describe hasta acá)
+HEAD : 2893a70   (+ el commit de este .md; este documento describe hasta acá)
 
 V0        1505ed5  cerrado y pusheado
 V1        e2e406d  cerrado y pusheado
@@ -719,11 +726,14 @@ Docs      2871f87  primera foto de V0+V1 (ANTERIOR a Batch A)
 Batch A   7463866  comentarios: D3, D7, aclara D2/D6
 Batch B   43fc2f4  D1 pagada (snapshots detached)
 Batch B.2 29adfa3  D8 limitación deliberada + contrato + tripwire + layout sin ItemInstance
-Batch C1  51d106f  D5 parcialmente pagada — InventoryPanel reusable (aditivo, sin migrar escenas)
+Batch C1  51d106f  InventoryPanel reusable (aditivo)
+Batch C2a cff09fe  D4 pagada — inventory_grid_view.tscn -> scenes/components/inventory/
+Batch C2b 2893a70  D5 pagada — manual_test migrado a InventoryPanel; residuo = fixture de test deliberado
 V2                 no iniciado, alcance no decidido
 
-Deuda pendiente: D2 (targeting de pickup), D4 (mover inventory_grid_view.tscn), D5 (migración
-selectiva de escenas al InventoryPanel), D8 (limitación deliberada). Próximo: Batch C2 (D4 + D5).
+TODA la deuda técnica V1 planificada está saldada. Pendiente NO planificado:
+D2 (targeting de pickup — se paga cuando exista gameplay de pickup); D6/D8
+(limitaciones deliberadas de GDScript, ya documentadas).
 ```
 
-Gate a `51d106f`: **459 chequeos, 0 fallas** (sección 14). Cualquier cambio posterior debe actualizar las secciones afectadas.
+Gate a `2893a70`: **459 chequeos, 0 fallas** (sección 14) + validación manual de `inventory_v1_manual_test` OK. Cualquier cambio posterior debe actualizar las secciones afectadas.

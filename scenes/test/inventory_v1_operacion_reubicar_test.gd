@@ -63,36 +63,39 @@ func _sembrar(inventario: InventoryV2, definicion: ItemDefinition, cantidad: int
 
 func _test_positivos(normal: Array[InventoryEntry]) -> void:
 	print("-- POSITIVOS --")
-	var eA := normal[0]
-	var iiA := eA.item_instance
+	var iiA: ItemInstance = normal[0].item_instance
 	var idA := iiA.instance_id
 	var size0 := inv_normal.get_entries().size()
+	# white-box: el objeto InventoryEntry vivo de A, para chequear INV-09.
+	var vivo_A := _entry_viva(inv_normal, iiA)
 
 	# 1. mover a una posición válida
 	var base := _emis_normal
 	var ok1: bool = authority.solicitar_reubicacion(iiA, inv_normal, Vector2i(0, 2), false)
 	_check(ok1, "P1: mover A a (0,2) -> true")
-	_check(eA.position == Vector2i(0, 2) and not eA.rotated, "P1: entryA queda en (0,2) sin rotar")
+	_check(_entry_de(inv_normal, iiA).position == Vector2i(0, 2) and not _entry_de(inv_normal, iiA).rotated, "P1: A queda en (0,2) sin rotar")
 	_check(_emis_normal == base + 1, "P1: contenido_cambiado emitido exactamente 1 vez")
 
 	# 2. rotar y mover cuando can_rotate = true
 	base = _emis_normal
 	var ok2: bool = authority.solicitar_reubicacion(iiA, inv_normal, Vector2i(2, 1), true)
 	_check(ok2, "P2: rotar + mover A a (2,1) rotado -> true")
-	_check(eA.position == Vector2i(2, 1) and eA.rotated, "P2: entryA queda en (2,1) ROTADO")
+	var eA2 := _entry_de(inv_normal, iiA)
+	_check(eA2.position == Vector2i(2, 1) and eA2.rotated, "P2: A queda en (2,1) ROTADO")
 	_check(_emis_normal == base + 1, "P2: contenido_cambiado emitido exactamente 1 vez")
 
-	# 3. conserva InventoryEntry / ItemInstance / instance_id
-	_check(inv_normal.get_entries()[0] == eA, "P3: en _entries sigue la MISMA InventoryEntry")
-	_check(eA.item_instance == iiA, "P3: misma ItemInstance (misma ref)")
-	_check(eA.item_instance.instance_id == idA, "P3: mismo instance_id (#%d)" % idA)
+	# 3. conserva ItemInstance / instance_id + INV-09 white-box (misma InventoryEntry viva)
+	_check(inv_normal.has_item(iiA), "P3: A sigue bajo custodia")
+	_check(_entry_de(inv_normal, iiA).item_instance == iiA and iiA.instance_id == idA, "P3: mismo ItemInstance / instance_id (#%d)" % idA)
+	_check(_entry_viva(inv_normal, iiA) == vivo_A, "P3 white-box: la MISMA InventoryEntry viva se reubicó in-place (INV-09)")
 
 	# 4. conserva _entries.size()
 	_check(inv_normal.get_entries().size() == size0, "P4: _entries.size() sin cambios (%d)" % size0)
 
 	# dejar A en (0,0) para los negativos
 	var vuelta: bool = authority.solicitar_reubicacion(iiA, inv_normal, Vector2i(0, 0), false)
-	_check(vuelta and eA.position == Vector2i(0, 0) and not eA.rotated, "P-setup: A restaurada a (0,0) sin rotar")
+	var eA3 := _entry_de(inv_normal, iiA)
+	_check(vuelta and eA3.position == Vector2i(0, 0) and not eA3.rotated, "P-setup: A restaurada a (0,0) sin rotar")
 
 
 func _test_negativos(normal: Array[InventoryEntry], norota: Array[InventoryEntry]) -> void:
@@ -147,10 +150,25 @@ func _test_negativos(normal: Array[InventoryEntry], norota: Array[InventoryEntry
 
 ## ── Instrumentación ────────────────────────────────────────────────
 
+## Snapshot ACTUAL de la entry de `ii` (o null).
+func _entry_de(inv: InventoryV2, ii: ItemInstance) -> InventoryEntry:
+	for e in inv.get_entries():
+		if e.item_instance == ii:
+			return e
+	return null
+
+## white-box: el objeto InventoryEntry VIVO de `ii` en inv._entries (o null).
+func _entry_viva(inv: InventoryV2, ii: ItemInstance) -> InventoryEntry:
+	for e in inv._entries:
+		if e.item_instance == ii:
+			return e
+	return null
+
+
 func _snap(inv: InventoryV2) -> Array:
 	var s := []
 	for e in inv.get_entries():
-		s.append([e, e.position, e.rotated, e.item_instance, e.item_instance.instance_id])
+		s.append([e.item_instance, e.position, e.rotated, e.item_instance.instance_id])
 	return s
 
 
@@ -159,11 +177,10 @@ func _verificar_sin_cambios(etq: String, inv: InventoryV2, snap: Array, emis_ant
 	var ok := live.size() == snap.size()
 	for i in range(min(live.size(), snap.size())):
 		var r: Array = snap[i]
-		if live[i] != r[0] \
+		if live[i].item_instance != r[0] \
 		or live[i].position != r[1] \
 		or live[i].rotated != r[2] \
-		or live[i].item_instance != r[3] \
-		or live[i].item_instance.instance_id != r[4]:
+		or live[i].item_instance.instance_id != r[3]:
 			ok = false
 	_check(ok, "%s: posición / rotación / identidad / _entries.size() EXACTAMENTE iguales" % etq)
 	_check(emis_ahora == emis_antes, "%s: contenido_cambiado NO se emitió en el fallo" % etq)

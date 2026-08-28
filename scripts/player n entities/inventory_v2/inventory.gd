@@ -78,9 +78,16 @@ func _se_superponen(pos_a: Vector2i, size_a: Vector2i, pos_b: Vector2i, size_b: 
 	)
 	return not sin_solapar
 
-## Solo para consulta/debug. No usar para mutar estado.
+## Devuelve SNAPSHOTS (copias detached) de las entries, en orden de _entries.
+## Mutar una snapshot NO afecta al modelo. El item_instance de cada snapshot
+## ES la misma referencia (identidad logica compartida). NO se garantiza
+## identidad de objeto InventoryEntry entre dos llamadas: eso dejo de ser
+## contrato publico (la entry viva no se entrega — D1).
 func get_entries() -> Array[InventoryEntry]:
-	return _entries.duplicate()
+	var out: Array[InventoryEntry] = []
+	for entry in _entries:
+		out.append(entry.snapshot())
+	return out
 
 func has_item(item_instance: ItemInstance) -> bool:
 	for entry in _entries:
@@ -94,15 +101,15 @@ func has_item(item_instance: ItemInstance) -> bool:
 # calculada bajo demanda (INV-05). Uso previsto: la capa de UI/manipulacion
 # de V1, que consulta pero NUNCA escribe.
 
-## Devuelve la entry cuyo footprint cubre `celda`, o null si la celda esta
-## libre. Si hubiera solapamiento (no deberia, por invariante) devuelve la
-## primera en orden de _entries.
+## Devuelve una SNAPSHOT (copia detached) de la entry cuyo footprint cubre
+## `celda`, o null si la celda esta libre. NUNCA la entry viva. Si hubiera
+## solapamiento (no deberia, por invariante) devuelve la primera en orden.
 func entry_en_celda(celda: Vector2i) -> InventoryEntry:
 	for entry in _entries:
 		var fp := entry.get_footprint()
 		if celda.x >= entry.position.x and celda.x < entry.position.x + fp.x \
 		and celda.y >= entry.position.y and celda.y < entry.position.y + fp.y:
-			return entry
+			return entry.snapshot()
 	return null
 
 ## Celdas (Vector2i) que ocupa `entry` segun su posicion y orientacion
@@ -117,12 +124,13 @@ func celdas_ocupadas_por(entry: InventoryEntry) -> Array[Vector2i]:
 
 ## Indica si `item_instance` puede quedar colocado en `pos` con orientacion
 ## `rotated` sin salirse de la grilla y sin solapar ninguna entry existente.
-## `excluir`: entry que se ignora en el chequeo de solapamiento (tipicamente
-## la entry que se esta moviendo, para que no choque consigo misma).
-## null = no excluir ninguna.
+## `excluir_item`: ItemInstance cuya entry se ignora en el chequeo de
+## solapamiento (tipicamente el item que se esta moviendo, para que no choque
+## consigo mismo). null = no excluir ninguno. Se excluye por ItemInstance
+## (no por InventoryEntry) porque afuera ya no circulan entries vivas.
 ## SOLO CONSULTA: no muta, y NO chequea definition.can_rotate (eso es
 ## responsabilidad de la operacion, no de esta geometria).
-func posicion_valida(item_instance: ItemInstance, pos: Vector2i, rotated: bool, excluir: InventoryEntry = null) -> bool:
+func posicion_valida(item_instance: ItemInstance, pos: Vector2i, rotated: bool, excluir_item: ItemInstance = null) -> bool:
 	var def := item_instance.definition
 	var footprint := Vector2i(def.grid_height, def.grid_width) if rotated \
 		else Vector2i(def.grid_width, def.grid_height)
@@ -131,7 +139,7 @@ func posicion_valida(item_instance: ItemInstance, pos: Vector2i, rotated: bool, 
 	if pos.x + footprint.x > grid_width or pos.y + footprint.y > grid_height:
 		return false
 	for entry in _entries:
-		if entry == excluir:
+		if entry.item_instance == excluir_item:
 			continue
 		if _se_superponen(pos, footprint, entry.position, entry.get_footprint()):
 			return false
@@ -162,8 +170,7 @@ func _quitar_entry(item_instance: ItemInstance) -> InventoryEntry:
 func _reubicar_entry(item_instance: ItemInstance, nueva_pos: Vector2i, nuevo_rotated: bool) -> InventoryEntry:
 	for entry in _entries:
 		if entry.item_instance == item_instance:
-			entry.position = nueva_pos
-			entry.rotated = nuevo_rotated
+			entry._reubicar(nueva_pos, nuevo_rotated)
 			contenido_cambiado.emit()
 			return entry
 	return null

@@ -44,6 +44,12 @@ var _authority: LocalAuthority = null
 ## Solo cuando está activo se procesa input (ver activar() / desactivar()).
 var _activo: bool = false
 
+## SNAPSHOT (copia detached) de la entry agarrada, tomada en agarrar_en().
+## NUNCA la entry viva del modelo (D1): mutarla no afecta al inventario.
+## Valida durante todo el grab porque la entry real no se reubica mientras
+## hay un grab en curso (soltar/cancelar lo terminan). item_instance ES la
+## referencia real (identidad compartida) -> se usa para pedirle a la
+## autoridad la reubicacion.
 var _seleccionada: InventoryEntry = null
 var _rotacion_tentativa: bool = false
 var _celda_hover: Vector2i = Vector2i.ZERO
@@ -98,8 +104,13 @@ func _inventario() -> InventoryV2:
 func esta_agarrando() -> bool:
 	return _seleccionada != null
 
+## SNAPSHOT de la entry agarrada (o null). NO es la entry viva del modelo.
 func entry_agarrada() -> InventoryEntry:
 	return _seleccionada
+
+## ItemInstance agarrado (identidad real compartida), o null.
+func item_agarrado() -> ItemInstance:
+	return _seleccionada.item_instance if _seleccionada != null else null
 
 func rotacion_tentativa() -> bool:
 	return _rotacion_tentativa
@@ -133,7 +144,7 @@ func destino_es_valido() -> bool:
 		return false
 	return inv.posicion_valida(
 		_seleccionada.item_instance, celda_destino_tentativa(),
-		_rotacion_tentativa, _seleccionada
+		_rotacion_tentativa, _seleccionada.item_instance
 	)
 
 

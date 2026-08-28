@@ -7,10 +7,13 @@ extends Node3D
 ## verifica los criterios NEGATIVOS N1..N7 del diseño, más las integraciones
 ## P5 (abrir/cerrar sin mutar) y P6 (una reubicación V1 no rompe el ciclo V0).
 ##
-## Invariantes chequeadas: INV-09 (identidad de ItemInstance/InventoryEntry),
-## INV-10 (_entries.size constante), INV-11 (sin solapes), INV-12 (abrir/cerrar
-## no muta), INV-13 (drop rechazado -> modelo idéntico), INV-15 (can_rotate),
-## INV-16 (custodia: nunca mundo+inventario a la vez).
+## Invariantes: INV-09 (misma ItemInstance; "misma InventoryEntry" es
+## INTERNA -> ver white-box en inventory_v1_reubicar_test), INV-10 (_entries.size
+## constante), INV-11 (sin solapes), INV-12 (abrir/cerrar no muta), INV-13
+## (drop rechazado -> modelo idéntico), INV-15 (can_rotate), INV-16 (custodia).
+##
+## get_entries()/entry_en_celda() devuelven SNAPSHOTS: identidad por
+## ItemInstance, estado actual vía _entry_de().
 
 @export var item_definition_test: ItemDefinition        # 2x1 can_rotate = true
 @export var item_definition_no_rota: ItemDefinition     # 2x1 can_rotate = false
@@ -26,36 +29,33 @@ var _fallos := 0
 var _checks := 0
 var _emis := 0
 
-var _idA := 0
-var _idB := 0
-var _idC := 0
+var _iiA: ItemInstance
+var _iiB: ItemInstance
+var _iiC: ItemInstance
 
 
 func _ready() -> void:
 	print("\n===== INVENTORY V1 · PASO 6 · SUITE DE ACEPTACIÓN (N1..N7 + P5/P6) =====")
 
 	var e := _sembrar()                # A@(0,0) rota, B@(2,0) rota, C@(0,1) no-rota
-	var eA: InventoryEntry = e[0]
-	var eB: InventoryEntry = e[1]
-	var eC: InventoryEntry = e[2]
-	_idA = eA.item_instance.instance_id
-	_idB = eB.item_instance.instance_id
-	_idC = eC.item_instance.instance_id
+	_iiA = e[0].item_instance
+	_iiB = e[1].item_instance
+	_iiC = e[2].item_instance
 
 	inv.contenido_cambiado.connect(func() -> void: _emis += 1)
 	view.set_inventory(inv)
 	manip.setup(view, authority)
 	await get_tree().process_frame     # que se asienten los queue_free de la siembra
 
-	_n1_solapamiento(eA)
-	_n2_fuera_de_limites(eA)
-	_n3_rotar_no_permitido(eC)
-	_n4_rotar_a_posicion_invalida(eA)
-	_n5_cerrar_con_held(eA)
-	_n6_invariante_custodia(eA, eB, eC)
-	_n7_stress(eA, eB, eC)
+	_n1_solapamiento()
+	_n2_fuera_de_limites()
+	_n3_rotar_no_permitido()
+	_n4_rotar_a_posicion_invalida()
+	_n5_cerrar_con_held()
+	_n6_invariante_custodia()
+	_n7_stress()
 	_p5_abrir_cerrar_identico()
-	await _p6_puente_v0(eA)
+	await _p6_puente_v0()
 
 	print("=====================================================================")
 	print("Chequeos: %d | Fallas: %d" % [_checks, _fallos])
@@ -80,24 +80,36 @@ func _sembrar() -> Array[InventoryEntry]:
 	return inv.get_entries()
 
 
+## Snapshot ACTUAL de la entry de `ii`, o null.
+func _entry_de(ii: ItemInstance) -> InventoryEntry:
+	for e in inv.get_entries():
+		if e.item_instance == ii:
+			return e
+	return null
+
+func _pos_de(ii: ItemInstance) -> Vector2i:
+	var e := _entry_de(ii)
+	return e.position if e != null else Vector2i(-99, -99)
+
+
 # ── N1: drop solapando otra entry -> rechazado, modelo idéntico, sigue held ──
-func _n1_solapamiento(eA: InventoryEntry) -> void:
+func _n1_solapamiento() -> void:
 	print("-- N1 · drop solapando otra entry --")
-	_check(manip.agarrar_en(Vector2i(0, 0)), "agarrar A")
+	_check(manip.agarrar_en(_pos_de(_iiA)), "agarrar A")
 	var snap := _snap()
 	var emis0 := _emis
 	manip.mover_hover_a(Vector2i(2, 0))          # destino (2,0) == celdas de B
 	_check(not manip.destino_es_valido(), "destino (2,0) solapa B -> inválido")
 	_check(not manip.soltar(), "soltar() -> false")
-	_check(manip.esta_agarrando() and manip.entry_agarrada() == eA, "A sigue held")
+	_check(manip.esta_agarrando() and manip.item_agarrado() == _iiA, "A sigue held")
 	_check(_igual(snap) and _emis == emis0, "N1: modelo idéntico, sin emisión (INV-13)")
 	manip.cancelar()
 
 
 # ── N2: drop fuera de límites (parcial y total) -> rechazado ──
-func _n2_fuera_de_limites(eA: InventoryEntry) -> void:
+func _n2_fuera_de_limites() -> void:
 	print("-- N2 · drop fuera de límites --")
-	_check(manip.agarrar_en(Vector2i(0, 0)), "agarrar A")
+	_check(manip.agarrar_en(_pos_de(_iiA)), "agarrar A")
 	var snap := _snap()
 	var emis0 := _emis
 	manip.mover_hover_a(Vector2i(3, 0))          # (3,0),(4,0) -> parcial OOB
@@ -110,23 +122,23 @@ func _n2_fuera_de_limites(eA: InventoryEntry) -> void:
 
 
 # ── N3: rotar un ítem con can_rotate=false -> no se aplica ──
-func _n3_rotar_no_permitido(eC: InventoryEntry) -> void:
+func _n3_rotar_no_permitido() -> void:
 	print("-- N3 · rotar can_rotate=false --")
-	_check(manip.agarrar_en(Vector2i(0, 1)), "agarrar C")
+	_check(manip.agarrar_en(_pos_de(_iiC)), "agarrar C")
 	var rot_tent := manip.rotacion_tentativa()
 	var snap := _snap()
 	var emis0 := _emis
 	_check(not manip.rotar_tentativo(), "rotar_tentativo() -> false")
 	_check(manip.rotacion_tentativa() == rot_tent, "rotacion_tentativa sin cambios")
-	_check(eC.rotated == false, "entry.rotated real de C intacto (INV-15)")
+	_check(_entry_de(_iiC).rotated == false, "rotated real de C intacto (INV-15)")
 	_check(_igual(snap) and _emis == emis0, "N3: modelo idéntico, sin emisión")
 	manip.cancelar()
 
 
 # ── N4: rotación tentativa válida de forma, pero el drop cae inválido ──
-func _n4_rotar_a_posicion_invalida(eA: InventoryEntry) -> void:
+func _n4_rotar_a_posicion_invalida() -> void:
 	print("-- N4 · rotar y soltar en posición inválida --")
-	_check(manip.agarrar_en(Vector2i(0, 0)), "agarrar A")
+	_check(manip.agarrar_en(_pos_de(_iiA)), "agarrar A")
 	_check(manip.rotar_tentativo(), "rotar A (can_rotate=true) -> true")
 	var snap := _snap()
 	var emis0 := _emis
@@ -137,39 +149,41 @@ func _n4_rotar_a_posicion_invalida(eA: InventoryEntry) -> void:
 	_check(not manip.destino_es_valido(), "rotado en (2,0) -> solapa B")
 	_check(not manip.soltar(), "soltar() -> false")
 	_check(manip.esta_agarrando(), "A sigue held")
-	_check(eA.rotated == false and eA.position == Vector2i(0, 0), "entry.rotated/position reales de A intactos")
+	var eA := _entry_de(_iiA)
+	_check(eA.rotated == false and eA.position == Vector2i(0, 0), "rotated/position reales de A intactos")
 	_check(_igual(snap) and _emis == emis0, "N4: modelo idéntico, sin emisión")
 	manip.cancelar()
 
 
 # ── N5: cerrar la UI con un ítem held -> modelo idéntico (INV-12) ──
-func _n5_cerrar_con_held(eA: InventoryEntry) -> void:
+func _n5_cerrar_con_held() -> void:
 	print("-- N5 · cerrar la UI con un ítem en la mano --")
-	_check(manip.agarrar_en(Vector2i(1, 0)), "agarrar A por su 2da celda")
+	_check(manip.agarrar_en(_pos_de(_iiA) + Vector2i(1, 0)), "agarrar A por su 2da celda")
 	manip.mover_hover_a(Vector2i(3, 3))
 	manip.rotar_tentativo()
 	var snap := _snap()
 	var emis0 := _emis
 	manip.cancelar()                            # lo que hace el harness al cerrar
 	_check(not manip.esta_agarrando(), "tras cerrar, no está agarrando")
+	var eA := _entry_de(_iiA)
 	_check(eA.position == Vector2i(0, 0) and eA.rotated == false, "A quedó en su posición/orientación original")
 	_check(_igual(snap) and _emis == emis0, "N5: modelo idéntico, sin emisión")
 
 
 # ── N6: invariante de custodia a lo largo de una sesión ──
-func _n6_invariante_custodia(eA: InventoryEntry, eB: InventoryEntry, eC: InventoryEntry) -> void:
+func _n6_invariante_custodia() -> void:
 	print("-- N6 · invariante de custodia (World/Inventory) --")
 	var pasos := [
-		["A a (2,1) válido",  eA, Vector2i(2, 1), false, true],
-		["A solapa B",        eA, Vector2i(2, 0), false, false],
-		["C a (0,3) válido",  eC, Vector2i(0, 3), false, true],
-		["B fuera de límites", eB, Vector2i(3, 0), false, false],
-		["A vuelve a (0,0)",  eA, Vector2i(0, 0), false, true],
+		["A a (2,1) válido",   _iiA, Vector2i(2, 1), false, true],
+		["A solapa B",         _iiA, Vector2i(2, 0), false, false],
+		["C a (0,3) válido",   _iiC, Vector2i(0, 3), false, true],
+		["B fuera de límites",  _iiB, Vector2i(3, 0), false, false],
+		["A vuelve a (0,0)",   _iiA, Vector2i(0, 0), false, true],
 	]
 	for p in pasos:
 		var etq: String = p[0]
-		var entry: InventoryEntry = p[1]
-		manip.agarrar_en(entry.position)
+		var ii: ItemInstance = p[1]
+		manip.agarrar_en(_pos_de(ii))
 		manip.mover_hover_a(p[2])
 		if p[3]:
 			manip.rotar_tentativo()
@@ -177,27 +191,25 @@ func _n6_invariante_custodia(eA: InventoryEntry, eB: InventoryEntry, eC: Invento
 		if manip.esta_agarrando():
 			manip.cancelar()
 		_check(ok == p[4], "N6 [%s]: soltar() -> %s" % [etq, p[4]])
-		# tras cada operación, custodia de los 3 ítems:
-		for it in [eA.item_instance, eB.item_instance, eC.item_instance]:
+		for it in [_iiA, _iiB, _iiC]:
 			var c := _custodia(it)
 			if not ((c.x == 1 and c.y == 0) or (c.x == 0 and c.y == 1)):
 				_check(false, "N6 [%s]: custodia rota para #%d -> World=%d/Inv=%d" % [etq, it.instance_id, c.x, c.y])
 		_check(inv.get_entries().size() == 3, "N6 [%s]: _entries.size() == 3 (INV-10)" % etq)
 		_check(_sin_solapamientos(), "N6 [%s]: sin solapes en el inventario (INV-11)" % etq)
-	# los 3 ítems quedan en inventario, ninguno en el mundo
-	for it in [eA.item_instance, eB.item_instance, eC.item_instance]:
+	for it in [_iiA, _iiB, _iiC]:
 		_check(_custodia(it) == Vector2i(0, 1), "N6 final: #%d -> World=0/Inv=1 (INV-16)" % it.instance_id)
 
 
 # ── N7: stress -> sin entries duplicadas, identidades estables, sin drift ──
-func _n7_stress(eA: InventoryEntry, eB: InventoryEntry, eC: InventoryEntry) -> void:
+func _n7_stress() -> void:
 	print("-- N7 · stress --")
-	var items := [eA, eB, eC]
+	var items := [_iiA, _iiB, _iiC]
 	var destinos := [Vector2i(2, 2), Vector2i(9, 9), Vector2i(-2, 0), Vector2i(1, 3), Vector2i(0, 0),
 		Vector2i(2, 0), Vector2i(3, 3), Vector2i(0, 2), Vector2i(2, 1), Vector2i(1, 1)]
 	for k in range(30):
-		var entry: InventoryEntry = items[k % 3]
-		if not manip.agarrar_en(entry.position):
+		var ii: ItemInstance = items[k % 3]
+		if not manip.agarrar_en(_pos_de(ii)):
 			continue
 		manip.mover_hover_a(destinos[k % destinos.size()])
 		if k % 2 == 0:
@@ -207,24 +219,21 @@ func _n7_stress(eA: InventoryEntry, eB: InventoryEntry, eC: InventoryEntry) -> v
 			manip.cancelar()
 
 	# no drift: 12 rotaciones seguidas sobre A
-	manip.agarrar_en(eA.position)
+	manip.agarrar_en(_pos_de(_iiA))
 	var off0 := manip.offset_agarre_actual()
-	var drift := false
 	for i in range(12):
 		manip.rotar_tentativo()
-	if manip.offset_agarre_actual() != off0:
-		drift = true
+	var drift := manip.offset_agarre_actual() != off0
 	manip.cancelar()
 
 	var entries := inv.get_entries()
-	var refs := {}
 	var ids := {}
 	for e in entries:
-		refs[e] = true
 		ids[e.item_instance.instance_id] = true
 	_check(entries.size() == 3, "N7: siguen 3 entries (%d)" % entries.size())
-	_check(refs.has(eA) and refs.has(eB) and refs.has(eC), "N7: mismas 3 InventoryEntry, sin duplicados (INV-09)")
-	_check(ids.has(_idA) and ids.has(_idB) and ids.has(_idC) and ids.size() == 3, "N7: mismos 3 instance_id")
+	_check(ids.has(_iiA.instance_id) and ids.has(_iiB.instance_id) and ids.has(_iiC.instance_id) and ids.size() == 3,
+		"N7: mismos 3 ItemInstance, sin duplicados")
+	_check(inv.has_item(_iiA) and inv.has_item(_iiB) and inv.has_item(_iiC), "N7: los 3 ítems siguen bajo custodia")
 	_check(_sin_solapamientos(), "N7: sin solapes tras el stress (INV-11)")
 	_check(not manip.esta_agarrando(), "N7: el manipulator no quedó trabado en held")
 	_check(not drift, "N7: 12 rotaciones seguidas -> offset vuelve al original, sin drift acumulado")
@@ -243,16 +252,16 @@ func _p5_abrir_cerrar_identico() -> void:
 	var layout1 := view.layout_entries()
 	var igual_layout := layout0.size() == layout1.size()
 	for i in range(min(layout0.size(), layout1.size())):
-		if layout0[i]["entry"] != layout1[i]["entry"] or layout0[i]["rect"] != layout1[i]["rect"]:
+		if layout0[i]["item_instance"] != layout1[i]["item_instance"] or layout0[i]["rect"] != layout1[i]["rect"]:
 			igual_layout = false
 	_check(igual_layout, "P5: el layout de la vista es idéntico tras cerrar/reabrir")
 
 
 # ── P6: una reubicación V1 no rompe el ciclo V0 (identidad end-to-end) ──
-func _p6_puente_v0(eA: InventoryEntry) -> void:
+func _p6_puente_v0() -> void:
 	print("-- P6 · reubicar en V1, después devolver al mundo (V0) --")
-	manip.agarrar_en(eA.position)
-	var pos_orig := eA.position
+	var pos_orig := _pos_de(_iiA)
+	manip.agarrar_en(pos_orig)
 	var movido := false
 	for y in range(4):
 		for x in range(4):
@@ -265,18 +274,17 @@ func _p6_puente_v0(eA: InventoryEntry) -> void:
 	if manip.esta_agarrando():
 		manip.cancelar()
 	_check(movido, "P6: reubicación V1 de A a un hueco libre -> true")
-	var iiA := eA.item_instance
-	var idA := iiA.instance_id
-	_check(eA.position != pos_orig, "A cambió de posición (%s -> %s)" % [pos_orig, eA.position])
+	var idA := _iiA.instance_id
+	_check(_pos_de(_iiA) != pos_orig, "A cambió de posición (%s -> %s)" % [pos_orig, _pos_de(_iiA)])
 
-	var wi: WorldItemV2 = authority.solicitar_devolucion(iiA, inv, mundo, punto_spawn.global_position)
+	var wi: WorldItemV2 = authority.solicitar_devolucion(_iiA, inv, mundo, punto_spawn.global_position)
 	await get_tree().process_frame
 	_check(wi != null, "P6: solicitar_devolucion devolvió un WorldItemV2")
-	_check(wi != null and wi.item_instance == iiA, "P6: el WorldItem lleva la MISMA ItemInstance")
-	_check(iiA.instance_id == idA, "P6: instance_id intacto (#%d)" % idA)
-	_check(not inv.has_item(iiA), "P6: A ya no está en el inventario")
+	_check(wi != null and wi.item_instance == _iiA, "P6: el WorldItem lleva la MISMA ItemInstance")
+	_check(_iiA.instance_id == idA, "P6: instance_id intacto (#%d)" % idA)
+	_check(not inv.has_item(_iiA), "P6: A ya no está en el inventario")
 	_check(inv.get_entries().size() == 2, "P6: _entries.size() == 2")
-	_check(_custodia(iiA) == Vector2i(1, 0), "P6: custodia de A -> World=1/Inv=0")
+	_check(_custodia(_iiA) == Vector2i(1, 0), "P6: custodia de A -> World=1/Inv=0")
 
 
 # ── Instrumentación ────────────────────────────────────────────────
@@ -310,7 +318,7 @@ func _sin_solapamientos() -> bool:
 func _snap() -> Array:
 	var s: Array = []
 	for e in inv.get_entries():
-		s.append([e, e.position, e.rotated, e.item_instance, e.item_instance.instance_id])
+		s.append([e.item_instance, e.position, e.rotated, e.item_instance.instance_id])
 	return s
 
 
@@ -320,8 +328,8 @@ func _igual(snap: Array) -> bool:
 		return false
 	for i in range(live.size()):
 		var r: Array = snap[i]
-		if live[i] != r[0] or live[i].position != r[1] or live[i].rotated != r[2] \
-		or live[i].item_instance != r[3] or live[i].item_instance.instance_id != r[4]:
+		if live[i].item_instance != r[0] or live[i].position != r[1] or live[i].rotated != r[2] \
+		or live[i].item_instance.instance_id != r[3]:
 			return false
 	return true
 

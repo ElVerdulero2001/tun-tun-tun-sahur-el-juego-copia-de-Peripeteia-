@@ -5,10 +5,11 @@ extends Node3D
 ## Verifica el mutador exclusivo nuevo `_reubicar_entry` y la señal
 ## `contenido_cambiado` de inventory.gd.
 ##
-## Este arnés llama `_reubicar_entry` / `_quitar_entry` DIRECTAMENTE a
-## propósito: el llamador autorizado real (TransferOperation con caso
-## REUBICAR_EN_INVENTARIO) recién existe en el Paso 3. Es un test white-box
-## del mutador, no del flujo de gameplay.
+## Este arnés llama `_reubicar_entry` / `_quitar_entry` DIRECTAMENTE y trabaja
+## con las InventoryEntry VIVAS (inv._entries) a propósito: es un test
+## WHITE-BOX del mutador, no del flujo de gameplay. Acá se conserva la
+## verificación de INV-09 "misma InventoryEntry viva" (que dejó de ser
+## contrato público — get_entries() devuelve snapshots).
 ##
 ## El inventario se puebla SOLO por la ruta V0 (spawn WorldItemV2 + pickup).
 
@@ -67,7 +68,7 @@ func _sembrar(inventario: InventoryV2, cantidad: int) -> Array[InventoryEntry]:
 		wi.setup(authority)
 		var ok: bool = wi._on_interact(Interaction.new(self, &"usar"))
 		_check(ok, "siembra: pickup #%d en %s exitoso" % [i + 1, inventario.name])
-	return inventario.get_entries()
+	return inventario._entries.duplicate()   # white-box: entries VIVAS
 
 
 func _test_agregar_emite_una_vez_por_alta() -> void:
@@ -96,8 +97,8 @@ func _test_reubicar_conserva_entry_e_item(normal: Array[InventoryEntry]) -> void
 
 	var ret := inv_normal._reubicar_entry(ii0, Vector2i(0, 3), false)
 
-	_check(ret == e0, "devuelve la MISMA InventoryEntry")
-	_check(inv_normal.get_entries()[0] == e0, "en _entries sigue la misma InventoryEntry (misma ref)")
+	_check(ret == e0, "devuelve la MISMA InventoryEntry viva")
+	_check(inv_normal._entries[0] == e0, "en _entries sigue la misma InventoryEntry viva (misma ref) — INV-09 white-box")
 	_check(e0.item_instance == ii0, "misma ItemInstance (misma ref)")
 	_check(e0.item_instance.instance_id == id0, "mismo instance_id (#%d)" % id0)
 
@@ -112,9 +113,9 @@ func _test_reubicar_no_cambia_size_ni_orden(normal: Array[InventoryEntry]) -> vo
 
 	inv_normal._reubicar_entry(e0.item_instance, Vector2i(1, 3), true)
 
-	var ahora := inv_normal.get_entries()
+	var ahora := inv_normal._entries
 	_check(ahora.size() == size_antes, "size sin cambios (%d)" % ahora.size())
-	_check(ahora[0] == e0 and ahora[1] == e1, "orden de la lista sin cambios")
+	_check(ahora[0] == e0 and ahora[1] == e1, "orden de _entries (vivas) sin cambios")
 
 	inv_normal._reubicar_entry(e0.item_instance, Vector2i(0, 0), false)  # restaurar
 

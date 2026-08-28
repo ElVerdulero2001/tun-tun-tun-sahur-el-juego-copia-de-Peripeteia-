@@ -85,12 +85,12 @@ func _test_layout_sembrado(normal: Array[InventoryEntry], angosto: Array[Invento
 
 
 func _test_entry_en_celda(normal: Array[InventoryEntry]) -> void:
-	print("-- entry_en_celda --")
-	_check(inv_normal.entry_en_celda(Vector2i(0, 0)) == normal[0], "(0,0) -> entry #1")
-	_check(inv_normal.entry_en_celda(Vector2i(1, 0)) == normal[0], "(1,0) -> entry #1 (2da celda de su footprint)")
-	_check(inv_normal.entry_en_celda(Vector2i(2, 0)) == normal[1], "(2,0) -> entry #2")
-	_check(inv_normal.entry_en_celda(Vector2i(3, 0)) == normal[1], "(3,0) -> entry #2 (2da celda de su footprint)")
-	_check(inv_normal.entry_en_celda(Vector2i(0, 1)) == normal[2], "(0,1) -> entry #3")
+	print("-- entry_en_celda (devuelve snapshot; se compara por item_instance) --")
+	_check(inv_normal.entry_en_celda(Vector2i(0, 0)).item_instance == normal[0].item_instance, "(0,0) -> entry #1")
+	_check(inv_normal.entry_en_celda(Vector2i(1, 0)).item_instance == normal[0].item_instance, "(1,0) -> entry #1 (2da celda de su footprint)")
+	_check(inv_normal.entry_en_celda(Vector2i(2, 0)).item_instance == normal[1].item_instance, "(2,0) -> entry #2")
+	_check(inv_normal.entry_en_celda(Vector2i(3, 0)).item_instance == normal[1].item_instance, "(3,0) -> entry #2 (2da celda de su footprint)")
+	_check(inv_normal.entry_en_celda(Vector2i(0, 1)).item_instance == normal[2].item_instance, "(0,1) -> entry #3")
 	_check(inv_normal.entry_en_celda(Vector2i(0, 2)) == null, "(0,2) -> null (celda libre)")
 	_check(inv_normal.entry_en_celda(Vector2i(3, 3)) == null, "(3,3) -> null (celda libre)")
 
@@ -128,19 +128,19 @@ func _test_posicion_valida(normal: Array[InventoryEntry]) -> void:
 
 	# excluir: el caso central de la reubicación
 	_check(
-		inv_normal.posicion_valida(it0, Vector2i(0, 0), false, normal[0]),
+		inv_normal.posicion_valida(it0, Vector2i(0, 0), false, it0),
 		"(0,0) excluyendo la PROPIA entry -> válido (no choca consigo misma)"
 	)
 	_check(
-		not inv_normal.posicion_valida(it0, Vector2i(1, 0), false, normal[0]),
+		not inv_normal.posicion_valida(it0, Vector2i(1, 0), false, it0),
 		"(1,0) excluyendo #1 -> todavía solapa #2 -> inválido"
 	)
 	_check(
-		not inv_normal.posicion_valida(it0, Vector2i(0, 1), false, normal[0]),
+		not inv_normal.posicion_valida(it0, Vector2i(0, 1), false, it0),
 		"(0,1) excluyendo #1 -> solapa entry #3 -> inválido"
 	)
 	_check(
-		inv_normal.posicion_valida(it0, Vector2i(2, 2), false, normal[0]),
+		inv_normal.posicion_valida(it0, Vector2i(2, 2), false, it0),
 		"(2,2) excluyendo #1 -> libre -> válido"
 	)
 
@@ -150,13 +150,13 @@ func _test_no_mutacion(
 	rot_prev: Array[bool], id_prev: Array[int]
 ) -> void:
 	print("-- las consultas NO mutan --")
-	var ahora := inv_normal.get_entries()
+	var ahora := inv_normal.get_entries()   # snapshots frescas del estado ACTUAL
 	_check(ahora.size() == pos_prev.size(), "cantidad de entries sin cambios tras todas las consultas")
 	var intacto := ahora.size() == live.size()
-	for i in range(live.size()):
-		if live[i].position != pos_prev[i] \
-		or live[i].rotated != rot_prev[i] \
-		or live[i].item_instance.instance_id != id_prev[i]:
+	for i in range(ahora.size()):
+		if ahora[i].position != pos_prev[i] \
+		or ahora[i].rotated != rot_prev[i] \
+		or ahora[i].item_instance.instance_id != id_prev[i]:
 			intacto = false
 	_check(intacto, "cada entry conserva posición, rotación e instance_id originales")
 

@@ -131,36 +131,42 @@ func _test_no_muta_el_modelo(snap_normal: Array, snap_angosto: Array) -> void:
 	_check(_igual_al_snap(inv_angosto, snap_angosto), "inv_angosto: entries / posición / rotación / instance_id / size intactos")
 
 
+## Rect que la vista dibuja para el item `ii` AHORA (re-consulta el layout).
+func _rect_de(ii: ItemInstance) -> Rect2:
+	for d in view.layout_entries():
+		if d["item_instance"] == ii:
+			return d["rect"]
+	return Rect2()
+
+
 func _test_actualiza_tras_contenido_cambiado(normal: Array[InventoryEntry]) -> void:
 	print("-- 4. la vista se re-renderiza al recibir contenido_cambiado --")
 	view.set_inventory(inv_normal)
-	var eA := normal[0]
+	var iiA: ItemInstance = normal[0].item_instance
 	var r0 := view.refrescos
-	_check(view.rect_de_entry(eA) == Rect2(0, 0, 2 * CELL, 1 * CELL), "pre: entryA en (0,0)")
+	_check(_rect_de(iiA) == Rect2(0, 0, 2 * CELL, 1 * CELL), "pre: entryA en (0,0)")
 
-	var ok1: bool = authority.solicitar_reubicacion(eA.item_instance, inv_normal, Vector2i(0, 2), false)
+	var ok1: bool = authority.solicitar_reubicacion(iiA, inv_normal, Vector2i(0, 2), false)
 	_check(ok1, "mover A a (0,2) -> true")
 	_check(view.refrescos == r0 + 1, "la vista se re-renderizó 1 vez (%d -> %d)" % [r0, view.refrescos])
-	_check(view.rect_de_entry(eA) == Rect2(0, 2 * CELL, 2 * CELL, 1 * CELL),
-		"post: rect de entryA refleja (0,2) = %s" % view.rect_de_entry(eA))
+	_check(_rect_de(iiA) == Rect2(0, 2 * CELL, 2 * CELL, 1 * CELL), "post: rect de A refleja (0,2) = %s" % _rect_de(iiA))
 
-	var ok2: bool = authority.solicitar_reubicacion(eA.item_instance, inv_normal, Vector2i(2, 1), true)
+	var ok2: bool = authority.solicitar_reubicacion(iiA, inv_normal, Vector2i(2, 1), true)
 	_check(ok2, "rotar + mover A a (2,1) -> true")
 	_check(view.refrescos == r0 + 2, "otra re-renderización (%d)" % view.refrescos)
-	_check(view.rect_de_entry(eA) == Rect2(2 * CELL, 1 * CELL, 1 * CELL, 2 * CELL),
-		"rect de entryA rotado = %s" % view.rect_de_entry(eA))
+	_check(_rect_de(iiA) == Rect2(2 * CELL, 1 * CELL, 1 * CELL, 2 * CELL), "rect de A rotado = %s" % _rect_de(iiA))
 
 	# Al cambiar de inventario, la vista se desengancha del anterior.
 	view.set_inventory(inv_angosto)
 	var r_ang := view.refrescos
-	authority.solicitar_reubicacion(eA.item_instance, inv_normal, Vector2i(0, 0), false)
+	authority.solicitar_reubicacion(iiA, inv_normal, Vector2i(0, 0), false)
 	_check(view.refrescos == r_ang, "tras cambiar de inventario la vista ya NO reacciona a inv_normal (%d)" % view.refrescos)
 
 
 func _snap(inv: InventoryV2) -> Array:
 	var s: Array = []
 	for e in inv.get_entries():
-		s.append([e, e.position, e.rotated, e.item_instance, e.item_instance.instance_id])
+		s.append([e.item_instance, e.position, e.rotated, e.item_instance.instance_id])
 	return s
 
 
@@ -170,11 +176,10 @@ func _igual_al_snap(inv: InventoryV2, snap: Array) -> bool:
 		return false
 	for i in range(live.size()):
 		var r: Array = snap[i]
-		if live[i] != r[0] \
+		if live[i].item_instance != r[0] \
 		or live[i].position != r[1] \
 		or live[i].rotated != r[2] \
-		or live[i].item_instance != r[3] \
-		or live[i].item_instance.instance_id != r[4]:
+		or live[i].item_instance.instance_id != r[3]:
 			return false
 	return true
 

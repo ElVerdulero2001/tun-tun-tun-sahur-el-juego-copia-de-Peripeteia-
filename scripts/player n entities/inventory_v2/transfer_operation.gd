@@ -42,7 +42,7 @@ var nueva_pos: Vector2i
 var nuevo_rotated: bool
 
 var _placement_valido: InventoryEntry = null
-var _entry_actual: InventoryEntry = null
+var _entry_snapshot: InventoryEntry = null
 var _validado: bool = false
 var _resultado_validacion: String = ""
 
@@ -144,25 +144,27 @@ func _validar_reubicar() -> bool:
 		_resultado_validacion = "inventory_reubicar nulo"
 		return false
 
-	_entry_actual = _buscar_entry(inventory_reubicar, item_instance)
-	if _entry_actual == null:
+	# _entry_snapshot: copia detached (get_entries()). validate SOLO lee.
+	_entry_snapshot = _buscar_entry(inventory_reubicar, item_instance)
+	if _entry_snapshot == null:
 		_resultado_validacion = "el item no esta bajo custodia de este inventario"
 		return false
 
-	if nuevo_rotated != _entry_actual.rotated and not item_instance.definition.can_rotate:
+	if nuevo_rotated != _entry_snapshot.rotated and not item_instance.definition.can_rotate:
 		_resultado_validacion = "la definicion del item no permite rotar"
 		return false
 
-	if not inventory_reubicar.posicion_valida(item_instance, nueva_pos, nuevo_rotated, _entry_actual):
+	if not inventory_reubicar.posicion_valida(item_instance, nueva_pos, nuevo_rotated, item_instance):
 		_resultado_validacion = "posicion destino invalida (fuera de limites o solapamiento)"
 		return false
 
 	_resultado_validacion = "ok"
 	return true
 
-## Busca (solo lectura) la entry de `item` en `inventory`, usando la API
-## publica get_entries(). La entry devuelta es la MISMA referencia que vive
-## en _entries (get_entries() duplica el Array, no las entries).
+## Busca (solo lectura) la SNAPSHOT de la entry de `item` en `inventory`,
+## via la API publica get_entries(). NO es la entry viva; validate solo
+## necesita leer su rotacion actual. El commit muta la entry viva por
+## dentro (inventory._reubicar_entry).
 func _buscar_entry(inventory: InventoryV2, item: ItemInstance) -> InventoryEntry:
 	for entry in inventory.get_entries():
 		if entry.item_instance == item:
@@ -187,8 +189,11 @@ func commit() -> Variant:
 	return null
 
 func _commit_mundo_a_inventario() -> bool:
-	_placement_valido.item_instance = item_instance
-	inventory_destino._agregar_entry(_placement_valido)
+	# _placement_valido (de find_valid_placement) es solo un portador de
+	# posicion/orientacion. La entry que se guarda NACE completa con su
+	# ItemInstance definitivo -> item_instance nunca se muta post-construccion.
+	var entry := InventoryEntry.new(item_instance, _placement_valido.position, _placement_valido.rotated)
+	inventory_destino._agregar_entry(entry)
 	world_item.queue_free()
 	return true
 

@@ -86,15 +86,16 @@ func rect_de_entry(entry: InventoryEntry) -> Rect2:
 	)
 
 
-## Snapshot del layout de todas las entries visibles. Cada elemento:
-## { entry, position: Vector2i, rotated: bool, footprint: Vector2i, rect: Rect2 }
+## Layout de todas las entries visibles, POR VALOR (no filtra ninguna entry
+## viva del modelo). Cada elemento:
+## { item_instance, position: Vector2i, rotated: bool, footprint: Vector2i, rect: Rect2 }
 func layout_entries() -> Array:
 	var out: Array = []
 	if _inventory == null:
 		return out
-	for entry in _inventory.get_entries():
+	for entry in _inventory.get_entries():   # snapshots
 		out.append({
-			"entry": entry,
+			"item_instance": entry.item_instance,
 			"position": entry.position,
 			"rotated": entry.rotated,
 			"footprint": entry.get_footprint(),

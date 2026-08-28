@@ -29,6 +29,18 @@ var _sig_cancelado := 0
 var _sig_preview := 0
 var _sig_soltado := 0
 var _sig_rot_rech := 0
+var _iiA: ItemInstance
+
+
+func _entry_de(ii: ItemInstance) -> InventoryEntry:
+	for e in inv.get_entries():
+		if e.item_instance == ii:
+			return e
+	return null
+
+func _pos_de(ii: ItemInstance) -> Vector2i:
+	var e := _entry_de(ii)
+	return e.position if e != null else Vector2i(-99, -99)
 
 
 func _ready() -> void:
@@ -39,7 +51,7 @@ func _ready() -> void:
 	view.size = Vector2(4 * CELL, 4 * CELL)
 
 	var e := _sembrar()                # A@(0,0) 2x1, B@(2,0) 2x1
-	var eA: InventoryEntry = e[0]
+	_iiA = e[0].item_instance
 
 	inv.contenido_cambiado.connect(func() -> void: _emis += 1)
 	manip.agarrado.connect(func(_x) -> void: _sig_agarrado += 1)
@@ -53,13 +65,13 @@ func _ready() -> void:
 	_snap0 = _snap()
 
 	_t0_estado_inicial()
-	_t1_cerrado_click_no_selecciona(eA)
-	_t2_cerrado_R_no_rota(eA)
-	_t3_cerrar_con_held_cancela(eA)
-	_t4_cerrado_spam_no_recrea_estado(eA)
+	_t1_cerrado_click_no_selecciona()
+	_t2_cerrado_R_no_rota()
+	_t3_cerrar_con_held_cancela()
+	_t4_cerrado_spam_no_recrea_estado()
 	_t5_abrir_empieza_limpio()
-	_t6_abierto_interaccion_funciona(eA)
-	_t7_secuencias_abrir_cerrar_spam(eA)
+	_t6_abierto_interaccion_funciona()
+	_t7_secuencias_abrir_cerrar_spam()
 
 	print("====================================================================")
 	print("Chequeos: %d | Fallas: %d" % [_checks, _fallos])
@@ -123,7 +135,7 @@ func _spam_input_cerrado() -> void:
 func _snap() -> Array:
 	var s: Array = []
 	for e in inv.get_entries():
-		s.append([e, e.position, e.rotated, e.item_instance.instance_id])
+		s.append([e.item_instance, e.position, e.rotated, e.item_instance.instance_id])
 	return s
 
 func _igual(snap: Array) -> bool:
@@ -132,7 +144,9 @@ func _igual(snap: Array) -> bool:
 		return false
 	for i in range(live.size()):
 		var r: Array = snap[i]
-		if live[i] != r[0] or live[i].position != r[1] or live[i].rotated != r[2] \
+		# get_entries() devuelve snapshots: la identidad de objeto InventoryEntry
+		# no es estable entre llamadas -> se compara por item_instance / valores.
+		if live[i].item_instance != r[0] or live[i].position != r[1] or live[i].rotated != r[2] \
 		or live[i].item_instance.instance_id != r[3]:
 			return false
 	return true
@@ -146,7 +160,7 @@ func _t0_estado_inicial() -> void:
 	_check(not manip.is_processing_unhandled_input(), "no procesa unhandled_input al arrancar")
 
 
-func _t1_cerrado_click_no_selecciona(eA: InventoryEntry) -> void:
+func _t1_cerrado_click_no_selecciona() -> void:
 	print("-- T1 cerrado + click -> no selecciona --")
 	# NOTA: en headless no hay mouse real, así que _celda_bajo_mouse() no puede
 	# apuntar a una celda concreta. Pero el gate de _unhandled_input es un solo
@@ -167,7 +181,7 @@ func _t1_cerrado_click_no_selecciona(eA: InventoryEntry) -> void:
 	_check(_igual(snap) and _emis == em0, "T1: modelo idéntico, sin emisión")
 
 
-func _t2_cerrado_R_no_rota(eA: InventoryEntry) -> void:
+func _t2_cerrado_R_no_rota() -> void:
 	print("-- T2 cerrado + R -> no hay rotación tentativa --")
 	# prueba mouse-independiente: ACTIVO + held -> synth R SÍ rota tentativamente;
 	# INACTIVO -> synth R no hace nada.
@@ -187,7 +201,7 @@ func _t2_cerrado_R_no_rota(eA: InventoryEntry) -> void:
 	_check(_sig_preview == rp0, "T2: CERRADO -> no se emitió 'preview_cambiado'")
 
 
-func _t3_cerrar_con_held_cancela(eA: InventoryEntry) -> void:
+func _t3_cerrar_con_held_cancela() -> void:
 	print("-- T3 cerrar con un ítem held -> se cancela y queda no-held --")
 	manip.activar()
 	_check(manip.agarrar_en(Vector2i(0, 0)), "agarrar A (UI abierta)")
@@ -201,11 +215,11 @@ func _t3_cerrar_con_held_cancela(eA: InventoryEntry) -> void:
 	_check(not manip.esta_agarrando(), "T3: tras desactivar, NO held")
 	_check(_sig_cancelado == c0 + 1, "T3: se emitió 'cancelado' una vez")
 	_check(not manip.esta_activo() and not manip.is_processing_unhandled_input(), "T3: manipulator inerte")
-	_check(eA.position == Vector2i(0, 0) and not eA.rotated, "T3: A quedó en su lugar original")
+	_check(_pos_de(_iiA) == Vector2i(0, 0) and not _entry_de(_iiA).rotated, "T3: A quedó en su lugar original")
 	_check(_igual(snap) and _emis == em0, "T3: modelo idéntico, sin emisión")
 
 
-func _t4_cerrado_spam_no_recrea_estado(eA: InventoryEntry) -> void:
+func _t4_cerrado_spam_no_recrea_estado() -> void:
 	print("-- T4 cerrado + spam de clicks/R/mouse -> no recrea estado transitorio --")
 	var snap := _snap()
 	var em0 := _emis
@@ -233,14 +247,14 @@ func _t5_abrir_empieza_limpio() -> void:
 	_check(manip.offset_agarre_actual() == Vector2i.ZERO, "T5: sin offset residual")
 
 
-func _t6_abierto_interaccion_funciona(eA: InventoryEntry) -> void:
+func _t6_abierto_interaccion_funciona() -> void:
 	print("-- T6 abierto -> la interacción normal vuelve a funcionar --")
 	var em0 := _emis
 	_check(manip.agarrar_en(Vector2i(0, 0)), "T6: agarrar A funciona")
 	manip.mover_hover_a(Vector2i(2, 2))
 	_check(manip.destino_es_valido(), "T6: (2,2) libre -> válido")
 	_check(manip.soltar(), "T6: soltar en (2,2) funciona")
-	_check(eA.position == Vector2i(2, 2), "T6: A se movió a (2,2)")
+	_check(_pos_de(_iiA) == Vector2i(2, 2), "T6: A se movió a (2,2)")
 	_check(_emis == em0 + 1, "T6: contenido_cambiado emitido 1 vez")
 	# y el input sintético vuelve a procesarse (mouse-independiente: R sobre held)
 	_check(manip.agarrar_en(Vector2i(2, 2)), "T6: re-agarrar A")
@@ -249,10 +263,10 @@ func _t6_abierto_interaccion_funciona(eA: InventoryEntry) -> void:
 	_check(manip.rotacion_tentativa() == not t0, "T6: synth R con UI abierta rota tentativamente (input restaurado)")
 	manip.cancelar()
 	# restaurar A a (0,0) para T7
-	authority.solicitar_reubicacion(eA.item_instance, inv, Vector2i(0, 0), false)
+	authority.solicitar_reubicacion(_iiA, inv, Vector2i(0, 0), false)
 
 
-func _t7_secuencias_abrir_cerrar_spam(eA: InventoryEntry) -> void:
+func _t7_secuencias_abrir_cerrar_spam() -> void:
 	print("-- T7 varias secuencias abrir/cerrar + spam -> nunca se interactúa cerrado --")
 	var fallo_gate := false
 	for ciclo in range(10):

@@ -131,10 +131,12 @@ func _test_no_muta_el_modelo(snap_normal: Array, snap_angosto: Array) -> void:
 	_check(_igual_al_snap(inv_angosto, snap_angosto), "inv_angosto: entries / posición / rotación / instance_id / size intactos")
 
 
-## Rect que la vista dibuja para el item `ii` AHORA (re-consulta el layout).
-func _rect_de(ii: ItemInstance) -> Rect2:
+## Rect que la vista dibuja para la entry ubicada AHORA en `pos`. layout_entries()
+## ya no expone identidad (D8): se localiza por position, que es exactamente lo
+## que este test controla al mover A a celdas conocidas (B no se mueve nunca).
+func _rect_de_pos(pos: Vector2i) -> Rect2:
 	for d in view.layout_entries():
-		if d["item_instance"] == ii:
+		if d["position"] == pos:
 			return d["rect"]
 	return Rect2()
 
@@ -144,17 +146,17 @@ func _test_actualiza_tras_contenido_cambiado(normal: Array[InventoryEntry]) -> v
 	view.set_inventory(inv_normal)
 	var iiA: ItemInstance = normal[0].item_instance
 	var r0 := view.refrescos
-	_check(_rect_de(iiA) == Rect2(0, 0, 2 * CELL, 1 * CELL), "pre: entryA en (0,0)")
+	_check(_rect_de_pos(Vector2i(0, 0)) == Rect2(0, 0, 2 * CELL, 1 * CELL), "pre: entryA en (0,0)")
 
 	var ok1: bool = authority.solicitar_reubicacion(iiA, inv_normal, Vector2i(0, 2), false)
 	_check(ok1, "mover A a (0,2) -> true")
 	_check(view.refrescos == r0 + 1, "la vista se re-renderizó 1 vez (%d -> %d)" % [r0, view.refrescos])
-	_check(_rect_de(iiA) == Rect2(0, 2 * CELL, 2 * CELL, 1 * CELL), "post: rect de A refleja (0,2) = %s" % _rect_de(iiA))
+	_check(_rect_de_pos(Vector2i(0, 2)) == Rect2(0, 2 * CELL, 2 * CELL, 1 * CELL), "post: rect de A refleja (0,2) = %s" % _rect_de_pos(Vector2i(0, 2)))
 
 	var ok2: bool = authority.solicitar_reubicacion(iiA, inv_normal, Vector2i(2, 1), true)
 	_check(ok2, "rotar + mover A a (2,1) -> true")
 	_check(view.refrescos == r0 + 2, "otra re-renderización (%d)" % view.refrescos)
-	_check(_rect_de(iiA) == Rect2(2 * CELL, 1 * CELL, 1 * CELL, 2 * CELL), "rect de A rotado = %s" % _rect_de(iiA))
+	_check(_rect_de_pos(Vector2i(2, 1)) == Rect2(2 * CELL, 1 * CELL, 1 * CELL, 2 * CELL), "rect de A rotado = %s" % _rect_de_pos(Vector2i(2, 1)))
 
 	# Al cambiar de inventario, la vista se desengancha del anterior.
 	view.set_inventory(inv_angosto)

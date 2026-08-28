@@ -86,16 +86,20 @@ func rect_de_entry(entry: InventoryEntry) -> Rect2:
 	)
 
 
-## Layout de todas las entries visibles, POR VALOR (no filtra ninguna entry
-## viva del modelo). Cada elemento:
-## { item_instance, position: Vector2i, rotated: bool, footprint: Vector2i, rect: Rect2 }
+## Layout de todas las entries visibles, PURAMENTE VISUAL/GEOMETRICO y POR
+## VALOR. Cada elemento: { position: Vector2i, rotated: bool,
+## footprint: Vector2i, rect: Rect2 }. En orden de _entries.
+##
+## NO expone ItemInstance ni ningun id: la vista no maneja identidad y no
+## queremos promover instance_id (aid de logs/tests) a contrato publico (D8;
+## docs/inventory_system_v0_v1.md seccion 17). Quien necesite identidad usa
+## la referencia de ItemInstance que ya circula por get_entries().
 func layout_entries() -> Array:
 	var out: Array = []
 	if _inventory == null:
 		return out
 	for entry in _inventory.get_entries():   # snapshots
 		out.append({
-			"item_instance": entry.item_instance,
 			"position": entry.position,
 			"rotated": entry.rotated,
 			"footprint": entry.get_footprint(),

@@ -251,8 +251,12 @@ func _p5_abrir_cerrar_identico() -> void:
 	_check(_igual(snap) and _emis == emis0, "P5: modelo idéntico, sin emisión")
 	var layout1 := view.layout_entries()
 	var igual_layout := layout0.size() == layout1.size()
+	# layout_entries() ya no expone identidad (D8): se compara por valor.
 	for i in range(min(layout0.size(), layout1.size())):
-		if layout0[i]["item_instance"] != layout1[i]["item_instance"] or layout0[i]["rect"] != layout1[i]["rect"]:
+		if layout0[i]["position"] != layout1[i]["position"] \
+		or layout0[i]["rotated"] != layout1[i]["rotated"] \
+		or layout0[i]["footprint"] != layout1[i]["footprint"] \
+		or layout0[i]["rect"] != layout1[i]["rect"]:
 			igual_layout = false
 	_check(igual_layout, "P5: el layout de la vista es idéntico tras cerrar/reabrir")
 

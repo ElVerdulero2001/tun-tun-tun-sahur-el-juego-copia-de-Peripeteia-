@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://cvry6r1i8yoko" path="res://scripts/player n entities/inventory_v2/local_authority.gd" id="2_authority"]
 [ext_resource type="Script" uid="uid://bokafhmy5nxc5" path="res://scripts/player n entities/inventory_v2/inventory.gd" id="3_inventory"]
 [ext_resource type="Resource" uid="uid://bs28esuanu3ea" path="res://assets/data/test_inventory_v2/item_definition_test.tres" id="4_def"]
-[ext_resource type="PackedScene" uid="uid://dv1gridview01" path="res://scenes/test/inventory_grid_view.tscn" id="5_view"]
+[ext_resource type="PackedScene" uid="uid://dv1gridview01" path="res://scenes/components/inventory/inventory_grid_view.tscn" id="5_view"]
 
 [node name="InventoryV1VistaTest" type="Node3D"]
 script = ExtResource("1_v1p4")

@@ -1,12 +1,12 @@
 # Inventory System — V0 + V1
 
 > Documentación técnica del sistema de inventario `scripts/player n entities/inventory_v2/`.
-> Describe **lo que existe hasta HEAD `29adfa3`** (V0 + V1 + saldo de deuda técnica Batch A/B/B.2). No describe planes de V2.
+> Describe **lo que existe hasta HEAD `51d106f`** (V0 + V1 + saldo de deuda técnica Batch A/B/B.2/C1). No describe planes de V2.
 >
 > Baseline:
 > - **V0** — `1505ed514378c58d420b20f9e145c0c5c26b98da` — *"Inventory V0: sistema mundo<->inventario + arnes de pruebas"* (2026-08-27)
 > - **V1** — `e2e406da2f209489af637366d956882a28ff7e90` — *"Inventory V1: manipulacion de la grilla (UI + mover/rotar) sobre InventoryV2"* (2026-08-27)
-> - **Deuda técnica** — `7463866` (Batch A) → `43fc2f4` (Batch B, D1) → `29adfa3` (Batch B.2, D8). Ver sección 2 y sección 17.
+> - **Deuda técnica** — `7463866` (Batch A) → `43fc2f4` (Batch B, D1) → `29adfa3` (Batch B.2, D8) → `51d106f` (Batch C1, D5 parcial). Ver sección 2 y sección 17.
 > - Este `.md` se creó en `2871f87`, que es **anterior** a Batch A. V2 no iniciado.
 
 ---
@@ -108,13 +108,14 @@ Arnés V1: 8 tests automáticos (`consultas`, `reubicar`, `operacion_reubicar`, 
 
 ### Deuda técnica saldada tras V1
 
-Orden de commits (del más viejo al más nuevo): `e2e406d` (V1) → `2871f87` (**este documento**, primera foto de V0+V1) → `7463866` (Batch A) → `43fc2f4` (Batch B) → `29adfa3` (Batch B.2). Es decir, **la primera versión del doc es ANTERIOR a Batch A**; este documento se actualiza ahora para reflejar hasta `29adfa3`.
+Orden de commits (del más viejo al más nuevo): `e2e406d` (V1) → `2871f87` (**este documento**, primera foto de V0+V1) → `7463866` (Batch A) → `43fc2f4` (Batch B) → `29adfa3` (Batch B.2) → `51d106f` (Batch C1). Es decir, **la primera versión del doc es ANTERIOR a Batch A**; este documento se actualiza para reflejar hasta `51d106f`.
 
 | Commit | Batch | Qué cambió |
 |---|---|---|
 | `7463866` | **A** | Solo comentarios `##` en `inventory_v2/*.gd`: corrige D3 (método inexistente citado) y D7 (referencias a un doc no versionado → apuntan acá), aclara D2/D6. Cero comportamiento. |
 | `43fc2f4` | **B** | **D1 PAGADA** por barrera *estructural*: `InventoryV2` conserva las `InventoryEntry` vivas en `_entries`; `get_entries()` y `entry_en_celda()` devuelven **snapshots detached** (`InventoryEntry.snapshot()`). Mutar una snapshot no toca el modelo. `posicion_valida` excluye por `ItemInstance` (param `excluir_item`). INV-09 "misma `InventoryEntry`" pasó a invariante **interna** (white-box). Test nuevo `inventory_v1_entry_readonly_test` (29). |
 | `29adfa3` | **B.2** | **D8** (identidad `ItemInstance`/`ItemDefinition` mutable desde una referencia viva) registrada como **LIMITACIÓN DELIBERADA** + contrato explícito C-D8.1..4 en comentarios + tripwire `inventory_v1_identity_contract_test` (22). `InventoryGridView.layout_entries()` dejó de exponer `ItemInstance`. |
+| `51d106f` | **C1** | **D5 PARCIALMENTE PAGADA** — nuevo componente reusable `InventoryPanel` (`scenes/components/inventory/inventory_panel.tscn` + `inventory_panel.gd`, sección 3) que encapsula el wiring V1 (`GridView` + `Manipulator`, `setup`/`abrir`/`cerrar`, 5 señales reenviadas). **Aditivo puro: 6 archivos nuevos, 0 modificaciones**; ninguna escena existente migrada (eso es C2). Test nuevo `inventory_panel_test` (56). |
 
 ---
 
@@ -201,7 +202,26 @@ Todos los archivos de producción están en `scripts/player n entities/inventory
 - **API pública (transiciones):** `activar()`, `desactivar()`, `agarrar_en(celda)`, `mover_hover_a(celda)`, `rotar_tentativo()`, `soltar()`, `cancelar()` + consultas (`esta_activo`, `esta_agarrando`, `entry_agarrada` — devuelve la snapshot, `item_agarrado` — la referencia real de `ItemInstance`, `rotacion_tentativa`, `celda_hover`, `celda_destino_tentativa`, `destino_es_valido`, `offset_agarre_actual`).
 - **`_unhandled_input`:** solo corre si `_activo`. Es fino: traduce y delega en las transiciones (que también usan los tests como caja blanca).
 - **NO debería:** llamar mutadores de `InventoryV2`; mutar `entry.position`/`entry.rotated`; depender de `visible` para saber si está activo.
-- **Relaciones:** en el arnés se agrega como **hijo `Control` del `InventoryGridView`** (mismas coordenadas locales), con `mouse_filter = IGNORE`.
+- **Relaciones:** en el arnés se agrega como **hijo `Control` del `InventoryGridView`** (mismas coordenadas locales), con `mouse_filter = IGNORE`. Desde C1 ese wiring está encapsulado en `InventoryPanel` (abajo).
+
+### `inventory_panel.gd` — `class_name InventoryPanel extends Control` (C1, `51d106f`)
+- **Responsabilidad:** componente reusable de producción que **encapsula el wiring V1** entre `InventoryGridView` e `InventoryManipulator` (deuda D5). **Composición pura** sobre APIs públicas existentes — **cero lógica de modelo**.
+- **Estructura de la escena** `scenes/components/inventory/inventory_panel.tscn`:
+  ```
+  InventoryPanel                (Control)
+  └── InventoryGridView         (instance de inventory_grid_view.tscn)
+      └── InventoryManipulator  (Control hijo, anchors_preset 15, mouse_filter IGNORE)
+  ```
+  (El `.tscn` referencia HOY `res://scenes/test/inventory_grid_view.tscn` — se actualiza en C2 cuando esa escena se mueva; D4.)
+- **API:** `setup(inventory, authority)` (→ `grid_view.set_inventory` + `manipulator.setup`; re-llamable: si está abierto, `cerrar()` primero), `abrir()`, `cerrar()`, `esta_abierto()`, `esta_configurado()`.
+- **`abrir()` es IDEMPOTENTE:** sin `setup()` previo → no-op; ya abierto → no-op (NO re-llama `manipulator.activar()`, que resetearía un grab en curso); cerrado + configurado → `visible = true` + `manipulator.activar()`.
+- **`cerrar()`:** `manipulator.desactivar()` (→ `cancelar()`: descarta cualquier held, emite `cancelado`, **modelo y custodia intactos** — INV-12) → `visible = false`. Es el par correcto visibilidad+input que exige el bug 15.2.
+- **Señales:** reenvía **1:1** las 5 del manipulator (`agarrado`, `soltado`, `preview_cambiado`, `cancelado`, `rotacion_rechazada`), con conexiones hechas **una sola vez en `_ready()`** a nodos internos estables → re-llamar `setup()` no las duplica. **NO** reenvía `contenido_cambiado` (señal del modelo; el consumidor ya tiene la ref del `inventory`).
+- **`cell_size`:** `@export` con **proxy real** — conserva el valor, lo aplica a `grid_view` en `_ready()`, y lo propaga en cada cambio posterior (`set` guardado por `is_node_ready()`).
+- **Estado interno:** solo `_configurado: bool` y `_abierto: bool`. El estado de manipulación (held/preview/rotación) vive en el manipulator; el panel NO lo duplica.
+- **`InventoryPanel` NO:** maneja `toggle_inventario`; agrega un `CanvasLayer` (lo provee el consumidor); busca/crea `InventoryV2` ni `LocalAuthority`; toca `InventoryV2` / `LocalAuthority` / `TransferOperation`; agrega features.
+- **Relaciones:** el consumidor lo pone bajo su propio `CanvasLayer` (o host `Control`), llama `setup()` con el `InventoryV2` y la `LocalAuthority` que él ya tiene, y `abrir()`/`cerrar()` desde su propia lógica de input.
+- **C1 NO migró ninguna escena existente** — el wiring duplicado sigue ahí (eso es C2). Ver sección 17, D5.
 
 ### Diagrama de flujo — V0 (pickup, mundo → inventario)
 
@@ -580,17 +600,18 @@ Ubicación: `scenes/test/`. Los `.gd` de arnés terminan con `assert(_fallos == 
 | `inventory_v1_activacion_test` | automático | 40 | gate de activación: inactivo tras `_ready`; cerrado → click/R/mouse no interactúan; cerrar con held → cancela + inerte; reabrir → limpio + procesa input; 10 ciclos abrir/cerrar + spam | INV-12 |
 | `inventory_v1_negatives_test` | automático | 65 | suite de aceptación end-to-end a través del manipulator: N1 solapamiento, N2 fuera de límites, N3 `can_rotate=false`, N4 rotar+drop inválido, N5 cerrar con held, N6 invariante de custodia en una sesión, N7 stress; P5 abrir/cerrar sin mutar; P6 reubicar en V1 + devolver al mundo (identidad end-to-end) | INV-09, INV-10, INV-11, INV-12, INV-13, INV-15, INV-16 |
 | `inventory_v1_manual_test` | manual (input real) | — | abrir/cerrar UI, agarrar, mover ghost, rotar, soltar (válido/OOB/solapado), `can_rotate=false`, cerrar con held; incluye la mitigación del `UiInventario` legacy | (verificación humana de todo lo anterior) |
+| `inventory_panel_test` | automático | 56 | `51d106f` (C1) — `InventoryPanel` como composición: arranca cerrado + input inactivo + `cell_size` del `.tscn` aplicado; `abrir()` antes de `setup()` = no-op; `setup()`+`abrir()` + proxy de `cell_size` post-`_ready`; `cerrar()` desactiva `unhandled_input` (guard bug 15.2); `cerrar()` con held → `cancelado` 1 vez, modelo/custodia intactos, sin `contenido_cambiado`; las 5 señales reenviadas exactamente +1; `setup()` x3 → sin doble-connect; `abrir()` x2 idempotente y NO cancela held; reubicación end-to-end vía `LocalAuthority` | INV-12, INV-13, INV-16 (composición; no cambia comportamiento del modelo) |
 
-### Estado final validado (gate tras Batch B.2, HEAD `29adfa3`)
+### Estado final validado (gate tras Batch C1, HEAD `51d106f`)
 
 ```
 V1 automático (comportamiento):  32 + 26 + 31 + 29 + 57 + 50 + 40 + 65  =  330 chequeos, 0 fallas
-Deuda (barrera D1 + tripwire D8): 29 (entry_readonly) + 22 (identity_contract)  =  51 chequeos, 0 fallas
-V0:                               22 negativos (0 fallas)  +  ruta feliz (carga OK, 0 errores)
-Total: 403 chequeos, 0 fallas. Godot 4.6.3, --headless. Sin warnings de parseo. 0 líneas ERROR: intencionales.
+Deuda (D1 + D8 + D5):            29 (entry_readonly) + 22 (identity_contract) + 56 (panel)  =  107 chequeos, 0 fallas
+V0:                              22 negativos (0 fallas)  +  ruta feliz (carga OK, 0 errores)
+Total: 459 chequeos, 0 fallas. Godot 4.6.3, --headless. Sin warnings de parseo. 0 líneas ERROR: intencionales.
 ```
 
-El conteo de comportamiento V1 pasó de 328 (`e2e406d`) a 330: `+2` en `inventory_v1_manipulator_test` (chequeo white-box INV-09 + `item_agarrado`). El resto de los conteos no cambió — Batch B/B.2 no alteraron comportamiento.
+El conteo de comportamiento V1 pasó de 328 (`e2e406d`) a 330: `+2` en `inventory_v1_manipulator_test` (chequeo white-box INV-09 + `item_agarrado`). El resto de los conteos no cambió — Batch B/B.2/C1 no alteraron comportamiento. C1 es aditivo puro (6 archivos nuevos, 0 modificaciones).
 
 Además hubo **stress manual** en V1 (mover/rotar/soltar, rechazos, `can_rotate=false`, cerrar con held, gate de UI cerrada, spam de input y de abrir/cerrar) — aprobado sin comportamiento raro.
 
@@ -630,7 +651,7 @@ Además hubo **stress manual** en V1 (mover/rotar/soltar, rechazos, `can_rotate=
 
 ## 17. Deuda / riesgos conocidos
 
-Deuda **realmente observada** en el código/tests. Estado a HEAD `29adfa3`.
+Deuda **realmente observada** en el código/tests. Estado a HEAD `51d106f`.
 
 ### DEUDA SALDADA
 
@@ -641,8 +662,8 @@ Deuda **realmente observada** en el código/tests. Estado a HEAD `29adfa3`.
 ### DEUDA CONOCIDA (pendiente)
 
 2. **`LocalAuthority` inyectado manualmente, receptor único.** Se pasa vía `setup()` en cada arné, y el inventario receptor de pickup se fija con `set_inventory_receptor()` (un solo `_inventory_receptor`). No hay targeting real ("a qué inventario / de qué entidad"). Documentado como deliberado en `local_authority.gd`. Se paga cuando exista gameplay concreto de pickup; **no** requiere multiplayer.
-4. **Escena de un componente de producción bajo `scenes/test/`.** `inventory_grid_view.tscn` (escena del `Control` `InventoryGridView`, que es producción) vive en `scenes/test/`. Lo instancian ~6 escenas de test. Reubicar + actualizar los `ext_resource path=` (el `uid` no cambia). Planeado para Batch C2, junto con D5.
-5. **El manipulator debe cablearse manualmente en cada consumidor.** Depende de ser un hijo `Control` del `InventoryGridView`, alineado, con `mouse_filter = IGNORE` en ambos y `set_input_as_handled()` para `toggle_inventario` en el arné. No está encapsulado en una escena reutilizable. Dirección prevista: un `InventoryPanel` que encapsule solo el wiring V1 existente (Batch C1).
+4. **Escena de un componente de producción bajo `scenes/test/` — PENDIENTE.** `inventory_grid_view.tscn` (escena del `Control` `InventoryGridView`, que es producción) vive en `scenes/test/`. Lo instancian ~6 escenas de test **y ahora también `scenes/components/inventory/inventory_panel.tscn`** (que lo referencia temporalmente por `res://scenes/test/...`). Reubicar + actualizar todos los `ext_resource path=` (el `uid` no cambia). Planeado para Batch C2. **C1 NO creó una D4 nueva**: `inventory_panel.tscn` sí está en el directorio definitivo (`scenes/components/inventory/`).
+5. **El manipulator debe cablearse manualmente en cada consumidor — PARCIALMENTE PAGADA EN C1 (`51d106f`).** El wiring `GridView → Manipulator(hijo, full-rect, mouse_filter IGNORE)` + `set_inventory` + `manipulator.setup` + el par `activar()/desactivar()`+`visible` está ahora **encapsulado en `InventoryPanel`** (`scenes/components/inventory/inventory_panel.tscn` + `inventory_panel.gd`), componente reusable con su propio test (`inventory_panel_test`, 56/0). **La duplicación existente en las ~5 escenas/tests que usan View+Manipulator NO se eliminó** — C1 fue deliberadamente aditivo, sin migrar nada. C2 hará la **migración selectiva** y recién entonces se reevaluará D5 como PAGADA.
 6. **`ItemInstance._siguiente_id` es `static` global de proceso.** Los `instance_id` son únicos por corrida, no persisten, no son por-inventario. **Formalizado en `29adfa3` como C-D8.3/C-D8.4:** `instance_id` es solo aid de logs/tests, ninguna lógica de producción depende de su valor; los tests afirman identidad por **referencia**. Se vuelve deuda real solo si aparece persistencia/red (fuera de alcance). No introducir UUID para esto.
 8. **Identidad `ItemInstance` / `ItemDefinition` mutable desde una referencia viva — LIMITACIÓN DELIBERADA (`29adfa3`, Batch B.2).** GDScript 4.6.3 no tiene `private`/`protected`; un consumidor que sostiene un `ItemInstance` puede hacer `ii.definition = otra`, `ii.definition.grid_width = 99`, `ii.instance_id = x`. Auditoría Batch B.2: **0 consumidores en el repo lo hacen** y las 4 reglas de contrato (C-D8.1..4) se cumplen de facto. El filo grave es `ii.definition` (mutar el `.tres` compartido rompería footprint/render/validación para todas las instancias del tipo a la vez). Los tenedores de `ItemInstance` vivo restantes (`WorldItemV2`, `LocalAuthority`, `TransferOperation`) son el core controlado, no puntos de extensión. Cerrarlo de verdad exigiría un registro de handles opacos (≈ otro Batch B de churn) o migrar el modelo a C# (fuerza build .NET en todo el proyecto + CI; descartado). **Se acepta el contrato por convención + tripwire (`inventory_v1_identity_contract_test`).** Hardening ya aplicado en B.2: contrato en comentarios de `item_instance.gd`/`item_definition.gd`; `InventoryGridView.layout_entries()` dejó de exponer `ItemInstance`. **Triggers para revisar:** UI/gameplay nuevo que sostenga un `ItemInstance` más allá de la vista pura; persistencia/save-load o networking; consumidores externos al módulo / segundo equipo.
 
@@ -690,7 +711,7 @@ Que estén listados acá **no significa que V2 vaya a implementarlos todos**. Es
 ## 20. Estado actual
 
 ```
-HEAD : 29adfa3   (este documento describe hasta acá)
+HEAD : 51d106f   (+ el commit de este .md; este documento describe hasta acá)
 
 V0        1505ed5  cerrado y pusheado
 V1        e2e406d  cerrado y pusheado
@@ -698,9 +719,11 @@ Docs      2871f87  primera foto de V0+V1 (ANTERIOR a Batch A)
 Batch A   7463866  comentarios: D3, D7, aclara D2/D6
 Batch B   43fc2f4  D1 pagada (snapshots detached)
 Batch B.2 29adfa3  D8 limitación deliberada + contrato + tripwire + layout sin ItemInstance
+Batch C1  51d106f  D5 parcialmente pagada — InventoryPanel reusable (aditivo, sin migrar escenas)
 V2                 no iniciado, alcance no decidido
 
-Pendiente: Batch C1 (InventoryPanel), Batch C2 (mover inventory_grid_view.tscn + migración selectiva de tests).
+Deuda pendiente: D2 (targeting de pickup), D4 (mover inventory_grid_view.tscn), D5 (migración
+selectiva de escenas al InventoryPanel), D8 (limitación deliberada). Próximo: Batch C2 (D4 + D5).
 ```
 
-Al momento de este commit documental, `43fc2f4`, `29adfa3` y el commit de este `.md` están **por delante de `origin/main`** (aún sin push) o recién pusheados según el paso siguiente del plan. Cualquier cambio posterior debe actualizar las secciones afectadas.
+Gate a `51d106f`: **459 chequeos, 0 fallas** (sección 14). Cualquier cambio posterior debe actualizar las secciones afectadas.

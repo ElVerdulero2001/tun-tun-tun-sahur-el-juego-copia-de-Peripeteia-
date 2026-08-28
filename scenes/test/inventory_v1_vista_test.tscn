@@ -1,0 +1,31 @@
+[gd_scene format=3 uid="uid://dv1p4vista01"]
+
+[ext_resource type="Script" uid="uid://cv1p4vista01" path="res://scenes/test/inventory_v1_vista_test.gd" id="1_v1p4"]
+[ext_resource type="Script" uid="uid://cvry6r1i8yoko" path="res://scripts/player n entities/inventory_v2/local_authority.gd" id="2_authority"]
+[ext_resource type="Script" uid="uid://bokafhmy5nxc5" path="res://scripts/player n entities/inventory_v2/inventory.gd" id="3_inventory"]
+[ext_resource type="Resource" uid="uid://bs28esuanu3ea" path="res://assets/data/test_inventory_v2/item_definition_test.tres" id="4_def"]
+[ext_resource type="PackedScene" uid="uid://dv1gridview01" path="res://scenes/test/inventory_grid_view.tscn" id="5_view"]
+
+[node name="InventoryV1VistaTest" type="Node3D"]
+script = ExtResource("1_v1p4")
+item_definition_test = ExtResource("4_def")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="InventoryGridView" parent="CanvasLayer" instance=ExtResource("5_view")]
+
+[node name="LocalAuthority" type="Node" parent="."]
+script = ExtResource("2_authority")
+
+[node name="InvNormal" type="Node" parent="."]
+script = ExtResource("3_inventory")
+grid_width = 4
+grid_height = 4
+
+[node name="InvAngosto" type="Node" parent="."]
+script = ExtResource("3_inventory")
+grid_width = 1
+grid_height = 4
+
+[node name="PuntoSpawnMundo" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -1.5)

@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://dv1gridview01"]
+
+[ext_resource type="Script" uid="uid://cv1gridview01" path="res://scripts/player n entities/inventory_v2/inventory_grid_view.gd" id="1_view"]
+
+[node name="InventoryGridView" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_view")

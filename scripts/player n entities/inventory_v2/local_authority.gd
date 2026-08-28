@@ -65,6 +65,26 @@ func solicitar_devolucion(item_instance: ItemInstance, inventory: InventoryV2, p
 	_log("COMMIT devolucion: %s -> exito=%s | contexto ahora=World" % [item_instance, nuevo_world_item != null])
 	return nuevo_world_item
 
+## Solicitud de reubicacion: mover y/o rotar un ItemInstance DENTRO de su
+## mismo InventoryV2 (V1). Mismo patron que solicitar_pickup: construir la
+## operacion, validar, y recien entonces commitear. Devuelve true si la
+## reubicacion se completo, false si la validacion la rechazo (en cuyo caso
+## el inventario queda identico y no se emite contenido_cambiado).
+func solicitar_reubicacion(item_instance: ItemInstance, inventory: InventoryV2, nueva_pos: Vector2i, nuevo_rotated: bool) -> bool:
+	_log("SOLICITUD reubicacion: %s | Inventory(%s) -> celda %s rotated=%s" % [item_instance, inventory.name, nueva_pos, nuevo_rotated])
+
+	var op := TransferOperation.crear_reubicar(item_instance, inventory, nueva_pos, nuevo_rotated)
+	var valido := op.validate()
+	_log("VALIDATE reubicacion: %s -> %s" % [item_instance, op.get_resultado_validacion()])
+
+	if not valido:
+		_log("COMMIT abortado (validacion fallida). %s no se movio." % item_instance)
+		return false
+
+	var resultado: bool = op.commit()
+	_log("COMMIT reubicacion: %s -> exito=%s | celda ahora=%s rotated=%s" % [item_instance, resultado, nueva_pos, nuevo_rotated])
+	return resultado
+
 ## En V0 solo hay un inventario receptor posible: el hijo InventoryV2
 ## de la entidad "jugador" de prueba. Esto es deliberadamente ingenuo
 ## (ver deuda tecnica en el resumen final) — resolver "a que inventario

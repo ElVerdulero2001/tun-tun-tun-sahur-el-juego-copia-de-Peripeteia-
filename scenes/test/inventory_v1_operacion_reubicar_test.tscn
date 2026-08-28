@@ -1,0 +1,41 @@
+[gd_scene format=3 uid="uid://dv1p3opreub01"]
+
+[ext_resource type="Script" uid="uid://cv1p3opreub01" path="res://scenes/test/inventory_v1_operacion_reubicar_test.gd" id="1_v1p3"]
+[ext_resource type="Script" uid="uid://cvry6r1i8yoko" path="res://scripts/player n entities/inventory_v2/local_authority.gd" id="2_authority"]
+[ext_resource type="Script" uid="uid://bokafhmy5nxc5" path="res://scripts/player n entities/inventory_v2/inventory.gd" id="3_inventory"]
+[ext_resource type="Resource" uid="uid://bs28esuanu3ea" path="res://assets/data/test_inventory_v2/item_definition_test.tres" id="4_def"]
+[ext_resource type="Resource" uid="uid://cnorotav1tst1" path="res://assets/data/test_inventory_v2/item_definition_no_rota_test.tres" id="5_norota"]
+
+[sub_resource type="Environment" id="Environment_test"]
+background_mode = 1
+background_color = Color(0.25, 0.3, 0.35, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.65, 0.7, 1)
+ambient_light_energy = 1.0
+
+[node name="InventoryV1OperacionReubicarTest" type="Node3D"]
+script = ExtResource("1_v1p3")
+item_definition_test = ExtResource("4_def")
+item_definition_no_rota = ExtResource("5_norota")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_test")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.573576, 0.819152, 0, -0.819152, 0.573576, 0, 6, 0)
+
+[node name="LocalAuthority" type="Node" parent="."]
+script = ExtResource("2_authority")
+
+[node name="InvNormal" type="Node" parent="."]
+script = ExtResource("3_inventory")
+grid_width = 4
+grid_height = 4
+
+[node name="InvNoRota" type="Node" parent="."]
+script = ExtResource("3_inventory")
+grid_width = 4
+grid_height = 4
+
+[node name="PuntoSpawnMundo" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -1.5)

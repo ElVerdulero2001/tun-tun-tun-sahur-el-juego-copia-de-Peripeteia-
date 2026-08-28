@@ -7,9 +7,11 @@
 [node name="InventoryPanel" type="Control"]
 layout_mode = 3
 anchors_preset = 0
+mouse_filter = 2
 script = ExtResource("1_panel")
 
 [node name="InventoryGridView" parent="." instance=ExtResource("2_view")]
+mouse_filter = 2
 
 [node name="InventoryManipulator" type="Control" parent="InventoryGridView"]
 layout_mode = 1

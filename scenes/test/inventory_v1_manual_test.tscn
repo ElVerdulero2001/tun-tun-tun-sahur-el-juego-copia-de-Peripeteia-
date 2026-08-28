@@ -1,12 +1,11 @@
-[gd_scene format=3 uid="uid://dv1p5manual1"]
+[gd_scene load_steps=8 format=3 uid="uid://dv1p5manual1"]
 
 [ext_resource type="Script" uid="uid://cv1p5manual1" path="res://scenes/test/inventory_v1_manual_test.gd" id="1_v1man"]
 [ext_resource type="Script" uid="uid://cvry6r1i8yoko" path="res://scripts/player n entities/inventory_v2/local_authority.gd" id="2_authority"]
 [ext_resource type="Script" uid="uid://bokafhmy5nxc5" path="res://scripts/player n entities/inventory_v2/inventory.gd" id="3_inventory"]
 [ext_resource type="Resource" uid="uid://bs28esuanu3ea" path="res://assets/data/test_inventory_v2/item_definition_test.tres" id="4_def"]
 [ext_resource type="Resource" uid="uid://cnorotav1tst1" path="res://assets/data/test_inventory_v2/item_definition_no_rota_test.tres" id="5_norota"]
-[ext_resource type="PackedScene" uid="uid://dv1gridview01" path="res://scenes/components/inventory/inventory_grid_view.tscn" id="6_view"]
-[ext_resource type="Script" uid="uid://cv1manipula01" path="res://scripts/player n entities/inventory_v2/inventory_manipulator.gd" id="7_manip"]
+[ext_resource type="PackedScene" uid="uid://dinvpanel01" path="res://scenes/components/inventory/inventory_panel.tscn" id="6_panel"]
 
 [sub_resource type="Environment" id="Environment_test"]
 background_mode = 1
@@ -32,15 +31,7 @@ anchor_bottom = 1.0
 color = Color(0.07, 0.08, 0.1, 1)
 mouse_filter = 2
 
-[node name="InventoryGridView" parent="CanvasLayer" instance=ExtResource("6_view")]
-
-[node name="InventoryManipulator" type="Control" parent="CanvasLayer/InventoryGridView"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-mouse_filter = 2
-script = ExtResource("7_manip")
+[node name="InventoryPanel" parent="CanvasLayer" instance=ExtResource("6_panel")]
 
 [node name="Status" type="Label" parent="CanvasLayer"]
 offset_left = 40.0

@@ -19,7 +19,10 @@ extends Control
 ##
 ## La capa de input (_unhandled_input) es fina: solo traduce eventos a las
 ## transiciones públicas (agarrar_en / mover_hover_a / rotar_tentativo /
-## soltar / cancelar), que también usan los tests.
+## soltar / cancelar / descartar_fuera), que también usan los tests.
+## Al soltar con item held: si el cursor cae DENTRO del rectangulo de la grilla
+## -> soltar() (reubicacion); si cae FUERA -> descartar_fuera() (emite la
+## INTENCION drop_fuera_solicitado; no toca el modelo ni la autoridad).
 ##
 ## ACTIVACIÓN: _unhandled_input SOLO corre si el manipulator está activo
 ## (activar() / desactivar()). Ocultar la UI (visible=false) NO frena _input
@@ -33,6 +36,13 @@ signal soltado(entry: InventoryEntry, exito: bool)
 signal preview_cambiado()
 signal cancelado(entry: InventoryEntry)
 signal rotacion_rechazada(entry: InventoryEntry)
+## El usuario solto el item held con el cursor FUERA del rectangulo de la grilla.
+## Es INTENCION, no ejecucion: el manipulator NO saca el item del InventoryV2 ni
+## llama a LocalAuthority — solo sabe que se pidio soltarlo afuera. Quien conecte
+## esta señal decide que hacer (drop al mundo, dar a otra entidad, etc.). Si esa
+## operacion no ocurre o falla, el ItemInstance sigue en InventoryV2 en su celda
+## original (el manipulator no lo movio).
+signal drop_fuera_solicitado(item_instance: ItemInstance)
 
 @export var color_ghost_valido: Color = Color(0.30, 0.90, 0.40, 0.45)
 @export var color_ghost_invalido: Color = Color(0.95, 0.30, 0.30, 0.45)
@@ -230,6 +240,25 @@ func cancelar() -> void:
 	queue_redraw()
 	cancelado.emit(entry)
 
+## Transicion: el usuario suelta el held con el cursor FUERA del rectangulo de
+## la grilla. NO es reubicacion (no toca LocalAuthority) ni cancelacion (no
+## emite `cancelado`): es una SOLICITUD de sacar el item. Pasos (C5-B):
+##   1. captura la referencia real de ItemInstance;
+##   2. limpia el estado held LOCAL (igual que cancelar, sin tocar el modelo);
+##   3. repinta (el ghost desaparece);
+##   4. emite drop_fuera_solicitado(item_instance).
+## El InventoryV2 NO se modifica aca. Si el consumidor no completa el drop, el
+## item sigue en su celda original.
+func descartar_fuera() -> void:
+	if _seleccionada == null:
+		return
+	var ii := _seleccionada.item_instance
+	_seleccionada = null
+	_rotacion_tentativa = false
+	_agarre_rel_normal = Vector2i.ZERO
+	queue_redraw()
+	drop_fuera_solicitado.emit(ii)
+
 
 # ── Input real (fino: solo traduce a las transiciones de arriba) ────
 
@@ -255,14 +284,37 @@ func _unhandled_input(event: InputEvent) -> void:
 		_celda_hover = _celda_bajo_mouse()
 		if _seleccionada == null:
 			agarrar_en(_celda_hover)
-		else:
+		elif _celda_dentro_de_la_grilla(_celda_hover):
 			soltar()
+		else:
+			# cursor FUERA del rectangulo de la grilla -> el usuario quiere sacar
+			# el item. Solo intencion (C5-B): descartar_fuera no toca el modelo.
+			descartar_fuera()
 
 
 func _celda_bajo_mouse() -> Vector2i:
 	var cs: int = _view.cell_size
 	var pos := _view.get_local_mouse_position()
 	return Vector2i(floori(pos.x / cs), floori(pos.y / cs))
+
+
+## True = la celda CRUDA bajo el cursor (de _celda_bajo_mouse) cae DENTRO del
+## rectangulo real de la grilla: [0, grid_width) x [0, grid_height) en celdas.
+## Es EXACTAMENTE "el pixel del mouse esta dentro de [0, W*cell_size) x
+## [0, H*cell_size)" porque _celda_bajo_mouse hace floori(pixel/cell_size).
+## Fuente geometrica: grid_width/grid_height (InventoryV2, ya se leen aca) +
+## cell_size (InventoryGridView, ya se lee en _celda_bajo_mouse). No necesita
+## API nueva de InventoryGridView.
+##
+## OJO: esto NO es la celda de DESTINO (celda_hover - offset del agarre). Un
+## cursor DENTRO de la grilla con una posicion de destino invalida (solape /
+## footprint parcialmente afuera) sigue yendo por soltar() -> reubicacion
+## rechazada -> item held. "Fuera" aca = el cursor mismo salio del rectangulo.
+func _celda_dentro_de_la_grilla(celda: Vector2i) -> bool:
+	var inv := _inventario()
+	if inv == null:
+		return false
+	return celda.x >= 0 and celda.y >= 0 and celda.x < inv.grid_width and celda.y < inv.grid_height
 
 
 func _footprint_de(def: ItemDefinition, rotated: bool) -> Vector2i:

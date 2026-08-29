@@ -33,6 +33,9 @@ signal soltado(entry: InventoryEntry, exito: bool)
 signal preview_cambiado()
 signal cancelado(entry: InventoryEntry)
 signal rotacion_rechazada(entry: InventoryEntry)
+## Intencion: el usuario solto el item held fuera de la grilla. El panel solo la
+## reenvia; NO conoce ItemDropper, ni el mundo, ni PlayerV2, ni posiciones 3D.
+signal drop_fuera_solicitado(item_instance: ItemInstance)
 
 ## Tamano de celda en pixeles. Proxy REAL de grid_view.cell_size: conserva el
 ## valor, lo aplica en _ready(), y lo propaga en cada cambio posterior.
@@ -57,6 +60,7 @@ func _ready() -> void:
 	manipulator.preview_cambiado.connect(_reenviar_preview_cambiado)
 	manipulator.cancelado.connect(_reenviar_cancelado)
 	manipulator.rotacion_rechazada.connect(_reenviar_rotacion_rechazada)
+	manipulator.drop_fuera_solicitado.connect(_reenviar_drop_fuera_solicitado)
 
 
 ## Cablea vista + manipulator a `inventory` / `authority`. Re-llamable: cambiar
@@ -119,3 +123,6 @@ func _reenviar_cancelado(entry: InventoryEntry) -> void:
 
 func _reenviar_rotacion_rechazada(entry: InventoryEntry) -> void:
 	rotacion_rechazada.emit(entry)
+
+func _reenviar_drop_fuera_solicitado(item_instance: ItemInstance) -> void:
+	drop_fuera_solicitado.emit(item_instance)

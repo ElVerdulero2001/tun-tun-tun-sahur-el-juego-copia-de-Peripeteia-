@@ -1,0 +1,24 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player_v2/sandbox_interactable.gd" id="1_si"]
+[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="2_ic"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_si"]
+size = Vector3(0.8, 2, 0.8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_si"]
+size = Vector3(0.8, 2, 0.8)
+
+[node name="SandboxInteractable" type="StaticBody3D"]
+collision_layer = 3
+collision_mask = 1
+script = ExtResource("1_si")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_si")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_si")
+
+[node name="InteractionComponent" type="Node" parent="."]
+script = ExtResource("2_ic")

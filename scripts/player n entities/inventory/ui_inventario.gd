@@ -18,6 +18,17 @@ func _ready():
 	visible = false
 	_construir_grilla()
 
+	# TEMPORAL — migración PlayerV2 / InventoryV2 (SUA-1.4 C4-B0).
+	# UiInventario legacy permanece como Autoload porque Player V1 todavía tiene
+	# referencias (player.gd, tirar_item.gd, inventario.gd leen UiInventario.visible),
+	# pero su procesamiento de input queda HIBERNADO mientras PlayerInventoryUI
+	# reemplaza su función. Con esto el Autoload sigue instanciándose, sigue
+	# accesible como UiInventario y `visible` sigue en false — solo deja de capturar
+	# toggle_inventario / mouse motion / rotar_item / clicks de inventario.
+	# El nodo se elimina definitivamente cuando se retiren sus consumidores V1.
+	# NO borrar _input() ni funcionalidad: es hibernación, no eliminación.
+	set_process_input(false)
+
 func _construir_grilla():
 	var escala = get_viewport().get_visible_rect().size.y / 648.0
 	var cell_size = int(CELL_SIZE * escala)

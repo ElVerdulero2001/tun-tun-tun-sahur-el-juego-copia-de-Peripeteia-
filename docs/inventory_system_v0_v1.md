@@ -11,6 +11,33 @@
 
 ---
 
+> ## ⚠️ SUPERSEDED PARCIAL — leer antes de usar §3, §14 y §17
+>
+> Este documento es una **foto en `2893a70`**, tomada **antes de que existiera
+> PlayerV2**. Después, la línea de trabajo **SUA-1.3 C0–C3** (`8bb5420`, `2d22cd5`,
+> `4d05e4c`, `61eba68`) integró el inventario con PlayerV2 y **cambió el contrato
+> de `LocalAuthority` y de `WorldItemV2`**:
+>
+> - `LocalAuthority` ya **no** tiene `_inventory_receptor` / `set_inventory_receptor()` /
+>   `_encontrar_inventory_receptor()`. `solicitar_pickup(world_item, inventory)`
+>   recibe el inventario **explícito por parámetro**, igual que las otras dos
+>   operaciones. Es **stateless** respecto de routing.
+> - `WorldItemV2` ya **no** tiene `_authority` ni `setup()`. Es **neutral**: no
+>   guarda actor, inventario ni autoridad. Quien lo recoge se decide en el momento
+>   de la interacción (`interaction.actor → InventoryReceiver`).
+> - La **deuda D2** (§17) — "receptor único / targeting" — quedó **RESUELTA** por
+>   C1/C2.
+>
+> **`TransferOperation`, el modelo (`InventoryV2` / `InventoryEntry` /
+> `ItemInstance` / `ItemDefinition`) y la UI V1 (`InventoryGridView` /
+> `InventoryManipulator` / `InventoryPanel`) NO cambiaron.** Todo lo demás de este
+> documento sigue siendo correcto.
+>
+> **Estado actual de la costura PlayerV2 ↔ InventoryV2:
+> `docs/player_v2_inventory_integration_c0_c3.md`.**
+
+---
+
 ## 1. Propósito del sistema
 
 ### Qué problema resuelve
@@ -171,6 +198,9 @@ Todos los archivos de producción están en `scripts/player n entities/inventory
 - **Relaciones:** creado y ejecutado **solo** por `LocalAuthority`. `_commit_*` delega en los mutadores de `InventoryV2`.
 
 ### `local_authority.gd` — `class_name LocalAuthority extends Node` (INV-08)
+
+> **[SUPERSEDED por C2 — `4d05e4c`.](player_v2_inventory_integration_c0_c3.md)** Lo de abajo describe el estado en `2893a70`. Estado actual: `solicitar_pickup(world_item, inventory)` recibe el inventario **por parámetro**; **no existen** `_inventory_receptor`, `set_inventory_receptor()`, `_encontrar_inventory_receptor()`; `solicitar_devolucion` **no** hace `nuevo_world_item.setup(self)`. `LocalAuthority` es stateless respecto de routing. Las firmas de `solicitar_devolucion` / `solicitar_reubicacion` no cambiaron.
+
 - **Responsabilidad:** frontera de autoridad. **El único** que invoca `TransferOperation.validate()/commit()`. Loguea `[LocalAuthority] SOLICITUD/VALIDATE/COMMIT …`.
 - **API pública:** `solicitar_pickup(world_item) -> bool`, `solicitar_devolucion(item, inventory, parent, position) -> WorldItemV2`, `solicitar_reubicacion(item, inventory, nueva_pos, nuevo_rotated) -> bool`, `set_inventory_receptor(inventory)`.
 - **Puede leer:** `_inventory_receptor` (para pickup), lo que le pasan por parámetro.
@@ -179,6 +209,9 @@ Todos los archivos de producción están en `scripts/player n entities/inventory
 - **Relaciones:** inyectado vía `setup()` en `WorldItemV2` y `InventoryManipulator`. En V0 se le fija UN inventario receptor (`set_inventory_receptor`) — deuda conocida, ver sección 17.
 
 ### `world_item.gd` — `class_name WorldItemV2 extends RigidBody3D` (INV-02)
+
+> **[SUPERSEDED por C1/C2 — `2d22cd5` / `4d05e4c`.](player_v2_inventory_integration_c0_c3.md)** Lo de abajo describe el estado en `2893a70`. Estado actual: **no existen** `_authority` ni `setup()`. `_on_interact` pasa `interaction.actor` a `_solicitar_pickup(actor)`, que resuelve un `InventoryReceiver` entre los hijos directos del actor (`_resolver_receiver`) y le delega. `WorldItemV2` es **neutral** respecto de autoridad. Único campo: `item_instance`.
+
 - **Responsabilidad:** carcasa **física y visual TEMPORAL** de un `ItemInstance` mientras existe en el mundo. Puede crearse/destruirse sin destruir la identidad lógica.
 - **Campos:** `item_instance: ItemInstance` (plain `var`, **no** `@export`), `_authority: Node` (inyectado por `setup()`).
 - **`_on_interact(interaction) -> Variant`:** contrato de `InteractionComponent` (gameplay) — acción `&"usar"` → `_solicitar_pickup()`.
@@ -229,6 +262,8 @@ Todos los archivos de producción están en `scripts/player n entities/inventory
 
 ### Diagrama de flujo — V0 (pickup, mundo → inventario)
 
+> **[Parcialmente SUPERSEDED por C1/C2.](player_v2_inventory_integration_c0_c3.md)** El tramo `_on_interact → _solicitar_pickup → LocalAuthority` cambió: hoy es `_on_interact(interaction) → _solicitar_pickup(interaction.actor) → _resolver_receiver(actor) → InventoryReceiver.recibir_pickup(world_item) → LocalAuthority.solicitar_pickup(world_item, inventory)`. Ya **no** existe `_inventory_receptor`. El tramo `TransferOperation → InventoryV2._entries` (de `validate()` en adelante) **no cambió**.
+
 ```
 WorldItemV2._on_interact(&"usar")            [InteractionComponent en gameplay / directo en tests]
         |
@@ -271,6 +306,8 @@ LocalAuthority.solicitar_devolucion(item, inventory, parent, spawn_pos)
         v
    LocalAuthority: nuevo.setup(self)   (re-inyecta la autoridad en el world item nuevo)
 ```
+
+> **[Última línea SUPERSEDED por C2.](player_v2_inventory_integration_c0_c3.md)** `solicitar_devolucion` ya **no** hace `nuevo.setup(self)` — el `WorldItemV2` de una devolución nace **neutral** y quien lo recoja después se resuelve por `interaction.actor → InventoryReceiver`. Todo lo anterior del diagrama no cambió.
 
 ### Diagrama de flujo — V1 (reubicación dentro del mismo inventario)
 
@@ -587,6 +624,8 @@ Invariantes transversales sin número explícito pero verificadas: *toda reubica
 
 ## 14. Tests
 
+> **[Nota post-C1.](player_v2_inventory_integration_c0_c3.md)** Los 13 arneses que sembraban con `authority.set_inventory_receptor(inv)` + `wi.setup(authority)` + `Interaction.new(self, …)` se migraron en C1 a un **actor de prueba con `InventoryReceiver` hijo directo** (`scenes/test/helpers/inventory_test_actor.gd`, TEST-ONLY): siembran con `Interaction.new(actor_de_prueba, …)`. **Los conteos del gate no cambiaron (459/0).** El gate protege exactamente lo mismo. Tests nuevos de la integración PlayerV2: `player_v2_inventory_isolation_test` (25/0), `player_v2_pickup_c1_test` (21/0), `player_v2_inventory_sandbox_test` (19/0) — no están en el gate de 459.
+
 Ubicación: `scenes/test/`. Los `.gd` de arnés terminan con `assert(_fallos == 0)` y `get_tree().quit(_fallos)` (salvo el manual). Todos siembran el inventario **por la ruta V0** (spawn `WorldItemV2` + `_on_interact(&"usar")` → `LocalAuthority.solicitar_pickup`), sin backdoors de mutación — salvo los chequeos white-box de INV-09, que a propósito trabajan sobre `inv._entries` (entries vivas): `inventory_v1_reubicar_test` (`_sembrar` devuelve `_entries.duplicate()` y llama `_reubicar_entry`/`_quitar_entry` directo), y helpers puntuales en `operacion_reubicar_test` / `manipulator_test` / `entry_readonly_test`.
 
 | Test | Tipo | Chequeos | Qué prueba | Invariantes que protege |
@@ -652,6 +691,7 @@ Antes hubo **stress manual** en V1 (mover/rotar/soltar, rechazos, `can_rotate=fa
 - **Mitigación en el arné de prueba:** `inventory_v1_manual_test.gd` hace `UiInventario.set_process_input(false)` en `_ready`. Es reversible, solo dura esa escena, no toca ningún archivo compartido.
 - **V1 no depende arquitectónicamente de la UI legacy.** El `InventoryManipulator` no usa `toggle_inventario`; el abrir/cerrar lo maneja el arné a nivel pantalla. La arquitectura legacy y la de V0/V1 son sistemas separados que hoy conviven en el proyecto sin integrarse.
 - El sistema de interacción genérico (`Interaction`, `InteractionComponent`, `raycast_interaccion.gd`, en `scripts/player n entities/`) **sí** lo usa V0: `WorldItemV2._on_interact` es el contrato de `InteractionComponent`. Los arneses de test lo invocan directamente para sembrar.
+- **Post-C3:** el flujo `InteractionV2 → WorldItemV2 → InventoryReceiver → LocalAuthority → InventoryV2` de PlayerV2 **tampoco** depende de `Inventario` / `UiInventario` / `Catalogo`. Los tres Autoloads **siguen activos y sin tocar** (TAB todavía abre el overlay legacy). Su eliminación es trabajo posterior — ver `docs/player_v2_inventory_integration_c0_c3.md` §9–§10.
 
 ---
 
@@ -670,7 +710,7 @@ Deuda **realmente observada** en el código/tests. Estado a HEAD `2893a70` (Batc
 
 ### DEUDA CONOCIDA (pendiente)
 
-2. **`LocalAuthority` inyectado manualmente, receptor único.** Se pasa vía `setup()` en cada arné, y el inventario receptor de pickup se fija con `set_inventory_receptor()` (un solo `_inventory_receptor`). No hay targeting real ("a qué inventario / de qué entidad"). Documentado como deliberado en `local_authority.gd`. Se paga cuando exista gameplay concreto de pickup; **no** requiere multiplayer.
+2. **~~`LocalAuthority` inyectado manualmente, receptor único~~ — RESUELTA por C1/C2 (`2d22cd5` / `4d05e4c`).** El "targeting real" (a qué inventario / de qué entidad) lo aporta ahora `InventoryReceiver`, resuelto desde `interaction.actor`. `LocalAuthority` dejó de tener `_inventory_receptor` / `set_inventory_receptor()` / `_encontrar_inventory_receptor()`; `solicitar_pickup(world_item, inventory)` recibe el inventario explícito. Ver `docs/player_v2_inventory_integration_c0_c3.md`. *(Enunciado original conservado como registro: "Se pasa vía `setup()` en cada arné, y el inventario receptor de pickup se fija con `set_inventory_receptor()` — un solo `_inventory_receptor`. No hay targeting real. Se paga cuando exista gameplay concreto de pickup; no requiere multiplayer.")*
 6. **`ItemInstance._siguiente_id` es `static` global de proceso.** Los `instance_id` son únicos por corrida, no persisten, no son por-inventario. **Formalizado en `29adfa3` como C-D8.3/C-D8.4:** `instance_id` es solo aid de logs/tests, ninguna lógica de producción depende de su valor; los tests afirman identidad por **referencia**. Se vuelve deuda real solo si aparece persistencia/red (fuera de alcance). No introducir UUID para esto.
 8. **Identidad `ItemInstance` / `ItemDefinition` mutable desde una referencia viva — LIMITACIÓN DELIBERADA (`29adfa3`, Batch B.2).** GDScript 4.6.3 no tiene `private`/`protected`; un consumidor que sostiene un `ItemInstance` puede hacer `ii.definition = otra`, `ii.definition.grid_width = 99`, `ii.instance_id = x`. Auditoría Batch B.2: **0 consumidores en el repo lo hacen** y las 4 reglas de contrato (C-D8.1..4) se cumplen de facto. El filo grave es `ii.definition` (mutar el `.tres` compartido rompería footprint/render/validación para todas las instancias del tipo a la vez). Los tenedores de `ItemInstance` vivo restantes (`WorldItemV2`, `LocalAuthority`, `TransferOperation`) son el core controlado, no puntos de extensión. Cerrarlo de verdad exigiría un registro de handles opacos (≈ otro Batch B de churn) o migrar el modelo a C# (fuerza build .NET en todo el proyecto + CI; descartado). **Se acepta el contrato por convención + tripwire (`inventory_v1_identity_contract_test`).** Hardening ya aplicado en B.2: contrato en comentarios de `item_instance.gd`/`item_definition.gd`; `InventoryGridView.layout_entries()` dejó de exponer `ItemInstance`. **Triggers para revisar:** UI/gameplay nuevo que sostenga un `ItemInstance` más allá de la vista pura; persistencia/save-load o networking; consumidores externos al módulo / segundo equipo.
 

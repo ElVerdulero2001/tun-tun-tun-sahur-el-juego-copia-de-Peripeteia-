@@ -7,8 +7,8 @@
 script = ExtResource("1_ui")
 
 [node name="InventoryPanel" parent="." instance=ExtResource("2_panel")]
-offset_left = 48.0
-offset_top = 48.0
-offset_right = 48.0
-offset_bottom = 48.0
-cell_size = 44
+offset_left = 560.0
+offset_top = 280.0
+offset_right = 560.0
+offset_bottom = 280.0
+cell_size = 56

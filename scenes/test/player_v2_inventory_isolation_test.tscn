@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/test/player_v2_inventory_isolation_test.gd" id="1_test"]
+[ext_resource type="Resource" uid="uid://bs28esuanu3ea" path="res://assets/data/test_inventory_v2/item_definition_test.tres" id="2_def"]
+
+[node name="PlayerV2InventoryIsolationTest" type="Node3D"]
+script = ExtResource("1_test")
+item_definition_test = ExtResource("2_def")

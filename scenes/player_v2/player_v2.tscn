@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/player_v2/player_v2.gd" id="1_pv2"]
 [ext_resource type="Script" path="res://scripts/player_v2/interaction.gd" id="2_int"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/player n entities/inventory_v2/local_authority.gd" id="4_auth"]
 [ext_resource type="Script" path="res://scripts/player n entities/inventory_v2/inventory_receiver.gd" id="5_recv"]
 [ext_resource type="PackedScene" path="res://scenes/player_v2/player_inventory_ui.tscn" id="6_ui"]
+[ext_resource type="Script" path="res://scripts/player_v2/item_dropper.gd" id="7_drop"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_pv2"]
 radius = 0.3
@@ -24,6 +25,12 @@ script = ExtResource("5_recv")
 inventory = NodePath("../Inventory")
 authority = NodePath("../InventoryAuthority")
 
+[node name="ItemDropper" type="Node" parent="." node_paths=PackedStringArray("inventory", "authority", "spawn_source")]
+script = ExtResource("7_drop")
+inventory = NodePath("../Inventory")
+authority = NodePath("../InventoryAuthority")
+spawn_source = NodePath("../Body/DropPoint")
+
 [node name="PlayerInventoryUI" parent="." instance=ExtResource("6_ui") node_paths=PackedStringArray("inventory", "authority")]
 inventory = NodePath("../Inventory")
 authority = NodePath("../InventoryAuthority")
@@ -35,6 +42,9 @@ script = ExtResource("1_pv2")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Body"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_pv2")
+
+[node name="DropPoint" type="Marker3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -1.2)
 
 [node name="View" type="Node3D" parent="Body"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)

@@ -8,13 +8,18 @@ extends RigidBody3D
 ## al devolver el item al mundo.
 ##
 ## Analogo a Item.gd (legacy), pero sin llamar al autoload Inventario.
-## En vez de mutar nada directamente, solicita un pickup a traves de
-## InteractionComponent -> LocalAuthority (INV-07/INV-08).
+## En vez de mutar nada directamente, SOLICITA un pickup: resuelve la
+## capacidad InventoryReceiver de la ENTIDAD que realizo la interaccion
+## (Interaction.actor) y le delega (INV-07/INV-08).
 
 var item_instance: ItemInstance
-## Referencia a la autoridad local que arbitra las transferencias en esta
-## escena de prueba. Se inyecta desde la escena de prueba via setup(),
-## siguiendo el mismo patron que Player.setup() en los controllers.
+
+## Autoridad inyectada. Desde C1 (SUA-1.3) el flujo de pickup NO la lee: el
+## pickup se resuelve desde Interaction.actor -> InventoryReceiver de esa
+## entidad. Sigue existiendo SOLO porque LocalAuthority.solicitar_devolucion()
+## la re-inyecta en el WorldItemV2 que crea al devolver un item al mundo
+## (local_authority.gd) — y ese contrato no se toca en C1. Estado vestigial
+## pendiente de limpieza cuando se pueda revisar LocalAuthority (deuda C2).
 var _authority: Node
 
 func setup(authority: Node) -> void:
@@ -24,15 +29,29 @@ func setup(authority: Node) -> void:
 func _on_interact(interaction: Interaction) -> Variant:
 	match interaction.accion:
 		&"usar":
-			return _solicitar_pickup()
+			return _solicitar_pickup(interaction.actor)
 		_:
 			return false
 
-## Este metodo SOLICITA. No agrega el item a ningun inventario, no se
-## destruye a si mismo, no decide el resultado. Eso es exactamente lo
-## que INV-07/INV-08 prohiben que haga un componente de interaccion.
-func _solicitar_pickup() -> bool:
-	if _authority == null:
-		push_warning("WorldItemV2: sin autoridad local asignada, no se puede solicitar pickup")
+## SOLICITA que este WorldItem pase al inventario de la ENTIDAD que realizo la
+## interaccion. NO conoce PlayerV2, ni Body, ni InventoryV2, ni la LocalAuthority
+## concreta del actor, ni nombres de nodos, ni grupos: solo la capacidad
+## InventoryReceiver. Este metodo SOLICITA — no agrega el item a ningun
+## inventario, no se destruye a si mismo, no decide el resultado (INV-07/INV-08).
+func _solicitar_pickup(actor: Node) -> bool:
+	if actor == null:
 		return false
-	return _authority.solicitar_pickup(self)
+	var receiver := _resolver_receiver(actor)
+	if receiver == null:
+		return false
+	return receiver.recibir_pickup(self)
+
+## Primer InventoryReceiver entre los hijos DIRECTOS de `actor`, o null.
+## Mismo patron con que InteractionV2 resuelve un InteractionComponent como
+## hijo directo del collider: sin walk por ancestros, sin busqueda por nombre,
+## sin grupos.
+func _resolver_receiver(actor: Node) -> InventoryReceiver:
+	for child in actor.get_children():
+		if child is InventoryReceiver:
+			return child
+	return null

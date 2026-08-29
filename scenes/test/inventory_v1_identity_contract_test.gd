@@ -33,13 +33,18 @@ extends Node3D
 @onready var mundo: Node3D = $Mundo
 @onready var punto_spawn: Marker3D = $PuntoSpawnMundo
 
+const InventoryTestActor := preload("res://scenes/test/helpers/inventory_test_actor.gd")
+
 var _fallos := 0
 var _checks := 0
 
 
 func _ready() -> void:
 	print("\n===== INVENTORY · BATCH B.2 · CONTRATO DE IDENTIDAD (D8) =====")
-	authority.set_inventory_receptor(inv)
+	# C1: actor de prueba con InventoryReceiver hijo directo (reemplaza el par
+	# pre-C1 authority.set_inventory_receptor(inv) + wi.setup(authority)).
+	var _actor := InventoryTestActor.crear(inv, authority)
+	add_child(_actor)
 
 	# ── construir la instancia y CAPTURAR referencias + valores estructurales ──
 	var wi: WorldItemV2 = item_definition_test.world_scene.instantiate()
@@ -47,7 +52,6 @@ func _ready() -> void:
 	wi.item_instance = ii
 	add_child(wi)
 	wi.global_position = punto_spawn.global_position
-	wi.setup(authority)
 
 	var ref_ii := ii
 	var ref_def := ii.definition
@@ -63,7 +67,7 @@ func _ready() -> void:
 
 	# ── 1. PICKUP: mundo -> inventario ──
 	print("-- 1. pickup (mundo -> inventario) --")
-	var ok_pick: bool = wi._on_interact(Interaction.new(self, &"usar"))
+	var ok_pick: bool = wi._on_interact(Interaction.new(_actor, &"usar"))
 	_check(ok_pick, "1: pickup exitoso")
 	await get_tree().process_frame
 	var e1 := _snap_de(ref_ii)

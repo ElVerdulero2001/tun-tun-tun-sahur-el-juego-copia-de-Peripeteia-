@@ -24,6 +24,7 @@ extends Node3D
 @onready var status: Label = $CanvasLayer/Status
 
 const CELL := 56
+const InventoryTestActor := preload("res://scenes/test/helpers/inventory_test_actor.gd")
 
 
 func _ready() -> void:
@@ -69,14 +70,13 @@ func _ready() -> void:
 
 
 func _sembrar() -> void:
-	authority.set_inventory_receptor(inv)
+	var _actor := _actor_pickup(inv)
 	for d: ItemDefinition in [item_definition_test, item_definition_test, item_definition_no_rota]:
 		var wi: WorldItemV2 = d.world_scene.instantiate()
 		wi.item_instance = ItemInstance.new(d)
 		add_child(wi)
 		wi.global_position = punto_spawn.global_position
-		wi.setup(authority)
-		wi._on_interact(Interaction.new(self, &"usar"))
+		wi._on_interact(Interaction.new(_actor, &"usar"))
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -102,3 +102,12 @@ func _status(t: String) -> void:
 
 func _on_preview_cambiado() -> void:
 	_status("PREVIEW: moviendo el ghost (verde = válido / rojo = inválido).  Clic izq para soltar.")
+
+
+## C1: actor de prueba con InventoryReceiver hijo directo, equivalente a como
+## PlayerV2 expone la capacidad. Reemplaza el par pre-C1
+## authority.set_inventory_receptor(inv) + wi.setup(authority).
+func _actor_pickup(inventario: InventoryV2) -> Node:
+	var actor := InventoryTestActor.crear(inventario, authority)
+	add_child(actor)
+	return actor

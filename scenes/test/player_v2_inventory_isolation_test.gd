@@ -18,10 +18,12 @@ extends Node3D
 ## Headless / llamadas directas. SIN input real: dos PlayerV2 comparten hoy
 ## el InputMap y no estamos probando input ownership todavia.
 ##
-## NOTA: NO usa InventoryReceiver.recibir_pickup() — ese metodo no tiene
-## routing hasta C1. El pickup del punto 3 usa el MISMO patron que _sembrar()
-## en los tests V2 ya en verde: auth.set_inventory_receptor(inv) (afordancia
-## de arnes documentada en local_authority.gd) + wi._on_interact(...).
+## NOTA (actualizado en C1): el pickup del punto 3 usa la ruta REAL de C1
+## —Interaction(actor = PlayerV2_A) -> WorldItemV2._on_interact -> resolver
+## InventoryReceiver hijo directo de A -> AuthorityA -> InventoryA—. No se
+## llama a mano authority.set_inventory_receptor(...) ni solicitar_pickup(...).
+## El foco de este arnes sigue siendo el AISLAMIENTO por instancia; el
+## end-to-end mas exhaustivo vive en player_v2_pickup_c1_test.
 
 const PLAYER_V2 := preload("res://scenes/player_v2/player_v2.tscn")
 
@@ -80,13 +82,13 @@ func _ready() -> void:
 	_check(inv_a.get_entries().size() == 0, "3: A arranca vacio")
 	_check(inv_b.get_entries().size() == 0, "3: B arranca vacio")
 
-	auth_a.set_inventory_receptor(inv_a)   # afordancia de arnes (local_authority.gd), NO el wiring de C1
 	var ii := ItemInstance.new(item_definition_test)
 	var wi: WorldItemV2 = item_definition_test.world_scene.instantiate()
 	wi.item_instance = ii
 	add_child(wi)
-	wi.setup(auth_a)
-	var ok: bool = wi._on_interact(Interaction.new(self, &"usar"))
+	# Ruta REAL de C1: el actor es el nodo raiz PlayerV2_A; WorldItemV2 resuelve
+	# su InventoryReceiver hijo directo y delega en AuthorityA.
+	var ok: bool = wi._on_interact(Interaction.new(pa, &"usar"))
 
 	_check(ok, "3: pickup mundo->A reporto exito")
 	_check(inv_a.get_entries().size() == 1, "3: A tiene exactamente 1 entry")

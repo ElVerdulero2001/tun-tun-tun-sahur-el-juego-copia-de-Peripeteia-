@@ -21,6 +21,8 @@ extends Node3D
 
 @onready var punto_spawn: Marker3D = $PuntoSpawnMundo
 
+const InventoryTestActor := preload("res://scenes/test/helpers/inventory_test_actor.gd")
+
 var _fallos := 0
 var _checks := 0
 
@@ -59,14 +61,13 @@ func _ready() -> void:
 
 
 func _sembrar(inventario: InventoryV2, cantidad: int) -> Array[InventoryEntry]:
-	authority.set_inventory_receptor(inventario)
+	var _actor := _actor_pickup(inventario)
 	for i in range(cantidad):
 		var wi: WorldItemV2 = item_definition_test.world_scene.instantiate()
 		wi.item_instance = ItemInstance.new(item_definition_test)
 		add_child(wi)
 		wi.global_position = punto_spawn.global_position
-		wi.setup(authority)
-		var ok: bool = wi._on_interact(Interaction.new(self, &"usar"))
+		var ok: bool = wi._on_interact(Interaction.new(_actor, &"usar"))
 		_check(ok, "siembra: pickup #%d en %s exitoso" % [i + 1, inventario.name])
 	return inventario._entries.duplicate()   # white-box: entries VIVAS
 
@@ -174,3 +175,12 @@ func _check(condicion: bool, mensaje: String) -> void:
 	else:
 		_fallos += 1
 		printerr("  [FALLA] ", mensaje)
+
+
+## C1: actor de prueba con InventoryReceiver hijo directo, equivalente a como
+## PlayerV2 expone la capacidad. Reemplaza el par pre-C1
+## authority.set_inventory_receptor(inv) + wi.setup(authority).
+func _actor_pickup(inventario: InventoryV2) -> Node:
+	var actor := InventoryTestActor.crear(inventario, authority)
+	add_child(actor)
+	return actor

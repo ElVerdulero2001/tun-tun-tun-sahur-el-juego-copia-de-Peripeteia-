@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://c4ad3hwk7p1np" path="res://scripts/player n entities/inventory_v2/inventory_v0_test_scene.gd" id="1_harness"]
 [ext_resource type="Script" uid="uid://cvry6r1i8yoko" path="res://scripts/player n entities/inventory_v2/local_authority.gd" id="2_authority"]
 [ext_resource type="Script" uid="uid://bokafhmy5nxc5" path="res://scripts/player n entities/inventory_v2/inventory.gd" id="3_inventory"]
+[ext_resource type="Script" uid="uid://fuujkakl3xf2" path="res://scripts/player n entities/inventory_v2/inventory_receiver.gd" id="7_receiver"]
 [ext_resource type="PackedScene" uid="uid://bwtv0itemtest1" path="res://scenes/test/test_item_v0.tscn" id="4_item"]
 [ext_resource type="PackedScene" uid="uid://dg7creso2b5yf" path="res://scenes/components/raycast_interaccion.tscn" id="5_raycast"]
 [ext_resource type="Resource" uid="uid://bs28esuanu3ea" path="res://assets/data/test_inventory_v2/item_definition_test.tres" id="6_def"]
@@ -47,6 +48,11 @@ script = ExtResource("2_authority")
 
 [node name="InventoryV2" type="Node" parent="EntidadConInventario" unique_id=29606253]
 script = ExtResource("3_inventory")
+
+[node name="InventoryReceiver" type="Node" parent="EntidadConInventario" node_paths=PackedStringArray("inventory", "authority")]
+script = ExtResource("7_receiver")
+inventory = NodePath("../InventoryV2")
+authority = NodePath("../../LocalAuthority")
 
 [node name="Camera3D" type="Camera3D" parent="EntidadConInventario" unique_id=1953725886]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)

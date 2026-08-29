@@ -27,6 +27,8 @@ extends Node3D
 @onready var inventario_normal: InventoryV2 = $InventarioNormal    # grid 4x4
 @onready var punto_spawn: Marker3D = $PuntoSpawnMundo
 
+const InventoryTestActor := preload("res://scenes/test/helpers/inventory_test_actor.gd")
+
 var _fallos: int = 0
 var _checks: int = 0
 
@@ -52,13 +54,13 @@ func _ready() -> void:
 ## exactamente donde estaba, en el mundo.
 func _caso_1_y_2_pickup_sin_espacio() -> void:
 	print("\n-- Caso 1+2: pickup sin espacio; el objeto debe permanecer en el mundo --")
-	authority.set_inventory_receptor(inventario_lleno)
+	var actor := _actor_pickup(inventario_lleno)
 
 	var wi := _spawn_world_item(item_definition_test)
 	var item: ItemInstance = wi.item_instance
 	await _verificar_custodia("caso1 pre-pickup", item, inventario_lleno, 1, 0)
 
-	var resultado: bool = wi._on_interact(Interaction.new(self, &"usar"))
+	var resultado: bool = wi._on_interact(Interaction.new(actor, &"usar"))
 
 	_check(resultado == false, "Caso 1: el pickup devuelve false (inventario 1x1 sin espacio)")
 	_check(inventario_lleno.get_entries().is_empty(), "Caso 1: el inventario 1x1 sigue vacío")
@@ -80,7 +82,7 @@ func _caso_1_y_2_pickup_sin_espacio() -> void:
 ## y commit() no se llama. El item debe quedar bajo custodia del inventario.
 func _caso_3_devolucion_no_completable() -> void:
 	print("\n-- Caso 3: devolución imposible (definición sin world_scene); el item permanece en inventario --")
-	authority.set_inventory_receptor(inventario_normal)
+	var actor := _actor_pickup(inventario_normal)
 
 	var def_sin_escena := ItemDefinition.new()
 	def_sin_escena.id = &"test_item_sin_world_scene"
@@ -95,10 +97,9 @@ func _caso_3_devolucion_no_completable() -> void:
 	wi.item_instance = ItemInstance.new(def_sin_escena)
 	add_child(wi)
 	wi.global_position = punto_spawn.global_position
-	wi.setup(authority)
 	var item: ItemInstance = wi.item_instance
 
-	var ok_pickup: bool = wi._on_interact(Interaction.new(self, &"usar"))
+	var ok_pickup: bool = wi._on_interact(Interaction.new(actor, &"usar"))
 	_check(ok_pickup, "Caso 3 (setup): pickup del item 1x1 al inventario 4x4 exitoso")
 	await _verificar_custodia("caso3 post-pickup", item, inventario_normal, 0, 1)
 
@@ -117,13 +118,13 @@ func _caso_3_devolucion_no_completable() -> void:
 ## de custodia después de cada operación COMPLETADA.
 func _caso_4_ciclo_completo_invariante() -> void:
 	print("\n-- Caso 4: ciclo completo, invariante de custodia tras cada operación --")
-	authority.set_inventory_receptor(inventario_normal)
+	var actor := _actor_pickup(inventario_normal)
 
 	var wi := _spawn_world_item(item_definition_test)
 	var item: ItemInstance = wi.item_instance
 	await _verificar_custodia("caso4 inicial (en el mundo)", item, inventario_normal, 1, 0)
 
-	var ok_pickup: bool = wi._on_interact(Interaction.new(self, &"usar"))
+	var ok_pickup: bool = wi._on_interact(Interaction.new(actor, &"usar"))
 	_check(ok_pickup, "Caso 4: pickup exitoso")
 	await _verificar_custodia("caso4 tras pickup", item, inventario_normal, 0, 1)
 
@@ -141,8 +142,16 @@ func _spawn_world_item(definicion: ItemDefinition) -> WorldItemV2:
 	wi.item_instance = ItemInstance.new(definicion)
 	add_child(wi)
 	wi.global_position = punto_spawn.global_position
-	wi.setup(authority)
 	return wi
+
+
+## C1: actor de prueba con InventoryReceiver hijo directo, equivalente a como
+## PlayerV2 expone la capacidad. Reemplaza el par pre-C1
+## authority.set_inventory_receptor(inv) + wi.setup(authority).
+func _actor_pickup(inventario: InventoryV2) -> Node:
+	var actor := InventoryTestActor.crear(inventario, authority)
+	add_child(actor)
+	return actor
 
 
 ## Cuenta cuántos WorldItemV2 del árbol representan a ESTE ItemInstance.

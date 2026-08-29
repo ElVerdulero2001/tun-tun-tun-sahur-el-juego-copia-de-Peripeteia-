@@ -1,9 +1,11 @@
 extends Node
 
-## ARNES DE TEST — NO ES PRODUCCION. PlayerV2 · FASE C4-B (ownership de TAB / ESC).
+## ARNES DE TEST — NO ES PRODUCCION. PlayerV2 · FASE C4-B / C4-C (ownership de TAB / ESC).
 ##
 ## Verifica por EVENTOS DE TECLADO SINTETICOS (InputEventKey via push_input) que
-## PlayerInventoryUI es dueño de toggle_inventario y de ui_cancel-con-panel-abierto.
+## PlayerInventoryUI es dueño de toggle_inventario y de ui_cancel-con-panel-abierto,
+## y (C4-C) que con el panel CERRADO el ESC es inerte para el flujo PlayerV2 —
+## player_v2.gd ya no togglea Input.mouse_mode por ui_cancel.
 ## NO simula movimiento de mouse real (eso lo cubre la prueba manual).
 ##
 ## mouse_mode NO se verifica: en headless el DisplayServer no honra
@@ -90,6 +92,22 @@ func _ready() -> void:
 	_check(inv.get_entries()[0].position == pos0, "6: el item no se movio")
 	_check(_emis == 0, "6: cancelar NO emitio contenido_cambiado")
 
+	# ── Parte C4-C: ESC con inventario CERRADO es inerte para PlayerV2 ──
+	print("-- 8. C4-C: ESC con panel CERRADO no hace nada (player_v2.gd ya no togglea mouse_mode) --")
+	_check(not panel.esta_abierto(), "8: (setup) panel cerrado")
+	var esc8: int = spy.ui_cancel_count
+	await _pulsar(&"ui_cancel")
+	await _pulsar(&"ui_cancel")
+	await _pulsar(&"ui_cancel")
+	_check(not panel.esta_abierto(), "8: 3x ESC no abrieron ni cambiaron el panel")
+	_check(spy.ui_cancel_count == esc8 + 3, "8: los 3 ESC llegaron SIN consumir (PlayerInventoryUI inerte con panel cerrado)")
+	await _pulsar(&"toggle_inventario")
+	_check(panel.esta_abierto(), "8: TAB sigue abriendo despues de los ESC")
+	await _pulsar(&"toggle_inventario")
+	_check(not panel.esta_abierto(), "8: y cerrando")
+	# Que player_v2.gd NO cambie Input.mouse_mode por ESC se verifica en la prueba
+	# MANUAL (headless no honra Input.mouse_mode de forma robusta — ver C4-B0).
+
 	# ── Parte 2: dos entidades, instancias separadas ────────────────
 	print("-- 7. dos PlayerInventoryUI son instancias separadas --")
 	var pa := PLAYER_V2.instantiate()
@@ -107,7 +125,7 @@ func _ready() -> void:
 	print("=========================================================================")
 	print("Chequeos: %d | Fallas: %d" % [_checks, _fallos])
 	if _fallos == 0:
-		print("RESULTADO: FASE C4-B (ownership TAB/ESC) OK")
+		print("RESULTADO: FASE C4-B / C4-C (ownership TAB/ESC) OK")
 	else:
 		printerr("RESULTADO: %d CHEQUEO(S) FALLARON" % _fallos)
 	assert(_fallos == 0, "Fallaron chequeos de C4-B")

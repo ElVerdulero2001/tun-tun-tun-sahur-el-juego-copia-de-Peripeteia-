@@ -24,17 +24,15 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 # ── Mouse-look ──────────────────────────────────────────────────────
+## ui_cancel / ESC NO se maneja acá (SUA-1.4 C4-C): el cuerpo físico no es
+## dueño del foco de input. Con el InventoryPanel abierto, PlayerInventoryUI
+## consume ESC para cerrarlo; con nada abierto, ESC no hace nada. Un futuro
+## menú de pausa podrá apropiarse de ESC cuando exista.
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		rotate_y(-event.relative.x * MOUSE_SENSITIVITY)                       # yaw en el Body
 		_view.rotate_x(-event.relative.y * MOUSE_SENSITIVITY)                 # pitch en View
 		_view.rotation.x = clampf(_view.rotation.x, -PITCH_LIMIT, PITCH_LIMIT)
-	elif event.is_action_pressed("ui_cancel"):
-		# Alterna la captura del mouse para poder salir/volver al sandbox.
-		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		else:
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 # ── Locomoción ──────────────────────────────────────────────────────
 func _physics_process(delta: float) -> void:

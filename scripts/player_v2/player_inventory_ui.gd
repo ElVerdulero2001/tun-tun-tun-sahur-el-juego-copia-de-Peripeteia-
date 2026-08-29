@@ -36,11 +36,21 @@ extends CanvasLayer
 ## Cableado: @export con node_paths en player_v2.tscn (mismo patron que
 ## InventoryReceiver e Interaction). Sin grupos, sin get_node global, sin
 ## autoloads. NO conoce UiInventario legacy (hibernado aparte, C4-B0).
+##
+## ── Drop desde la UI (SUA-1.5 C5-C) ──
+## Este componente es el PUENTE entre la INTENCION de drop que nace en la UI
+## (InventoryPanel.drop_fuera_solicitado, C5-B/B2) y la EJECUCION gameplay/3D
+## (ItemDropper.soltar, C5-A). NO implementa reglas espaciales: no calcula
+## posiciones, no busca current_scene, no usa DropPoint, no llama a
+## LocalAuthority. Solo delega en SU ItemDropper.
 
 ## InventoryV2 de ESTA entidad. Cableado por @export en player_v2.tscn.
 @export var inventory: InventoryV2
 ## LocalAuthority de ESTA entidad. Cableado por @export en player_v2.tscn.
 @export var authority: LocalAuthority
+## ItemDropper de ESTA entidad (capacidad inventario -> mundo). Cableado por
+## @export en player_v2.tscn. Unico destino de la intencion de drop de la UI.
+@export var dropper: ItemDropper
 
 @onready var panel: InventoryPanel = $InventoryPanel
 
@@ -48,9 +58,24 @@ extends CanvasLayer
 func _ready() -> void:
 	assert(inventory != null, "PlayerInventoryUI: 'inventory' (InventoryV2 de esta entidad) sin cablear")
 	assert(authority != null, "PlayerInventoryUI: 'authority' (LocalAuthority de esta entidad) sin cablear")
+	assert(dropper != null, "PlayerInventoryUI: 'dropper' (ItemDropper de esta entidad) sin cablear")
 
 	panel.setup(inventory, authority)
 	assert(not panel.esta_abierto(), "PlayerInventoryUI: se esperaba el panel CERRADO tras setup()")
+
+	# Conexion UNICA (panel es un nodo interno estable): la intencion de drop de
+	# la UI se ejecuta pidiendosela a SU ItemDropper.
+	panel.drop_fuera_solicitado.connect(_on_drop_fuera_solicitado)
+
+
+## Handler de la intencion de drop de la UI. Delega TAL CUAL en el ItemDropper
+## de esta entidad: sin logica espacial, sin tocar el modelo. Si el drop no se
+## concreta (dropper.soltar() -> null) NO hay rollback: el ItemInstance sigue en
+## InventoryV2 en su entry original (ni el manipulator ni TransferOperation lo
+## movieron) y reaparece normalmente en la vista. El panel NO se cierra: el
+## jugador puede seguir con el inventario abierto y moviendose.
+func _on_drop_fuera_solicitado(item_instance: ItemInstance) -> void:
+	dropper.soltar(item_instance)
 
 
 ## Dueño de toggle_inventario (siempre) y de ui_cancel (solo con el panel abierto)

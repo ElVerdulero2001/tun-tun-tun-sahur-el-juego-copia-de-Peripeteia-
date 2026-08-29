@@ -6,10 +6,11 @@ extends Node3D
 ## "devolver al mundo" del ciclo, que en V0 no tiene todavia un
 ## disparador de gameplay real (eso queda fuera de alcance a proposito).
 ##
-## Responsabilidad: instanciar el ItemInstance inicial, inyectar la
-## LocalAuthority donde corresponda (mismo patron setup() que Player),
-## y and loguear el estado antes/despues de cada ciclo para poder
-## verificar el ID logico en runtime.
+## Responsabilidad: instanciar el ItemInstance inicial y loguear el estado
+## antes/despues de cada ciclo para verificar el ID logico en runtime.
+## El pickup interactivo se resuelve por el InventoryReceiver de
+## EntidadConInventario (Interaction.actor -> InventoryReceiver); la
+## devolucion, por _solicitar_devolucion_debug() -> authority.solicitar_devolucion.
 
 @export var item_definition_test: ItemDefinition
 
@@ -19,11 +20,8 @@ extends Node3D
 @onready var punto_spawn: Marker3D = $PuntoSpawnMundo
 
 func _ready() -> void:
-	authority.set_inventory_receptor(inventory)
-
 	var item := ItemInstance.new(item_definition_test)
 	world_item_inicial.item_instance = item
-	world_item_inicial.setup(authority)
 
 	print("[TestScene] Listo. Item inicial: ", item, " en el mundo.")
 	print("[TestScene] Mira el objeto e interactua (tecla 'interactuar') para recogerlo.")

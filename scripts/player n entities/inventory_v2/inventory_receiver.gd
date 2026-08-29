@@ -16,22 +16,8 @@ extends Node
 ## collider. Sin grupos globales, sin rutas rigidas entre arboles, sin
 ## singleton, sin coordinador en el nodo raiz de la entidad.
 ##
-## ── DISTINCION vs LocalAuthority._inventory_receptor (NOMBRES PARECIDOS) ──
-## Son cosas distintas, a distinto nivel:
-##   InventoryReceiver (esta clase)     = capacidad de una ENTIDAD para recibir
-##                                        un WorldItem en un InventoryV2 concreto.
-##   LocalAuthority._inventory_receptor = referencia interna que usa UNA
-##                                        LocalAuthority para saber sobre que
-##                                        InventoryV2 ejecuta sus operaciones.
-##
-## ── SOBRE EL RE-SET DEL RECEPTOR (deuda C2) ──
-## LocalAuthority tiene UN solo slot _inventory_receptor. En produccion cada
-## entidad tiene su propia LocalAuthority (1:1) y el re-set es idempotente.
-## En arneses que comparten UNA LocalAuthority entre varios InventoryV2, el
-## re-set JIT de recibir_pickup() garantiza que el pickup va al inventario de
-## ESTE receiver. Cuando se pueda tocar el contrato de LocalAuthority (C2+),
-## solicitar_pickup() podria recibir el InventoryV2 explicito y estos set()
-## desaparecen.
+## recibir_pickup() delega en la LocalAuthority de esta entidad pasandole SU
+## InventoryV2 explicito: la autoridad no guarda estado de routing.
 
 ## InventoryV2 de ESTA entidad. Cableado por @export en la escena de la entidad.
 @export var inventory: InventoryV2
@@ -42,9 +28,6 @@ extends Node
 func _ready() -> void:
 	assert(inventory != null, "InventoryReceiver: 'inventory' (InventoryV2 de esta entidad) sin cablear")
 	assert(authority != null, "InventoryReceiver: 'authority' (LocalAuthority de esta entidad) sin cablear")
-	# Cablea la LocalAuthority de ESTA entidad con SU InventoryV2, con el
-	# mecanismo existente de LocalAuthority. Ver nota "RE-SET DEL RECEPTOR".
-	authority.set_inventory_receptor(inventory)
 
 
 ## Contrato publico: el WorldItemV2 apuntado por el actor solicita pasar a
@@ -52,8 +35,4 @@ func _ready() -> void:
 ## es la unica que corre TransferOperation.validate()/commit() (INV-08).
 ## true = quedo bajo custodia del inventario.
 func recibir_pickup(world_item: WorldItemV2) -> bool:
-	# Reafirma el destino de ESTA entidad justo antes de la operacion (ver
-	# nota "RE-SET DEL RECEPTOR"): idempotente en produccion, necesario si la
-	# LocalAuthority esta compartida.
-	authority.set_inventory_receptor(inventory)
-	return authority.solicitar_pickup(world_item)
+	return authority.solicitar_pickup(world_item, inventory)

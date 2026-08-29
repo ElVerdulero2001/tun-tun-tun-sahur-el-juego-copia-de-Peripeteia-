@@ -11,19 +11,13 @@ extends RigidBody3D
 ## En vez de mutar nada directamente, SOLICITA un pickup: resuelve la
 ## capacidad InventoryReceiver de la ENTIDAD que realizo la interaccion
 ## (Interaction.actor) y le delega (INV-07/INV-08).
+##
+## NEUTRAL respecto de autoridad: un WorldItemV2 en el mundo —recien
+## spawneado o creado por una devolucion— no guarda actor, inventario ni
+## LocalAuthority. Quien lo recoge se determina SOLO en el momento de la
+## interaccion.
 
 var item_instance: ItemInstance
-
-## Autoridad inyectada. Desde C1 (SUA-1.3) el flujo de pickup NO la lee: el
-## pickup se resuelve desde Interaction.actor -> InventoryReceiver de esa
-## entidad. Sigue existiendo SOLO porque LocalAuthority.solicitar_devolucion()
-## la re-inyecta en el WorldItemV2 que crea al devolver un item al mundo
-## (local_authority.gd) — y ese contrato no se toca en C1. Estado vestigial
-## pendiente de limpieza cuando se pueda revisar LocalAuthority (deuda C2).
-var _authority: Node
-
-func setup(authority: Node) -> void:
-	_authority = authority
 
 ## Contrato de InteractionComponent: _on_interact(interaction) -> Variant
 func _on_interact(interaction: Interaction) -> Variant:
@@ -34,10 +28,10 @@ func _on_interact(interaction: Interaction) -> Variant:
 			return false
 
 ## SOLICITA que este WorldItem pase al inventario de la ENTIDAD que realizo la
-## interaccion. NO conoce PlayerV2, ni Body, ni InventoryV2, ni la LocalAuthority
-## concreta del actor, ni nombres de nodos, ni grupos: solo la capacidad
-## InventoryReceiver. Este metodo SOLICITA — no agrega el item a ningun
-## inventario, no se destruye a si mismo, no decide el resultado (INV-07/INV-08).
+## interaccion. NO conoce PlayerV2, ni Body, ni InventoryV2, ni LocalAuthority,
+## ni nombres de nodos, ni grupos: solo la capacidad InventoryReceiver. Este
+## metodo SOLICITA — no agrega el item a ningun inventario, no se destruye a si
+## mismo, no decide el resultado (INV-07/INV-08).
 func _solicitar_pickup(actor: Node) -> bool:
 	if actor == null:
 		return false

@@ -1,9 +1,9 @@
-[gd_scene format=3 uid="uid://c0qytjvt5exhd"]
+[gd_scene load_steps=6 format=3 uid="uid://c0qytjvt5exhd"]
 
-[ext_resource type="Script" uid="uid://yknnpaeu8ldo" path="res://scripts/player n entities/Item.gd" id="1_eh0yp"]
-[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="2_ee2ru"]
-[ext_resource type="Resource" uid="uid://dcmxocufit3pl" path="res://assets/data/collectibles/consumables/key.tres" id="2_fq1kw"]
-[ext_resource type="PackedScene" uid="uid://c5vwhwuprkqfu" path="res://assets/models/collectibles/llave2.glb" id="3_4cwt5"]
+[ext_resource type="Script" uid="uid://cowfc2ykbs6rb" path="res://scripts/player n entities/inventory_v2/world_item.gd" id="1_world"]
+[ext_resource type="Resource" path="res://assets/data/items_v2/llave.tres" id="2_def"]
+[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="3_intercomp"]
+[ext_resource type="PackedScene" uid="uid://c5vwhwuprkqfu" path="res://assets/models/collectibles/llave2.glb" id="4_4cwt5"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_4cwt5"]
 size = Vector3(0.38, 0.085, 0.135)
@@ -12,10 +12,10 @@ size = Vector3(0.38, 0.085, 0.135)
 transform = Transform3D(0.99999994, 0, 0, 0, 1, 0, 0, 0, 0.99999994, 0, 0, 0)
 collision_layer = 10
 collision_mask = 9
-script = ExtResource("1_eh0yp")
-data = ExtResource("2_fq1kw")
+script = ExtResource("1_world")
+definition = ExtResource("2_def")
 
-[node name="llave2" parent="." unique_id=1875975665 instance=ExtResource("3_4cwt5")]
+[node name="llave2" parent="." unique_id=1875975665 instance=ExtResource("4_4cwt5")]
 transform = Transform3D(-3.4969112e-08, 0.8, -3.4969112e-08, 0, -3.4969112e-08, -0.8, -0.8, -3.4969112e-08, 1.5285484e-15, 0, 0.08841553, 0)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=260852261]
@@ -23,4 +23,4 @@ transform = Transform3D(4.3711232e-08, 0.9999966, 8.742274e-08, 0.9999968, -4.37
 shape = SubResource("BoxShape3D_4cwt5")
 
 [node name="InteractionComponent" type="Node" parent="." unique_id=1584191495]
-script = ExtResource("2_ee2ru")
+script = ExtResource("3_intercomp")

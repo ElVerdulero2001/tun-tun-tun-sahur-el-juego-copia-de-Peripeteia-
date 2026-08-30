@@ -122,8 +122,8 @@ func _validar_inventario_a_mundo() -> bool:
 	if not inventory_origen.has_item(item_instance):
 		_resultado_validacion = "el item no esta bajo custodia de este inventario"
 		return false
-	if item_instance.definition == null or item_instance.definition.world_scene == null:
-		_resultado_validacion = "sin world_scene valida para instanciar"
+	if item_instance.definition == null or item_instance.definition.get_world_scene() == null:
+		_resultado_validacion = "sin escena mundial valida para instanciar (world_scene_path vacio o no resuelve)"
 		return false
 	if world_scene_parent == null or not is_instance_valid(world_scene_parent):
 		_resultado_validacion = "world_scene_parent invalido"
@@ -198,10 +198,22 @@ func _commit_mundo_a_inventario() -> bool:
 	return true
 
 func _commit_inventario_a_mundo() -> WorldItemV2:
-	var nodo: Node = item_instance.definition.world_scene.instantiate()
+	# La escena se resuelve UNA vez, via la API canonica. _validar_inventario_a_mundo
+	# ya garantizo get_world_scene() != null; el re-chequeo es defensivo.
+	var escena := item_instance.definition.get_world_scene()
+	if escena == null:
+		push_error("get_world_scene() de %s devolvio null en commit (inesperado tras validate)" % item_instance)
+		return null
+
+	var nodo: Node = escena.instantiate()
 	var nuevo_world_item := nodo as WorldItemV2
 	if nuevo_world_item == null:
+		# La escena instancio algo que NO es un WorldItemV2 (o instantiate() fallo).
+		# Liberar el nodo huerfano: no esta en el arbol, free() es inmediato y seguro.
+		# El inventario NO se toco todavia (_quitar_entry va despues) -> custodia intacta.
 		push_error("world_scene de %s no produjo un WorldItemV2" % item_instance)
+		if nodo != null:
+			nodo.free()
 		return null
 
 	nuevo_world_item.item_instance = item_instance

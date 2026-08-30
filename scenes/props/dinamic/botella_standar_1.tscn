@@ -1,9 +1,9 @@
-[gd_scene format=3 uid="uid://derv7f5stbi5f"]
+[gd_scene load_steps=7 format=3 uid="uid://derv7f5stbi5f"]
 
-[ext_resource type="Script" uid="uid://yknnpaeu8ldo" path="res://scripts/player n entities/Item.gd" id="1_s12yy"]
-[ext_resource type="Resource" uid="uid://5c2lon8qkibf" path="res://assets/data/collectibles/consumables/botella.tres" id="2_2tokx"]
-[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="2_gwh75"]
-[ext_resource type="PackedScene" uid="uid://b6bccki5m1ngx" path="res://assets/models/collectibles/botella_horrible4.glb" id="3_w7sxs"]
+[ext_resource type="Script" uid="uid://cowfc2ykbs6rb" path="res://scripts/player n entities/inventory_v2/world_item.gd" id="1_world"]
+[ext_resource type="Resource" path="res://assets/data/items_v2/botella.tres" id="2_def"]
+[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="3_intercomp"]
+[ext_resource type="PackedScene" uid="uid://b6bccki5m1ngx" path="res://assets/models/collectibles/botella_horrible4.glb" id="4_w7sxs"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_fhtrf"]
 
@@ -16,14 +16,14 @@ collision_layer = 10
 collision_mask = 9
 physics_material_override = SubResource("PhysicsMaterial_fhtrf")
 linear_damp = 2.0
-script = ExtResource("1_s12yy")
-data = ExtResource("2_2tokx")
+script = ExtResource("1_world")
+definition = ExtResource("2_def")
 
 [node name="cilindro" type="CollisionShape3D" parent="." unique_id=1579411691]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5471033, 0)
 shape = SubResource("CylinderShape3D_g4t4m")
 
-[node name="botella_horrible4" parent="." unique_id=913309584 instance=ExtResource("3_w7sxs")]
+[node name="botella_horrible4" parent="." unique_id=913309584 instance=ExtResource("4_w7sxs")]
 
 [node name="InteractionComponent" type="Node" parent="." unique_id=1759526142]
-script = ExtResource("2_gwh75")
+script = ExtResource("3_intercomp")

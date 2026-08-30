@@ -16,8 +16,29 @@ extends RigidBody3D
 ## spawneado o creado por una devolucion— no guarda actor, inventario ni
 ## LocalAuthority. Quien lo recoge se determina SOLO en el momento de la
 ## interaccion.
+##
+## ── AUTOAPROVISIONAMIENTO (SUA-1.6 B) ──
+## Un WorldItemV2 colocado DIRECTAMENTE en una escena (un prop real en un nivel)
+## no tiene quien le inyecte su ItemInstance. Si trae un `definition` exportado y
+## nadie le fijo `item_instance` antes de entrar al arbol, se crea UNA en _ready().
+## Prioridad: un `item_instance` ya inyectado (tests, sandboxes, o —a futuro— un
+## objeto restaurado desde estado externo) SIEMPRE gana; _ready() no lo pisa.
+## Sin `definition` y sin `item_instance`: el nodo existe, no crashea, y cualquier
+## pickup falla limpio por los contratos existentes (TransferOperation.validate).
+## `definition` NO agrega autoridad, inventario, ni conocimiento del Player: el
+## WorldItemV2 sigue neutral.
+
+## Tipo de item que representa este prop cuando se coloca directo en una escena.
+## Opcional: los WorldItemV2 spawneados por TransferOperation o por un arnes
+## reciben su ItemInstance por inyeccion y no necesitan este campo.
+@export var definition: ItemDefinition
 
 var item_instance: ItemInstance
+
+
+func _ready() -> void:
+	if item_instance == null and definition != null:
+		item_instance = ItemInstance.new(definition)
 
 ## Contrato de InteractionComponent: _on_interact(interaction) -> Variant
 func _on_interact(interaction: Interaction) -> Variant:
@@ -34,6 +55,14 @@ func _on_interact(interaction: Interaction) -> Variant:
 ## mismo, no decide el resultado (INV-07/INV-08).
 func _solicitar_pickup(actor: Node) -> bool:
 	if actor == null:
+		return false
+	# Fail-fast local: un WorldItemV2 sin ItemInstance (ni inyectado ni
+	# autoaprovisionado por falta de `definition`) es un error de contenido, no
+	# algo recogible. TransferOperation.validate() igual lo rechazaria aguas
+	# abajo ("item_instance nulo"); cortar aca evita el roundtrip
+	# actor -> receiver -> authority -> operation y deja la razon en el borde.
+	# Semantica sin cambios: _on_interact devuelve false, nada se mueve.
+	if item_instance == null:
 		return false
 	var receiver := _resolver_receiver(actor)
 	if receiver == null:

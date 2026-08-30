@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://cs4b1e2sanmt3"]
+
+[ext_resource type="Script" uid="uid://b1cnugaqlyqe4" path="res://scripts/player n entities/inventory_v2/item_definition.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"sable_san_martin"
+nombre = "Sable de San Martin"
+world_scene_path = "res://scenes/props/dinamic/sable_san_martin_1.tscn"
+grid_width = 1
+grid_height = 4
+can_rotate = true

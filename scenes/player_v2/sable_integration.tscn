@@ -1,0 +1,57 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/player_v2/sable_integration.gd" id="1_sb"]
+[ext_resource type="PackedScene" path="res://scenes/player_v2/player_v2.tscn" id="2_player"]
+[ext_resource type="PackedScene" uid="uid://ce5sanae8y4jr" path="res://scenes/props/dinamic/sable_san_martin_1.tscn" id="3_sable"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sb"]
+
+[sub_resource type="Sky" id="Sky_sb"]
+sky_material = SubResource("ProceduralSkyMaterial_sb")
+
+[sub_resource type="Environment" id="Environment_sb"]
+background_mode = 2
+sky = SubResource("Sky_sb")
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(24, 1, 24)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(24, 1, 24)
+
+[node name="SableIntegration" type="Node3D"]
+script = ExtResource("1_sb")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_sb")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 12, 0)
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="."]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("BoxMesh_floor")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="sable_san_martin_1" parent="." instance=ExtResource("3_sable")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -2)
+freeze = true
+
+[node name="PlayerV2" parent="." instance=ExtResource("2_player")]
+
+[node name="DebugReadout" type="CanvasLayer" parent="."]
+
+[node name="Label" type="Label" parent="DebugReadout"]
+offset_left = 14.0
+offset_top = 12.0
+offset_right = 620.0
+offset_bottom = 150.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 18
+text = "integracion sable"

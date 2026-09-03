@@ -2,7 +2,7 @@ extends StaticBody3D
 
 ## Interactuable mínimo del sandbox de PlayerV2 (SUA-1.2).
 ##
-## Usa el InteractionComponent y el contrato _on_interact(interaction) ACTUALES,
+## Usa el InteractionComponentV2 y el contrato _on_interact(interaction) ACTUALES,
 ## sin tocar Inventario, terminales, puertas ni ningún sistema del juego.
 ## Al recibir Interaction(&"usar") cambia de color y loguea UNA línea puntual
 ## (no por frame) con el actor recibido, para verificar el contrato a ojo y en
@@ -21,7 +21,7 @@ func _ready() -> void:
 	_material.albedo_color = color_inactivo
 	_mesh.material_override = _material
 
-## Contrato de InteractionComponent.
+## Contrato de InteractionComponentV2.
 func _on_interact(interaction: Interaction) -> Variant:
 	if interaction.accion != &"usar":
 		return false

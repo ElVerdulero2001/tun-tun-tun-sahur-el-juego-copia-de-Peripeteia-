@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cowfc2ykbs6rb" path="res://scripts/player n entities/inventory_v2/world_item.gd" id="1_world"]
 [ext_resource type="Resource" path="res://assets/data/items_v2/sable.tres" id="2_def"]
-[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="3_intercomp"]
+[ext_resource type="Script" path="res://scripts/player_v2/interaction_component_v2.gd" id="3_intercomp"]
 [ext_resource type="PackedScene" uid="uid://bhr8u0r0meas0" path="res://assets/models/collectibles/machetedesanmartin4.glb" id="4_et5r5"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_kchcn"]
@@ -21,5 +21,5 @@ transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, 0, 0
 transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, 0, 0.91, 0)
 shape = SubResource("BoxShape3D_kchcn")
 
-[node name="InteractionComponent" type="Node" parent="." unique_id=1511060656]
+[node name="InteractionComponentV2" type="Node" parent="." unique_id=1511060656]
 script = ExtResource("3_intercomp")

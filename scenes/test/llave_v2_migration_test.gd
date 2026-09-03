@@ -9,10 +9,13 @@ extends Node3D
 ##  - autoaprovisionamiento;
 ##  - footprint 1x1 y can_rotate = FALSE (la rotacion se rechaza);
 ##  - ciclo real MUNDO -> INVENTARIO -> MUNDO -> INVENTARIO con identidad estable;
-##  - el WorldItemV2 devuelto ES llave_comun_1 (mesh + collider + InteractionComponent).
+##  - el WorldItemV2 devuelto ES llave_comun_1 (mesh + collider + InteractionComponentV2).
 ##
-## NO prueba "la llave abre la puerta": esa feature NO existe funcionalmente
-## (el sistema de puerta que anda es monitor/terminal, sin inventario).
+## NO prueba "la llave abre la puerta": esa feature SÍ existe desde la
+## migración de door_rust_01 a InteractionComponentV2 (puerta.gd consulta
+## InventoryV2 vía InventoryReceiver), pero no hay todavía un arnés
+## automatizado dedicado a la puerta — se verificó manualmente/headless
+## fuera de esta suite.
 ##
 ## Root Node3D a proposito: get_tree().current_scene = este nodo (ItemDropper valida Node3D).
 
@@ -134,7 +137,7 @@ func _ciclo_real() -> void:
 	_check(wi != null and not ("_authority" in wi), "el WorldItemV2 sigue NEUTRAL")
 	_check(wi != null and wi.get_node_or_null("llave2") != null, "conserva el mesh (llave2)")
 	_check(wi != null and _tiene(wi, "CollisionShape3D"), "conserva su collider")
-	_check(wi != null and _tiene_interaction_component(wi), "conserva su InteractionComponent hijo directo")
+	_check(wi != null and _tiene_interaction_component_v2(wi), "conserva su InteractionComponentV2 hijo directo")
 
 	# re-pickup real
 	var ok2: bool = wi._on_interact(Interaction.new(pa, &"usar"))
@@ -177,9 +180,9 @@ func _tiene(nodo: Node, clase: String) -> bool:
 	return false
 
 
-func _tiene_interaction_component(nodo: Node) -> bool:
+func _tiene_interaction_component_v2(nodo: Node) -> bool:
 	for child in nodo.get_children():
-		if child is InteractionComponent:
+		if child is InteractionComponentV2:
 			return true
 	return false
 

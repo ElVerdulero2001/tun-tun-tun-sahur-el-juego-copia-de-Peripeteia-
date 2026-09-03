@@ -11,7 +11,7 @@ extends Node3D
 ##  - autoaprovisionamiento;
 ##  - footprint 1x4 y rotacion 1x4 <-> 4x1;
 ##  - ciclo real MUNDO -> INVENTARIO -> MUNDO -> INVENTARIO con identidad estable;
-##  - el WorldItemV2 devuelto ES sable_san_martin_1 (mesh + collider + InteractionComponent).
+##  - el WorldItemV2 devuelto ES sable_san_martin_1 (mesh + collider + InteractionComponentV2).
 ##
 ## Root Node3D a proposito: get_tree().current_scene = este nodo (ItemDropper valida Node3D).
 
@@ -124,7 +124,7 @@ func _ciclo_real() -> void:
 	_check(wi != null and not ("_authority" in wi), "15: el WorldItemV2 sigue NEUTRAL")
 	_check(wi != null and wi.get_node_or_null("machetedesanmartin4") != null, "16: conserva el mesh")
 	_check(wi != null and _tiene(wi, "CollisionShape3D"), "16: conserva su collider")
-	_check(wi != null and _tiene_interaction_component(wi), "16: conserva su InteractionComponent hijo directo")
+	_check(wi != null and _tiene_interaction_component_v2(wi), "16: conserva su InteractionComponentV2 hijo directo")
 
 	# 13. re-pickup real
 	var ok2: bool = wi._on_interact(Interaction.new(pa, &"usar"))
@@ -169,9 +169,9 @@ func _tiene(nodo: Node, clase: String) -> bool:
 	return false
 
 
-func _tiene_interaction_component(nodo: Node) -> bool:
+func _tiene_interaction_component_v2(nodo: Node) -> bool:
 	for child in nodo.get_children():
-		if child is InteractionComponent:
+		if child is InteractionComponentV2:
 			return true
 	return false
 

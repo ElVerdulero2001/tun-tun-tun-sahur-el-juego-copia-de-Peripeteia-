@@ -1,9 +1,8 @@
 [gd_scene format=3 uid="uid://cv5ym8d32f5mp"]
 
-[ext_resource type="PackedScene" uid="uid://ds0bvw2cidi7g" path="res://scenes/components/player.tscn" id="1_46lwt"]
 [ext_resource type="Texture2D" uid="uid://r5wyupe3f2oe" path="res://assets/textures/concrete001_256x256.jpg" id="1_gmgay"]
-[ext_resource type="Script" uid="uid://c2xyba20xth2h" path="res://scripts/player n entities/movement/player.gd" id="2_x25rp"]
 [ext_resource type="PackedScene" uid="uid://dlvxllcuc4v84" path="res://scenes/components/debug_ui.tscn" id="4_w7r7j"]
+[ext_resource type="PackedScene" path="res://scenes/player_v2/player_v2.tscn" id="5_pv2"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_o6mel"]
 albedo_texture = ExtResource("1_gmgay")
@@ -48,10 +47,7 @@ mesh = SubResource("BoxMesh_srpys")
 transform = Transform3D(40, 0, 0, 0, 0.2, 0, 0, 0, 40, 0, 0, 0)
 shape = SubResource("BoxShape3D_46lwt")
 
-[node name="player" parent="." unique_id=189769782 instance=ExtResource("1_46lwt")]
-
-[node name="player" parent="player" index="0" unique_id=629727262]
-script = ExtResource("2_x25rp")
+[node name="PlayerV2" parent="." instance=ExtResource("5_pv2")]
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1241348403]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 5.6550717, 0)
@@ -79,5 +75,4 @@ shape = SubResource("BoxShape3D_o6mel")
 
 [node name="Node3D" parent="." unique_id=1589060079 instance=ExtResource("4_w7r7j")]
 
-[editable path="player"]
 [editable path="Node3D"]

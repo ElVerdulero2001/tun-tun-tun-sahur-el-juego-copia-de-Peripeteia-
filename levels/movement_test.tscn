@@ -1,7 +1,5 @@
 [gd_scene format=3 uid="uid://cq3xs5ly2b4v0"]
 
-[ext_resource type="PackedScene" uid="uid://ds0bvw2cidi7g" path="res://scenes/components/player.tscn" id="1_djgoh"]
-[ext_resource type="Script" uid="uid://c2xyba20xth2h" path="res://scripts/player n entities/movement/player.gd" id="2_88gl0"]
 [ext_resource type="Texture2D" uid="uid://r5wyupe3f2oe" path="res://assets/textures/concrete001_256x256.jpg" id="5_yig0p"]
 [ext_resource type="PackedScene" uid="uid://dlrof3ye5138x" path="res://assets/models/stairs/escalera_grande2.glb" id="8_gpyf4"]
 [ext_resource type="PackedScene" uid="uid://b6tf840wvriod" path="res://assets/models/stairs/escalear_largalarga2.glb" id="9_0l33h"]
@@ -24,7 +22,10 @@
 [ext_resource type="Script" uid="uid://c0ihq5s8xhhkr" path="res://scripts/player n entities/systems/transport/transition_point.gd" id="24_jm7au"]
 [ext_resource type="PackedScene" uid="uid://c0qytjvt5exhd" path="res://scenes/props/dinamic/llave_comun_1.tscn" id="25_0l33h"]
 [ext_resource type="PackedScene" uid="uid://cuxvg6tl2g2as" path="res://scenes/components/systems/transport/vehicle.tscn" id="25_jm7au"]
+[ext_resource type="PackedScene" uid="uid://derv7f5stbi5f" path="res://scenes/props/dinamic/botella_standar_1.tscn" id="25_okx0b"]
 [ext_resource type="PackedScene" uid="uid://cj0rdigkf8ugr" path="res://scenes/props/static/edificio_02.tscn" id="26_7ued8"]
+[ext_resource type="PackedScene" path="res://scenes/player_v2/player_v2.tscn" id="27_pv2"]
+[ext_resource type="Resource" uid="uid://clv1comun2x34" path="res://assets/data/items_v2/llave.tres" id="28_llave"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_755td"]
 
@@ -450,6 +451,7 @@ mesh = SubResource("BoxMesh_okx0b")
 transform = Transform3D(0.6806823, 0, 0.7325784, 0, 1, 0, -0.7325784, 0, 0.6806823, -10.286775, 0.31575918, -3.6303935)
 velocidad = 2.2
 requiere_llave = true
+llave_requerida = ExtResource("28_llave")
 
 [node name="escritorio_01" parent="world/enviroment/static/cosas" unique_id=59279466 instance=ExtResource("20_yig0p")]
 transform = Transform3D(1.04, 0, 0, 0, 1.04, 0, 0, 0, 1.04, -8.527092, 0, -3)
@@ -732,26 +734,16 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.123844, 0.099999905, 2.24
 [node name="sable_san_martin_1" parent="world/enviroment" unique_id=1154772102 instance=ExtResource("22_gpyf4")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5648985, 0.099999905, 1.4063187)
 
+[node name="botella_standar_1" parent="world/enviroment" unique_id=1598823837 instance=ExtResource("25_okx0b")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.300717, 0.5378556, -1.7858315)
+
 [node name="entities" type="Node3D" parent="." unique_id=2102854069]
 
 [node name="player" type="Node3D" parent="entities" unique_id=143539223]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.7168937, 0, 0)
 
-[node name="player" parent="entities/player" unique_id=189769782 instance=ExtResource("1_djgoh")]
+[node name="PlayerV2" parent="entities/player" unique_id=1564241957 instance=ExtResource("27_pv2")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.17427588, 0)
-
-[node name="player" parent="entities/player/player" index="0" unique_id=629727262]
-script = ExtResource("2_88gl0")
-
-[node name="Camera3D" parent="entities/player/player/player" index="2" unique_id=2133850831]
-current = true
-
-[node name="raycast_interaccion" parent="entities/player/player/player/Camera3D" index="0" unique_id=498661126]
-mostrar_raycast = false
-capa_interaccion = 3
-
-[node name="KickController" parent="entities/player/player/player/movement" parent_id_path=PackedInt32Array(189769782, 1651121374) index="4" unique_id=702578145]
-kick_force = 40.0
 
 [node name="screen osci" type="Node3D" parent="entities" unique_id=538461892]
 
@@ -768,6 +760,3 @@ transform = Transform3D(-0.009670533, 0.7019665, -0.7121442, 0.009531449, 0.7122
 [editable path="world/enviroment/paths/edificio_02"]
 [editable path="world/enviroment/paths/edificio_02/modelo_fisiacs/edificio_21"]
 [editable path="world/enviroment/paths/edificio_02/vehicle"]
-[editable path="entities/player/player"]
-[editable path="entities/player/player/player/Camera3D/raycast_interaccion"]
-[editable path="entities/player/player/player/hudnscreen/DebugUI"]

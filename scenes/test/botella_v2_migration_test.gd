@@ -161,7 +161,7 @@ func _ciclo_real() -> void:
 	_check(wi != null and wi.scene_file_path == BOTELLA_PATH, "J: la escena droppeada ES botella_standar_1.tscn (%s)" % (wi.scene_file_path if wi else "-"))
 	_check(wi != null and wi.get_node_or_null("botella_horrible4") != null, "J: conserva el mesh de la botella")
 	_check(wi != null and _tiene_collision_shape(wi), "J: conserva su collider")
-	_check(wi != null and _tiene_interaction_component(wi), "J: conserva su InteractionComponent hijo directo")
+	_check(wi != null and _tiene_interaction_component_v2(wi), "J: conserva su InteractionComponentV2 hijo directo")
 	_check(wi != null and wi.definition == BOTELLA_DEF, "J: el WorldItemV2 nuevo tambien trae definition = botella.tres")
 
 	# K. neutral
@@ -273,9 +273,9 @@ func _todos_world_items() -> Array[WorldItemV2]:
 	return res
 
 
-func _tiene_interaction_component(nodo: Node) -> bool:
+func _tiene_interaction_component_v2(nodo: Node) -> bool:
 	for child in nodo.get_children():
-		if child is InteractionComponent:
+		if child is InteractionComponentV2:
 			return true
 	return false
 

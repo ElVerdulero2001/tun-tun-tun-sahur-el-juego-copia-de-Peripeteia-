@@ -5,7 +5,7 @@ extends Node
 ## Instancia el sandbox real (player_v2_inventory_sandbox.tscn) y verifica que
 ## las piezas para el pickup end-to-end quedaron CONECTADAS. NO simula raycast
 ## ni input — esa parte se prueba a mano (ver el reporte de C3). Aca solo:
-##   - cada WorldItemV2 del sandbox tiene un InteractionComponent como hijo directo;
+##   - cada WorldItemV2 del sandbox tiene un InteractionComponentV2 como hijo directo;
 ##   - cada WorldItemV2 recibio un ItemInstance valido (definition = el .tres esperado);
 ##   - PlayerV2 expone un InventoryReceiver hijo directo del nodo raiz;
 ##   - ese InventoryReceiver apunta al Inventory y al InventoryAuthority de ESE PlayerV2;
@@ -46,8 +46,8 @@ func _ready() -> void:
 		_check(wi != null, "%s es un WorldItemV2" % it.name)
 		if wi == null:
 			continue
-		var comp := _hijo_interaction_component(wi)
-		_check(comp != null, "%s: InteractionComponent como hijo DIRECTO" % wi.name)
+		var comp := _hijo_interaction_component_v2(wi)
+		_check(comp != null, "%s: InteractionComponentV2 como hijo DIRECTO" % wi.name)
 		_check(wi.item_instance != null, "%s: tiene un ItemInstance" % wi.name)
 		_check(wi.item_instance != null and wi.item_instance.definition != null, "%s: su ItemInstance tiene ItemDefinition" % wi.name)
 
@@ -66,9 +66,9 @@ func _ready() -> void:
 	get_tree().quit(_fallos)
 
 
-func _hijo_interaction_component(nodo: Node) -> InteractionComponent:
+func _hijo_interaction_component_v2(nodo: Node) -> InteractionComponentV2:
 	for h in nodo.get_children():
-		if h is InteractionComponent:
+		if h is InteractionComponentV2:
 			return h
 	return null
 

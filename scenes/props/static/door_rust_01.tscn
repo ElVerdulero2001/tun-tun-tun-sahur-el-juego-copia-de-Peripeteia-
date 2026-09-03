@@ -2,8 +2,7 @@
 
 [ext_resource type="PackedScene" uid="uid://bfbjsgji3vcwb" path="res://assets/models/no_collectibles/door_oxide3.glb" id="1_sdjq4"]
 [ext_resource type="Script" uid="uid://dfunccitmsma3" path="res://scripts/enviroment/puerta.gd" id="1_tnq7p"]
-[ext_resource type="Resource" uid="uid://tewcbt5v8ocu" path="res://assets/data/non_collectibles/door_01.tres" id="2_o1rq1"]
-[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="4_anorq"]
+[ext_resource type="Script" path="res://scripts/player_v2/interaction_component_v2.gd" id="4_anorq"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_tnq7p"]
 size = Vector3(1.49, 2.46, 0.205)
@@ -11,7 +10,6 @@ size = Vector3(1.49, 2.46, 0.205)
 [node name="door_rust_01" type="AnimatableBody3D" unique_id=2111091655]
 collision_layer = 3
 script = ExtResource("1_tnq7p")
-data = ExtResource("2_o1rq1")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1688629002]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.72, 1.225, 0.078)
@@ -19,5 +17,5 @@ shape = SubResource("BoxShape3D_tnq7p")
 
 [node name="door_oxide3" parent="." unique_id=203928928 instance=ExtResource("1_sdjq4")]
 
-[node name="InteractionComponent" type="Node" parent="." unique_id=203108631]
+[node name="InteractionComponentV2" type="Node" parent="." unique_id=203108631]
 script = ExtResource("4_anorq")

@@ -17,10 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-Catalogo="*uid://hqqps24vrcnr"
-Inventario="*uid://ctadtowboqcwg"
 UIHacking="*uid://vmyxlqj06ho8"
-UiInventario="*uid://cxm11mhaddb7c"
 DebugDraw="*uid://cm26i11qxysqa"
 
 [display]

@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://ca4fumw4h1l56" path="res://scripts/player n entities/systems/transport/stop_point.gd" id="2_gtpch"]
 [ext_resource type="Script" uid="uid://c0ihq5s8xhhkr" path="res://scripts/player n entities/systems/transport/transition_point.gd" id="3_2x5ih"]
 [ext_resource type="Script" uid="uid://b6yg10nytlwt0" path="res://scripts/player n entities/systems/transport/world_button.gd" id="4_2x5ih"]
+[ext_resource type="Script" path="res://scripts/player_v2/interaction_component_v2.gd" id="5_intv2"]
 
 [sub_resource type="Curve3D" id="Curve3D_0oh1d"]
 _data = {
@@ -91,6 +92,9 @@ shape = SubResource("BoxShape3D_a8he1")
 [node name="MeshInstance3D" type="MeshInstance3D" parent="botones/boton_edificio_0" unique_id=444664781]
 mesh = SubResource("BoxMesh_8hl6s")
 
+[node name="InteractionComponentV2" type="Node" parent="botones/boton_edificio_0"]
+script = ExtResource("5_intv2")
+
 [node name="boton_edificio_1" type="StaticBody3D" parent="botones" unique_id=340340488]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5509946, 48.1684, -0.32539392)
 script = ExtResource("4_2x5ih")
@@ -101,6 +105,9 @@ shape = SubResource("BoxShape3D_a8he1")
 [node name="MeshInstance3D" type="MeshInstance3D" parent="botones/boton_edificio_1" unique_id=1844483367]
 mesh = SubResource("BoxMesh_8hl6s")
 
+[node name="InteractionComponentV2" type="Node" parent="botones/boton_edificio_1"]
+script = ExtResource("5_intv2")
+
 [node name="boton_edificio_2" type="StaticBody3D" parent="botones" unique_id=1859436244]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.19252354, 80.90391, 0.046322823)
 script = ExtResource("4_2x5ih")
@@ -110,5 +117,8 @@ shape = SubResource("BoxShape3D_a8he1")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="botones/boton_edificio_2" unique_id=2065068344]
 mesh = SubResource("BoxMesh_8hl6s")
+
+[node name="InteractionComponentV2" type="Node" parent="botones/boton_edificio_2"]
+script = ExtResource("5_intv2")
 
 [editable path="modelo_fisiacs/edificio_21"]

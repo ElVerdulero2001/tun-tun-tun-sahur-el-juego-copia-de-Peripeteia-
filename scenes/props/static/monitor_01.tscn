@@ -2,7 +2,7 @@
 
 [ext_resource type="PackedScene" uid="uid://c3mnxj2ogypfb" path="res://assets/models/no_collectibles/monitorcrt4.glb" id="1_gi06t"]
 [ext_resource type="Script" uid="uid://db4dlr0g1mipp" path="res://scripts/enviroment/terminal.gd" id="1_tgd5d"]
-[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="3_8gd2w"]
+[ext_resource type="Script" path="res://scripts/player_v2/interaction_component_v2.gd" id="3_8gd2w"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_tgd5d"]
 size = Vector3(0.75, 0.74, 0.705)
@@ -17,5 +17,5 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.10756113, 0, 0)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0077038854, 0.3547225, 0)
 shape = SubResource("BoxShape3D_tgd5d")
 
-[node name="InteractionComponent" type="Node" parent="." unique_id=465780791]
+[node name="InteractionComponentV2" type="Node" parent="." unique_id=465780791]
 script = ExtResource("3_8gd2w")

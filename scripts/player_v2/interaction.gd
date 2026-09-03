@@ -2,7 +2,7 @@ extends Node
 
 ## InteractionV2 — capacidad de interacción de PlayerV2 (SUA-1.2).
 ##
-## Responsabilidad ÚNICA: cada frame físico determina qué InteractionComponent
+## Responsabilidad ÚNICA: cada frame físico determina qué InteractionComponentV2
 ## tiene el Player apuntado, dentro del rango de interacción y SIN oclusión; y al
 ## recibir el input "interactuar", le entrega un Interaction(actor, &"usar").
 ##
@@ -32,7 +32,7 @@ const INTERACTION_RANGE := 2.5
 
 # ── Estado ──────────────────────────────────────────────────────────
 ## Único estado semántico del target. El propietario se DERIVA, no se copia.
-var _current_component: InteractionComponent = null
+var _current_component: InteractionComponentV2 = null
 ## Sólo observabilidad/diagnóstico — NO es API pública.
 var _last_hit_collider: Node = null
 
@@ -44,7 +44,7 @@ var current_target_owner: Node:
 	get:
 		return _current_component.get_parent() if _current_component != null else null
 
-## Entrega un Interaction(actor, &"usar") al InteractionComponent apuntado.
+## Entrega un Interaction(actor, &"usar") al InteractionComponentV2 apuntado.
 ## true = se ENTREGÓ (no implica que la acción del propietario haya tenido éxito;
 ## eso vive en interaction.resultado, que hoy no exponemos).
 func try_interact() -> bool:
@@ -54,7 +54,7 @@ func try_interact() -> bool:
 	_current_component.recibir_interaccion(interaction)
 	return true
 
-# ── Verificación de cableado (assert: sólo debug/editor, como InteractionComponent) ──
+# ── Verificación de cableado (assert: sólo debug/editor, como InteractionComponentV2) ──
 func _ready() -> void:
 	assert(actor != null, "InteractionV2: 'actor' sin cablear (esperado: PlayerV2).")
 	assert(physics_body != null, "InteractionV2: 'physics_body' sin cablear (esperado: Body).")
@@ -83,13 +83,14 @@ func _physics_process(_delta: float) -> void:
 	_last_hit_collider = hit.collider as Node
 	_current_component = _resolver_componente(hit.collider)
 
-## Regla V2: el collider interactuable lleva un InteractionComponent como HIJO
-## DIRECTO. Sin walk por ancestros, sin búsqueda por nombre.
-func _resolver_componente(collider: Object) -> InteractionComponent:
+## Regla V2: el collider interactuable lleva un InteractionComponentV2 como HIJO
+## DIRECTO. Sin walk por ancestros, sin búsqueda por nombre. Un componente del
+## contrato legacy no satisface este chequeo: son tipos sin relación de herencia.
+func _resolver_componente(collider: Object) -> InteractionComponentV2:
 	if not (collider is Node):
 		return null
 	for child in (collider as Node).get_children():
-		if child is InteractionComponent:
+		if child is InteractionComponentV2:
 			return child
 	return null
 

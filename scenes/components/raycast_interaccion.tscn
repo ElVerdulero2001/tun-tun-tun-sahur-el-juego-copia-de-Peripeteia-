@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://dg7creso2b5yf"]
-
-[ext_resource type="Script" uid="uid://cyb3klywd6u28" path="res://scripts/player n entities/visuals/raycast_interaccion.gd" id="1_jt82v"]
-
-[node name="raycast_interaccion" type="Node3D" unique_id=498661126 groups=["raycast"]]
-script = ExtResource("1_jt82v")

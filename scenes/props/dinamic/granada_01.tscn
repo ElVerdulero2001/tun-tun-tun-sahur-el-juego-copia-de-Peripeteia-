@@ -1,7 +1,9 @@
 [gd_scene format=3 uid="uid://c7dl0cwwdn0vp"]
 
 [ext_resource type="PackedScene" uid="uid://l4mkmga0sqmh" path="res://assets/models/collectibles/granada1.glb" id="1_fusaa"]
-[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="2_xk7dm"]
+[ext_resource type="Script" path="res://scripts/player_v2/interaction_component_v2.gd" id="2_xk7dm"]
+[ext_resource type="Script" uid="uid://cowfc2ykbs6rb" path="res://scripts/player n entities/inventory_v2/world_item.gd" id="3_world"]
+[ext_resource type="Resource" path="res://assets/data/items_v2/granada.tres" id="4_def"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_jpvmg"]
 
@@ -14,6 +16,8 @@ collision_layer = 10
 collision_mask = 9
 physics_material_override = SubResource("PhysicsMaterial_jpvmg")
 linear_damp = 2.0
+script = ExtResource("3_world")
+definition = ExtResource("4_def")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1865167681]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.066467136, 0)
@@ -22,5 +26,5 @@ shape = SubResource("CapsuleShape3D_xk7dm")
 [node name="granada1" parent="." unique_id=1888103339 instance=ExtResource("1_fusaa")]
 transform = Transform3D(0.07, 0, 0, 0, 0.07, 0, 0, 0, 0.07, 0, 0, 0)
 
-[node name="Interaction" type="Node" parent="." unique_id=1761155281]
+[node name="InteractionComponentV2" type="Node" parent="." unique_id=1761155281]
 script = ExtResource("2_xk7dm")

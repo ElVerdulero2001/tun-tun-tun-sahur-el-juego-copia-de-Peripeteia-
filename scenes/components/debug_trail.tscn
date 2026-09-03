@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://b3n7r2fg003oc"]
-
-[ext_resource type="Script" uid="uid://dqttjhp4ddkck" path="res://scripts/player n entities/visuals/debug_trail.gd" id="1_4lej1"]
-
-[node name="DebugTrail" type="Node3D" unique_id=107508621]
-script = ExtResource("1_4lej1")

@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://cj26qqnpcfcpc"]
-
-[ext_resource type="Script" uid="uid://baqw5auml5nkw" path="res://scripts/player n entities/visuals/salud.gd" id="1_0fjg3"]
-
-[node name="Salud" type="Node3D" unique_id=579747584]
-script = ExtResource("1_0fjg3")

@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cowfc2ykbs6rb" path="res://scripts/player n entities/inventory_v2/world_item.gd" id="1_world"]
 [ext_resource type="Resource" path="res://assets/data/items_v2/botella.tres" id="2_def"]
-[ext_resource type="Script" uid="uid://57m2xomh86bu" path="res://scripts/player n entities/InteractionComponent.gd" id="3_intercomp"]
+[ext_resource type="Script" path="res://scripts/player_v2/interaction_component_v2.gd" id="3_intercomp"]
 [ext_resource type="PackedScene" uid="uid://b6bccki5m1ngx" path="res://assets/models/collectibles/botella_horrible4.glb" id="4_w7sxs"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_fhtrf"]
@@ -25,5 +25,5 @@ shape = SubResource("CylinderShape3D_g4t4m")
 
 [node name="botella_horrible4" parent="." unique_id=913309584 instance=ExtResource("4_w7sxs")]
 
-[node name="InteractionComponent" type="Node" parent="." unique_id=1759526142]
+[node name="InteractionComponentV2" type="Node" parent="." unique_id=1759526142]
 script = ExtResource("3_intercomp")

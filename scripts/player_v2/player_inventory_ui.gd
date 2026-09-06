@@ -17,7 +17,7 @@ extends CanvasLayer
 ##   PlayerInventoryUI  = especifico del Player local; dueño de TAB / mouse_mode.
 ##
 ## ── Por que _shortcut_input y NO _unhandled_input (razon concreta) ──
-## player_v2.gd maneja ui_cancel (ESC) en su _unhandled_input y, en el orden
+## player_motor.gd maneja ui_cancel (ESC) en su _unhandled_input y, en el orden
 ## reverse-tree de propagacion, corre ANTES que este nodo (Interaction -> Body
 ## -> InventoryManipulator -> PlayerInventoryUI). Con _unhandled_input, ESC con
 ## el panel ABIERTO haria que PlayerV2 recapture el mouse ANTES de que este
@@ -25,11 +25,11 @@ extends CanvasLayer
 ## CAPTURED, y el InventoryManipulator necesita cursor libre).
 ## _shortcut_input corre antes de TODO _unhandled_input y solo recibe eventos de
 ## teclado -> este componente consume TAB / (ESC con panel abierto) primero, los
-## marca handled, y player_v2.gd nunca los ve. Con el panel CERRADO NO consume
+## marca handled, y player_motor.gd nunca los ve. Con el panel CERRADO NO consume
 ## ESC -> PlayerV2 conserva su toggle de mouse actual.
 ##
 ## ── Primer corte (SUA-1.4 C4-B) ──
-## Con el panel abierto: mouse-look se detiene solo (player_v2.gd lo guarda con
+## Con el panel abierto: mouse-look se detiene solo (player_motor.gd lo guarda con
 ## mouse_mode == CAPTURED). WASD, salto e InteractionV2/E SIGUEN funcionando —
 ## sin gating, sin InputManager, sin señales globales.
 ##

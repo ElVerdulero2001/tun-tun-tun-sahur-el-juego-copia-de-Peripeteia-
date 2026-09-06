@@ -1,12 +1,14 @@
 [gd_scene load_steps=9 format=3]
 
-[ext_resource type="Script" path="res://scripts/player_v2/player_v2.gd" id="1_pv2"]
+[ext_resource type="Script" path="res://scripts/player_v2/player_motor.gd" id="1_pv2"]
 [ext_resource type="Script" path="res://scripts/player_v2/interaction.gd" id="2_int"]
 [ext_resource type="Script" path="res://scripts/player n entities/inventory_v2/inventory.gd" id="3_inv"]
 [ext_resource type="Script" path="res://scripts/player n entities/inventory_v2/local_authority.gd" id="4_auth"]
 [ext_resource type="Script" path="res://scripts/player n entities/inventory_v2/inventory_receiver.gd" id="5_recv"]
 [ext_resource type="PackedScene" path="res://scenes/player_v2/player_inventory_ui.tscn" id="6_ui"]
 [ext_resource type="Script" path="res://scripts/player_v2/item_dropper.gd" id="7_drop"]
+[ext_resource type="Script" path="res://scripts/player_v2/traversal/traversal_detector.gd" id="8_detector"]
+[ext_resource type="Script" path="res://scripts/player_v2/traversal/traversal_controller.gd" id="9_controller"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_pv2"]
 radius = 0.3
@@ -59,3 +61,13 @@ actor = NodePath("../..")
 physics_body = NodePath("..")
 aim_source = NodePath("../View/Camera3D")
 interaction_ray_mask = 3
+
+[node name="TraversalDetector" type="Node" parent="Body" node_paths=PackedStringArray("probe_body", "aim_source")]
+script = ExtResource("8_detector")
+probe_body = NodePath("..")
+aim_source = NodePath("../View/Camera3D")
+
+[node name="TraversalController" type="Node" parent="Body" node_paths=PackedStringArray("motor", "detector")]
+script = ExtResource("9_controller")
+motor = NodePath("..")
+detector = NodePath("../TraversalDetector")

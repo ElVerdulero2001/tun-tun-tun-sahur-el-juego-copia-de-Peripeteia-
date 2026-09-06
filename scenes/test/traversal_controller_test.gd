@@ -43,7 +43,7 @@ var _checks := 0
 
 
 func _ready() -> void:
-	print("\n===== PARKOUR V2 · FASE 6 · TraversalController (shimmy + escaleras) =====")
+	print("\n===== PARKOUR V2 · FASE 7 · TraversalController (getters de solo lectura para debug) =====")
 
 	await _test_flujo_completo_lease_y_cooldown()
 	await _test_bloqueo_durante_acquire()
@@ -67,6 +67,7 @@ func _ready() -> void:
 	await _test_ladder_lease_rechazado_externamente()
 	await _test_ladder_no_cruza_a_vecino_de_otro_tipo()
 	await _test_shimmy_no_cruza_a_vecino_de_otro_tipo()
+	await _test_getters_debug_en_ladder()
 	_test_playerv2_root_sigue_vacio()
 
 	print("=============================================================")
@@ -76,7 +77,7 @@ func _ready() -> void:
 	else:
 		printerr("RESULTADO: %d CHEQUEO(S) FALLARON" % _fallos)
 	get_tree().quit(_fallos)
-	assert(_fallos == 0, "TraversalController no cumple el contrato de la Fase 6")
+	assert(_fallos == 0, "TraversalController no cumple el contrato de la Fase 7")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -901,6 +902,45 @@ func _test_shimmy_no_cruza_a_vecino_de_otro_tipo() -> void:
 	Input.action_release("move_back")
 	_check(await _esperar_estado(TraversalState.Value.FREE, 10),
 		"limpieza: release normal libera el shimmy de guardia de tipo sin problemas")
+	await _avanzar_frames(35)
+
+
+# ── Getters de solo lectura para TraversalDebug (Fase 7) ──────────────
+## El caso HANGING+shimmy de estos getters ya se prueba en
+## traversal_debug_test.gd (junto con la pasividad de TraversalDebug); acá
+## se cubre el ángulo que ese arnés no toca: LADDER, donde
+## get_segmento_activo() devuelve un TraversalSegment DISTINTO del de
+## HANGING y get_progreso_activo() avanza de verdad con el ascenso.
+func _test_getters_debug_en_ladder() -> void:
+	_ubicar(Vector3(140, -1, 0.7))
+	_check(controller.get_segmento_activo() == null,
+		"getters: get_segmento_activo() es null en FREE")
+
+	Input.action_press("move_forward")
+	_check(await _esperar_estado(TraversalState.Value.LADDER, 15),
+		"getters: entra a LADDER normalmente")
+
+	_check(controller.get_segmento_activo() is TraversalSegment,
+		"getters: get_segmento_activo() devuelve el TraversalSegment de la escalera en LADDER")
+
+	var progreso_inicial := controller.get_progreso_activo()
+	await _avanzar_frames(30)
+	Input.action_release("move_forward")
+	_check(controller.get_progreso_activo() > progreso_inicial,
+		"getters: get_progreso_activo() avanza de verdad con el ascenso (%.3f -> %.3f)"
+			% [progreso_inicial, controller.get_progreso_activo()])
+	_check(controller.get_pose_objetivo().origin.distance_to(player.global_position) < 0.1,
+		"getters: get_pose_objetivo() refleja la pose real durante LADDER")
+
+	Input.action_press("crouch")
+	_check(await _esperar_estado(TraversalState.Value.FREE, 10),
+		"limpieza: crouch libera la escalera sin problemas")
+	Input.action_release("crouch")
+	_check(controller.get_segmento_activo() == null,
+		"getters: get_segmento_activo() vuelve a null al salir de LADDER")
+	_check(controller.get_ultimo_motivo_salida() == TraversalExitReason.Value.LADDER_RELEASED,
+		"getters: get_ultimo_motivo_salida() reporta LADDER_RELEASED")
+
 	await _avanzar_frames(35)
 
 

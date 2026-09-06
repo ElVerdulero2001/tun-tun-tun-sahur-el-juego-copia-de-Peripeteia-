@@ -1,8 +1,8 @@
 class_name TraversalController
 extends Node
 
-## Controlador de estados de traversal (Parkour V2, Fase 6; doc de
-## arquitectura V0.3, secciones 5, 6, 8, 9.1 y 10). Implementa
+## Controlador de estados de traversal (Parkour V2, Fase 7; doc de
+## arquitectura V0.3, secciones 5, 6, 8, 9.1, 10 y 11). Implementa
 ## FREE -> ACQUIRE_LEDGE -> HANGING -> MANTLING -> FREE (con la recuperación
 ## de la sección 9.1 ante bloqueo de mantle), shimmy lateral DENTRO de
 ## HANGING (no es un estado nuevo — sección 8), y FREE -> LADDER -> FREE
@@ -12,6 +12,14 @@ extends Node
 ## directamente: solo usa la API pública de PlayerMotor (snapshot(),
 ## begin_traversal(), apply_traversal_pose(), end_traversal()) y el
 ## TraversalLease que ese begin_traversal() le entrega.
+##
+## Fase 7 agrega getters de solo lectura (get_segmento_activo(),
+## get_progreso_activo(), get_pose_objetivo(), hubo_motivo_salida()/
+## get_ultimo_motivo_salida()) para que TraversalDebug pueda observar sin
+## tocar nada — son bookkeeping puro (ver _aplicar_pose()/
+## _finalizar_traversal() más abajo), nunca influyen en ninguna decisión
+## del propio controller. No es lo mismo que exponer el lease: son datos
+## de solo lectura, no autoridad sobre el movimiento.
 ##
 ## Construye su propio TraversalIntent leyendo Input.* directamente — no
 ## hay InputManager ni autoload en este proyecto, y el arnés de test simula
@@ -25,13 +33,53 @@ extends Node
 @export var motor: PlayerMotor
 @export var detector: TraversalDetector
 
+## ── Guía de calibración (Fase 7, sección 14) ──────────────────────────
+## Todos los @export de acá abajo son de FEEL, no de arquitectura — cambiar
+## sus valores en el Inspector no debería requerir tocar ningún script.
+## Repaso hecho en esta fase, con el porqué de cada default:
+##
+## - acquire_*: 0.3s de acercamiento a la pose de hang es rápido pero
+##   perceptible (no un snap instantáneo); 2s de timeout es margen de sobra
+##   para que un bloqueo transitorio no cuelgue el intento; 5cm de
+##   tolerancia es imperceptible para el jugador. Tocar acquire_duracion_seg
+##   para un agarre más "pesado" o más "ágil".
+## - hang_distancia_pared: la separación real contra la pared en hang es
+##   `hang_distancia_pared - 0.08 (offset de detección del borde) -
+##   0.3 (radio de la cápsula)`. Con el valor previo (0.4) eso daba ~2cm de
+##   margen real — al límite, no un problema en sí (los tests lo confirman
+##   con walls de distinta profundidad) pero frágil ante cualquier pared
+##   nueva con geometría menos generosa. Subido a 0.5 (≈12cm de margen real)
+##   por robustez, sin tocar la fórmula ni el contrato.
+## - hang_caida_desde_borde: 1.4m de caída bajo el borde es coherente con
+##   una cápsula de 1.8m de alto colgando con los brazos arriba.
+## - mantle_duracion_seg/mantle_tolerancia_posicion: 0.35s de mantle es
+##   rápido (subir una pared no debería sentirse lento); ya viene calibrado
+##   empíricamente desde Fase 5 contra la geometría real de los tests.
+##   Tocar mantle_duracion_seg para un mantle más "atlético" o más "pesado".
+## - shimmy_velocidad: 1.5 m/s, más lento que caminar (5 m/s) — el shimmy es
+##   un movimiento cauteloso, no una carrera lateral.
+## - ladder_velocidad_base: 2 m/s de ascenso, similar a subir una escalera
+##   real sin apuro. Se multiplica por
+##   TraversalSegment.move_speed_multiplier de cada segmento, así que una
+##   escalera puntual más lenta/rápida no necesita tocar este valor global.
+## - ladder_salto_impulso_horizontal: 3 m/s de empuje al saltar afuera de
+##   una escalera — suficiente para despegarse de ella sin sentirse un
+##   salto de longitud.
+## - release_cooldown_seg: 0.5s alcanza para que la geometría/posición que
+##   causó el reagarre deje de calificar (caída, corrección de gravedad)
+##   sin que el jugador note una "traba" al soltar.
+##
+## Ninguno de estos valores esconde una regla de juego nueva: todos ya
+## estaban documentados donde se introdujeron (Fases 2, 4, 5 y 6) — esta
+## sección solo los junta y los revisa en un mismo lugar.
+
 # ── Acquire — parámetros de feel (calibrables) ───────────────────────
 @export var acquire_duracion_seg: float = 0.3
 @export var acquire_timeout_seg: float = 2.0
 @export var acquire_tolerancia_posicion: float = 0.05
 
 # ── Pose de hang — offsets desde el borde (calibrables) ──────────────
-@export var hang_distancia_pared: float = 0.4
+@export var hang_distancia_pared: float = 0.5
 @export var hang_caida_desde_borde: float = 1.4
 
 # ── Mantle — parámetros de feel (calibrables) ────────────────────────
@@ -107,6 +155,17 @@ var _progreso_hang: float = 0.0
 var _segmento_ladder_actual: TraversalSegment = null
 var _progreso_ladder: float = 0.0
 
+# ── Bookkeeping de solo lectura para observadores externos (Fase 7:
+# TraversalDebug, sección 11). Nunca influyen en ninguna decisión propia —
+# se escriben una sola vez, en _aplicar_pose()/_finalizar_traversal(), y
+# se leen solo desde los getters públicos correspondientes más abajo. No
+# se resetean al volver a FREE: mostrar el último valor un instante
+# después de la transición no es incorrecto, y limpiarlos forzaría tocar
+# cada camino de salida solo para esto. ────────────────────────────────
+var _ultima_pose_objetivo: Transform3D
+var _ultimo_motivo_salida: TraversalExitReason.Value
+var _hay_motivo_salida: bool = false
+
 
 func _physics_process(delta: float) -> void:
 	physics_tick(delta)
@@ -135,6 +194,68 @@ func physics_tick(delta: float) -> void:
 
 func get_estado() -> TraversalState.Value:
 	return _estado
+
+
+## TraversalSegment activo según el estado actual (el de shimmy en HANGING,
+## el de ascenso en LADDER), o null si no aplica (Fase 7, para
+## TraversalDebug). Nunca null "por error": en HANGING sin un
+## TraversalSegment de tipo LEDGE asociado, null es la respuesta correcta
+## (ese borde no tiene shimmy), no una falla.
+func get_segmento_activo() -> TraversalSegment:
+	match _estado:
+		TraversalState.Value.HANGING:
+			return _segmento_hang_actual
+		TraversalState.Value.LADDER:
+			return _segmento_ladder_actual
+		_:
+			return null
+
+
+## Progreso [0,1] sobre get_segmento_activo(), o 0.0 si no aplica (Fase 7).
+func get_progreso_activo() -> float:
+	match _estado:
+		TraversalState.Value.HANGING:
+			return _progreso_hang
+		TraversalState.Value.LADDER:
+			return _progreso_ladder
+		_:
+			return 0.0
+
+
+## Última pose pasada a PlayerMotor.apply_traversal_pose() (Fase 7, para
+## TraversalDebug) — solo tiene sentido mientras get_estado() != FREE, ver
+## comentario sobre _ultima_pose_objetivo más arriba en el archivo.
+func get_pose_objetivo() -> Transform3D:
+	return _ultima_pose_objetivo
+
+
+## true si ya ocurrió alguna salida de traversal en esta sesión (Fase 7,
+## para TraversalDebug: antes de la primera salida no hay nada que
+## mostrar, y TraversalExitReason.Value no tiene un valor "ninguno").
+func hubo_motivo_salida() -> bool:
+	return _hay_motivo_salida
+
+
+func get_ultimo_motivo_salida() -> TraversalExitReason.Value:
+	return _ultimo_motivo_salida
+
+
+## Envoltorio de motor.apply_traversal_pose(): mismo comportamiento exacto,
+## más el registro de solo lectura para TraversalDebug (Fase 7). Todo
+## _tick_*()/_iniciar_*() de este archivo pasa por acá en vez de llamar a
+## PlayerMotor directo, para que ningún camino se olvide de registrar la
+## pose objetivo.
+func _aplicar_pose(pose: Transform3D) -> TraversalMoveResult:
+	_ultima_pose_objetivo = pose
+	return motor.apply_traversal_pose(_lease, pose)
+
+
+## Envoltorio de motor.end_traversal(): mismo comportamiento exacto, más el
+## registro de solo lectura para TraversalDebug (Fase 7).
+func _finalizar_traversal(exit_velocity: Vector3, reason: TraversalExitReason.Value) -> void:
+	_ultimo_motivo_salida = reason
+	_hay_motivo_salida = true
+	motor.end_traversal(_lease, exit_velocity, reason)
 
 
 # ── FREE ─────────────────────────────────────────────────────────────
@@ -219,7 +340,7 @@ func _tick_acquire_ledge(delta: float) -> void:
 
 	var progreso := clampf(_tiempo_en_acquire / acquire_duracion_seg, 0.0, 1.0)
 	var pose_intermedia: Transform3D = _pose_inicial_acquire.interpolate_with(_pose_objetivo_hang, progreso)
-	var resultado := motor.apply_traversal_pose(_lease, pose_intermedia)
+	var resultado := _aplicar_pose(pose_intermedia)
 
 	if resultado.status != TraversalMoveResult.Status.OK:
 		_abortar_acquire(TraversalExitReason.Value.ACQUIRE_BLOCKED)
@@ -231,7 +352,7 @@ func _tick_acquire_ledge(delta: float) -> void:
 
 
 func _abortar_acquire(razon: TraversalExitReason.Value) -> void:
-	motor.end_traversal(_lease, Vector3.ZERO, razon)
+	_finalizar_traversal(Vector3.ZERO, razon)
 	_lease = null
 	_ledge_actual = null
 	_estado = TraversalState.Value.FREE
@@ -281,7 +402,7 @@ func _tick_hanging(delta: float) -> void:
 
 	_procesar_shimmy(intent, delta)
 
-	var resultado := motor.apply_traversal_pose(_lease, _pose_objetivo_hang)
+	var resultado := _aplicar_pose(_pose_objetivo_hang)
 	if resultado.status != TraversalMoveResult.Status.OK:
 		_salir_de_hang_por_falla(resultado)
 
@@ -318,7 +439,7 @@ func _procesar_shimmy(intent: TraversalIntent, delta: float) -> void:
 
 
 func _liberar_hang() -> void:
-	motor.end_traversal(_lease, Vector3.ZERO, TraversalExitReason.Value.HANG_RELEASED)
+	_finalizar_traversal(Vector3.ZERO, TraversalExitReason.Value.HANG_RELEASED)
 	_lease = null
 	_ledge_actual = null
 	_estado = TraversalState.Value.FREE
@@ -336,7 +457,7 @@ func _liberar_hang() -> void:
 ## no se pudo mantener.
 func _salir_de_hang_por_falla(resultado: TraversalMoveResult) -> void:
 	if resultado.status == TraversalMoveResult.Status.BLOCKED:
-		motor.end_traversal(_lease, Vector3.ZERO, TraversalExitReason.Value.HANG_BLOCKED)
+		_finalizar_traversal(Vector3.ZERO, TraversalExitReason.Value.HANG_BLOCKED)
 	_lease = null
 	_ledge_actual = null
 	_estado = TraversalState.Value.FREE
@@ -376,7 +497,7 @@ func _iniciar_mantle() -> void:
 	_tiempo_en_mantle = 0.0
 	_estado = TraversalState.Value.MANTLING
 
-	var resultado := motor.apply_traversal_pose(_lease, _pose_inicial_mantle)
+	var resultado := _aplicar_pose(_pose_inicial_mantle)
 	if resultado.status != TraversalMoveResult.Status.OK:
 		_manejar_bloqueo_de_mantle(resultado)
 
@@ -395,7 +516,7 @@ func _tick_mantling(delta: float) -> void:
 	else:
 		pose_intermedia = _pose_cima_mantle.interpolate_with(_pose_aterrizaje_mantle, (progreso - 0.5) / 0.5)
 
-	var resultado := motor.apply_traversal_pose(_lease, pose_intermedia)
+	var resultado := _aplicar_pose(pose_intermedia)
 	if resultado.status != TraversalMoveResult.Status.OK:
 		_manejar_bloqueo_de_mantle(resultado)
 		return
@@ -413,7 +534,7 @@ func _tick_mantling(delta: float) -> void:
 ## "al caer" de la sección 8 lo reengancharía de inmediato, en loop. Mismo
 ## cooldown que un release voluntario o un mantle bloqueado.
 func _completar_mantle() -> void:
-	motor.end_traversal(_lease, Vector3.ZERO, TraversalExitReason.Value.MANTLE_COMPLETED)
+	_finalizar_traversal(Vector3.ZERO, TraversalExitReason.Value.MANTLE_COMPLETED)
 	_lease = null
 	_ledge_actual = null
 	_estado = TraversalState.Value.FREE
@@ -446,8 +567,8 @@ func _manejar_bloqueo_de_mantle(resultado: TraversalMoveResult) -> void:
 ## adelante, restaurando gravedad/locomoción normal al volver a FREE, y con
 ## cooldown anti-reagarre para no reenganchar el mismo borde de inmediato.
 func _salir_de_mantle_bloqueado(resultado: TraversalMoveResult) -> void:
-	motor.apply_traversal_pose(_lease, resultado.last_safe_pose)
-	motor.end_traversal(_lease, Vector3.ZERO, TraversalExitReason.Value.MANTLE_BLOCKED)
+	_aplicar_pose(resultado.last_safe_pose)
+	_finalizar_traversal(Vector3.ZERO, TraversalExitReason.Value.MANTLE_BLOCKED)
 	_lease = null
 	_ledge_actual = null
 	_estado = TraversalState.Value.FREE
@@ -477,7 +598,7 @@ func _iniciar_ladder(ladder: LadderCandidate) -> void:
 		motor.global_transform.basis, _segmento_ladder_actual.get_position_at(_progreso_ladder))
 	_estado = TraversalState.Value.LADDER
 
-	var resultado := motor.apply_traversal_pose(_lease, pose_inicial)
+	var resultado := _aplicar_pose(pose_inicial)
 	if resultado.status != TraversalMoveResult.Status.OK:
 		_salir_de_ladder_por_falla(resultado)
 
@@ -530,7 +651,7 @@ func _tick_ladder(delta: float) -> void:
 
 	var pose_objetivo := Transform3D(
 		motor.global_transform.basis, _segmento_ladder_actual.get_position_at(_progreso_ladder))
-	var resultado := motor.apply_traversal_pose(_lease, pose_objetivo)
+	var resultado := _aplicar_pose(pose_objetivo)
 	if resultado.status != TraversalMoveResult.Status.OK:
 		_salir_de_ladder_por_falla(resultado)
 
@@ -555,13 +676,13 @@ func _salir_de_ladder_por_salto() -> void:
 
 	var impulso := direccion_horizontal * ladder_salto_impulso_horizontal
 	impulso.y = PlayerMotor.JUMP_VELOCITY
-	motor.end_traversal(_lease, impulso, TraversalExitReason.Value.LADDER_JUMP_EXIT)
+	_finalizar_traversal(impulso, TraversalExitReason.Value.LADDER_JUMP_EXIT)
 	_limpiar_estado_ladder()
 	_cooldown_restante = release_cooldown_seg
 
 
 func _liberar_ladder() -> void:
-	motor.end_traversal(_lease, Vector3.ZERO, TraversalExitReason.Value.LADDER_RELEASED)
+	_finalizar_traversal(Vector3.ZERO, TraversalExitReason.Value.LADDER_RELEASED)
 	_limpiar_estado_ladder()
 	_cooldown_restante = release_cooldown_seg
 
@@ -580,7 +701,7 @@ func _liberar_ladder() -> void:
 ## MANTLE_COMPLETED).
 func _salir_de_ladder_por_falla(resultado: TraversalMoveResult) -> void:
 	if resultado.status == TraversalMoveResult.Status.BLOCKED:
-		motor.end_traversal(_lease, Vector3.ZERO, TraversalExitReason.Value.LADDER_BLOCKED)
+		_finalizar_traversal(Vector3.ZERO, TraversalExitReason.Value.LADDER_BLOCKED)
 	_limpiar_estado_ladder()
 	_cooldown_restante = release_cooldown_seg
 

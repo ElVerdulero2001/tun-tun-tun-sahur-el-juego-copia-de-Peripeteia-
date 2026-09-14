@@ -1,0 +1,98 @@
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://scripts/player_v2/player_motor.gd" id="1_motor"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_p0"]
+
+[sub_resource type="Sky" id="Sky_p0"]
+sky_material = SubResource("ProceduralSkyMaterial_p0")
+
+[sub_resource type="Environment" id="Environment_p0"]
+background_mode = 2
+sky = SubResource("Sky_p0")
+
+[sub_resource type="StandardMaterial3D" id="Mat_Floor"]
+albedo_color = Color(0.55, 0.55, 0.55, 1)
+
+[sub_resource type="StandardMaterial3D" id="Mat_CajaBaja"]
+albedo_color = Color(0.85, 0.55, 0.15, 1)
+
+[sub_resource type="BoxMesh" id="Mesh_Floor1"]
+material = SubResource("Mat_Floor")
+size = Vector3(6, 1, 37)
+
+[sub_resource type="BoxShape3D" id="Shape_Floor1"]
+size = Vector3(6, 1, 37)
+
+[sub_resource type="BoxMesh" id="Mesh_Floor2"]
+material = SubResource("Mat_Floor")
+size = Vector3(6, 1, 50)
+
+[sub_resource type="BoxShape3D" id="Shape_Floor2"]
+size = Vector3(6, 1, 50)
+
+[sub_resource type="BoxMesh" id="Mesh_CajaBaja"]
+material = SubResource("Mat_CajaBaja")
+size = Vector3(6, 0.6, 1.4)
+
+[sub_resource type="BoxShape3D" id="Shape_CajaBaja"]
+size = Vector3(6, 0.6, 1.4)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_pv2"]
+radius = 0.3
+height = 1.8
+
+[node name="V2ComparisonP0" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_p0")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.8, 0, 0.6, -0.35, 0.85, 0.47, -0.51, -0.53, 0.68, 0, 12, 0)
+shadow_enabled = true
+
+[node name="Suelo" type="Node3D" parent="."]
+
+[node name="Floor1" type="StaticBody3D" parent="Suelo"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, -15.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Suelo/Floor1"]
+mesh = SubResource("Mesh_Floor1")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Suelo/Floor1"]
+shape = SubResource("Shape_Floor1")
+
+[node name="Floor2" type="StaticBody3D" parent="Suelo"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, -65)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Suelo/Floor2"]
+mesh = SubResource("Mesh_Floor2")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Suelo/Floor2"]
+shape = SubResource("Shape_Floor2")
+
+[node name="ZonaA_SaltoNormalCajaBaja" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, -6.7)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="ZonaA_SaltoNormalCajaBaja"]
+mesh = SubResource("Mesh_CajaBaja")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ZonaA_SaltoNormalCajaBaja"]
+shape = SubResource("Shape_CajaBaja")
+
+[node name="ZonaE_SaltoLargo_Referencia" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -37)
+
+[node name="Body" type="CharacterBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 2)
+script = ExtResource("1_motor")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_pv2")
+
+[node name="View" type="Node3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+
+[node name="Camera3D" type="Camera3D" parent="Body/View"]
+current = true

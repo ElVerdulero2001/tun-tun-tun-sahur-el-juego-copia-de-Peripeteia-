@@ -4,3 +4,4 @@
 
 # Logs de corridas del launcher de tests headless (tools/testing)
 /tools/testing/logs/
+/archive/claude_tests/tools/testing/logs/

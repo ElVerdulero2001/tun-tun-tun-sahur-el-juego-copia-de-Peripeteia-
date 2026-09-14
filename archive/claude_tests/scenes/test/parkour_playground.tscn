@@ -1,0 +1,322 @@
+[gd_scene format=3 uid="uid://20w0j0ox3w8i"]
+
+[ext_resource type="Script" uid="uid://123xphnpnfac" path="res://scripts/player_v2/player_motor.gd" id="1_motor"]
+[ext_resource type="Script" uid="uid://inqc38xd18rf" path="res://scripts/player_v2/traversal/traversal_detector.gd" id="2_detector"]
+[ext_resource type="Script" uid="uid://bfp2q0tlvva1p" path="res://scripts/player_v2/traversal/traversal_controller.gd" id="3_controller"]
+[ext_resource type="Script" uid="uid://2gcc0nqho81l" path="res://scripts/player_v2/traversal/traversal_segment.gd" id="4_segment"]
+[ext_resource type="Script" uid="uid://skm6fbtnpa7t" path="res://scripts/player_v2/traversal/traversal_debug.gd" id="5_debug"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_pkg1"]
+
+[sub_resource type="Sky" id="Sky_pkg1"]
+sky_material = SubResource("ProceduralSkyMaterial_pkg1")
+
+[sub_resource type="Environment" id="Environment_pkg1"]
+background_mode = 2
+sky = SubResource("Sky_pkg1")
+
+[sub_resource type="BoxMesh" id="BoxMesh_piso"]
+size = Vector3(110, 1, 10)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_piso"]
+albedo_color = Color(0.45, 0.45, 0.48, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_piso"]
+size = Vector3(110, 1, 10)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_muro"]
+albedo_color = Color(0.55, 0.42, 0.3, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_muro"]
+material = SubResource("StandardMaterial3D_muro")
+size = Vector3(4, 1, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_muro"]
+size = Vector3(4, 1, 1.5)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ledge"]
+albedo_color = Color(0.3, 0.65, 0.35, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_ledge"]
+material = SubResource("StandardMaterial3D_ledge")
+size = Vector3(4, 1, 1.5)
+subdivide_width = 1
+
+[sub_resource type="BoxMesh" id="BoxMesh_ledge_mitad"]
+material = SubResource("StandardMaterial3D_ledge")
+size = Vector3(2, 1, 0.3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ledge_mitad"]
+size = Vector3(2, 1, 0.3)
+
+[sub_resource type="BoxMesh" id="BoxMesh_mantle"]
+material = SubResource("StandardMaterial3D_muro")
+size = Vector3(4, 1, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_mantle"]
+size = Vector3(4, 1, 2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_direct_mantle"]
+albedo_color = Color(0.85, 0.6, 0.15, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_direct_mantle_baja"]
+material = SubResource("StandardMaterial3D_direct_mantle")
+size = Vector3(4, 0.7, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_direct_mantle_baja"]
+size = Vector3(4, 0.7, 2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_direct_mantle_alta"]
+material = SubResource("StandardMaterial3D_direct_mantle")
+size = Vector3(4, 1.3, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_direct_mantle_alta"]
+size = Vector3(4, 1.3, 2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_escalera"]
+albedo_color = Color(0.3, 0.45, 0.7, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_escalera"]
+material = SubResource("StandardMaterial3D_escalera")
+size = Vector3(0.5, 4, 0.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_escalera"]
+size = Vector3(0.5, 4, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_plataforma"]
+albedo_color = Color(0.6, 0.6, 0.62, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_plataforma"]
+material = SubResource("StandardMaterial3D_plataforma")
+size = Vector3(2, 0.2, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plataforma"]
+size = Vector3(2, 0.2, 2)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_pv2"]
+radius = 0.3
+height = 1.8
+
+[node name="ParkourPlayground" type="Node3D" unique_id=651073484]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1847618045]
+environment = SubResource("Environment_pkg1")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1676316912]
+transform = Transform3D(0.7071068, -0.5, 0.5, 0, 0.7071068, 0.7071068, -0.7071068, -0.5, 0.5, 0, 10, 0)
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="." unique_id=1403681865]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45, -0.5, 5.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=1814248764]
+mesh = SubResource("BoxMesh_piso")
+surface_material_override/0 = SubResource("StandardMaterial3D_piso")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor" unique_id=1500523678]
+shape = SubResource("BoxShape3D_piso")
+
+[node name="Zona1_BordeSimple" type="StaticBody3D" parent="." unique_id=667322568]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 1.4732392)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Zona1_BordeSimple" unique_id=1184601783]
+mesh = SubResource("BoxMesh_muro")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Zona1_BordeSimple" unique_id=1789967002]
+shape = SubResource("BoxShape3D_muro")
+
+[node name="Zona2_BordeConShimmy" type="StaticBody3D" parent="." unique_id=422245493 node_paths=PackedStringArray("start_marker", "end_marker")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 1.5, 1.5)
+script = ExtResource("4_segment")
+segment_type = 4
+start_marker = NodePath("StartMarker")
+end_marker = NodePath("EndMarker")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Zona2_BordeConShimmy" unique_id=1235769810]
+mesh = SubResource("BoxMesh_ledge")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Zona2_BordeConShimmy" unique_id=1888809731]
+shape = SubResource("BoxShape3D_muro")
+
+[node name="StartMarker" type="Marker3D" parent="Zona2_BordeConShimmy" unique_id=621072831]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 0.5, 0.65)
+
+[node name="EndMarker" type="Marker3D" parent="Zona2_BordeConShimmy" unique_id=889622823]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0.5, 0.65)
+
+[node name="Zona3_TransicionIzq" type="StaticBody3D" parent="." unique_id=1552464649 node_paths=PackedStringArray("start_marker", "end_marker", "neighbour_up")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29, 1.5, 1.5)
+script = ExtResource("4_segment")
+segment_type = 4
+start_marker = NodePath("StartMarker")
+end_marker = NodePath("EndMarker")
+neighbour_up = NodePath("../Zona3_TransicionDer")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Zona3_TransicionIzq" unique_id=1784079704]
+mesh = SubResource("BoxMesh_ledge_mitad")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Zona3_TransicionIzq" unique_id=1263283303]
+shape = SubResource("BoxShape3D_ledge_mitad")
+
+[node name="StartMarker" type="Marker3D" parent="Zona3_TransicionIzq" unique_id=1557436730]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.5, 0.07)
+
+[node name="EndMarker" type="Marker3D" parent="Zona3_TransicionIzq" unique_id=605163864]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.5, 0.07)
+
+[node name="Zona3_TransicionDer" type="StaticBody3D" parent="." unique_id=341439604 node_paths=PackedStringArray("start_marker", "end_marker", "neighbour_down")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 31, 1.5, 1.5)
+script = ExtResource("4_segment")
+segment_type = 4
+start_marker = NodePath("StartMarker")
+end_marker = NodePath("EndMarker")
+neighbour_down = NodePath("../Zona3_TransicionIzq")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Zona3_TransicionDer" unique_id=634040129]
+mesh = SubResource("BoxMesh_ledge_mitad")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Zona3_TransicionDer" unique_id=2061547464]
+shape = SubResource("BoxShape3D_ledge_mitad")
+
+[node name="StartMarker" type="Marker3D" parent="Zona3_TransicionDer" unique_id=601366099]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.5, 0.07)
+
+[node name="EndMarker" type="Marker3D" parent="Zona3_TransicionDer" unique_id=942348732]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.5, 0.07)
+
+[node name="Zona4_Mantle" type="StaticBody3D" parent="." unique_id=834007644]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 48, 0.5, 3.0793538)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Zona4_Mantle" unique_id=1087356408]
+mesh = SubResource("BoxMesh_mantle")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Zona4_Mantle" unique_id=1879456605]
+shape = SubResource("BoxShape3D_mantle")
+
+[node name="Zona4b_DirectMantleBaja" type="StaticBody3D" parent="." unique_id=1960864161]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54, 0.35, 3)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Zona4b_DirectMantleBaja" unique_id=960352193]
+mesh = SubResource("BoxMesh_direct_mantle_baja")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Zona4b_DirectMantleBaja" unique_id=1624133211]
+shape = SubResource("BoxShape3D_direct_mantle_baja")
+
+[node name="Zona4c_DirectMantleAlta" type="StaticBody3D" parent="." unique_id=1848356577]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0.65, 3)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Zona4c_DirectMantleAlta" unique_id=608711312]
+mesh = SubResource("BoxMesh_direct_mantle_alta")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Zona4c_DirectMantleAlta" unique_id=1435285382]
+shape = SubResource("BoxShape3D_direct_mantle_alta")
+
+[node name="Zona5_EscaleraIndividual" type="StaticBody3D" parent="." unique_id=380231369 node_paths=PackedStringArray("start_marker", "end_marker")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 65, 0.1, 0)
+script = ExtResource("4_segment")
+start_marker = NodePath("StartMarker")
+end_marker = NodePath("EndMarker")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Zona5_EscaleraIndividual" unique_id=645464762]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+mesh = SubResource("BoxMesh_escalera")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Zona5_EscaleraIndividual" unique_id=1624958436]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+shape = SubResource("BoxShape3D_escalera")
+
+[node name="StartMarker" type="Marker3D" parent="Zona5_EscaleraIndividual" unique_id=983214066]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.7)
+
+[node name="EndMarker" type="Marker3D" parent="Zona5_EscaleraIndividual" unique_id=988283191]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4, 0.7)
+
+[node name="Zona5_Plataforma" type="StaticBody3D" parent="." unique_id=777445736]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 65, 4, 2.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Zona5_Plataforma" unique_id=198960556]
+mesh = SubResource("BoxMesh_plataforma")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Zona5_Plataforma" unique_id=1617208535]
+shape = SubResource("BoxShape3D_plataforma")
+
+[node name="Zona6_EscaleraInferior" type="StaticBody3D" parent="." unique_id=1562636924 node_paths=PackedStringArray("start_marker", "end_marker", "neighbour_up")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 85, 0.1, 0)
+script = ExtResource("4_segment")
+start_marker = NodePath("StartMarker")
+end_marker = NodePath("EndMarker")
+neighbour_up = NodePath("../Zona6_EscaleraSuperior")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Zona6_EscaleraInferior" unique_id=2128008044]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+mesh = SubResource("BoxMesh_escalera")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Zona6_EscaleraInferior" unique_id=959391301]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+shape = SubResource("BoxShape3D_escalera")
+
+[node name="StartMarker" type="Marker3D" parent="Zona6_EscaleraInferior" unique_id=1549769368]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.7)
+
+[node name="EndMarker" type="Marker3D" parent="Zona6_EscaleraInferior" unique_id=1370084087]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4, 0.7)
+
+[node name="Zona6_EscaleraSuperior" type="StaticBody3D" parent="." unique_id=1772002668 node_paths=PackedStringArray("start_marker", "end_marker", "neighbour_down")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 85, 4.1, 0)
+script = ExtResource("4_segment")
+start_marker = NodePath("StartMarker")
+end_marker = NodePath("EndMarker")
+neighbour_down = NodePath("../Zona6_EscaleraInferior")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Zona6_EscaleraSuperior" unique_id=378439138]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+mesh = SubResource("BoxMesh_escalera")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Zona6_EscaleraSuperior" unique_id=352736682]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+shape = SubResource("BoxShape3D_escalera")
+
+[node name="StartMarker" type="Marker3D" parent="Zona6_EscaleraSuperior" unique_id=1378409749]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.7)
+
+[node name="EndMarker" type="Marker3D" parent="Zona6_EscaleraSuperior" unique_id=1830465529]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4, 0.7)
+
+[node name="Zona6_Plataforma" type="StaticBody3D" parent="." unique_id=411790847]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 85, 8, 2.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Zona6_Plataforma" unique_id=1402107980]
+mesh = SubResource("BoxMesh_plataforma")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Zona6_Plataforma" unique_id=866998887]
+shape = SubResource("BoxShape3D_plataforma")
+
+[node name="Player" type="CharacterBody3D" parent="." unique_id=1522352793]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
+script = ExtResource("1_motor")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player" unique_id=976111329]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_pv2")
+
+[node name="View" type="Node3D" parent="Player" unique_id=1063851152]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+
+[node name="Camera3D" type="Camera3D" parent="Player/View" unique_id=1512884371]
+current = true
+
+[node name="TraversalDetector" type="Node" parent="Player" unique_id=2103328569 node_paths=PackedStringArray("probe_body", "aim_source")]
+script = ExtResource("2_detector")
+probe_body = NodePath("..")
+aim_source = NodePath("../View/Camera3D")
+
+[node name="TraversalController" type="Node" parent="Player" unique_id=84070717 node_paths=PackedStringArray("motor", "detector")]
+script = ExtResource("3_controller")
+motor = NodePath("..")
+detector = NodePath("../TraversalDetector")
+
+[node name="TraversalDebug" type="Node3D" parent="Player" unique_id=2119999405 node_paths=PackedStringArray("motor", "detector", "controller")]
+script = ExtResource("5_debug")
+motor = NodePath("..")
+detector = NodePath("../TraversalDetector")
+controller = NodePath("../TraversalController")

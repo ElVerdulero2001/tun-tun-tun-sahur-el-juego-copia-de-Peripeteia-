@@ -14,7 +14,7 @@ Este documento está en el nivel de **prototipo técnico**: propone una represen
 
 La elección de que este prototipo H0-only use velocidad sirve únicamente para probar locomoción normal. No decide que todos los cores deban usar velocidad, que Destino esté adoptado como segundo formato, que V3 tenga exactamente dos formatos, ni qué operación de colisión usa cada uno.
 
-Este prototipo tampoco **implementa** todavía salto, crouch ni orientación, aunque sus decisiones conceptuales ya se documenten por separado. Tampoco implementa Hanging, Ladder, Mantle, selección entre cores ni transiciones físicas entre esos cores. No rellenar esas ausencias con comportamiento de V2 ni pedir que se cierren para validar H0-only.
+Este prototipo ya implementa el salto mínimo por intención sostenida, una condición persistente de penalización tras caída, una primera ventana de control aéreo, crouch físico y sprint sostenido. Todavía **no implementa** la preferencia de sprint alternado ni orientación híbrida, aunque sus decisiones conceptuales se documenten por separado. Tampoco implementa Hanging, Ladder, Mantle, selección entre cores ni transiciones físicas entre esos cores. No rellenar esas ausencias con comportamiento de V2 ni pedir que se cierren para validar H0-only.
 
 ## Precondiciones arquitectónicas heredadas
 
@@ -70,9 +70,11 @@ Para el primer prototipo, la directiva de H0 contiene únicamente:
 - core emisor: H0
 - tipo de movimiento: velocidad
 - velocidad deseada en el mundo
+- solicitud puntual de impulso de salto
+- postura deseada: agachado / normal
 ```
 
-La capa física ya conoce el delta del tick físico; H0 no necesita enviárselo. Tampoco debe recibir conceptos como “caminar”, “Hanging” o “salto”: la capa física no aprende semántica de gameplay.
+La capa física ya conoce el delta del tick físico; H0 no necesita enviárselo. El salto llega como solicitud física mínima —impulso vertical sí/no— y la capa valida que el body siga sobre piso antes de aplicarlo. La postura también llega como intención: la capa puede aplicarla, rechazar volver a pararse por falta de espacio, o reanclar la misma cápsula reducida según el apoyo. La capa no aprende conceptos como “caminar” ni “Hanging”.
 
 La interpretación práctica de la directiva es:
 
@@ -80,11 +82,13 @@ La interpretación práctica de la directiva es:
 
 ## 3. Hipótesis técnica: alcance funcional inicial de H0
 
-El primer prototipo valida locomoción horizontal y caída. No incorpora todavía salto ni crouch aunque ambas capacidades pertenezcan a H0 y sus reglas estén decididas en `v3_h0_fundamento.md`.
+El prototipo actual valida locomoción horizontal, sprint sostenido, caída, salto desde piso, una ventana temporal de control aéreo y crouch físico. `Shift` se traduce en el hecho `sprint activo`; H0 lo usa sólo como modificador de velocidad, no como core separado. Si Shift sigue sostenido en aire, conserva velocidad de sprint durante la ventana de control. Si se suelta, la velocidad desacelera hacia la locomoción normal en lugar de caer instantáneamente; al aterrizar, el Shift actual decide si sigue corriendo o vuelve a caminar. La preferencia alternativa de una pulsación todavía no pertenece a este laboratorio.
 
-No es una división arquitectónica nueva dentro de H0. Es una reducción deliberada de alcance: salto y crouch agregan decisiones propias —impulso vertical, cambio de collider, verificación de espacio para pararse— que no deben aparecer como detalles implícitos al validar el primer circuito.
+Al alternar crouch, H0 solicita una postura; la capa física reemplaza la cápsula por una más baja. Si está en piso, conserva la base de la cápsula para mantener los pies; si está en aire, conserva su centro para que los pies suban y la cámara no cambie por ese crouch aéreo. Es una sola postura con dos anclas físicas, no dos estados de gameplay. Si se solicita volver a pararse, la capa consulta si la cápsula alta entraría realmente en el espacio actual. Si no entra, conserva la postura agachada y publica ese bloqueo. En el tick siguiente H0 descarta la orden fallida y vuelve a marcar crouch como postura deseada: salir del techo bajo no para al player automáticamente. La cámara compartida sólo acompaña la postura física real; no decide si puede producirse el cambio.
 
-Luego podrán incorporarse dentro de H0 sin cambiar las fronteras de esta propuesta.
+El salto no tiene coyote time: sólo se solicita si el hecho físico publicado por el tick anterior dice que el player está en piso, y la capa física vuelve a comprobarlo al aplicarlo. Espacio sostenido expresa esa solicitud cada vez que el player está apoyado; no hay buffer temporal. La capa física publica la distancia realmente descendida durante el aire y la distancia del último aterrizaje. Un estado externo de daño consume ese hecho y, si supera su umbral de laboratorio, publica una penalización persistente que H0 respeta. La recuperación no está implementada: por eso la penalización no vence por tiempo. Al despegar o abandonar un borde, H0 conserva control horizontal completo durante una ventana temporal; después conserva la inercia horizontal publicada por la física hasta volver a tocar piso. Las duraciones actuales son valores de laboratorio, no cifras de diseño cerradas.
+
+No es una división arquitectónica nueva dentro de H0. Sprint y orientación híbrida podrán incorporarse luego sin cambiar las fronteras de esta propuesta.
 
 ## 4. Hipótesis técnica: hechos físicos publicados después del intento
 
@@ -95,6 +99,9 @@ Después de aplicar una directiva, los providers deben poder exponer hechos fís
 - velocidad real final
 - si el body está en suelo
 - contactos o colisiones del paso
+- si se solicitó un salto y si la capa pudo aceptarlo
+- postura física aplicada, ancla actual y si una orden de pararse fue bloqueada
+- distancia de caída actual y distancia del aterrizaje recién producido
 - si el intento fue completo, parcial o bloqueado
 ```
 
@@ -122,7 +129,7 @@ velocidad solicitada por H0
         ↓
 movimiento físico aplicado
         ↓
-posición, velocidad y contactos reales
+posición, velocidad, salto y contactos reales
 ```
 
 Debe poder mostrar, como mínimo:
@@ -131,6 +138,8 @@ Debe poder mostrar, como mínimo:
 - velocidad solicitada;
 - velocidad y desplazamiento reales;
 - estado de suelo, contactos y bloqueos;
+- intención/solicitud/aceptación del salto, distancia de caída y penalización por lesión, además del tiempo restante de control aéreo;
+- postura deseada por H0, postura física real, ancla de piso/aire y bloqueo para pararse;
 - diferencia entre intención y resultado.
 
 Como H0 está ejecutando movimiento, la adquisición de estos datos relevantes ocurre al ritmo físico. La representación visual del debug puede refrescar más lento sin cambiar gameplay.
@@ -139,7 +148,7 @@ Como H0 está ejecutando movimiento, la adquisición de estos datos relevantes o
 
 - La forma exacta de una solicitud de destino, que probablemente necesitarán cores anclados como Hanging.
 - Los campos exactos y tipos de la API física.
-- Implementación de salto, crouch, sprint y orientación híbrida dentro de H0.
+- Preferencia de sprint alternado y orientación híbrida dentro de H0.
 - Cualquier core de parkour, candidatos, selección entre solicitudes y sus submecánicas.
 
 La propuesta no usa restricciones como formato de solicitud hacia la capa física. Las reglas específicas de un core deben resolverse dentro de ese core antes de cruzar la frontera física.

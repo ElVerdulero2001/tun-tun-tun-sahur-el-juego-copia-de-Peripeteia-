@@ -186,6 +186,8 @@ Esta arquitectura no decide todavía cómo se implementa V3 en Godot. `Character
 
 La única frontera ya fijada es conceptual: los cores deciden su mecánica e intención; una capa física común aplica el movimiento real y publica sus resultados.
 
+El primer prototipo técnico existe de forma aislada en `scenes/test/v3_h0_lab.tscn`. Valida H0 y una capa física común con `CharacterBody3D`, pero no convierte esa integración ni sus valores actuales en contrato general de V3. Su funcionamiento actual está documentado en `docs/parkour/v3_h0_laboratorio_mapa_tecnico.md`.
+
 La regla que gobierna todo el sistema es:
 
 > Exponer hechos neutrales, habilitar cores por sus propios prerrequisitos, comparar certeza contextual cuando corresponda, transferir el gobierno desde H0, aplicar intención física por tick y volver a H0 cuando el core ya no gobierna.

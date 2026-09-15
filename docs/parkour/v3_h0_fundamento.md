@@ -56,7 +56,14 @@ No aparece un deslizamiento, embestida u otra maniobra especial sólo por apreta
 
 Esta regla de velocidad es de suelo. En el aire, agacharse reduce inmediatamente el tamaño físico del player, no sólo su animación. Así puede atravesar huecos bajos mientras salta o cae.
 
-Cuando el player pide volver a pararse, H0 debe comprobar primero que haya espacio físico mínimo para recuperar su tamaño normal. Si no lo hay —por ejemplo, por un techo bajo—, mantiene el estado agachado hasta que el espacio exista.
+`Agachado` sigue siendo una sola postura. Lo que cambia con el hecho físico `en piso` es desde qué referencia se encoge la cápsula:
+
+- En piso, los pies se mantienen apoyados; baja la parte superior de la cápsula y la cámara acompaña hacia abajo.
+- En aire, el centro de la cápsula y la cámara se mantienen en su referencia normal; al reducir la altura, los pies suben.
+
+No son dos estados de agachado. Son dos formas de colocar la misma cápsula reducida según exista o no soporte físico.
+
+Cuando el player pide volver a pararse, H0 debe comprobar primero que haya espacio físico mínimo para recuperar su tamaño normal. Si no lo hay —por ejemplo, por un techo bajo—, la orden de pararse se rechaza y H0 conserva agachado como postura deseada. Salir luego de ese espacio no lo para automáticamente: el player debe pedir volver a pararse mediante una nueva pulsación. Así una salida de cobertura baja no expone al player por una orden vieja.
 
 Sprint está activo por defecto mientras se mantiene su control presionado. La configuración puede cambiarlo a modo alternado: una pulsación lo activa y la siguiente lo desactiva. H0 recibe solamente el hecho `sprint activo/inactivo`, sin necesitar conocer la preferencia de controles que lo produjo.
 
@@ -70,12 +77,16 @@ Cuando termina, H0 conserva la trayectoria resultante y deja de aceptar correcci
 
 ### Salto base
 
-El salto base sólo puede comenzar si el player está realmente apoyado en el instante de la pulsación.
+El salto base sólo puede ejecutarse si el player está realmente apoyado. Mantener presionado el control de salto expresa una intención continua: mientras el player siga habilitado para saltar, H0 vuelve a solicitarlo cada vez que recupera el apoyo.
 
-- No existe tolerancia después de abandonar un borde.
-- No se guarda una pulsación de salto inválida para ejecutarla al aterrizar.
+- No existe tolerancia después de abandonar un borde: haber estado en suelo antes no habilita un salto en el aire.
+- No existe un buffer de salto basado en tiempo. Soltar el control elimina la intención de saltar; mantenerlo permite repetir saltos al aterrizar.
 
 Una vez que el player perdió el apoyo sin haber saltado, H0 lo trata como caída.
+
+Si la distancia de caída recorrida supera el umbral que el sistema de daño considere lesivo, se aplica una condición de penalización que impide saltar. No vence por un temporizador: persiste hasta que el sistema que resuelva el daño, recuperación o muerte la retire. De esa forma, mantener Espacio durante una caída larga no fabrica un salto al aterrizar.
+
+H0 no calcula el daño. Sólo consume el hecho público `puede saltar / salto penalizado` que le entregue el sistema externo correspondiente. El umbral de distancia y la forma de recuperación siguen abiertos.
 
 H0 también permite saltar estando agachado. El salto conserva el tamaño físico reducido, pero tiene una penalización respecto del salto de pie. La magnitud concreta de esa penalización queda para ajuste posterior.
 

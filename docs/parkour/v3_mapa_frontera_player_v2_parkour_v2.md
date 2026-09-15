@@ -6,6 +6,17 @@ Este mapa separa el **host Player V2**, que se conserva, del **Parkour V2**, que
 
 La conclusión de partida es importante: no se crea un “Player V3”. El player actual conserva sus sistemas ajenos al parkour y V3 sustituye únicamente la porción de parkour.
 
+## Estado de implementación actual
+
+Ya existe un laboratorio H0 aislado, pero **no está integrado todavía en Player V2**:
+
+```text
+scenes/test/v3_h0_lab.tscn
+scripts/player_v2/parkour_v3/
+```
+
+Ese laboratorio valida la frontera `H0 → capa física → hechos publicados` con locomoción, sprint, salto, caída, crouch y debug propios. No instancia `PlayerV2.tscn`, no importa `traversal/` y no modifica `player_motor.gd`. Por lo tanto, Player V2 y Parkour V2 siguen siendo el flujo activo del proyecto hasta una integración futura y deliberada.
+
 ## Host Player V2 que se conserva
 
 La escena `scenes/player_v2/player_v2.tscn` contiene estas piezas que no son Parkour V2 en sí mismas:

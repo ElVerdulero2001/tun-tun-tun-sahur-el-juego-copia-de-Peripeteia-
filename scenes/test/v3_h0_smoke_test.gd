@@ -50,7 +50,8 @@ func _run() -> void:
 
 	Input.action_press("run")
 	Input.action_press("move_forward")
-	await physics_frame
+	for _frame in 13:
+		await physics_frame
 	assert(h0.last_sprint_active, "H0 lab: Shift debe activar sprint en piso")
 	assert(is_equal_approx(h0.last_desired_horizontal_velocity.length(), h0.sprint_speed), "H0 lab: sprint debe solicitar su velocidad propia")
 

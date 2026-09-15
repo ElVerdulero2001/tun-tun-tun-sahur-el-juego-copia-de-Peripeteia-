@@ -10,6 +10,7 @@ extends Node
 @export var walk_speed := 5.0
 @export var crouch_speed := 2.5
 @export var sprint_speed := 8.0
+@export var sprint_transition_duration := 0.2
 @export var sprint_release_air_deceleration := 8.0
 @export var air_control_duration := 0.35
 
@@ -22,7 +23,12 @@ var last_jump_blocked_by_fall_damage := false
 var wants_crouched := false
 var last_crouch_requested := false
 var last_sprint_active := false
+var last_ground_speed_requested := 0.0
+var last_sprint_transition_remaining := 0.0
 var _was_on_floor := false
+var _ground_speed_transition_from := 0.0
+var _ground_speed_transition_target := -1.0
+var _ground_speed_transition_elapsed := 0.0
 
 
 func _physics_process(delta: float) -> void:
@@ -67,8 +73,7 @@ func _physics_process(delta: float) -> void:
 		not is_on_floor or not (wants_crouched or is_physically_crouched))
 
 	if is_on_floor:
-		var ground_speed := crouch_speed if wants_crouched or is_physically_crouched else (
-			sprint_speed if last_sprint_active else walk_speed)
+		var ground_speed := _get_ground_speed(direction, wants_crouched or is_physically_crouched, delta)
 		last_desired_horizontal_velocity = direction * ground_speed
 	elif last_air_control_remaining > 0.0:
 		last_desired_horizontal_velocity = _get_air_control_velocity(direction, delta)
@@ -93,3 +98,40 @@ func _get_air_control_velocity(direction: Vector3, delta: float) -> Vector3:
 		# parte de la inercia y se desacelera hacia el control normal.
 		return current_horizontal.move_toward(target_velocity, sprint_release_air_deceleration * delta)
 	return target_velocity
+
+
+func _get_ground_speed(direction: Vector3, is_crouching: bool, delta: float) -> float:
+	if direction.length_squared() <= 0.000001:
+		_ground_speed_transition_from = 0.0
+		_ground_speed_transition_target = 0.0
+		_ground_speed_transition_elapsed = 0.0
+		last_ground_speed_requested = 0.0
+		last_sprint_transition_remaining = 0.0
+		return 0.0
+
+	if is_crouching:
+		# Crouch conserva su cambio inmediato de velocidad y postura.
+		_ground_speed_transition_from = crouch_speed
+		_ground_speed_transition_target = crouch_speed
+		_ground_speed_transition_elapsed = sprint_transition_duration
+		last_ground_speed_requested = crouch_speed
+		last_sprint_transition_remaining = 0.0
+		return crouch_speed
+
+	var target_speed := sprint_speed if last_sprint_active else walk_speed
+	if not is_equal_approx(target_speed, _ground_speed_transition_target):
+		var actual_velocity := last_observed_facts["velocity"] as Vector3
+		_ground_speed_transition_from = Vector2(actual_velocity.x, actual_velocity.z).length()
+		_ground_speed_transition_target = target_speed
+		_ground_speed_transition_elapsed = 0.0
+
+	_ground_speed_transition_elapsed = minf(
+		_ground_speed_transition_elapsed + delta,
+		maxf(sprint_transition_duration, 0.0001))
+	var progress := _ground_speed_transition_elapsed / maxf(sprint_transition_duration, 0.0001)
+	last_ground_speed_requested = lerpf(
+		_ground_speed_transition_from,
+		_ground_speed_transition_target,
+		progress)
+	last_sprint_transition_remaining = maxf(sprint_transition_duration - _ground_speed_transition_elapsed, 0.0)
+	return last_ground_speed_requested

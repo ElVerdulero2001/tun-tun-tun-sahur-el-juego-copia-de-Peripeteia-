@@ -19,7 +19,7 @@ func _process(_delta: float) -> void:
 	text = (
 		"V3 H0 — laboratorio\n"
 		+ "input crudo: %s\n" % input_source.movement_axis
-		+ "sprint: input %s | aplicado %s\n" % [input_source.sprint_active, h0.last_sprint_active]
+		+ "sprint: input %s | aplicado %s | vel %.2f | transición %.2fs\n" % [input_source.sprint_active, h0.last_sprint_active, h0.last_ground_speed_requested, h0.last_sprint_transition_remaining]
 		+ "salto: intención sostenida %s | pedido %s | aceptado %s\n" % [input_source.jump_pressed, h0.last_jump_requested, facts["jump_accepted"]]
 		+ "agachado: deseado %s | físico %s | ancla %s | pararse bloqueado %s\n" % [h0.wants_crouched, facts["is_crouched"], facts["crouch_anchor"], facts["stand_request_blocked"]]
 		+ "caída: tramo actual %.2fm | último aterrizaje %.2fm | lesión bloquea salto: %s\n" % [facts["fall_distance_in_current_airtime"], facts["last_landing_fall_distance"], fall_damage_state.jump_is_penalized]

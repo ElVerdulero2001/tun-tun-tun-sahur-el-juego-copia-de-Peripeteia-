@@ -114,6 +114,8 @@ V3PhysicsBody intenta esa velocidad como cualquier otra intención H0
 
 En aire, Shift sostenido conserva esa referencia de velocidad durante la ventana de control aéreo. Si se suelta, H0 desacelera gradualmente desde la velocidad real publicada hacia la locomoción normal. Cuando vuelve a tocar piso, H0 deja de mirar la inercia anterior y usa el Shift actual: sostenido continúa sprint; suelto vuelve a caminar.
 
+En piso, el pasaje entre caminar y sprint tampoco es instantáneo: H0 interpola la velocidad solicitada durante `0.2 s`, tanto al acelerar como al soltar Shift. El cambio físico de crouch sigue siendo inmediato y no usa esta transición.
+
 El laboratorio sólo implementa modo sostenido. La preferencia de sprint alternado pertenece a una futura fuente/configuración de input, no a H0.
 
 ## Salto sostenido
@@ -200,6 +202,7 @@ Estos números permiten probar el circuito; no son balance final de V3.
 | Velocidad normal | `5.0` |
 | Velocidad agachado | `2.5` |
 | Velocidad sprint | `8.0` |
+| Transición caminar ↔ sprint en piso | `0.2 s` |
 | Desaceleración aérea al soltar Shift | `8.0 m/s²` |
 | Impulso de salto | `5.0` |
 | Cápsula normal | `1.8 m` de alto |
@@ -236,7 +239,9 @@ H0 deja de pedir saltos aunque Espacio siga sostenido
 |---|---|
 | `input crudo` | Eje WASD leído este tick. |
 | `sprint: input` | Shift está sostenido en la fuente de input. |
-| `sprint: aplicado` | H0 puede aplicar sprint; es falso si la postura actual lo impide. |
+| `sprint: aplicado` | H0 puede aplicar sprint; es falso si la postura actual lo impide en piso. |
+| `sprint: vel` | Velocidad horizontal solicitada durante la transición de piso. |
+| `sprint: transición` | Tiempo restante para llegar a la velocidad de caminar o sprint. |
 | `salto: intención sostenida` | Espacio está presionado. |
 | `salto: pedido` | H0 solicitó salto a la capa física. |
 | `salto: aceptado` | La capa física verificó suelo y aplicó el impulso. |
@@ -265,7 +270,7 @@ H0 deja de pedir saltos aunque Espacio siga sostenido
 `scenes/test/v3_h0_smoke_test.gd` verifica, sin tocar Player V2:
 
 - apoyo inicial, desplazamiento y colisión contra pared;
-- sprint en piso, salto con Shift, inercia al soltarlo en aire y aterrizaje caminando;
+- sprint con aceleración/frenado de `0.2 s` en piso, salto con Shift, inercia al soltarlo en aire y aterrizaje caminando;
 - salto desde piso y aterrizaje;
 - salto repetido al mantener Espacio;
 - caída que activa penalización persistente de salto;

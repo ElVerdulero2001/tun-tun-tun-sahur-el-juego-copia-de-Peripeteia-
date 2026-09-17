@@ -11,6 +11,19 @@ El objetivo no es que una sonda "adivine Hanging". El objetivo es reunir
 hechos distintos, cruzarlos de forma explicable y descartar únicamente lo que
 sea físicamente imposible.
 
+## Estado de implementación inicial
+
+El primer laboratorio ya implementa la grilla frontal, los rayos descendentes,
+el volumen frontal como evidencia, la clasificación de intención y la
+validación hipotética de pose. Publica un candidato explicable en debug y fue
+validado manualmente: desde piso se rechaza por `en_piso`; en aire con borde y
+pose válidos pasa a candidato válido.
+
+Todavía no existen árbitro, traspaso `H0 → Hanging`, snap, movimiento colgado,
+shimmy, salida ni una certeza normalizada contra otros cores. El mapa de
+nodos, scripts y tick real de esta rebanada vive en
+`v3_hanging_laboratorio_mapa_tecnico.md`.
+
 ## Fuentes compartidas del player
 
 Hanging no recibe datos desde H0. Tanto H0 como Hanging consumen las mismas

@@ -124,6 +124,12 @@ func get_physics_facts() -> Dictionary:
 	}
 
 
+## Consulta física hipotética para cores: responde si el collider actual del
+## player podría ocupar una pose sin penetrar. No mueve ni cambia velocity.
+func can_occupy_pose(pose: Transform3D) -> bool:
+	return not test_move(pose, Vector3.ZERO, null, 0.001, true)
+
+
 func _apply_requested_stance(is_on_floor_now: bool) -> void:
 	if collision_shape == null or _standing_shape == null or _crouched_shape == null:
 		return

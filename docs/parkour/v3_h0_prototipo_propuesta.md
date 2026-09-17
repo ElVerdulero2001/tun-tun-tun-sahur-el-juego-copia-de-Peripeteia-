@@ -4,9 +4,13 @@
 
 Las decisiones conceptuales de H0 viven en `v3_h0_fundamento.md`. Este documento no las redefine: sólo propone una primera validación técnica reducida.
 
-El objetivo es validar la columna vertebral de V3 sin implementar todavía Hanging, Ladder, Mantle ni otro core de parkour.
+El objetivo es validar la columna vertebral de V3 sin implementar todavía
+Hanging activo, Ladder, Mantle ni otro core de parkour.
 
-El prototipo contiene solamente `H0` y la infraestructura compartida necesaria para que gobierne el movimiento normal del player.
+La escena `v3_h0_lab.tscn` contiene solamente `H0` y la infraestructura
+compartida necesaria para que gobierne el movimiento normal del player. Existe
+además un laboratorio separado de **detección** de Hanging: puede publicar y
+depurar candidatos, pero no toma gobierno ni modifica este circuito H0-only.
 
 Este documento está en el nivel de **prototipo técnico**: propone una representación concreta para probar el concepto arquitectónico. No define el contrato final de V3 ni convierte sus elecciones técnicas en reglas universales.
 

@@ -1,0 +1,42 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/test/v3_h0_lab.tscn" id="1_h0_lab"]
+[ext_resource type="Script" path="res://scripts/player_v2/parkour_v3/v3_hanging_detector.gd" id="2_detector"]
+[ext_resource type="Script" path="res://scripts/player_v2/parkour_v3/v3_hanging_debug_overlay.gd" id="3_debug"]
+
+[sub_resource type="BoxMesh" id="Mesh_hanging_ledge"]
+size = Vector3(3, 1.5, 0.6)
+
+[sub_resource type="BoxShape3D" id="Shape_hanging_ledge"]
+size = Vector3(3, 1.5, 0.6)
+
+[node name="V3HangingDetectionLab" type="Node3D"]
+
+[node name="H0Lab" parent="." instance=ExtResource("1_h0_lab")]
+
+[node name="PracticeLedge" type="StaticBody3D" parent="."]
+position = Vector3(0, 0.75, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="PracticeLedge"]
+mesh = SubResource("Mesh_hanging_ledge")
+
+[node name="Collision" type="CollisionShape3D" parent="PracticeLedge"]
+shape = SubResource("Shape_hanging_ledge")
+
+[node name="HangingDetector" type="Node" parent="." node_paths=PackedStringArray("physics_body", "input_source", "camera_rig")]
+script = ExtResource("2_detector")
+physics_body = NodePath("../H0Lab/PlayerH0Lab/Body")
+input_source = NodePath("../H0Lab/PlayerH0Lab/Body/InputSource")
+camera_rig = NodePath("../H0Lab/PlayerH0Lab/Body/CameraRig")
+
+[node name="HangingDebugCanvas" type="CanvasLayer" parent="."]
+
+[node name="HangingDebug" type="Label" parent="HangingDebugCanvas" node_paths=PackedStringArray("hanging_detector")]
+offset_left = 18.0
+offset_top = 420.0
+offset_right = 1120.0
+offset_bottom = 590.0
+theme_override_colors/font_color = Color(0.8, 1, 0.72, 1)
+theme_override_font_sizes/font_size = 18
+script = ExtResource("3_debug")
+hanging_detector = NodePath("../../HangingDetector")

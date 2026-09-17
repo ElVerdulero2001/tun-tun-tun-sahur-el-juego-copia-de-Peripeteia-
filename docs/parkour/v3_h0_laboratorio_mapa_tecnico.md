@@ -8,6 +8,12 @@ No redefine la arquitectura conceptual de V3 ni fija valores de gameplay. Por ej
 
 La escena del laboratorio es `scenes/test/v3_h0_lab.tscn`.
 
+El laboratorio H0 continúa siendo H0-only. Desde la primera rebanada de
+Hanging, `V3PhysicsBody` también expone una consulta física neutral para que
+otro core pueda preguntar si una pose hipotética cabe. Esa consulta no altera
+el circuito H0 ni agrega un segundo gobernador; el uso concreto vive en el
+laboratorio separado `scenes/test/v3_hanging_detection_lab.tscn`.
+
 ## Piezas que existen
 
 ```text
@@ -27,7 +33,7 @@ DebugCanvas/H0Debug                      Sólo observa y muestra datos
 | `InputSource` | `v3_input_source.gd` | Lee WASD, Espacio sostenido, Shift sostenido y la pulsación para alternar crouch. | No sabe qué es H0, salto, daño ni física. |
 | `CameraRig` | `v3_camera_rig.gd` | Traduce mouse a orientación, publica direcciones planas y acompaña visualmente la postura física real. | No mueve al player ni decide parkour. |
 | `H0` | `h0_core.gd` | Interpreta input, cámara, suelo, aire, crouch y la restricción de salto. Formula una intención física. | No escribe `velocity`, posición, collider ni llama `move_and_slide()`. |
-| `V3PhysicsBody` | `v3_physics_body.gd` | Recibe una única intención, aplica velocidad/salto/postura, usa `move_and_slide()` y publica el resultado real. | No decide qué quiere hacer el jugador ni qué core debería gobernar. |
+| `V3PhysicsBody` | `v3_physics_body.gd` | Recibe una única intención, aplica velocidad/salto/postura, usa `move_and_slide()` y publica el resultado real. También responde `can_occupy_pose()` para consultas hipotéticas sin mover el body. | No decide qué quiere hacer el jugador ni qué core debería gobernar. |
 | `FallDamageState` | `v3_fall_damage_state.gd` | Lee la caída real al aterrizar y publica si el salto quedó penalizado. | No mueve al player, no calcula vida, no cura ni mata. |
 | `H0Debug` | `v3_h0_debug_overlay.gd` | Muestra datos de todos los anteriores. | No cambia ningún dato de gameplay. |
 
@@ -83,6 +89,7 @@ La consecuencia importante es que H0 no presupone que su pedido ocurrió. Ve el 
 | `FallDamageState` | `V3PhysicsBody` | Lee el hecho `last_landing_fall_distance`; no lo modifica. |
 | `H0` | `FallDamageState` | Lee `jump_is_penalized`; no calcula daño. |
 | `CameraRig` | `V3PhysicsBody` | Lee postura/ancla aplicadas; sólo ajusta la vista compartida. |
+| `V3HangingDetector` (laboratorio separado) | `V3PhysicsBody.can_occupy_pose()` | Pregunta si una pose propuesta para Hanging cabría físicamente; no escribe movimiento. |
 | `H0Debug` | Todos | Sólo lecturas para mostrar datos. |
 | `V3PhysicsBody` | `H0` | No lo llama ni le devuelve órdenes. Expone hechos que H0 leerá después. |
 
@@ -264,6 +271,10 @@ H0 deja de pedir saltos aunque Espacio siga sostenido
 - La penalización no está conectada a vida, curación, animaciones ni muerte.
 - La preferencia de sprint alternado, tercera persona e inclinación/orientación híbrida todavía no entraron en este laboratorio.
 - El `FallDamageState` es una implementación mínima para probar una señal externa. No determina la arquitectura final del sistema de daño.
+
+La detección de Hanging se documenta por separado en
+`v3_hanging_laboratorio_mapa_tecnico.md`: no está conectada al H0 de esta
+escena y no modifica sus pruebas.
 
 ## Cobertura automática actual
 

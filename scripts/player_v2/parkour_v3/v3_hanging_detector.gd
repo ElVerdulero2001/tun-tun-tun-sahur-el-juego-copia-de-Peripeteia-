@@ -14,13 +14,13 @@ extends Node
 @export var max_surface_tilt_degrees := 30.0
 @export var lateral_coherence_tolerance := 0.35
 @export var hang_wall_gap := 0.68
-@export var hang_root_offset_y := -0.55
+@export var hang_root_offset_y := -2.0
+@export var capture_drop_from_edge := 0.20
 @export var shape_width := 0.7
 @export var shape_height := 1.2
 @export var intent_alignment_threshold := 0.2
 
 var last_candidate := V3HangingCandidate.new()
-var last_wall_hits: Array[Dictionary] = []
 var last_probe_forward := Vector3.FORWARD
 var last_shape_hit_count := 0
 
@@ -43,7 +43,6 @@ func _physics_process(_delta: float) -> void:
 func _observe() -> void:
 
 	last_candidate = V3HangingCandidate.new()
-	last_wall_hits.clear()
 	last_shape_hit_count = 0
 	if physics_body == null or input_source == null or camera_rig == null:
 		last_candidate.reject("referencias_incompletas")
@@ -64,24 +63,27 @@ func _observe() -> void:
 	var shape_results := _query_front_volume(space, last_probe_forward)
 	last_shape_hit_count = shape_results.size()
 	var best_geometry: Dictionary = {}
+	var wall_hit_count := 0
 	for height in probe_heights:
 		var wall_hit := _query_wall(space, last_probe_forward, height)
 		if wall_hit.is_empty():
 			continue
-		last_wall_hits.append(wall_hit)
+		wall_hit_count += 1
 		var geometry := _find_edge_for_wall(space, wall_hit, last_probe_forward)
 		if geometry.is_empty():
 			continue
 		if best_geometry.is_empty() or float(geometry["alignment"]) > float(best_geometry["alignment"]):
 			best_geometry = geometry
 
-	last_candidate.wall_hit_count = last_wall_hits.size()
+	last_candidate.wall_hit_count = wall_hit_count
 	last_candidate.shape_hit_count = last_shape_hit_count
 	if best_geometry.is_empty():
 		last_candidate.reject("sin_pared_y_borde_coherentes")
 		return
 
 	_apply_geometry(best_geometry, shape_results)
+	last_candidate.capture_point = _make_capture_point(last_candidate.edge_point)
+	last_candidate.has_capture_point = true
 	var facts := physics_body.get_physics_facts()
 	if bool(facts["is_on_floor"]):
 		last_candidate.reject("en_piso")
@@ -90,10 +92,11 @@ func _observe() -> void:
 	if last_candidate.intent_class == "contradictoria":
 		last_candidate.reject("intencion_contradictoria")
 
+	# P queda como referencia diagnóstica de una futura entrada. La interacción
+	# actual termina en C/S: una P bloqueada no debe ocultar el borde ni impedir
+	# medir si S entró en C.
 	last_candidate.pose = _make_hang_pose(last_candidate.edge_point, last_candidate.wall_normal)
 	last_candidate.pose_clear = physics_body.can_occupy_pose(last_candidate.pose)
-	if not last_candidate.pose_clear:
-		last_candidate.reject("pose_bloqueada")
 
 	last_candidate.local_evidence_score = _calculate_local_evidence()
 	last_candidate.is_valid = last_candidate.rejection_reasons.is_empty()
@@ -149,10 +152,8 @@ func _find_edge_for_wall(space: PhysicsDirectSpaceState3D, wall_hit: Dictionary,
 		return {}
 
 	return {
-		"wall_point": wall_point,
 		"wall_normal": wall_normal,
 		"edge_point": edge_point,
-		"edge_normal": edge_normal,
 		"relative_height": relative_height,
 		"alignment": alignment,
 		"wall_collider": wall_hit.get("collider"),
@@ -176,10 +177,8 @@ func _query_front_volume(space: PhysicsDirectSpaceState3D, forward: Vector3) -> 
 
 func _apply_geometry(geometry: Dictionary, shape_results: Array[Dictionary]) -> void:
 
-	last_candidate.wall_point = geometry["wall_point"]
 	last_candidate.wall_normal = geometry["wall_normal"]
 	last_candidate.edge_point = geometry["edge_point"]
-	last_candidate.edge_normal = geometry["edge_normal"]
 	last_candidate.relative_edge_height = geometry["relative_height"]
 	last_candidate.wall_alignment = geometry["alignment"]
 	var wall_collider: Object = geometry["wall_collider"]
@@ -215,6 +214,13 @@ func _make_hang_pose(edge_point: Vector3, wall_normal: Vector3) -> Transform3D:
 	forward_to_wall = forward_to_wall.normalized()
 	var origin := edge_point + wall_normal * hang_wall_gap + Vector3.UP * hang_root_offset_y
 	return Transform3D(_basis_facing(forward_to_wall), origin)
+
+
+func _make_capture_point(edge_point: Vector3) -> Vector3:
+
+	# C nace en el borde. El laboratorio decide después cuánto se extiende el
+	# cilindro hacia afuera usando la normal; no es la pose P ni la cámara.
+	return edge_point - Vector3.UP * capture_drop_from_edge
 
 
 func _calculate_local_evidence() -> float:

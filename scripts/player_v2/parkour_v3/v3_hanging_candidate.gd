@@ -6,10 +6,10 @@ extends RefCounted
 var is_valid := false
 var rejection_reasons: PackedStringArray = []
 var wall_hit_count := 0
-var wall_point := Vector3.ZERO
 var wall_normal := Vector3.ZERO
 var edge_point := Vector3.ZERO
-var edge_normal := Vector3.ZERO
+var capture_point := Vector3.ZERO # Ancla de C sobre el borde, no su centro.
+var has_capture_point := false
 var relative_edge_height := 0.0
 var wall_alignment := 0.0
 var intent_class := "sin_borde"

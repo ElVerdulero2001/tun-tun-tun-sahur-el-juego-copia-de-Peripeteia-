@@ -1,8 +1,9 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene format=3 uid="uid://cyjsgofvgyo2d"]
 
-[ext_resource type="PackedScene" path="res://scenes/test/v3_h0_lab.tscn" id="1_h0_lab"]
-[ext_resource type="Script" path="res://scripts/player_v2/parkour_v3/v3_hanging_detector.gd" id="2_detector"]
-[ext_resource type="Script" path="res://scripts/player_v2/parkour_v3/v3_hanging_debug_overlay.gd" id="3_debug"]
+[ext_resource type="PackedScene" uid="uid://c6gk5rsi13qor" path="res://scenes/test/v3_h0_lab.tscn" id="1_h0_lab"]
+[ext_resource type="Script" uid="uid://1uq4jsopbb61" path="res://scripts/player_v2/parkour_v3/v3_hanging_detector.gd" id="2_detector"]
+[ext_resource type="Script" uid="uid://bnnqm0i4gp8ns" path="res://scripts/player_v2/parkour_v3/v3_hanging_debug_overlay.gd" id="3_debug"]
+[ext_resource type="Script" uid="uid://j383gt7soqt8" path="res://scripts/player_v2/parkour_v3/v3_hanging_capture_probe.gd" id="4_capture_probe"]
 
 [sub_resource type="BoxMesh" id="Mesh_hanging_ledge"]
 size = Vector3(3, 1.5, 0.6)
@@ -10,28 +11,34 @@ size = Vector3(3, 1.5, 0.6)
 [sub_resource type="BoxShape3D" id="Shape_hanging_ledge"]
 size = Vector3(3, 1.5, 0.6)
 
-[node name="V3HangingDetectionLab" type="Node3D"]
+[node name="V3HangingDetectionLab" type="Node3D" unique_id=831742443]
 
-[node name="H0Lab" parent="." instance=ExtResource("1_h0_lab")]
+[node name="H0Lab" parent="." unique_id=218489359 instance=ExtResource("1_h0_lab")]
 
-[node name="PracticeLedge" type="StaticBody3D" parent="."]
-position = Vector3(0, 0.75, 0)
+[node name="PracticeLedge" type="StaticBody3D" parent="." unique_id=709027233]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
 
-[node name="Mesh" type="MeshInstance3D" parent="PracticeLedge"]
+[node name="Mesh" type="MeshInstance3D" parent="PracticeLedge" unique_id=848316288]
 mesh = SubResource("Mesh_hanging_ledge")
 
-[node name="Collision" type="CollisionShape3D" parent="PracticeLedge"]
+[node name="Collision" type="CollisionShape3D" parent="PracticeLedge" unique_id=31208357]
 shape = SubResource("Shape_hanging_ledge")
 
-[node name="HangingDetector" type="Node" parent="." node_paths=PackedStringArray("physics_body", "input_source", "camera_rig")]
+[node name="HangingDetector" type="Node" parent="." unique_id=1171548751 node_paths=PackedStringArray("physics_body", "input_source", "camera_rig")]
 script = ExtResource("2_detector")
 physics_body = NodePath("../H0Lab/PlayerH0Lab/Body")
 input_source = NodePath("../H0Lab/PlayerH0Lab/Body/InputSource")
 camera_rig = NodePath("../H0Lab/PlayerH0Lab/Body/CameraRig")
+hang_root_offset_y = 0.0
 
-[node name="HangingDebugCanvas" type="CanvasLayer" parent="."]
+[node name="HangingCaptureProbe" type="MeshInstance3D" parent="." unique_id=646037529 node_paths=PackedStringArray("hanging_detector", "physics_body")]
+script = ExtResource("4_capture_probe")
+hanging_detector = NodePath("../HangingDetector")
+physics_body = NodePath("../H0Lab/PlayerH0Lab/Body")
 
-[node name="HangingDebug" type="Label" parent="HangingDebugCanvas" node_paths=PackedStringArray("hanging_detector")]
+[node name="HangingDebugCanvas" type="CanvasLayer" parent="." unique_id=843480206]
+
+[node name="HangingDebug" type="Label" parent="HangingDebugCanvas" unique_id=3658510 node_paths=PackedStringArray("hanging_detector", "capture_probe")]
 offset_left = 18.0
 offset_top = 420.0
 offset_right = 1120.0
@@ -40,3 +47,4 @@ theme_override_colors/font_color = Color(0.8, 1, 0.72, 1)
 theme_override_font_sizes/font_size = 18
 script = ExtResource("3_debug")
 hanging_detector = NodePath("../../HangingDetector")
+capture_probe = NodePath("../../HangingCaptureProbe")

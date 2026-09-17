@@ -1,11 +1,11 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene format=3 uid="uid://c6gk5rsi13qor"]
 
-[ext_resource type="Script" path="res://scripts/player_v2/parkour_v3/v3_physics_body.gd" id="1_body"]
-[ext_resource type="Script" path="res://scripts/player_v2/parkour_v3/v3_input_source.gd" id="2_input"]
-[ext_resource type="Script" path="res://scripts/player_v2/parkour_v3/v3_camera_rig.gd" id="3_camera"]
-[ext_resource type="Script" path="res://scripts/player_v2/parkour_v3/h0_core.gd" id="4_h0"]
-[ext_resource type="Script" path="res://scripts/player_v2/parkour_v3/v3_h0_debug_overlay.gd" id="5_debug"]
-[ext_resource type="Script" path="res://scripts/player_v2/parkour_v3/v3_fall_damage_state.gd" id="6_fall_damage"]
+[ext_resource type="Script" uid="uid://dcij7k2u5iemw" path="res://scripts/player_v2/parkour_v3/v3_physics_body.gd" id="1_body"]
+[ext_resource type="Script" uid="uid://b0i05nltei1w6" path="res://scripts/player_v2/parkour_v3/v3_input_source.gd" id="2_input"]
+[ext_resource type="Script" uid="uid://biqjdc3bgqots" path="res://scripts/player_v2/parkour_v3/v3_camera_rig.gd" id="3_camera"]
+[ext_resource type="Script" uid="uid://bdosejh04uen1" path="res://scripts/player_v2/parkour_v3/h0_core.gd" id="4_h0"]
+[ext_resource type="Script" uid="uid://ctnvabpmxhmpc" path="res://scripts/player_v2/parkour_v3/v3_h0_debug_overlay.gd" id="5_debug"]
+[ext_resource type="Script" uid="uid://dncorkkilvxc8" path="res://scripts/player_v2/parkour_v3/v3_fall_damage_state.gd" id="6_fall_damage"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -14,108 +14,107 @@ ambient_light_source = 3
 ambient_light_color = Color(0.65, 0.72, 0.85, 1)
 ambient_light_energy = 0.8
 
-[sub_resource type="CapsuleShape3D" id="Capsule_player"]
-radius = 0.3
-height = 1.8
+[sub_resource type="BoxMesh" id="Mesh_floor"]
+size = Vector3(30, 1, 30)
 
 [sub_resource type="BoxShape3D" id="Box_floor"]
 size = Vector3(30, 1, 30)
 
-[sub_resource type="BoxMesh" id="Mesh_floor"]
-size = Vector3(30, 1, 30)
+[sub_resource type="BoxMesh" id="Mesh_wall"]
+size = Vector3(8, 3, 0.5)
 
 [sub_resource type="BoxShape3D" id="Box_wall"]
 size = Vector3(8, 3, 0.5)
 
-[sub_resource type="BoxMesh" id="Mesh_wall"]
-size = Vector3(8, 3, 0.5)
+[sub_resource type="BoxMesh" id="Mesh_crouch_ceiling"]
+size = Vector3(3, 0.2, 3)
 
 [sub_resource type="BoxShape3D" id="Box_crouch_ceiling"]
 size = Vector3(3, 0.2, 3)
 
-[sub_resource type="BoxMesh" id="Mesh_crouch_ceiling"]
-size = Vector3(3, 0.2, 3)
+[sub_resource type="CapsuleShape3D" id="Capsule_player"]
+radius = 0.3
+height = 1.8
 
-[node name="V3H0Lab" type="Node3D"]
+[node name="V3H0Lab" type="Node3D" unique_id=976408867]
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1718755139]
 environment = SubResource("Environment_main")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-55, -30, 0)
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=158680518]
+transform = Transform3D(0.8660254, 0.40957603, -0.28678823, 0, 0.57357645, 0.81915206, 0.5, -0.7094065, 0.49673176, 0, 0, 0)
 light_energy = 1.3
 
-[node name="Floor" type="StaticBody3D" parent="."]
-position = Vector3(0, -0.5, 0)
+[node name="Floor" type="StaticBody3D" parent="." unique_id=570229716]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 
-[node name="Mesh" type="MeshInstance3D" parent="Floor"]
+[node name="Mesh" type="MeshInstance3D" parent="Floor" unique_id=755506928]
 mesh = SubResource("Mesh_floor")
 
-[node name="Collision" type="CollisionShape3D" parent="Floor"]
+[node name="Collision" type="CollisionShape3D" parent="Floor" unique_id=1060130191]
 shape = SubResource("Box_floor")
 
-[node name="Wall" type="StaticBody3D" parent="."]
-position = Vector3(0, 1.5, -6)
+[node name="Wall" type="StaticBody3D" parent="." unique_id=740597965]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -6)
 
-[node name="Mesh" type="MeshInstance3D" parent="Wall"]
+[node name="Mesh" type="MeshInstance3D" parent="Wall" unique_id=121108484]
 mesh = SubResource("Mesh_wall")
 
-[node name="Collision" type="CollisionShape3D" parent="Wall"]
+[node name="Collision" type="CollisionShape3D" parent="Wall" unique_id=1385148399]
 shape = SubResource("Box_wall")
 
-[node name="CrouchCeiling" type="StaticBody3D" parent="."]
-position = Vector3(5, 1.35, 4)
+[node name="CrouchCeiling" type="StaticBody3D" parent="." unique_id=1651021589]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 1.35, 4)
 
-[node name="Mesh" type="MeshInstance3D" parent="CrouchCeiling"]
+[node name="Mesh" type="MeshInstance3D" parent="CrouchCeiling" unique_id=1813115861]
 mesh = SubResource("Mesh_crouch_ceiling")
 
-[node name="Collision" type="CollisionShape3D" parent="CrouchCeiling"]
+[node name="Collision" type="CollisionShape3D" parent="CrouchCeiling" unique_id=1689837782]
 shape = SubResource("Box_crouch_ceiling")
 
-[node name="PlayerH0Lab" type="Node3D" parent="."]
-position = Vector3(0, 0, 4)
+[node name="PlayerH0Lab" type="Node3D" parent="." unique_id=1832027705]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4)
 
-[node name="Body" type="CharacterBody3D" parent="PlayerH0Lab" node_paths=PackedStringArray("collision_shape")]
+[node name="Body" type="CharacterBody3D" parent="PlayerH0Lab" unique_id=1171947261 node_paths=PackedStringArray("collision_shape")]
 script = ExtResource("1_body")
 collision_shape = NodePath("CollisionShape3D")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="PlayerH0Lab/Body"]
-position = Vector3(0, 0.9, 0)
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlayerH0Lab/Body" unique_id=532938490]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("Capsule_player")
 
-[node name="View" type="Node3D" parent="PlayerH0Lab/Body"]
-position = Vector3(0, 1.6, 0)
+[node name="View" type="Node3D" parent="PlayerH0Lab/Body" unique_id=572815059]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
 
-[node name="Camera3D" type="Camera3D" parent="PlayerH0Lab/Body/View"]
+[node name="Camera3D" type="Camera3D" parent="PlayerH0Lab/Body/View" unique_id=2058163744]
 current = true
 
-[node name="InputSource" type="Node" parent="PlayerH0Lab/Body"]
+[node name="InputSource" type="Node" parent="PlayerH0Lab/Body" unique_id=1423082608]
 process_physics_priority = -200
 script = ExtResource("2_input")
 
-[node name="CameraRig" type="Node" parent="PlayerH0Lab/Body" node_paths=PackedStringArray("body", "view", "camera", "physics_body")]
+[node name="CameraRig" type="Node" parent="PlayerH0Lab/Body" unique_id=2058176083 node_paths=PackedStringArray("body", "view", "camera", "physics_body")]
 script = ExtResource("3_camera")
 body = NodePath("..")
 view = NodePath("../View")
 camera = NodePath("../View/Camera3D")
 physics_body = NodePath("..")
 
-[node name="FallDamageState" type="Node" parent="PlayerH0Lab/Body" node_paths=PackedStringArray("physics_body")]
+[node name="FallDamageState" type="Node" parent="PlayerH0Lab/Body" unique_id=1667255452 node_paths=PackedStringArray("physics_body")]
 process_physics_priority = -50
 script = ExtResource("6_fall_damage")
 physics_body = NodePath("..")
 
-[node name="H0" type="Node" parent="PlayerH0Lab/Body" node_paths=PackedStringArray("input_source", "camera_rig", "physics_body", "fall_damage_state")]
-process_physics_priority = 0
+[node name="H0" type="Node" parent="PlayerH0Lab/Body" unique_id=1408120034 node_paths=PackedStringArray("input_source", "camera_rig", "physics_body", "fall_damage_state")]
 script = ExtResource("4_h0")
 input_source = NodePath("../InputSource")
 camera_rig = NodePath("../CameraRig")
 physics_body = NodePath("..")
 fall_damage_state = NodePath("../FallDamageState")
 
-[node name="DebugCanvas" type="CanvasLayer" parent="."]
+[node name="DebugCanvas" type="CanvasLayer" parent="." unique_id=1125007575]
 
-[node name="H0Debug" type="Label" parent="DebugCanvas" node_paths=PackedStringArray("input_source", "h0", "physics_body", "camera_rig", "fall_damage_state")]
+[node name="H0Debug" type="Label" parent="DebugCanvas" unique_id=1008553193 node_paths=PackedStringArray("input_source", "h0", "physics_body", "camera_rig", "fall_damage_state")]
 offset_left = 18.0
 offset_top = 18.0
 offset_right = 600.0

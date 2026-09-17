@@ -102,7 +102,6 @@ func _physics_process(delta: float) -> void:
 	_pending_jump = false
 	_pending_crouched = false
 
-
 func get_physics_facts() -> Dictionary:
 	return {
 		"position": global_position,

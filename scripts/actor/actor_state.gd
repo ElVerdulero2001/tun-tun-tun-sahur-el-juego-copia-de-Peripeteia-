@@ -21,9 +21,12 @@ const NORMAL_STEP := 0.0001
 const TIME_STEP := 0.0001
 const YAW_STEPS := 65536
 ## Largo de to_bytes(). Lo que llega por red con otro largo se descarta.
-const BYTE_SIZE := 51
+const BYTE_SIZE := 53
 
+## Con base, relativa a ella; sin base, en el mundo. Ver BaseRegistry.world_position().
 var position := Vector3.ZERO
+## Con base, la velocidad propia relativa a ella; la de la base no se guarda,
+## se suma recién al dejarla.
 var velocity := Vector3.ZERO
 var facing_yaw := 0.0
 var mode: int = Mode.AIR
@@ -40,6 +43,8 @@ var jump_presses_seen := 0
 ## no la toca. El host no adopta una afirmación con otra época: sería de un
 ## cliente que todavía no vio el evento.
 var epoch := 0
+## Id de red de la base sobre la que está parado (plataforma, balsa), o 0.
+var base_id := 0
 
 
 func quantize() -> void:
@@ -51,6 +56,7 @@ func quantize() -> void:
 	jump_buffer_left = _q(jump_buffer_left, TIME_STEP)
 	jump_presses_seen &= 0xFF
 	epoch &= 0xFFFF
+	base_id &= 0xFFFF
 
 
 func copy() -> ActorState:
@@ -69,6 +75,7 @@ func to_bytes() -> PackedByteArray:
 	b.put_32(roundi(jump_buffer_left / TIME_STEP))
 	b.put_u8(jump_presses_seen & 0xFF)
 	b.put_u16(epoch & 0xFFFF)
+	b.put_u16(base_id & 0xFFFF)
 	return b.data_array
 
 
@@ -86,12 +93,13 @@ static func from_bytes(bytes: PackedByteArray) -> ActorState:
 	s.jump_buffer_left = b.get_32() * TIME_STEP
 	s.jump_presses_seen = b.get_u8()
 	s.epoch = b.get_u16()
+	s.base_id = b.get_u16()
 	return s
 
 
 func describe() -> String:
-	return "modo=%s suelo=%s pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
-		Mode.keys()[mode], on_floor, position, velocity, facing_yaw,
+	return "modo=%s suelo=%s base=%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
+		Mode.keys()[mode], on_floor, base_id, position, velocity, facing_yaw,
 		coyote_left, jump_buffer_left, jump_presses_seen, epoch,
 	]
 

@@ -97,6 +97,8 @@ var pushes := 0
 var respawns := 0
 ## Cliente (paso 8): los demás jugadores, interpolados entre snapshots.
 var _interpolation := RemoteInterpolation.new()
+## Prueba de bases: contador de saltos del input de prueba `ride`.
+var _ride_presses := 0
 ## Cliente: cuánto se traban en pantalla los demás jugadores. Un tick cuenta
 ## como tirón si el actor se movió menos de un cuarto o más del doble de lo
 ## que corresponde a su velocidad.
@@ -215,6 +217,10 @@ func _start(new_role: Role) -> void:
 		Role.HOST:
 			_session.start_host(port, bind_address)
 		Role.CLIENT:
+			# Las balsas las simula solo el host: acá pasan a ser copias que mueve la interpolación.
+			for base in BaseRegistry.all():
+				if base is HostRaft:
+					base.become_copy()
 			_session.start_client(host_address, port)
 		_:
 			_session.start_local()
@@ -272,6 +278,8 @@ func _local_input(tick: int) -> ActorInput:
 		var walking := _local_ticks < 90
 		var presses := 1 if _local_ticks >= 30 else 0
 		return ActorInput.make(tick, Vector2(0, 1) if walking else Vector2.ZERO, 0.0, 0, presses)
+	if test_input.begins_with("ride:"):
+		return _ride_input(tick, test_input.trim_prefix("ride:").to_int())
 	if test_input == "zigzag":
 		# Un cuadrado que cambia de lado cada medio segundo y un salto cada dos:
 		# como el input cambia seguido, un input tardío se nota en las correcciones.
@@ -283,6 +291,35 @@ func _local_input(tick: int) -> ActorInput:
 		return ActorInput.make(tick, move, 0.0, 0, zigzag_presses)
 	var move := Input.get_vector("move_left", "move_right", "move_back", "move_forward")
 	return ActorInput.make(tick, move, _camera.yaw, 0, jump_presses)
+
+
+## Prueba de bases: va hasta la base pedida y se queda arriba, dando vueltas
+## cerca del centro y saltando cada 3 s. Si la base está más alta que los pies,
+## salta para subirse; si está muy alta (un ascensor arriba), la espera afuera.
+func _ride_input(tick: int, base_id: int) -> ActorInput:
+	var base = BaseRegistry.find(base_id)
+	if base == null or not is_instance_valid(_local_actor):
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _ride_presses)
+	var state := _local_actor.state
+	var me := BaseRegistry.world_position(state)
+	var center: Vector3 = base.base_origin()
+	var target := center
+	if state.base_id == base_id:
+		var angle := _local_ticks * TAU / 240.0
+		target = center + Vector3(cos(angle), 0.0, sin(angle)) * 0.8
+		if _local_ticks % 180 == 0:
+			_ride_presses = (_ride_presses + 1) & 0xFF
+	elif center.y > me.y + 0.5:
+		target = me
+	elif absf(center.z - me.z) > 1.5 and absf(center.x - me.x) > 1.0:
+		# Primero en x y después en z, para rodear la pared del laboratorio.
+		target = Vector3(center.x, me.y, me.z)
+	elif center.y > me.y + 0.1 and state.on_floor and Vector2(center.x - me.x, center.z - me.z).length() < 2.2 \
+			and _local_ticks % 30 == 0:
+		_ride_presses = (_ride_presses + 1) & 0xFF
+	var to := Vector2(target.x - me.x, target.z - me.z)
+	var move := Vector2(to.x, -to.y).limit_length(1.0) if to.length() > 0.15 else Vector2.ZERO
+	return ActorInput.make(tick, move, 0.0, 0, _ride_presses)
 
 
 ## Al empezar cada tick. Host: aplica los eventos (reapariciones y empujones)
@@ -300,7 +337,7 @@ func _on_tick_started(tick: int) -> void:
 		_push_others()
 	if role != Role.CLIENT or not _clock.client_sync:
 		return
-	_net_sync.apply_pending_snapshot(_on_own_state.bind(tick), _interpolation.add)
+	_net_sync.apply_pending_snapshot(_on_own_state.bind(tick), _interpolation.add, _interpolation.add_base)
 	_interpolation.advance()
 	for actor in _clock.sorted_actors():
 		if _is_remote(actor):
@@ -317,12 +354,16 @@ func _on_tick_finished(tick: int) -> void:
 		for actor in _clock.sorted_actors():
 			if _is_remote(actor):
 				_adoption.consider(actor, _net_sync.claim_for(actor.owner_peer_id, tick))
-		_net_sync.send_snapshot(tick, _clock.sorted_actors())
+		var rafts := BaseRegistry.all().filter(func(base) -> bool: return base is HostRaft and base.simulated)
+		_net_sync.send_snapshot(tick, _clock.sorted_actors(), rafts)
 	elif role == Role.CLIENT and is_instance_valid(_local_actor) and _local_actor.simulated \
 			and _current_input != null and _current_input.tick == tick:
 		_prediction.record(tick, _current_input, _local_actor.state)
 		_net_sync.send_ticks(_prediction.recent(NetSync.INPUT_REDUNDANCY))
 	if role == Role.CLIENT:
+		# La balsa del host se coloca para el tick que viene, en la pose que se
+		# va a mostrar entonces: un tick del cliente son 60/ritmo ticks del host.
+		_interpolation.place_bases(float(SimClock.TICK_RATE) / _clock.rate_hz)
 		_measure_remote_smoothness()
 
 
@@ -354,7 +395,7 @@ func _push_others() -> void:
 			continue
 		var away := Vector3.BACK
 		if is_instance_valid(_local_actor):
-			var offset := actor.state.position - _local_actor.state.position
+			var offset := BaseRegistry.world_position(actor.state) - BaseRegistry.world_position(_local_actor.state)
 			offset.y = 0.0
 			if offset.length_squared() > 0.0001:
 				away = offset.normalized()
@@ -368,7 +409,7 @@ func _push_others() -> void:
 ## apoyado. Es un evento del host (sube la época) y un teleport.
 func _respawn_fallen() -> void:
 	for actor in _clock.sorted_actors():
-		if actor.state.position.y > FALL_LIMIT:
+		if BaseRegistry.world_position(actor.state).y > FALL_LIMIT:
 			continue
 		var fresh := ActorState.new()
 		fresh.position = _session.spawn_position(actor.owner_peer_id)
@@ -400,7 +441,7 @@ func _on_own_state(host_tick: int, state_bytes: PackedByteArray, used_input_tick
 	if not _local_actor.simulated:
 		# Todavía sin predicción: se muestra tal cual lo manda el host.
 		_local_actor.state = ActorState.from_bytes(state_bytes)
-		_local_actor.global_position = _local_actor.state.position
+		_local_actor.global_position = BaseRegistry.world_position(_local_actor.state)
 		_local_actor.present(_local_actor.state)
 		return
 	_prediction.reconcile(_local_actor, host_tick, state_bytes, used_input_tick, current_tick, _step_local)
@@ -476,6 +517,9 @@ func _read_launch_args() -> void:
 		elif arg.begins_with("--test-push-at="):
 			for seconds in arg.trim_prefix("--test-push-at=").split(","):
 				test_push_seconds.append(seconds.to_float())
+		elif arg.begins_with("--test-spawn-at="):
+			var xz := arg.trim_prefix("--test-spawn-at=").split(",")
+			_session.host_spawn_override = Vector3(xz[0].to_float(), 0.0, xz[1].to_float())
 
 
 ## Direcciones IPv4 privadas de esta PC: la que hay que escribir en la otra PC
@@ -521,8 +565,10 @@ func _update_hud() -> void:
 	if is_instance_valid(_local_actor):
 		var s := _local_actor.state
 		lines.append("Modo: %s   ·   en suelo: %s   ·   época: %d" % [ActorState.Mode.keys()[s.mode], "sí" if s.on_floor else "no", s.epoch])
-		lines.append("Velocidad: %.2f m/s horizontal, %.2f m/s vertical" % [Vector2(s.velocity.x, s.velocity.z).length(), s.velocity.y])
-		lines.append("Posición: (%.2f, %.2f, %.2f)" % [s.position.x, s.position.y, s.position.z])
+		var world := BaseRegistry.world_position(s)
+		var base = BaseRegistry.find(s.base_id)
+		lines.append("Velocidad%s: %.2f m/s horizontal, %.2f m/s vertical" % [" (sobre la base)" if base != null else "", Vector2(s.velocity.x, s.velocity.z).length(), s.velocity.y])
+		lines.append("Posición: (%.2f, %.2f, %.2f)   ·   base: %s" % [world.x, world.y, world.z, "%s (%d)" % [base.name, s.base_id] if base != null else "ninguna"])
 	lines.append("")
 	lines.append("WASD mover · Espacio saltar · mouse mirar · Esc suelta el mouse")
 	if role == Role.HOST:
@@ -542,6 +588,12 @@ func _print_trace() -> void:
 			(Time.get_ticks_msec() - _ready_msec) / 1000.0, _clock.tick, _clock.lead_ticks, _clock.worst_margin,
 			_clock.rate_hz, _prediction.corrections, _prediction.waits_late_input, _prediction.alignments,
 			_local_actor.state.epoch if is_instance_valid(_local_actor) else -1,
+		])
+	if is_instance_valid(_local_actor):
+		var s := _local_actor.state
+		print("[net_lab] traza %.1fs actor: base=%d mundo=%s rel=%s vel=%s modo=%s suelo=%s" % [
+			(Time.get_ticks_msec() - _ready_msec) / 1000.0, s.base_id, BaseRegistry.world_position(s),
+			s.position, s.velocity, ActorState.Mode.keys()[s.mode], s.on_floor,
 		])
 	_real_timer(0.5, _print_trace)
 

@@ -27,6 +27,7 @@ var _render_tick := 0.0
 var _newest_tick := -1
 var _last_usec := 0
 var _samples := {}  # peer -> Array de [tick del host, ActorState], del más viejo al más nuevo
+var _base_samples := {}  # id de base -> Array de [tick del host, posición, velocidad]
 
 
 ## Guarda el estado de otro jugador que llegó en un snapshot.
@@ -35,6 +36,44 @@ func add(peer_id: int, host_tick: int, state: ActorState) -> void:
 	if samples.is_empty() or host_tick > samples[-1][0]:
 		samples.append([host_tick, state])
 	_newest_tick = maxi(_newest_tick, host_tick)
+
+
+## Guarda la pose de una base que simula el host (una balsa).
+func add_base(base_id: int, host_tick: int, position: Vector3, velocity: Vector3) -> void:
+	var samples: Array = _base_samples.get_or_add(base_id, [])
+	if samples.is_empty() or host_tick > samples[-1][0]:
+		samples.append([host_tick, position, velocity])
+	_newest_tick = maxi(_newest_tick, host_tick)
+
+
+## Al terminar cada tick: deja las copias de las bases del host en la pose
+## interpolada del tick que viene, que llega `ahead` ticks del host más tarde.
+## Son cuerpos cinemáticos: lo que se coloca ahora, las consultas lo ven en el
+## tick siguiente.
+func place_bases(ahead: float) -> void:
+	for base in BaseRegistry.all():
+		if not (base is HostRaft) or base.simulated:
+			continue
+		var next := _base_pose(base.base_id, _render_tick + ahead)
+		var now := _base_pose(base.base_id, _render_tick)
+		if not next.is_empty():
+			base.place_copy(next[0], now[0], next[1])
+
+
+## [posición, velocidad] de una base del host en un momento, o vacío si no llegó nada.
+func _base_pose(base_id: int, at: float) -> Array:
+	var samples: Array = _base_samples.get(base_id, [])
+	if samples.is_empty():
+		return []
+	while samples.size() >= 3 and samples[1][0] <= _render_tick:
+		samples.pop_front()
+	for i in range(samples.size() - 1):
+		if samples[i + 1][0] > at:
+			var from: Array = samples[i]
+			var to: Array = samples[i + 1]
+			var weight := clampf((at - from[0]) / float(to[0] - from[0]), 0.0, 1.0)
+			return [from[1].lerp(to[1], weight), from[2].lerp(to[2], weight)]
+	return [samples[-1][1], samples[-1][2]]
 
 
 ## Avanza el momento que se muestra. Una vez por tick, antes de place().
@@ -65,9 +104,12 @@ func place(actor: ActorBody) -> void:
 		state = _blend(from[1], to[1], weight)
 	elif from[0] < _render_tick:
 		starved += 1
-	var jumped := state.position.distance_to(actor.global_position) > TELEPORT_DISTANCE
+	# Sobre una base, la posición es relativa: se dibuja sobre la base tal como
+	# se ve en esta máquina, así el actor va pegado a ella.
+	var world := BaseRegistry.world_position(state)
+	var jumped := world.distance_to(actor.global_position) > TELEPORT_DISTANCE
 	actor.state = state
-	actor.global_position = state.position
+	actor.global_position = world
 	actor.present(state)
 	if jumped:
 		actor.teleported()
@@ -79,12 +121,22 @@ func forget(peer_id: int) -> void:
 
 ## Pose intermedia entre dos snapshots. Lo que no es continuo (modo, piso,
 ## época) sale del más cercano. Si entre los dos hubo un teleport, no se mezcla.
+## Sobre la misma base se mezcla en coordenadas de la base; si subió o bajó de
+## una base entre los dos, se mezcla en el mundo.
 static func _blend(from: ActorState, to: ActorState, weight: float) -> ActorState:
 	var nearest := from if weight < 0.5 else to
-	if from.position.distance_to(to.position) > TELEPORT_DISTANCE:
+	var a := from.position
+	var b := to.position
+	var base_id := from.base_id
+	if from.base_id != to.base_id:
+		a = BaseRegistry.world_position(from)
+		b = BaseRegistry.world_position(to)
+		base_id = 0
+	if a.distance_to(b) > TELEPORT_DISTANCE:
 		return nearest
 	var state := nearest.copy()
-	state.position = from.position.lerp(to.position, weight)
+	state.base_id = base_id
+	state.position = a.lerp(b, weight)
 	state.velocity = from.velocity.lerp(to.velocity, weight)
 	state.facing_yaw = lerp_angle(from.facing_yaw, to.facing_yaw, weight)
 	return state

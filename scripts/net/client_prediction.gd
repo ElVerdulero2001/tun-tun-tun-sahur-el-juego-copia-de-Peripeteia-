@@ -67,7 +67,7 @@ func reconcile(actor: ActorBody, host_tick: int, host_state: PackedByteArray, us
 		alignments += 1
 	else:
 		corrections += 1
-	var before := actor.state.position
+	var before := BaseRegistry.world_position(actor.state)
 	var seen := actor.seen_position()
 	actor.state = ActorState.from_bytes(host_state)
 	actor.apply_state(actor.state)
@@ -80,7 +80,7 @@ func reconcile(actor: ActorBody, host_tick: int, host_state: PackedByteArray, us
 	# Paso 8: el cuerpo saltó, pero lo que se ve arranca desde donde se veía.
 	actor.smooth_from(seen)
 	if predicted != null:
-		last_correction_meters = before.distance_to(actor.state.position)
+		last_correction_meters = before.distance_to(BaseRegistry.world_position(actor.state))
 	_forget_up_to(host_tick)
 
 

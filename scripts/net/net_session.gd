@@ -22,6 +22,9 @@ const SPAWN_SLOTS := [
 @export var clock: SimClock
 
 var status := ""
+## Solo para pruebas: dónde aparece (y reaparece) el actor del host o del modo
+## local, en vez de su lugar de aparición. Nulo para usar el de siempre.
+var host_spawn_override = null
 ## Solo en el host: qué lugar de aparición ocupa cada peer.
 var _slot_of_peer := {}
 
@@ -95,6 +98,8 @@ func _on_server_disconnected() -> void:
 
 ## Solo en el host: dónde aparece (y reaparece) ese jugador.
 func spawn_position(peer_id: int) -> Vector3:
+	if peer_id == 1 and host_spawn_override != null:
+		return host_spawn_override
 	return SPAWN_SLOTS[_slot_of_peer.get(peer_id, 0) % SPAWN_SLOTS.size()]
 
 
@@ -103,7 +108,7 @@ func _spawn_for(peer_id: int) -> void:
 	while slot in _slot_of_peer.values():
 		slot += 1
 	_slot_of_peer[peer_id] = slot
-	spawner.spawn({"peer": peer_id, "position": SPAWN_SLOTS[slot % SPAWN_SLOTS.size()]})
+	spawner.spawn({"peer": peer_id, "position": spawn_position(peer_id)})
 
 
 ## Corre en todos los peers con los mismos datos, así el actor nace igual en

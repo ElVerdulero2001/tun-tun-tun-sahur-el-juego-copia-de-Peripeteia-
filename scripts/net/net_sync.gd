@@ -16,6 +16,9 @@ const INPUT_REDUNDANCY := 6
 const SNAPSHOT_INTERVAL_TICKS := 2
 ## Cuánta historia de input guarda el host por jugador, en ticks.
 const INPUT_HISTORY_TICKS := 120
+## Cuantización de la pose de las bases del host en el snapshot.
+const BASE_POSITION_STEP := 0.0001
+const BASE_VELOCITY_STEP := 0.001
 
 ## Simulador de red (paso 5). Todo lo que se manda o se recibe pasa por acá.
 var link: LinkSimulator
@@ -61,8 +64,10 @@ func send_ticks(records: Array) -> void:
 ## dentro del tick de física para no romper la interpolación. El estado propio
 ## va a `on_own_state` (tick del host, estado en bytes, tick del input usado,
 ## margen del input) para que la predicción lo compare y corrija; el de cada
-## otro jugador, a `on_other_state` (id, tick del host, ActorState).
-func apply_pending_snapshot(on_own_state: Callable, on_other_state: Callable) -> void:
+## otro jugador, a `on_other_state` (id, tick del host, ActorState); y el de
+## cada base que simula el host, a `on_base_state` (id, tick del host,
+## posición, velocidad).
+func apply_pending_snapshot(on_own_state: Callable, on_other_state: Callable, on_base_state: Callable) -> void:
 	if _pending_snapshot.is_empty():
 		return
 	var b := StreamPeerBuffer.new()
@@ -81,6 +86,12 @@ func apply_pending_snapshot(on_own_state: Callable, on_other_state: Callable) ->
 			on_own_state.call(latest_snapshot_tick, state_bytes, used_tick, margin)
 		else:
 			on_other_state.call(owner_id, latest_snapshot_tick, ActorState.from_bytes(state_bytes))
+	var base_count := b.get_u8()
+	for i in base_count:
+		var base_id := b.get_u16()
+		var position := _get_vector(b, BASE_POSITION_STEP)
+		var velocity := _get_vector(b, BASE_VELOCITY_STEP)
+		on_base_state.call(base_id, latest_snapshot_tick, position, velocity)
 
 
 @rpc("authority", "call_remote", "unreliable")
@@ -166,8 +177,10 @@ func input_margin_ticks(peer_id: int, tick: int) -> int:
 	return latest.tick - tick if latest != null else 0
 
 
-## Manda a todos los clientes el estado de todos los actores en este tick.
-func send_snapshot(tick: int, actors: Array[ActorBody]) -> void:
+## Manda a todos los clientes el estado de todos los actores en este tick, y la
+## pose de las bases que simula solo el host (balsas). Las plataformas
+## guionadas no viajan: cada máquina las calcula desde el tick.
+func send_snapshot(tick: int, actors: Array[ActorBody], host_bases: Array) -> void:
 	if tick % SNAPSHOT_INTERVAL_TICKS != 0 or multiplayer.get_peers().is_empty():
 		return
 	var b := StreamPeerBuffer.new()
@@ -184,8 +197,26 @@ func send_snapshot(tick: int, actors: Array[ActorBody]) -> void:
 		b.put_16(clampi(margin, -32768, 32767))
 		b.put_u8(state_bytes.size())
 		b.put_data(state_bytes)
+	b.put_u8(host_bases.size())
+	for base in host_bases:
+		b.put_u16(base.base_id)
+		_put_vector(b, base.base_origin(), BASE_POSITION_STEP)
+		_put_vector(b, base.base_velocity(), BASE_VELOCITY_STEP)
 	var data := b.data_array
 	_send(func() -> void: _receive_snapshot.rpc(data))
+
+
+static func _put_vector(b: StreamPeerBuffer, v: Vector3, step: float) -> void:
+	b.put_32(roundi(v.x / step))
+	b.put_32(roundi(v.y / step))
+	b.put_32(roundi(v.z / step))
+
+
+static func _get_vector(b: StreamPeerBuffer, step: float) -> Vector3:
+	var x := b.get_32() * step
+	var y := b.get_32() * step
+	var z := b.get_32() * step
+	return Vector3(x, y, z)
 
 
 func forget_peer(peer_id: int) -> void:

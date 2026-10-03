@@ -154,6 +154,12 @@ func _run_tick() -> void:
 		actor.present(actor.state)
 		actor.decay_visual_offset(TICK_DT)
 	tick_finished.emit(tick)
+	# Las plataformas guionadas quedan colocadas para el tick que viene: Jolt
+	# mueve los cuerpos cinemáticos en el paso de física, y recién en el tick
+	# siguiente las consultas las ven en su lugar nuevo.
+	for base in BaseRegistry.all():
+		if base is ScriptedPlatform:
+			base.prepare_tick(tick + 1)
 
 
 func sorted_actors() -> Array[ActorBody]:

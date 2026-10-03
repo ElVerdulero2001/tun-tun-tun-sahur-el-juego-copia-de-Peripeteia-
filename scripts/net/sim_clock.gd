@@ -9,8 +9,10 @@ extends Node
 ## cliente corre unos ticks por delante para que su input llegue antes de que
 ## el host simule ese tick. El ping da la estimación inicial, usando el más
 ## rápido de los últimos, que es el que menos se equivoca. Después, el host
-## informa con cuánto margen le llegan los inputs y el cliente se corrige de a
-## un tick, corriendo dos ticks en un frame o ninguno, sin saltar.
+## informa con cuánto margen le llegan los inputs y el cliente cambia de ritmo:
+## corre un poco más rápido o más lento que el host hasta volver a la franja
+## buscada. Cada tick sigue avanzando exactamente TICK_DT; solo cambia cuántos
+## ticks entran en un segundo real.
 
 ## Al empezar cada tick, antes de mover actores. El cliente corrige y manda su input acá.
 signal tick_started(tick: int)
@@ -28,11 +30,26 @@ const SYNC_INTERVAL_TICKS := 30
 const PING_WINDOW := 8
 ## Adelanto extra, además del medio ida y vuelta, al sincronizar.
 const LEAD_EXTRA_TICKS := 2
-## Con cuánto margen deben llegar los inputs al host, mirando el peor caso reciente.
-const MARGIN_MIN_TICKS := 1
-const MARGIN_MAX_TICKS := 4
-## Cuántos márgenes informados por el host se miran antes de decidir.
-const MARGIN_WINDOW := 60
+## Franja del margen con que deben llegar los inputs al host, en ticks, mirando
+## el peor caso reciente. Con menos de MARGIN_LOW el cliente acelera hasta
+## llegar a MARGIN_TARGET; con más de MARGIN_HIGH frena hasta bajar a
+## MARGIN_SETTLE. En el medio no toca nada: la variación normal de la red no lo mueve.
+const MARGIN_LOW := 1.0
+const MARGIN_TARGET := 2.0
+const MARGIN_SETTLE := 3.0
+const MARGIN_HIGH := 6.0
+## Cuántos ticks del host se miran para buscar el peor margen.
+const MARGIN_WINDOW_TICKS := 60
+## Ticks por segundo de más por cada tick de margen que falta: lo que falta se
+## recupera en alrededor de medio segundo.
+const SPEEDUP_PER_MISSING_TICK := 2.0
+## Ritmos límite. A 72 ticks por segundo gana 12 ticks de adelanto por segundo;
+## a 57 pierde 3. Perder adelanto no apura, así que frena más suave.
+const MAX_RATE := 72
+const MIN_RATE := 57
+## Cuántos ticks se recuerda el ajuste acumulado, para saber cuánto valía al
+## mandar cada input.
+const ADJUST_HISTORY_TICKS := 1024
 
 ## Lo activa la sesión cuando el cliente queda conectado.
 var client_sync := false
@@ -51,31 +68,57 @@ var synced := false
 var rtt_ms := 0.0
 ## Cliente: cuántos ticks va por delante del host, según ese ping.
 var lead_ticks := 0.0
-## Cliente: el peor margen con que le llegaron inputs al host en la ventana actual.
-var worst_margin := 0
-## Cliente: ajustes de un tick hacia adelante y hacia atrás.
-var speedups := 0
-var slowdowns := 0
+## Cliente: el peor margen reciente con que le llegaron inputs al host, sumando
+## lo que el cliente ya se corrió desde que los mandó.
+var worst_margin := 0.0
+## Cliente: ticks por segundo real a los que corre ahora. El host siempre va a TICK_RATE.
+var rate_hz := TICK_RATE
+## Cliente: adelanto ganado acelerando y perdido frenando, en ticks.
+var ticks_gained := 0.0
+var ticks_shed := 0.0
 ## Cliente: saltos de tick después de la primera sincronización.
 var resyncs := 0
 
 var _ticks_since_ping := 0
 ## Pings recientes: [ida y vuelta en µs, adelanto medido al recibirlo, ajustes hechos hasta ese momento].
 var _pings: Array = []
-## Ticks que el cliente se corrió por su cuenta: +1 por cada tick extra, -1 por
-## cada tick salteado y lo que salte de golpe. Así un ping viejo sigue sirviendo:
+## Ticks que el cliente se corrió por su cuenta: lo que ganó o perdió cambiando
+## de ritmo y lo que saltó de golpe. Así una medición vieja sigue sirviendo:
 ## el adelanto de hoy es el que midió más los ajustes hechos desde entonces.
-var _adjust_total := 0
+var _adjust_total := 0.0
+## _adjust_total al empezar cada tick reciente, guardado por tick en un anillo.
+var _adjust_history := PackedFloat64Array()
+var _adjust_history_tick := PackedInt64Array()
 ## Pings seguidos que pidieron un salto; hace falta más de uno para saltar.
 var _bad_estimates := 0
-var _margins: Array[int] = []
-var _adjust_cooldown := 0
+## Márgenes recientes: [tick del host, margen, _adjust_total al mandar ese input].
+var _margins: Array = []
+
+
+## Cambia cuántos ticks entran en un segundo real. time_scale compensa para
+## que el delta de física siga siendo exactamente TICK_DT: la simulación da
+## lo mismo, byte a byte, a cualquier ritmo.
+static func apply_tick_rate(rate: int) -> void:
+	Engine.physics_ticks_per_second = rate
+	Engine.time_scale = float(rate) / TICK_RATE
+
+
+func _ready() -> void:
+	_adjust_history.resize(ADJUST_HISTORY_TICKS)
+	_adjust_history_tick.resize(ADJUST_HISTORY_TICKS)
+	_adjust_history_tick.fill(-1)
+
+
+func _exit_tree() -> void:
+	_set_rate(TICK_RATE)
 
 
 func _physics_process(_delta: float) -> void:
-	var steps := _lead_adjust_steps() if synced else 1
-	for i in steps:
-		_run_tick()
+	_run_tick()
+	if client_sync and synced:
+		_update_rate()
+	else:
+		_set_rate(TICK_RATE)
 	if client_sync:
 		_ticks_since_ping += 1
 		if _ticks_since_ping >= SYNC_INTERVAL_TICKS:
@@ -89,6 +132,16 @@ func _physics_process(_delta: float) -> void:
 
 func _run_tick() -> void:
 	tick += 1
+	if client_sync and synced:
+		# Este tick duró 1/rate_hz segundos reales, y en ese tiempo el host
+		# avanzó TICK_RATE/rate_hz ticks: la diferencia es adelanto ganado o perdido.
+		var change := 1.0 - float(TICK_RATE) / rate_hz
+		_adjust_total += change
+		ticks_gained += maxf(change, 0.0)
+		ticks_shed += maxf(-change, 0.0)
+		var slot := posmod(tick, ADJUST_HISTORY_TICKS)
+		_adjust_history[slot] = _adjust_total
+		_adjust_history_tick[slot] = tick
 	tick_started.emit(tick)
 	for actor in sorted_actors():
 		if not actor.simulated:
@@ -113,37 +166,46 @@ func sorted_actors() -> Array[ActorBody]:
 	return list
 
 
-## Cliente: el host informó con cuántos ticks de margen le llegó nuestro input.
-func report_input_margin(margin: int) -> void:
-	_margins.append(margin)
-	if _margins.size() > MARGIN_WINDOW:
+## Cliente: el host informó que, al simular host_tick, ya tenía nuestro input
+## hasta host_tick + margin.
+func report_input_margin(host_tick: int, margin: int) -> void:
+	var input_tick := host_tick + margin
+	var slot := posmod(input_tick, ADJUST_HISTORY_TICKS)
+	var adjust_when_sent := _adjust_history[slot] if _adjust_history_tick[slot] == input_tick else _adjust_total
+	_margins.append([host_tick, margin, adjust_when_sent])
+	while _margins[0][0] <= host_tick - MARGIN_WINDOW_TICKS:
 		_margins.pop_front()
-	worst_margin = _margins.min()
 
 
-## Cuántos ticks correr en este frame: 1 normalmente, 2 para adelantarse un
-## tick, 0 para atrasarse uno. Después de cada ajuste espera a ver su efecto,
-## que tarda un ida y vuelta en volver en los márgenes.
-func _lead_adjust_steps() -> int:
-	if _adjust_cooldown > 0:
-		_adjust_cooldown -= 1
-		return 1
-	if _margins.size() < MARGIN_WINDOW / 2:
-		return 1
-	var steps := 1
-	if worst_margin < MARGIN_MIN_TICKS:
-		speedups += 1
-		_adjust_total += 1
-		steps = 2
-	elif worst_margin > MARGIN_MAX_TICKS:
-		slowdowns += 1
-		_adjust_total -= 1
-		steps = 0
-	else:
-		return 1
-	_margins.clear()
-	_adjust_cooldown = maxi(30, roundi(rtt_ms / 1000.0 * TICK_RATE) * 2)
-	return steps
+## Elige el ritmo según el peor margen reciente. Acelera más cuanto más falta,
+## y deja de acelerar apenas lo ganado alcanza, sin esperar el ida y vuelta
+## que tarda el host en confirmarlo.
+func _update_rate() -> void:
+	if _margins.is_empty() or _margins[-1][0] - _margins[0][0] < MARGIN_WINDOW_TICKS / 2:
+		_set_rate(TICK_RATE)
+		return
+	worst_margin = _worst_margin()
+	var rate := TICK_RATE
+	if worst_margin < MARGIN_LOW or (rate_hz > TICK_RATE and worst_margin < MARGIN_TARGET):
+		rate = mini(TICK_RATE + ceili((MARGIN_TARGET - worst_margin) * SPEEDUP_PER_MISSING_TICK), MAX_RATE)
+	elif worst_margin > MARGIN_HIGH or (rate_hz < TICK_RATE and worst_margin > MARGIN_SETTLE):
+		rate = maxi(TICK_RATE - ceili(worst_margin - MARGIN_SETTLE), MIN_RATE)
+	_set_rate(rate)
+
+
+## El peor margen de la ventana, sumándole a cada uno lo que el cliente ganó o
+## perdió desde que mandó ese input: el host todavía no lo vio, pero va a llegar.
+func _worst_margin() -> float:
+	var worst := INF
+	for sample in _margins:
+		worst = minf(worst, sample[1] - sample[2])
+	return worst + _adjust_total
+
+
+func _set_rate(rate: int) -> void:
+	if rate != rate_hz:
+		rate_hz = rate
+		apply_tick_rate(rate)
 
 
 @rpc("any_peer", "call_remote", "unreliable")

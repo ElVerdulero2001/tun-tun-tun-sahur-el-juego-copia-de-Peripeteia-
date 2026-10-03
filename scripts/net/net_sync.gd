@@ -4,10 +4,12 @@ extends Node
 ## Transporte del paso 4. El cliente manda el input de cada tick; el host mueve
 ## a todos y manda el estado de todos los actores. Todavía sin predicción: el
 ## cliente muestra exactamente lo que dice el host, con la demora de la red.
-## La predicción (paso 6) se apoya en estos mismos mensajes.
+## La predicción (paso 6) se apoya en estos mismos mensajes. Desde el paso 7,
+## junto a cada input viaja la afirmación: el estado que el cliente predijo
+## para ese tick.
 
-## Ticks de input que viajan en cada paquete: si se pierde uno, el siguiente
-## trae los mismos ticks otra vez.
+## Ticks que viajan en cada paquete: si se pierde uno, el siguiente trae los
+## mismos ticks otra vez.
 const INPUT_REDUNDANCY := 6
 ## Cada cuántos ticks manda el host un snapshot. Con 1 son 60 por segundo;
 ## hasta que haya interpolación (paso 8), con menos se vería a los saltos.
@@ -26,11 +28,11 @@ var snapshots_received := 0
 var snapshots_missing := 0
 
 # Cliente
-var _recent_inputs: Array[ActorInput] = []
 var _pending_snapshot := PackedByteArray()
 var _pending_snapshot_tick := -1
 # Host
 var _inputs := {}  # peer -> {tick: ActorInput}
+var _claims := {}  # peer -> {tick: estado afirmado, en bytes}
 var _latest_input := {}  # peer -> ActorInput con el tick más alto recibido
 var _used_input_tick := {}  # peer -> tick del input usado en el último tick simulado
 
@@ -41,15 +43,16 @@ func _ready() -> void:
 
 # --- Cliente ---------------------------------------------------------------
 
-## Guarda el input del tick y se lo manda al host junto con los anteriores.
-func send_input(input: ActorInput) -> void:
-	_recent_inputs.append(input)
-	if _recent_inputs.size() > INPUT_REDUNDANCY:
-		_recent_inputs.pop_front()
+## Manda al host los ticks predichos más recientes: por cada uno, el input y
+## la afirmación ([ActorInput, estado en bytes], del más viejo al más nuevo).
+func send_ticks(records: Array) -> void:
 	var b := StreamPeerBuffer.new()
-	b.put_u8(_recent_inputs.size())
-	for recent in _recent_inputs:
-		recent.write_to(b)
+	b.put_u8(records.size())
+	for record in records:
+		var claim: PackedByteArray = record[1]
+		record[0].write_to(b)
+		b.put_u8(claim.size())
+		b.put_data(claim)
 	var data := b.data_array
 	_send(func() -> void: _submit_inputs.rpc_id(1, data))
 
@@ -116,13 +119,18 @@ func _submit_inputs(data: PackedByteArray) -> void:
 func _accept_inputs(peer_id: int, data: PackedByteArray) -> void:
 	if not _inputs.has(peer_id):
 		_inputs[peer_id] = {}
+		_claims[peer_id] = {}
 	var by_tick: Dictionary = _inputs[peer_id]
+	var claims: Dictionary = _claims[peer_id]
 	var b := StreamPeerBuffer.new()
 	b.data_array = data
 	var count := b.get_u8()
 	for i in count:
 		var input := ActorInput.read_from(b)
+		var claim: PackedByteArray = b.get_data(b.get_u8())[1]
 		by_tick[input.tick] = input
+		if claim.size() == ActorState.BYTE_SIZE:
+			claims[input.tick] = claim
 		var latest: ActorInput = _latest_input.get(peer_id)
 		if latest == null or input.tick > latest.tick:
 			_latest_input[peer_id] = input
@@ -139,13 +147,21 @@ func input_for(peer_id: int, tick: int) -> ActorInput:
 		for t in by_tick:
 			if t <= tick and (chosen == null or t > chosen.tick):
 				chosen = by_tick[t]
+	var claims: Dictionary = _claims.get(peer_id, {})
 	for t in by_tick.keys():
 		if t < tick - INPUT_HISTORY_TICKS:
 			by_tick.erase(t)
+			claims.erase(t)
 	if chosen == null:
 		return null
 	_used_input_tick[peer_id] = chosen.tick
 	return ActorInput.make(tick, chosen.move, chosen.look_yaw, chosen.buttons, chosen.jump_presses)
+
+
+## Lo que el jugador afirma haber predicho para ese tick exacto, en bytes, o
+## vacío si no llegó (o llegó tarde y ya no sirve).
+func claim_for(peer_id: int, tick: int) -> PackedByteArray:
+	return _claims.get(peer_id, {}).get(tick, PackedByteArray())
 
 
 ## Cuántos ticks por delante de este llegó el input más nuevo de un jugador.
@@ -179,6 +195,7 @@ func send_snapshot(tick: int, actors: Array[ActorBody]) -> void:
 
 func forget_peer(peer_id: int) -> void:
 	_inputs.erase(peer_id)
+	_claims.erase(peer_id)
 	_latest_input.erase(peer_id)
 	_used_input_tick.erase(peer_id)
 

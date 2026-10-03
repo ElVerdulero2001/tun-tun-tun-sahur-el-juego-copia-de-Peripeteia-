@@ -14,6 +14,11 @@ var added_rtt_ms := 0.0
 var jitter_ms := 0.0
 ## Porcentaje de paquetes que se pierden en cada sentido.
 var loss_percent := 0.0
+## Tirones, como un Wi-Fi que se traba: cada stall_every_ms la conexión se
+## traba durante stall_ms, y lo que sale o llega en ese rato pasa todo junto
+## cuando se destraba.
+var stall_every_ms := 0.0
+var stall_ms := 0.0
 var delivered := 0
 var dropped := 0
 
@@ -21,15 +26,17 @@ var _rng := RandomNumberGenerator.new()
 var _queue: Array = []  # [momento de entrega en µs, Callable]
 
 
-func configure(rtt_ms: float, jitter: float, loss: float, seed_value: int = 1) -> void:
+func configure(rtt_ms: float, jitter: float, loss: float, seed_value: int = 1, stall_every: float = 0.0, stall: float = 0.0) -> void:
 	added_rtt_ms = maxf(rtt_ms, 0.0)
 	jitter_ms = maxf(jitter, 0.0)
 	loss_percent = clampf(loss, 0.0, 100.0)
+	stall_every_ms = maxf(stall_every, 0.0)
+	stall_ms = clampf(stall, 0.0, stall_every_ms)
 	_rng.seed = seed_value
 
 
 func is_active() -> bool:
-	return added_rtt_ms > 0.0 or jitter_ms > 0.0 or loss_percent > 0.0
+	return added_rtt_ms > 0.0 or jitter_ms > 0.0 or loss_percent > 0.0 or stall_ms > 0.0
 
 
 ## Entrega un paquete (una llamada) ahora, más tarde o nunca.
@@ -41,8 +48,16 @@ func deliver(packet: Callable) -> void:
 	if _rng.randf() * 100.0 < loss_percent:
 		dropped += 1
 		return
-	var delay_ms := added_rtt_ms / 2.0 + _rng.randf_range(-jitter_ms, jitter_ms)
-	_queue.append([Time.get_ticks_usec() + int(maxf(delay_ms, 0.0) * 1000.0), packet])
+	var delay_ms := maxf(added_rtt_ms / 2.0 + _rng.randf_range(-jitter_ms, jitter_ms), 0.0) + _stall_left_ms()
+	_queue.append([Time.get_ticks_usec() + int(delay_ms * 1000.0), packet])
+
+
+## Si la conexión está trabada, cuánto falta para que se destrabe.
+func _stall_left_ms() -> float:
+	if stall_ms <= 0.0:
+		return 0.0
+	var phase := fmod(Time.get_ticks_msec(), stall_every_ms)
+	return stall_ms - phase if phase < stall_ms else 0.0
 
 
 ## Descarta lo que estaba en viaje, por ejemplo al terminar la sesión.

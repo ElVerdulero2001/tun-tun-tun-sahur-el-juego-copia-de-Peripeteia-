@@ -81,6 +81,16 @@ static func _air(state: ActorState, wish: Vector3, tuning: ActorTuning, dt: floa
 	state.velocity = Vector3(horizontal.x, vertical, horizontal.z)
 
 
+## Empujón: un evento del host, que lo aplica al empezar el tick, antes del
+## paso. Suma el impulso y pasa a Aire como el salto, así el snap no lo vuelve
+## a pegar al piso. Quien lo aplica también sube la época del actor.
+static func push(state: ActorState, impulse: Vector3) -> void:
+	state.velocity += impulse
+	state.mode = ActorState.Mode.AIR
+	state.jump_buffer_left = 0.0
+	state.coyote_left = 0.0
+
+
 ## Impulso que fija el eje vertical. El snap no lo vuelve a pegar al piso
 ## porque la velocidad sube: así lo documenta floor_snap_length.
 static func _jump(state: ActorState, tuning: ActorTuning) -> void:

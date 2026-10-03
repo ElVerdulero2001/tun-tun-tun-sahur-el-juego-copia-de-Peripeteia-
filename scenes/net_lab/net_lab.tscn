@@ -1,0 +1,125 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/net_lab/net_lab.gd" id="1_lab"]
+[ext_resource type="PackedScene" path="res://scenes/net_lab/net_lab_level.tscn" id="2_level"]
+[ext_resource type="Script" path="res://scripts/net/sim_clock.gd" id="3_clock"]
+[ext_resource type="Script" path="res://scripts/net/net_session.gd" id="4_session"]
+[ext_resource type="Script" path="res://scenes/net_lab/lab_camera.gd" id="5_camera"]
+[ext_resource type="Script" path="res://scripts/net/net_sync.gd" id="6_sync"]
+[ext_resource type="Script" path="res://scripts/net/link_simulator.gd" id="7_link"]
+
+[node name="NetLab" type="Node3D"]
+script = ExtResource("1_lab")
+
+[node name="Level" parent="." instance=ExtResource("2_level")]
+
+[node name="Actors" type="Node3D" parent="."]
+
+[node name="ActorSpawner" type="MultiplayerSpawner" parent="."]
+spawn_path = NodePath("../Actors")
+
+[node name="Clock" type="Node" parent="."]
+script = ExtResource("3_clock")
+
+[node name="NetSync" type="Node" parent="."]
+script = ExtResource("6_sync")
+
+[node name="LinkSimulator" type="Node" parent="."]
+script = ExtResource("7_link")
+
+[node name="Session" type="Node" parent="." node_paths=PackedStringArray("spawner", "actors_root", "clock")]
+script = ExtResource("4_session")
+spawner = NodePath("../ActorSpawner")
+actors_root = NodePath("../Actors")
+clock = NodePath("../Clock")
+
+[node name="CameraRig" type="Node3D" parent="."]
+physics_interpolation_mode = 2
+top_level = true
+transform = Transform3D(1, 0, 0, 0, 0.955336, 0.29552, 0, -0.29552, 0.955336, 0, 1.6, 8)
+script = ExtResource("5_camera")
+
+[node name="SpringArm" type="SpringArm3D" parent="CameraRig"]
+collision_mask = 1
+spring_length = 4.5
+margin = 0.2
+
+[node name="Camera" type="Camera3D" parent="CameraRig/SpringArm"]
+current = true
+
+[node name="Hud" type="CanvasLayer" parent="."]
+
+[node name="Info" type="Label" parent="Hud"]
+offset_left = 16.0
+offset_top = 12.0
+offset_right = 900.0
+offset_bottom = 240.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+
+[node name="Menu" type="PanelContainer" parent="Hud"]
+visible = false
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -165.0
+offset_right = 260.0
+offset_bottom = 165.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="VBoxContainer" parent="Hud/Menu"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Hud/Menu/Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Laboratorio de red"
+horizontal_alignment = 1
+
+[node name="LanAddress" type="Label" parent="Hud/Menu/Box"]
+layout_mode = 2
+horizontal_alignment = 1
+
+[node name="Solo" type="Button" parent="Hud/Menu/Box"]
+layout_mode = 2
+text = "Jugar solo"
+
+[node name="Host" type="Button" parent="Hud/Menu/Box"]
+layout_mode = 2
+text = "Crear partida"
+
+[node name="JoinRow" type="HBoxContainer" parent="Hud/Menu/Box"]
+layout_mode = 2
+
+[node name="Address" type="LineEdit" parent="Hud/Menu/Box/JoinRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "127.0.0.1"
+placeholder_text = "IP del host"
+
+[node name="Join" type="Button" parent="Hud/Menu/Box/JoinRow"]
+layout_mode = 2
+text = "Unirse"
+
+[node name="SimRow" type="HBoxContainer" parent="Hud/Menu/Box"]
+layout_mode = 2
+
+[node name="SimLabel" type="Label" parent="Hud/Menu/Box/SimRow"]
+layout_mode = 2
+text = "Simular internet:"
+
+[node name="SimOption" type="OptionButton" parent="Hud/Menu/Box/SimRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Help" type="Label" parent="Hud/Menu/Box"]
+layout_mode = 2
+text = "Misma PC: dejá 127.0.0.1 y tocá Unirse.\nDesde otra PC: escribí la IP que muestra la ventana del host.\nSimular internet: elegilo solo en la PC que se une."
+horizontal_alignment = 1
+autowrap_mode = 3

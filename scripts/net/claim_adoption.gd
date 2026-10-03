@@ -63,9 +63,12 @@ func _decide(actor: ActorBody, claim_bytes: PackedByteArray, stats: Dictionary) 
 	var difference := claim.position.distance_to(actor.state.position)
 	if difference > MAX_DIFFERENCE:
 		return Result.TOO_FAR
+	var seen := actor.seen_position()
 	if not actor.apply_state(claim):
 		actor.apply_state(actor.state)
 		return Result.BAD_POSE
 	actor.state = claim
+	# En el host el actor salta a lo que afirmó el cliente; se suaviza igual que una corrección.
+	actor.smooth_from(seen)
 	stats["max"] = maxf(stats["max"], difference)
 	return Result.ADOPTED

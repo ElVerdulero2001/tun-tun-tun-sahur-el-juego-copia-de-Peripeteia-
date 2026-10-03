@@ -13,6 +13,9 @@ extends Node3D
 ## Paso 7: con cada input viaja lo que el cliente predijo (la afirmación) y el
 ## host la adopta si es creíble. En el host, E empuja a los demás jugadores (un
 ## evento del host, que sube su época) y Q prende o apaga la adopción.
+## Paso 8: los demás jugadores se ven interpolados unos 100 ms en el pasado,
+## las correcciones del propio se suavizan y el host manda 30 snapshots por
+## segundo. Quien cae del mapa reaparece en su lugar.
 ##
 ## El rol se elige con el menú. Para pruebas automáticas también se puede pasar
 ## por argumentos: --local, --host o --client, --address=IP, --port=N,
@@ -31,6 +34,8 @@ const DEFAULT_PORT := 7777
 ## Empujón de la tecla E: velocidad hacia arriba y hacia afuera del host, en m/s.
 const PUSH_UP_SPEED := 5.0
 const PUSH_AWAY_SPEED := 4.0
+## Más abajo que esto, el actor cayó del mapa y reaparece.
+const FALL_LIMIT := -30.0
 ## Niveles del simulador de red, con las teclas 1 a 5. La demora es de ida y
 ## vuelta; los tirones traban la conexión stall ms cada stall_every ms.
 const NET_PRESETS := [
@@ -89,6 +94,15 @@ var _adoption := ClaimAdoption.new()
 ## Host: empujones pedidos, que se aplican al empezar el próximo tick.
 var _push_requested := false
 var pushes := 0
+var respawns := 0
+## Cliente (paso 8): los demás jugadores, interpolados entre snapshots.
+var _interpolation := RemoteInterpolation.new()
+## Cliente: cuánto se traban en pantalla los demás jugadores. Un tick cuenta
+## como tirón si el actor se movió menos de un cuarto o más del doble de lo
+## que corresponde a su velocidad.
+var remote_ticks_measured := 0
+var remote_stutters := 0
+var _remote_last_positions := {}  # peer -> Vector3
 
 @onready var _clock: SimClock = $Clock
 @onready var _session: NetSession = $Session
@@ -128,6 +142,7 @@ func _ready() -> void:
 	_clock.link = _link
 	_net_sync.link = _link
 	multiplayer.server_disconnected.connect(_link.clear)
+	multiplayer.peer_disconnected.connect(_interpolation.forget)
 	for preset in NET_PRESETS:
 		_sim_option.add_item(preset["name"])
 	if sim_from_args:
@@ -270,19 +285,26 @@ func _local_input(tick: int) -> ActorInput:
 	return ActorInput.make(tick, move, _camera.yaw, 0, jump_presses)
 
 
-## Al empezar cada tick. Host: aplica los empujones pedidos, antes de mover a
-## nadie. Cliente: primero corrige con el último snapshot, después arma el
-## input de este tick; el reloj simula enseguida el propio actor con ese input.
+## Al empezar cada tick. Host: aplica los eventos (reapariciones y empujones)
+## antes de mover a nadie. Cliente: primero corrige con el último snapshot y
+## ubica a los demás en su pose interpolada, después arma el input de este
+## tick; el reloj simula enseguida el propio actor con ese input.
 func _on_tick_started(tick: int) -> void:
 	if not _started:
 		return
 	_local_ticks += 1
+	if role != Role.CLIENT:
+		_respawn_fallen()
 	if role == Role.HOST and _push_requested:
 		_push_requested = false
 		_push_others()
 	if role != Role.CLIENT or not _clock.client_sync:
 		return
-	_net_sync.apply_pending_snapshot(_actors, _on_own_state.bind(tick))
+	_net_sync.apply_pending_snapshot(_on_own_state.bind(tick), _interpolation.add)
+	_interpolation.advance()
+	for actor in _clock.sorted_actors():
+		if _is_remote(actor):
+			_interpolation.place(actor)
 	if is_instance_valid(_local_actor) and _clock.synced:
 		_local_actor.simulated = true
 		_current_input = _local_input(tick)
@@ -300,6 +322,26 @@ func _on_tick_finished(tick: int) -> void:
 			and _current_input != null and _current_input.tick == tick:
 		_prediction.record(tick, _current_input, _local_actor.state)
 		_net_sync.send_ticks(_prediction.recent(NetSync.INPUT_REDUNDANCY))
+	if role == Role.CLIENT:
+		_measure_remote_smoothness()
+
+
+## Cliente: mide, tick a tick, si los demás jugadores se mueven parejo en pantalla.
+func _measure_remote_smoothness() -> void:
+	for actor in _clock.sorted_actors():
+		if not _is_remote(actor):
+			continue
+		var peer := actor.owner_peer_id
+		var last: Variant = _remote_last_positions.get(peer)
+		_remote_last_positions[peer] = actor.global_position
+		var speed := Vector2(actor.state.velocity.x, actor.state.velocity.z).length()
+		if last == null or speed < 1.0:
+			continue
+		var expected := speed / _clock.rate_hz
+		var moved := Vector2(actor.global_position.x - last.x, actor.global_position.z - last.z).length()
+		remote_ticks_measured += 1
+		if moved < expected * 0.25 or moved > expected * 2.0:
+			remote_stutters += 1
 
 
 ## Host: empuja a los demás actores, hacia arriba y lejos del propio. Es un
@@ -320,6 +362,27 @@ func _push_others() -> void:
 		actor.state.epoch += 1
 	pushes += 1
 	print("[net_lab] empujón %d en el tick %d" % [pushes, _clock.tick])
+
+
+## Host o modo local: quien cayó del mapa reaparece en su lugar, quieto y
+## apoyado. Es un evento del host (sube la época) y un teleport.
+func _respawn_fallen() -> void:
+	for actor in _clock.sorted_actors():
+		if actor.state.position.y > FALL_LIMIT:
+			continue
+		var fresh := ActorState.new()
+		fresh.position = _session.spawn_position(actor.owner_peer_id)
+		fresh.mode = ActorState.Mode.GROUND
+		fresh.on_floor = true
+		# Las pulsaciones ya vistas se conservan: si no, la próxima parece un salto nuevo.
+		fresh.jump_presses_seen = actor.state.jump_presses_seen
+		fresh.epoch = actor.state.epoch + 1
+		fresh.quantize()
+		actor.state = fresh
+		actor.apply_state(fresh)
+		actor.teleported()
+		respawns += 1
+		print("[net_lab] reapareció el jugador %d en el tick %d" % [actor.owner_peer_id, _clock.tick])
 
 
 ## Si el actor es de otro jugador. Se mira el dueño y no _local_actor, que se
@@ -355,7 +418,8 @@ func _on_hard_resynced() -> void:
 
 func _on_local_actor_spawned(actor: ActorBody) -> void:
 	_local_actor = actor
-	_camera.target = actor
+	# La cámara sigue lo que se ve, con el desvío de las correcciones incluido.
+	_camera.target = actor.visual_root()
 
 
 ## Lee los argumentos de lanzamiento. Se buscan tanto en los de usuario
@@ -439,8 +503,12 @@ func _update_hud() -> void:
 		lines.append("tu input le llega al host con %.1f ticks de anticipación, en el peor caso   ·   ritmo: %d ticks por segundo (ganados +%.1f / perdidos -%.1f)" % [_clock.worst_margin, _clock.rate_hz, _clock.ticks_gained, _clock.ticks_shed])
 		lines.append("predicción: %d coincidencias, %d correcciones (la última de %.2f m), %d esperas por input tardío" % [_prediction.matches, _prediction.corrections, _prediction.last_correction_meters, _prediction.waits_late_input])
 		lines.append("snapshots que no llegaron a tiempo: %.1f %%" % _snapshot_loss_percent())
+		lines.append("los demás se ven %d ms en el pasado   ·   %d ticks esperando un snapshot   ·   tirones: %.1f %%" % [
+			roundi(RemoteInterpolation.DELAY_TICKS * SimClock.TICK_DT * 1000.0), _interpolation.starved,
+			100.0 * remote_stutters / maxi(remote_ticks_measured, 1),
+		])
 	if role == Role.HOST:
-		lines.append("adopción: %s   ·   empujones: %d" % ["prendida" if _adoption.enabled else "apagada", pushes])
+		lines.append("adopción: %s   ·   empujones: %d   ·   reapariciones: %d" % ["prendida" if _adoption.enabled else "apagada", pushes, respawns])
 		for actor in _clock.sorted_actors():
 			if actor != _local_actor:
 				var peer := actor.owner_peer_id
@@ -497,6 +565,12 @@ func _print_summary_and_quit() -> void:
 		_prediction.matches, _prediction.corrections, _prediction.waits_late_input, _prediction.alignments,
 		_snapshot_loss_percent(), _net_sim_text(), _link.dropped,
 	])
+	if role == Role.CLIENT:
+		print("[net_lab] los demás en pantalla: %d tirones en %d ticks medidos (%.1f %%), %d ticks esperando un snapshot" % [
+			remote_stutters, remote_ticks_measured, 100.0 * remote_stutters / maxi(remote_ticks_measured, 1), _interpolation.starved,
+		])
+	if respawns > 0:
+		print("[net_lab] reapariciones: %d" % respawns)
 	for peer in _adoption.peers():
 		print("[net_lab] adopción del jugador %d: prendida=%s empujones=%d iguales=%d adoptadas=%d (máx %.3f m) rechazadas: época=%d distancia=%d pose=%d apagada=%d sin_afirmación=%d" % [
 			peer, _adoption.enabled, pushes,

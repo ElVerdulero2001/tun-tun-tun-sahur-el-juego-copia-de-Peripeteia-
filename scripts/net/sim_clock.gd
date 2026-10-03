@@ -152,6 +152,7 @@ func _run_tick() -> void:
 			actor.placed = true
 		ActorMotor.step(actor, actor.state, input_provider.call(actor, tick), tuning, TICK_DT)
 		actor.present(actor.state)
+		actor.decay_visual_offset(TICK_DT)
 	tick_finished.emit(tick)
 
 

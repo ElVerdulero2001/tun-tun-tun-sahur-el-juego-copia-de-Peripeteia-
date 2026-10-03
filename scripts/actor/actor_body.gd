@@ -12,6 +12,15 @@ const RESTORE_SNAP_LENGTH := 0.01
 ## Cuánto puede empujar la geometría a una pose restaurada sin que cuente como
 ## metida adentro. Una pose válida se mueve menos de un milímetro.
 const POSE_TOLERANCE := 0.01
+## Presentación: después de un salto del cuerpo (una corrección), el desvío
+## visual se reduce a la mitad cada este tiempo; en unos 100 ms ya no se nota.
+const CORRECTION_HALF_LIFE := 0.025
+## Saltos más grandes que esto no se suavizan: se ven como un salto.
+const MAX_SMOOTHED_JUMP := 1.5
+
+## Desvío del visual respecto del cuerpo. Es solo presentación: la simulación
+## no lo lee nunca.
+var visual_offset := Vector3.ZERO
 
 ## Estado del actor. Solo lo escriben ActorMotor y la red al restaurar.
 var state := ActorState.new()
@@ -79,3 +88,43 @@ func apply_state(state: ActorState) -> bool:
 ## Presentación mínima: orienta el visual. No escribe nada en la simulación.
 func present(state: ActorState) -> void:
 	_visual.rotation.y = state.facing_yaw
+
+
+## Dónde se ve el actor: el cuerpo más el desvío visual.
+func seen_position() -> Vector3:
+	return global_position + visual_offset
+
+
+## El cuerpo acaba de saltar por una corrección y antes se lo veía en `seen`:
+## el visual arranca desde ahí y llega solo a la posición nueva. Un salto más
+## grande que MAX_SMOOTHED_JUMP se muestra tal cual.
+func smooth_from(seen: Vector3) -> void:
+	visual_offset = seen - global_position
+	if visual_offset.length() > MAX_SMOOTHED_JUMP:
+		teleported()
+		return
+	_visual.position = visual_offset
+
+
+## Una vez por tick, en el tick: el desvío decae hacia cero. Va en el tick
+## para que la interpolación de física lo suavice entre ticks.
+func decay_visual_offset(dt: float) -> void:
+	if visual_offset == Vector3.ZERO:
+		return
+	visual_offset *= pow(0.5, dt / CORRECTION_HALF_LIFE)
+	if visual_offset.length_squared() < 1e-8:
+		visual_offset = Vector3.ZERO
+	_visual.position = visual_offset
+
+
+## El actor apareció en otro lugar (reaparición, teleport): sin desvío y sin
+## interpolar desde la posición vieja.
+func teleported() -> void:
+	visual_offset = Vector3.ZERO
+	_visual.position = Vector3.ZERO
+	reset_physics_interpolation()
+
+
+## Nodo que se ve y que sigue la cámara: incluye el desvío visual.
+func visual_root() -> Node3D:
+	return _visual

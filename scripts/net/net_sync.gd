@@ -11,9 +11,9 @@ extends Node
 ## Ticks que viajan en cada paquete: si se pierde uno, el siguiente trae los
 ## mismos ticks otra vez.
 const INPUT_REDUNDANCY := 6
-## Cada cuántos ticks manda el host un snapshot. Con 1 son 60 por segundo;
-## hasta que haya interpolación (paso 8), con menos se vería a los saltos.
-const SNAPSHOT_INTERVAL_TICKS := 1
+## Cada cuántos ticks manda el host un snapshot: con 2 son 30 por segundo. Los
+## demás jugadores se ven parejos igual porque se interpolan (paso 8).
+const SNAPSHOT_INTERVAL_TICKS := 2
 ## Cuánta historia de input guarda el host por jugador, en ticks.
 const INPUT_HISTORY_TICKS := 120
 
@@ -58,11 +58,11 @@ func send_ticks(records: Array) -> void:
 
 
 ## Aplica el snapshot más nuevo que llegó desde el tick anterior. Se llama
-## dentro del tick de física para no romper la interpolación. Los demás
-## actores toman el estado tal cual; el propio no: se lo pasa a `on_own_state`
-## (tick del host, estado en bytes, tick del input usado, margen del input)
-## para que la predicción lo compare y corrija.
-func apply_pending_snapshot(actors_root: Node, on_own_state: Callable) -> void:
+## dentro del tick de física para no romper la interpolación. El estado propio
+## va a `on_own_state` (tick del host, estado en bytes, tick del input usado,
+## margen del input) para que la predicción lo compare y corrija; el de cada
+## otro jugador, a `on_other_state` (id, tick del host, ActorState).
+func apply_pending_snapshot(on_own_state: Callable, on_other_state: Callable) -> void:
 	if _pending_snapshot.is_empty():
 		return
 	var b := StreamPeerBuffer.new()
@@ -79,13 +79,8 @@ func apply_pending_snapshot(actors_root: Node, on_own_state: Callable) -> void:
 		if owner_id == multiplayer.get_unique_id():
 			acked_input_tick = used_tick
 			on_own_state.call(latest_snapshot_tick, state_bytes, used_tick, margin)
-			continue
-		var actor := actors_root.get_node_or_null("Actor%d" % owner_id) as ActorBody
-		if actor == null:
-			continue  # el spawner todavía no lo creó en este cliente
-		actor.state = ActorState.from_bytes(state_bytes)
-		actor.global_position = actor.state.position
-		actor.present(actor.state)
+		else:
+			on_other_state.call(owner_id, latest_snapshot_tick, ActorState.from_bytes(state_bytes))
 
 
 @rpc("authority", "call_remote", "unreliable")

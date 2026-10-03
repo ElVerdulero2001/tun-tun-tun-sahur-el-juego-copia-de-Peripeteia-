@@ -93,6 +93,11 @@ func _on_server_disconnected() -> void:
 	_set_status("CLIENTE: el host se fue; terminó la sesión")
 
 
+## Solo en el host: dónde aparece (y reaparece) ese jugador.
+func spawn_position(peer_id: int) -> Vector3:
+	return SPAWN_SLOTS[_slot_of_peer.get(peer_id, 0) % SPAWN_SLOTS.size()]
+
+
 func _spawn_for(peer_id: int) -> void:
 	var slot := 0
 	while slot in _slot_of_peer.values():

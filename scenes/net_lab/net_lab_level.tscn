@@ -1,5 +1,8 @@
 [gd_scene format=3]
 
+[ext_resource type="Script" path="res://scripts/actor/scripted_platform.gd" id="1_platform"]
+[ext_resource type="Script" path="res://scripts/actor/host_raft.gd" id="2_raft"]
+
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_lab"]
 
 [sub_resource type="Sky" id="Sky_lab"]
@@ -77,6 +80,30 @@ size = Vector3(4, 0.3, 4)
 [sub_resource type="BoxMesh" id="BoxMesh_slab"]
 material = SubResource("StandardMaterial3D_tunnel")
 size = Vector3(4, 0.3, 4)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_base"]
+albedo_color = Color(0.85, 0.5, 0.2, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_raft"]
+albedo_color = Color(0.45, 0.32, 0.2, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wagon"]
+size = Vector3(3, 0.3, 3)
+
+[sub_resource type="BoxMesh" id="BoxMesh_wagon"]
+material = SubResource("StandardMaterial3D_base")
+size = Vector3(3, 0.3, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_elevator"]
+size = Vector3(3, 0.3, 4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_elevator"]
+material = SubResource("StandardMaterial3D_base")
+size = Vector3(3, 0.3, 4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_raft"]
+material = SubResource("StandardMaterial3D_raft")
+size = Vector3(3, 0.3, 3)
 
 [node name="NetLabLevel" type="Node3D"]
 
@@ -167,3 +194,40 @@ shape = SubResource("BoxShape3D_slab")
 
 [node name="Mesh" type="MeshInstance3D" parent="TunnelSlab"]
 mesh = SubResource("BoxMesh_slab")
+
+[node name="Vagon" type="AnimatableBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, -0.13, 0)
+script = ExtResource("1_platform")
+base_id = 1
+travel = Vector3(8, 0, 0)
+period = 8.0
+
+[node name="Shape" type="CollisionShape3D" parent="Vagon"]
+shape = SubResource("BoxShape3D_wagon")
+
+[node name="Mesh" type="MeshInstance3D" parent="Vagon"]
+mesh = SubResource("BoxMesh_wagon")
+
+[node name="Ascensor" type="AnimatableBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, -0.13, -12)
+script = ExtResource("1_platform")
+base_id = 2
+travel = Vector3(0, 1.98, 0)
+period = 10.0
+
+[node name="Shape" type="CollisionShape3D" parent="Ascensor"]
+shape = SubResource("BoxShape3D_elevator")
+
+[node name="Mesh" type="MeshInstance3D" parent="Ascensor"]
+mesh = SubResource("BoxMesh_elevator")
+
+[node name="Balsa" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0.15, 0)
+script = ExtResource("2_raft")
+base_id = 3
+
+[node name="Shape" type="CollisionShape3D" parent="Balsa"]
+shape = SubResource("BoxShape3D_wagon")
+
+[node name="Mesh" type="MeshInstance3D" parent="Balsa"]
+mesh = SubResource("BoxMesh_raft")

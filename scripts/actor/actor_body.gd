@@ -64,14 +64,19 @@ func slide(state: ActorState, snap_length: float, dt: float) -> void:
 ## Devuelve si el estado entra en este mundo: que la geometría no tenga que
 ## empujar el cuerpo para afuera y que, si dice estar apoyado, haya piso. Con
 ## eso el host valida la afirmación de un cliente antes de adoptarla.
+##
+## Sobre una base, la posición del estado es relativa: el cuerpo va a la pose
+## que la base tiene ahora (al repetir ticks, eso es trabajar en coordenadas
+## de la base).
 func apply_state(state: ActorState) -> bool:
-	global_position = state.position
+	var world := BaseRegistry.world_position(state)
+	global_position = world
 	# Un movimiento de velocidad cero refresca los indicadores según el
 	# contacto real; con el snap en 0 no arrastra el cuerpo hacia el piso.
 	floor_snap_length = 0.0
 	velocity = Vector3.ZERO
 	move_and_slide()
-	var fits := global_position.distance_to(state.position) <= POSE_TOLERANCE
+	var fits := global_position.distance_to(world) <= POSE_TOLERANCE
 	# Apoyado, el cuerpo queda a la distancia del margen, y al cuantizar puede
 	# quedar una fracción de milímetro más arriba: fuera del margen, el
 	# movimiento de arriba no ve el piso. El snap manual lo encuentra igual.
@@ -79,7 +84,7 @@ func apply_state(state: ActorState) -> bool:
 		floor_snap_length = RESTORE_SNAP_LENGTH
 		apply_floor_snap()
 		fits = fits and is_on_floor()
-	global_position = state.position
+	global_position = world
 	velocity = state.velocity
 	present(state)
 	return fits

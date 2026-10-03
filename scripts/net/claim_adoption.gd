@@ -60,7 +60,8 @@ func _decide(actor: ActorBody, claim_bytes: PackedByteArray, stats: Dictionary) 
 	var claim := ActorState.from_bytes(claim_bytes)
 	if claim.epoch != actor.state.epoch:
 		return Result.WRONG_EPOCH
-	var difference := claim.position.distance_to(actor.state.position)
+	# En el mundo: la afirmación puede estar sobre otra base que el resultado del host.
+	var difference := BaseRegistry.world_position(claim).distance_to(BaseRegistry.world_position(actor.state))
 	if difference > MAX_DIFFERENCE:
 		return Result.TOO_FAR
 	var seen := actor.seen_position()

@@ -9,6 +9,9 @@ extends CharacterBody3D
 ## Distancia del snap manual al restaurar un estado apoyado: solo tiene que
 ## cubrir la fracción de milímetro que agrega la cuantización.
 const RESTORE_SNAP_LENGTH := 0.01
+## Cuánto puede empujar la geometría a una pose restaurada sin que cuente como
+## metida adentro. Una pose válida se mueve menos de un milímetro.
+const POSE_TOLERANCE := 0.01
 
 ## Estado del actor. Solo lo escriben ActorMotor y la red al restaurar.
 var state := ActorState.new()
@@ -48,22 +51,29 @@ func slide(state: ActorState, snap_length: float, dt: float) -> void:
 ## Además sincroniza el estado interno de piso de Godot: move_and_slide() usa
 ## el resultado del llamado anterior para decidir el snap, y después de
 ## restaurar ese dato quedó viejo.
-func apply_state(state: ActorState) -> void:
+##
+## Devuelve si el estado entra en este mundo: que la geometría no tenga que
+## empujar el cuerpo para afuera y que, si dice estar apoyado, haya piso. Con
+## eso el host valida la afirmación de un cliente antes de adoptarla.
+func apply_state(state: ActorState) -> bool:
 	global_position = state.position
 	# Un movimiento de velocidad cero refresca los indicadores según el
 	# contacto real; con el snap en 0 no arrastra el cuerpo hacia el piso.
 	floor_snap_length = 0.0
 	velocity = Vector3.ZERO
 	move_and_slide()
+	var fits := global_position.distance_to(state.position) <= POSE_TOLERANCE
 	# Apoyado, el cuerpo queda a la distancia del margen, y al cuantizar puede
 	# quedar una fracción de milímetro más arriba: fuera del margen, el
 	# movimiento de arriba no ve el piso. El snap manual lo encuentra igual.
 	if state.on_floor and not is_on_floor():
 		floor_snap_length = RESTORE_SNAP_LENGTH
 		apply_floor_snap()
+		fits = fits and is_on_floor()
 	global_position = state.position
 	velocity = state.velocity
 	present(state)
+	return fits
 
 
 ## Presentación mínima: orienta el visual. No escribe nada en la simulación.

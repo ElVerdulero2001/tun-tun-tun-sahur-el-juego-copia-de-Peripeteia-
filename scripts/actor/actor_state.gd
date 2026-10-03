@@ -20,6 +20,8 @@ const VELOCITY_STEP := 0.001
 const NORMAL_STEP := 0.0001
 const TIME_STEP := 0.0001
 const YAW_STEPS := 65536
+## Largo de to_bytes(). Lo que llega por red con otro largo se descarta.
+const BYTE_SIZE := 51
 
 var position := Vector3.ZERO
 var velocity := Vector3.ZERO
@@ -33,6 +35,11 @@ var coyote_left := 0.0
 var jump_buffer_left := 0.0
 ## Último valor del contador de pulsaciones de salto que ya se procesó.
 var jump_presses_seen := 0
+## Época: cuántos eventos del host que cambian la simulación de este actor
+## (un empujón, un teleport) ya están incluidos. Solo la sube el host; el motor
+## no la toca. El host no adopta una afirmación con otra época: sería de un
+## cliente que todavía no vio el evento.
+var epoch := 0
 
 
 func quantize() -> void:
@@ -43,6 +50,7 @@ func quantize() -> void:
 	coyote_left = _q(coyote_left, TIME_STEP)
 	jump_buffer_left = _q(jump_buffer_left, TIME_STEP)
 	jump_presses_seen &= 0xFF
+	epoch &= 0xFFFF
 
 
 func copy() -> ActorState:
@@ -60,6 +68,7 @@ func to_bytes() -> PackedByteArray:
 	b.put_32(roundi(coyote_left / TIME_STEP))
 	b.put_32(roundi(jump_buffer_left / TIME_STEP))
 	b.put_u8(jump_presses_seen & 0xFF)
+	b.put_u16(epoch & 0xFFFF)
 	return b.data_array
 
 
@@ -76,13 +85,14 @@ static func from_bytes(bytes: PackedByteArray) -> ActorState:
 	s.coyote_left = b.get_32() * TIME_STEP
 	s.jump_buffer_left = b.get_32() * TIME_STEP
 	s.jump_presses_seen = b.get_u8()
+	s.epoch = b.get_u16()
 	return s
 
 
 func describe() -> String:
-	return "modo=%s suelo=%s pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d" % [
+	return "modo=%s suelo=%s pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
 		Mode.keys()[mode], on_floor, position, velocity, facing_yaw,
-		coyote_left, jump_buffer_left, jump_presses_seen,
+		coyote_left, jump_buffer_left, jump_presses_seen, epoch,
 	]
 
 

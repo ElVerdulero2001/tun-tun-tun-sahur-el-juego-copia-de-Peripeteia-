@@ -8,13 +8,19 @@ extends RefCounted
 ## llega el estado del host para un tick S, lo compara con lo guardado para S:
 ## si coincide, no hace nada; si no, restaura S y repite los ticks siguientes
 ## con los inputs guardados. Solo se repite este actor: el mundo no se rebobina.
+##
+## Paso 7: lo guardado también es lo que viaja al host. Cada paquete lleva los
+## últimos inputs junto con el estado predicho de ese tick (la afirmación), ya
+## corregido si hubo una repetición.
 
 ## Veces que el host coincidió byte a byte con lo predicho.
 var matches := 0
 ## Veces que no coincidió y hubo que restaurar y repetir.
 var corrections := 0
-## De esas, cuántas fueron porque el input llegó tarde y el host repitió uno viejo.
-var corrections_late_input := 0
+## Estados del host calculados repitiendo un input viejo porque el nuestro no
+## había llegado. No se corrige con ellos: es probable que el host adopte la
+## afirmación del tick siguiente, y corregir ahora sería corregir dos veces.
+var waits_late_input := 0
 ## Cuánto se movió el actor en la última corrección, en metros.
 var last_correction_meters := 0.0
 ## Estados del host sin predicción guardada para comparar (al empezar a predecir).
@@ -34,6 +40,16 @@ func clear() -> void:
 	_states.clear()
 
 
+## Los últimos `count` ticks predichos que el host todavía no confirmó, del más
+## viejo al más nuevo: [ActorInput, estado en bytes] por tick.
+func recent(count: int) -> Array:
+	var ticks := _inputs.keys()
+	var list := []
+	for i in range(maxi(ticks.size() - count, 0), ticks.size()):
+		list.append([_inputs[ticks[i]], _states[ticks[i]]])
+	return list
+
+
 ## Compara el estado del host para host_tick con lo predicho y corrige si hace
 ## falta. Se llama al empezar el tick current_tick, así que lo predicho llega
 ## hasta current_tick - 1. `step` mueve el actor un tick con un input.
@@ -43,12 +59,14 @@ func reconcile(actor: ActorBody, host_tick: int, host_state: PackedByteArray, us
 		matches += 1
 		_forget_up_to(host_tick)
 		return
+	if used_input_tick != host_tick:
+		waits_late_input += 1
+		_forget_up_to(host_tick)
+		return
 	if predicted == null:
 		alignments += 1
 	else:
 		corrections += 1
-		if used_input_tick != host_tick:
-			corrections_late_input += 1
 	var before := actor.state.position
 	actor.state = ActorState.from_bytes(host_state)
 	actor.apply_state(actor.state)

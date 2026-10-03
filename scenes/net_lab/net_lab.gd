@@ -10,6 +10,9 @@ extends Node3D
 ## estado; el cliente muestra lo que recibe, todavía sin predicción.
 ## Paso 5: simulador de red, para que una LAN se comporte como internet.
 ## Paso 6: el cliente predice su propio actor y mantiene el adelanto sobre el host.
+## Paso 7: con cada input viaja lo que el cliente predijo (la afirmación) y el
+## host la adopta si es creíble. En el host, E empuja a los demás jugadores (un
+## evento del host, que sube su época) y Q prende o apaga la adopción.
 ##
 ## El rol se elige con el menú. Para pruebas automáticas también se puede pasar
 ## por argumentos: --local, --host o --client, --address=IP, --port=N,
@@ -17,18 +20,25 @@ extends Node3D
 ## --report-after=SEGUNDOS (imprime el estado de cada actor), --trace (el
 ## cliente imprime su adelanto cada medio segundo), --test-input=walk (camina y
 ## salta solo, sin teclado) o --test-input=zigzag (cambia de dirección cada
-## medio segundo durante 25 s) y, para simular red, --sim-rtt=MS,
-## --sim-jitter=MS, --sim-loss=PORCENTAJE, --sim-seed=N y, si la red simulada
+## medio segundo durante 25 s), --no-adoption y --test-push-at=S1,S2 (solo
+## host: empuja a los demás a esos segundos) y, para simular red,
+## --sim-rtt=MS, --sim-jitter=MS, --sim-loss=PORCENTAJE, --sim-seed=N, los
+## tirones con --sim-stall-every=MS y --sim-stall=MS y, si la red simulada
 ## tiene que empezar o terminar en plena partida, --sim-after=SEGUNDOS y
 ## --sim-until=SEGUNDOS.
 
 const DEFAULT_PORT := 7777
-## Niveles del simulador de red, con las teclas 1 a 4. La demora es de ida y vuelta.
+## Empujón de la tecla E: velocidad hacia arriba y hacia afuera del host, en m/s.
+const PUSH_UP_SPEED := 5.0
+const PUSH_AWAY_SPEED := 4.0
+## Niveles del simulador de red, con las teclas 1 a 5. La demora es de ida y
+## vuelta; los tirones traban la conexión stall ms cada stall_every ms.
 const NET_PRESETS := [
 	{"name": "sin simulación", "rtt": 0.0, "jitter": 0.0, "loss": 0.0},
 	{"name": "internet buena", "rtt": 40.0, "jitter": 5.0, "loss": 0.0},
 	{"name": "internet normal", "rtt": 120.0, "jitter": 20.0, "loss": 1.0},
 	{"name": "internet mala", "rtt": 200.0, "jitter": 40.0, "loss": 5.0},
+	{"name": "Wi-Fi con tirones", "rtt": 20.0, "jitter": 5.0, "loss": 0.0, "stall_every": 3000.0, "stall": 150.0},
 ]
 
 enum Role { LOCAL, HOST, CLIENT }
@@ -48,10 +58,14 @@ var sim_rtt_ms := 0.0
 var sim_jitter_ms := 0.0
 var sim_loss_percent := 0.0
 var sim_seed := 1
+var sim_stall_every_ms := 0.0
+var sim_stall_ms := 0.0
 ## Segundos tras los que se activa y se apaga la red pedida por argumentos (0 = desde el inicio, nunca).
 var sim_after_seconds := 0.0
 var sim_until_seconds := 0.0
 var trace := false
+## Segundos a los que el host empuja a los demás, pedidos por argumentos.
+var test_push_seconds := PackedFloat64Array()
 var _ready_msec := 0
 var _sim_preset_name := "sin simulación"
 ## Contador de pulsaciones de salto: se suma en cada evento, no en cada tick,
@@ -70,6 +84,11 @@ var _current_input: ActorInput
 ## Cliente: primer tick predicho desde la última sincronización. Los márgenes de
 ## inputs anteriores no sirven para ajustar el adelanto.
 var _prediction_start_tick := 0
+## Host (paso 7): adopción de lo que afirman los clientes.
+var _adoption := ClaimAdoption.new()
+## Host: empujones pedidos, que se aplican al empezar el próximo tick.
+var _push_requested := false
+var pushes := 0
 
 @onready var _clock: SimClock = $Clock
 @onready var _session: NetSession = $Session
@@ -121,6 +140,8 @@ func _ready() -> void:
 			_real_timer(sim_until_seconds, _apply_net_preset.bind(0))
 	if trace:
 		_real_timer(0.5, _print_trace)
+	for seconds in test_push_seconds:
+		_real_timer(seconds, func() -> void: _push_requested = true)
 	_session.status_changed.connect(func(text: String) -> void: print("[net_lab] %s" % text))
 	_session.local_actor_spawned.connect(_on_local_actor_spawned)
 	$Hud/Menu/Box/Solo.pressed.connect(_start.bind(Role.LOCAL))
@@ -149,9 +170,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("jump"):
 		jump_presses = (jump_presses + 1) & 0xFF
 	elif _started and event is InputEventKey and event.pressed and not event.echo:
-		var index: int = [KEY_1, KEY_2, KEY_3, KEY_4].find(event.keycode)
+		var index: int = [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5].find(event.keycode)
 		if index >= 0:
 			_apply_net_preset(index)
+		elif role == Role.HOST and event.keycode == KEY_E:
+			_push_requested = true
+		elif role == Role.HOST and event.keycode == KEY_Q:
+			_adoption.enabled = not _adoption.enabled
+			print("[net_lab] adopción %s" % ("prendida" if _adoption.enabled else "apagada"))
 
 
 func _process(_delta: float) -> void:
@@ -183,22 +209,25 @@ func _start(new_role: Role) -> void:
 ## con activarlo en la PC que se une.
 func _apply_net_preset(index: int) -> void:
 	var preset: Dictionary = NET_PRESETS[clampi(index, 0, NET_PRESETS.size() - 1)]
-	_link.configure(preset["rtt"], preset["jitter"], preset["loss"], sim_seed)
+	_link.configure(preset["rtt"], preset["jitter"], preset["loss"], sim_seed, preset.get("stall_every", 0.0), preset.get("stall", 0.0))
 	_sim_preset_name = preset["name"]
 	print("[net_lab] red simulada: %s" % _net_sim_text())
 
 
 func _apply_sim_from_args() -> void:
-	_link.configure(sim_rtt_ms, sim_jitter_ms, sim_loss_percent, sim_seed)
+	_link.configure(sim_rtt_ms, sim_jitter_ms, sim_loss_percent, sim_seed, sim_stall_every_ms, sim_stall_ms)
 	print("[net_lab] red simulada: %s" % _net_sim_text())
 
 
 func _net_sim_text() -> String:
 	if not _link.is_active():
 		return "sin simulación"
-	return "%s (+%d ms de ida y vuelta, ±%d ms, %d %% de pérdida)" % [
+	var text := "%s (+%d ms de ida y vuelta, ±%d ms, %d %% de pérdida" % [
 		_sim_preset_name, roundi(_link.added_rtt_ms), roundi(_link.jitter_ms), roundi(_link.loss_percent),
 	]
+	if _link.stall_ms > 0.0:
+		text += ", se traba %d ms cada %.1f s" % [roundi(_link.stall_ms), _link.stall_every_ms / 1000.0]
+	return text + ")"
 
 
 func _on_join_pressed() -> void:
@@ -241,28 +270,62 @@ func _local_input(tick: int) -> ActorInput:
 	return ActorInput.make(tick, move, _camera.yaw, 0, jump_presses)
 
 
-## Cliente, al empezar cada tick: primero corrige con el último snapshot, después
-## manda el input de este tick. El reloj simula enseguida el propio actor con
-## ese mismo input, y al terminar el tick se guarda el resultado.
+## Al empezar cada tick. Host: aplica los empujones pedidos, antes de mover a
+## nadie. Cliente: primero corrige con el último snapshot, después arma el
+## input de este tick; el reloj simula enseguida el propio actor con ese input.
 func _on_tick_started(tick: int) -> void:
 	if not _started:
 		return
 	_local_ticks += 1
+	if role == Role.HOST and _push_requested:
+		_push_requested = false
+		_push_others()
 	if role != Role.CLIENT or not _clock.client_sync:
 		return
 	_net_sync.apply_pending_snapshot(_actors, _on_own_state.bind(tick))
 	if is_instance_valid(_local_actor) and _clock.synced:
 		_local_actor.simulated = true
 		_current_input = _local_input(tick)
-		_net_sync.send_input(_current_input)
 
 
+## Al terminar cada tick. Host: decide qué afirmaciones adopta y después manda
+## el snapshot. Cliente: guarda lo predicho y se lo manda al host con el input.
 func _on_tick_finished(tick: int) -> void:
 	if role == Role.HOST:
+		for actor in _clock.sorted_actors():
+			if _is_remote(actor):
+				_adoption.consider(actor, _net_sync.claim_for(actor.owner_peer_id, tick))
 		_net_sync.send_snapshot(tick, _clock.sorted_actors())
 	elif role == Role.CLIENT and is_instance_valid(_local_actor) and _local_actor.simulated \
 			and _current_input != null and _current_input.tick == tick:
 		_prediction.record(tick, _current_input, _local_actor.state)
+		_net_sync.send_ticks(_prediction.recent(NetSync.INPUT_REDUNDANCY))
+
+
+## Host: empuja a los demás actores, hacia arriba y lejos del propio. Es un
+## evento inmediato: cada cliente se entera con el snapshot y se corrige. Sube
+## la época del empujado, así el host no adopta las afirmaciones que ese
+## cliente predijo sin saber del empujón.
+func _push_others() -> void:
+	for actor in _clock.sorted_actors():
+		if not _is_remote(actor):
+			continue
+		var away := Vector3.BACK
+		if is_instance_valid(_local_actor):
+			var offset := actor.state.position - _local_actor.state.position
+			offset.y = 0.0
+			if offset.length_squared() > 0.0001:
+				away = offset.normalized()
+		ActorMotor.push(actor.state, away * PUSH_AWAY_SPEED + Vector3.UP * PUSH_UP_SPEED)
+		actor.state.epoch += 1
+	pushes += 1
+	print("[net_lab] empujón %d en el tick %d" % [pushes, _clock.tick])
+
+
+## Si el actor es de otro jugador. Se mira el dueño y no _local_actor, que se
+## asigna un frame después de aparecer.
+func _is_remote(actor: ActorBody) -> bool:
+	return actor.owner_peer_id != multiplayer.get_unique_id()
 
 
 ## Cliente: llegó del host el estado del propio actor.
@@ -332,12 +395,23 @@ func _read_launch_args() -> void:
 			sim_from_args = true
 		elif arg.begins_with("--sim-seed="):
 			sim_seed = arg.trim_prefix("--sim-seed=").to_int()
+		elif arg.begins_with("--sim-stall-every="):
+			sim_stall_every_ms = arg.trim_prefix("--sim-stall-every=").to_float()
+			sim_from_args = true
+		elif arg.begins_with("--sim-stall="):
+			sim_stall_ms = arg.trim_prefix("--sim-stall=").to_float()
+			sim_from_args = true
 		elif arg.begins_with("--sim-after="):
 			sim_after_seconds = arg.trim_prefix("--sim-after=").to_float()
 		elif arg.begins_with("--sim-until="):
 			sim_until_seconds = arg.trim_prefix("--sim-until=").to_float()
 		elif arg == "--trace":
 			trace = true
+		elif arg == "--no-adoption":
+			_adoption.enabled = false
+		elif arg.begins_with("--test-push-at="):
+			for seconds in arg.trim_prefix("--test-push-at=").split(","):
+				test_push_seconds.append(seconds.to_float())
 
 
 ## Direcciones IPv4 privadas de esta PC: la que hay que escribir en la otra PC
@@ -358,24 +432,33 @@ func _update_hud() -> void:
 	var lines := PackedStringArray([
 		_session.status,
 		"tick %d   ·   actores: %s" % [_clock.tick, _actor_ids()],
-		"red simulada: %s   ·   teclas 1 a 4 para cambiarla" % _net_sim_text(),
+		"red simulada: %s   ·   teclas 1 a 5 para cambiarla" % _net_sim_text(),
 	])
 	if role == Role.CLIENT:
 		lines.append("reloj: ida y vuelta %.0f ms   ·   vas %.1f ticks adelante del host   ·   saltos de reloj %d" % [_clock.rtt_ms, _clock.lead_ticks, _clock.resyncs])
 		lines.append("tu input le llega al host con %.1f ticks de anticipación, en el peor caso   ·   ritmo: %d ticks por segundo (ganados +%.1f / perdidos -%.1f)" % [_clock.worst_margin, _clock.rate_hz, _clock.ticks_gained, _clock.ticks_shed])
-		lines.append("predicción: %d coincidencias, %d correcciones (%d por input tardío), última de %.2f m" % [_prediction.matches, _prediction.corrections, _prediction.corrections_late_input, _prediction.last_correction_meters])
+		lines.append("predicción: %d coincidencias, %d correcciones (la última de %.2f m), %d esperas por input tardío" % [_prediction.matches, _prediction.corrections, _prediction.last_correction_meters, _prediction.waits_late_input])
 		lines.append("snapshots que no llegaron a tiempo: %.1f %%" % _snapshot_loss_percent())
 	if role == Role.HOST:
+		lines.append("adopción: %s   ·   empujones: %d" % ["prendida" if _adoption.enabled else "apagada", pushes])
 		for actor in _clock.sorted_actors():
 			if actor != _local_actor:
-				lines.append("jugador %d: su input llega con %d ticks de anticipación" % [actor.owner_peer_id, _net_sync.input_margin_ticks(actor.owner_peer_id, _clock.tick)])
+				var peer := actor.owner_peer_id
+				lines.append("jugador %d: su input llega con %d ticks de anticipación   ·   época %d" % [peer, _net_sync.input_margin_ticks(peer, _clock.tick), actor.state.epoch])
+				lines.append("      afirmaciones: %d adoptadas (la más lejana a %.2f m), rechazadas %d por época, %d por distancia, %d por pose" % [
+					_adoption.count(peer, ClaimAdoption.Result.ADOPTED), _adoption.max_difference(peer),
+					_adoption.count(peer, ClaimAdoption.Result.WRONG_EPOCH), _adoption.count(peer, ClaimAdoption.Result.TOO_FAR),
+					_adoption.count(peer, ClaimAdoption.Result.BAD_POSE),
+				])
 	if is_instance_valid(_local_actor):
 		var s := _local_actor.state
-		lines.append("Modo: %s   ·   en suelo: %s" % [ActorState.Mode.keys()[s.mode], "sí" if s.on_floor else "no"])
+		lines.append("Modo: %s   ·   en suelo: %s   ·   época: %d" % [ActorState.Mode.keys()[s.mode], "sí" if s.on_floor else "no", s.epoch])
 		lines.append("Velocidad: %.2f m/s horizontal, %.2f m/s vertical" % [Vector2(s.velocity.x, s.velocity.z).length(), s.velocity.y])
 		lines.append("Posición: (%.2f, %.2f, %.2f)" % [s.position.x, s.position.y, s.position.z])
 	lines.append("")
 	lines.append("WASD mover · Espacio saltar · mouse mirar · Esc suelta el mouse")
+	if role == Role.HOST:
+		lines.append("E empuja a los demás jugadores · Q prende o apaga la adopción")
 	_info.text = "\n".join(lines)
 
 
@@ -387,9 +470,10 @@ func _print_actor_report() -> void:
 ## Prueba: cada medio segundo, cómo viene el adelanto del cliente.
 func _print_trace() -> void:
 	if role == Role.CLIENT and _clock.synced:
-		print("[net_lab] traza %.1fs tick=%d adelanto=%.1f peor_margen=%.1f ritmo=%d correcciones=%d input_tardío=%d alineaciones=%d" % [
+		print("[net_lab] traza %.1fs tick=%d adelanto=%.1f peor_margen=%.1f ritmo=%d correcciones=%d esperas=%d alineaciones=%d época=%d" % [
 			(Time.get_ticks_msec() - _ready_msec) / 1000.0, _clock.tick, _clock.lead_ticks, _clock.worst_margin,
-			_clock.rate_hz, _prediction.corrections, _prediction.corrections_late_input, _prediction.alignments,
+			_clock.rate_hz, _prediction.corrections, _prediction.waits_late_input, _prediction.alignments,
+			_local_actor.state.epoch if is_instance_valid(_local_actor) else -1,
 		])
 	_real_timer(0.5, _print_trace)
 
@@ -407,10 +491,21 @@ func _snapshot_loss_percent() -> float:
 
 
 func _print_summary_and_quit() -> void:
-	print("[net_lab] resumen: rol=%s tick=%d actores=%s máximo=%d sincronizado=%s ida_y_vuelta=%.1fms adelanto=%.1f peor_margen=%.1f ritmo=%d ganados=+%.1f perdidos=-%.1f saltos_de_reloj=%d coincidencias=%d correcciones=%d (input_tardío=%d) alineaciones=%d snapshots_perdidos=%.1f%% red=%s paquetes_perdidos_por_el_simulador=%d" % [
+	print("[net_lab] resumen: rol=%s tick=%d actores=%s máximo=%d sincronizado=%s ida_y_vuelta=%.1fms adelanto=%.1f peor_margen=%.1f ritmo=%d ganados=+%.1f perdidos=-%.1f saltos_de_reloj=%d coincidencias=%d correcciones=%d esperas_input_tardío=%d alineaciones=%d snapshots_perdidos=%.1f%% red=%s paquetes_perdidos_por_el_simulador=%d" % [
 		Role.keys()[role], _clock.tick, _actor_ids(), max_actors_seen, _clock.synced,
 		_clock.rtt_ms, _clock.lead_ticks, _clock.worst_margin, _clock.rate_hz, _clock.ticks_gained, _clock.ticks_shed, _clock.resyncs,
-		_prediction.matches, _prediction.corrections, _prediction.corrections_late_input, _prediction.alignments,
+		_prediction.matches, _prediction.corrections, _prediction.waits_late_input, _prediction.alignments,
 		_snapshot_loss_percent(), _net_sim_text(), _link.dropped,
 	])
+	for peer in _adoption.peers():
+		print("[net_lab] adopción del jugador %d: prendida=%s empujones=%d iguales=%d adoptadas=%d (máx %.3f m) rechazadas: época=%d distancia=%d pose=%d apagada=%d sin_afirmación=%d" % [
+			peer, _adoption.enabled, pushes,
+			_adoption.count(peer, ClaimAdoption.Result.SAME),
+			_adoption.count(peer, ClaimAdoption.Result.ADOPTED), _adoption.max_difference(peer),
+			_adoption.count(peer, ClaimAdoption.Result.WRONG_EPOCH),
+			_adoption.count(peer, ClaimAdoption.Result.TOO_FAR),
+			_adoption.count(peer, ClaimAdoption.Result.BAD_POSE),
+			_adoption.count(peer, ClaimAdoption.Result.OFF),
+			_adoption.count(peer, ClaimAdoption.Result.NO_CLAIM),
+		])
 	get_tree().quit()

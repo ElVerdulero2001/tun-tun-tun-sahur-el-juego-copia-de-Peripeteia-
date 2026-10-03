@@ -1,0 +1,13 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/net_lab/actor_replay_test.gd" id="1_test"]
+[ext_resource type="PackedScene" path="res://scenes/net_lab/net_lab_level.tscn" id="2_level"]
+[ext_resource type="PackedScene" path="res://scenes/actor/actor.tscn" id="3_actor"]
+
+[node name="ActorReplayTest" type="Node3D"]
+script = ExtResource("1_test")
+
+[node name="Level" parent="." instance=ExtResource("2_level")]
+
+[node name="Actor" parent="." instance=ExtResource("3_actor")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 8)

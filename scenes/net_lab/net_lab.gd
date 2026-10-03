@@ -9,13 +9,18 @@ extends Node3D
 ## Paso 4: el cliente manda su input, el host mueve a todos y devuelve el
 ## estado; el cliente muestra lo que recibe, todavía sin predicción.
 ## Paso 5: simulador de red, para que una LAN se comporte como internet.
+## Paso 6: el cliente predice su propio actor y mantiene el adelanto sobre el host.
 ##
 ## El rol se elige con el menú. Para pruebas automáticas también se puede pasar
 ## por argumentos: --local, --host o --client, --address=IP, --port=N,
 ## --bind=IP (solo host), --autoquit=SEGUNDOS (imprime un resumen y cierra),
-## --report-after=SEGUNDOS (imprime el estado de cada actor),
-## --test-input=walk (camina y salta solo, sin teclado) y, para simular red,
-## --sim-rtt=MS, --sim-jitter=MS, --sim-loss=PORCENTAJE y --sim-seed=N.
+## --report-after=SEGUNDOS (imprime el estado de cada actor), --trace (el
+## cliente imprime su adelanto cada medio segundo), --test-input=walk (camina y
+## salta solo, sin teclado) o --test-input=zigzag (cambia de dirección cada
+## medio segundo durante 25 s) y, para simular red, --sim-rtt=MS,
+## --sim-jitter=MS, --sim-loss=PORCENTAJE, --sim-seed=N y, si la red simulada
+## tiene que empezar o terminar en plena partida, --sim-after=SEGUNDOS y
+## --sim-until=SEGUNDOS.
 
 const DEFAULT_PORT := 7777
 ## Niveles del simulador de red, con las teclas 1 a 4. La demora es de ida y vuelta.
@@ -43,6 +48,11 @@ var sim_rtt_ms := 0.0
 var sim_jitter_ms := 0.0
 var sim_loss_percent := 0.0
 var sim_seed := 1
+## Segundos tras los que se activa y se apaga la red pedida por argumentos (0 = desde el inicio, nunca).
+var sim_after_seconds := 0.0
+var sim_until_seconds := 0.0
+var trace := false
+var _ready_msec := 0
 var _sim_preset_name := "sin simulación"
 ## Contador de pulsaciones de salto: se suma en cada evento, no en cada tick,
 ## para no perder dos pulsaciones que caigan entre dos ticks.
@@ -80,12 +90,13 @@ func _enter_tree() -> void:
 	# Godot dibuja en el origen todo lo que nunca se mueve, luz incluida.
 	# Cuando el esqueleto sea el juego, estos ajustes pasan a project.godot.
 	get_tree().physics_interpolation = true
-	Engine.physics_ticks_per_second = SimClock.TICK_RATE
+	SimClock.apply_tick_rate(SimClock.TICK_RATE)
 	# Godot lo recomienda para juegos en red: los ticks quedan atados al reloj real.
 	Engine.physics_jitter_fix = 0.0
 
 
 func _ready() -> void:
+	_ready_msec = Time.get_ticks_msec()
 	_read_launch_args()
 	if tuning == null:
 		tuning = ActorTuning.new()
@@ -101,8 +112,15 @@ func _ready() -> void:
 	for preset in NET_PRESETS:
 		_sim_option.add_item(preset["name"])
 	if sim_from_args:
-		_link.configure(sim_rtt_ms, sim_jitter_ms, sim_loss_percent, sim_seed)
 		_sim_preset_name = "por argumentos"
+		if sim_after_seconds > 0.0:
+			_real_timer(sim_after_seconds, _apply_sim_from_args)
+		else:
+			_apply_sim_from_args()
+		if sim_until_seconds > 0.0:
+			_real_timer(sim_until_seconds, _apply_net_preset.bind(0))
+	if trace:
+		_real_timer(0.5, _print_trace)
 	_session.status_changed.connect(func(text: String) -> void: print("[net_lab] %s" % text))
 	_session.local_actor_spawned.connect(_on_local_actor_spawned)
 	$Hud/Menu/Box/Solo.pressed.connect(_start.bind(Role.LOCAL))
@@ -116,9 +134,15 @@ func _ready() -> void:
 		_info.visible = false
 		_menu.visible = true
 	if report_seconds > 0.0:
-		get_tree().create_timer(report_seconds).timeout.connect(_print_actor_report)
+		_real_timer(report_seconds, _print_actor_report)
 	if autoquit_seconds > 0.0:
-		get_tree().create_timer(autoquit_seconds).timeout.connect(_print_summary_and_quit)
+		_real_timer(autoquit_seconds, _print_summary_and_quit)
+
+
+## Temporizador en segundos reales: el cliente cambia time_scale al ajustar su
+## ritmo, y eso no tiene que adelantar ni atrasar las pruebas.
+func _real_timer(seconds: float, callback: Callable) -> void:
+	get_tree().create_timer(seconds, true, false, true).timeout.connect(callback)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -164,6 +188,11 @@ func _apply_net_preset(index: int) -> void:
 	print("[net_lab] red simulada: %s" % _net_sim_text())
 
 
+func _apply_sim_from_args() -> void:
+	_link.configure(sim_rtt_ms, sim_jitter_ms, sim_loss_percent, sim_seed)
+	print("[net_lab] red simulada: %s" % _net_sim_text())
+
+
 func _net_sim_text() -> String:
 	if not _link.is_active():
 		return "sin simulación"
@@ -199,6 +228,15 @@ func _local_input(tick: int) -> ActorInput:
 		var walking := _local_ticks < 90
 		var presses := 1 if _local_ticks >= 30 else 0
 		return ActorInput.make(tick, Vector2(0, 1) if walking else Vector2.ZERO, 0.0, 0, presses)
+	if test_input == "zigzag":
+		# Un cuadrado que cambia de lado cada medio segundo y un salto cada dos:
+		# como el input cambia seguido, un input tardío se nota en las correcciones.
+		# A los 25 s se queda quieto, para comparar el estado final en las dos PCs.
+		var moving := _local_ticks < 1500
+		var sides := [Vector2(0, 1), Vector2(1, 0), Vector2(0, -1), Vector2(-1, 0)]
+		var move: Vector2 = sides[(_local_ticks / 30) % sides.size()] if moving else Vector2.ZERO
+		var zigzag_presses := (mini(_local_ticks, 1500) / 120) & 0xFF
+		return ActorInput.make(tick, move, 0.0, 0, zigzag_presses)
 	var move := Input.get_vector("move_left", "move_right", "move_back", "move_forward")
 	return ActorInput.make(tick, move, _camera.yaw, 0, jump_presses)
 
@@ -230,7 +268,7 @@ func _on_tick_finished(tick: int) -> void:
 ## Cliente: llegó del host el estado del propio actor.
 func _on_own_state(host_tick: int, state_bytes: PackedByteArray, used_input_tick: int, margin: int, current_tick: int) -> void:
 	if used_input_tick >= _prediction_start_tick:
-		_clock.report_input_margin(margin)
+		_clock.report_input_margin(host_tick, margin)
 	if not is_instance_valid(_local_actor):
 		return
 	if not _local_actor.simulated:
@@ -294,6 +332,12 @@ func _read_launch_args() -> void:
 			sim_from_args = true
 		elif arg.begins_with("--sim-seed="):
 			sim_seed = arg.trim_prefix("--sim-seed=").to_int()
+		elif arg.begins_with("--sim-after="):
+			sim_after_seconds = arg.trim_prefix("--sim-after=").to_float()
+		elif arg.begins_with("--sim-until="):
+			sim_until_seconds = arg.trim_prefix("--sim-until=").to_float()
+		elif arg == "--trace":
+			trace = true
 
 
 ## Direcciones IPv4 privadas de esta PC: la que hay que escribir en la otra PC
@@ -318,7 +362,7 @@ func _update_hud() -> void:
 	])
 	if role == Role.CLIENT:
 		lines.append("reloj: ida y vuelta %.0f ms   ·   vas %.1f ticks adelante del host   ·   saltos de reloj %d" % [_clock.rtt_ms, _clock.lead_ticks, _clock.resyncs])
-		lines.append("tu input le llega al host con %d ticks de anticipación, en el peor caso   ·   ajustes de un tick: +%d / -%d" % [_clock.worst_margin, _clock.speedups, _clock.slowdowns])
+		lines.append("tu input le llega al host con %.1f ticks de anticipación, en el peor caso   ·   ritmo: %d ticks por segundo (ganados +%.1f / perdidos -%.1f)" % [_clock.worst_margin, _clock.rate_hz, _clock.ticks_gained, _clock.ticks_shed])
 		lines.append("predicción: %d coincidencias, %d correcciones (%d por input tardío), última de %.2f m" % [_prediction.matches, _prediction.corrections, _prediction.corrections_late_input, _prediction.last_correction_meters])
 		lines.append("snapshots que no llegaron a tiempo: %.1f %%" % _snapshot_loss_percent())
 	if role == Role.HOST:
@@ -340,6 +384,16 @@ func _print_actor_report() -> void:
 		print("[net_lab] estado del actor %d: %s" % [actor.owner_peer_id, actor.state.describe()])
 
 
+## Prueba: cada medio segundo, cómo viene el adelanto del cliente.
+func _print_trace() -> void:
+	if role == Role.CLIENT and _clock.synced:
+		print("[net_lab] traza %.1fs tick=%d adelanto=%.1f peor_margen=%.1f ritmo=%d correcciones=%d input_tardío=%d alineaciones=%d" % [
+			(Time.get_ticks_msec() - _ready_msec) / 1000.0, _clock.tick, _clock.lead_ticks, _clock.worst_margin,
+			_clock.rate_hz, _prediction.corrections, _prediction.corrections_late_input, _prediction.alignments,
+		])
+	_real_timer(0.5, _print_trace)
+
+
 func _actor_ids() -> String:
 	var ids: Array[int] = []
 	for actor in _clock.sorted_actors():
@@ -353,9 +407,9 @@ func _snapshot_loss_percent() -> float:
 
 
 func _print_summary_and_quit() -> void:
-	print("[net_lab] resumen: rol=%s tick=%d actores=%s máximo=%d sincronizado=%s ida_y_vuelta=%.1fms adelanto=%.1f peor_margen=%d ajustes=+%d/-%d saltos_de_reloj=%d coincidencias=%d correcciones=%d (input_tardío=%d) alineaciones=%d snapshots_perdidos=%.1f%% red=%s paquetes_perdidos_por_el_simulador=%d" % [
+	print("[net_lab] resumen: rol=%s tick=%d actores=%s máximo=%d sincronizado=%s ida_y_vuelta=%.1fms adelanto=%.1f peor_margen=%.1f ritmo=%d ganados=+%.1f perdidos=-%.1f saltos_de_reloj=%d coincidencias=%d correcciones=%d (input_tardío=%d) alineaciones=%d snapshots_perdidos=%.1f%% red=%s paquetes_perdidos_por_el_simulador=%d" % [
 		Role.keys()[role], _clock.tick, _actor_ids(), max_actors_seen, _clock.synced,
-		_clock.rtt_ms, _clock.lead_ticks, _clock.worst_margin, _clock.speedups, _clock.slowdowns, _clock.resyncs,
+		_clock.rtt_ms, _clock.lead_ticks, _clock.worst_margin, _clock.rate_hz, _clock.ticks_gained, _clock.ticks_shed, _clock.resyncs,
 		_prediction.matches, _prediction.corrections, _prediction.corrections_late_input, _prediction.alignments,
 		_snapshot_loss_percent(), _net_sim_text(), _link.dropped,
 	])

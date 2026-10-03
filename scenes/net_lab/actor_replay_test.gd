@@ -11,9 +11,16 @@ extends Node3D
 ##
 ## Cada tick repetido tiene que coincidir byte a byte con la pasada en vivo.
 ## Sale con código 0 si todo coincide, 1 si algo difiere y 2 si no terminó a tiempo.
+##
+## Con --rate=N corre todo a N ticks por segundo real, y con --rate=varying va
+## cambiando de ritmo cada pocos ticks, como el cliente al ajustar su adelanto.
+## La huella final de la pasada en vivo tiene que dar igual a cualquier ritmo.
 
 const TICK_DT := 1.0 / 60.0
 const TIMEOUT_SECONDS := 150.0
+## Ritmos que recorre --rate=varying, uno cada RATE_SWITCH_FRAMES frames de física.
+const VARYING_RATES := [60, 72, 57, 66, 61, 69, 58, 64]
+const RATE_SWITCH_FRAMES := 7
 const LONG_CHECKPOINTS := [0, 1, 2, 17, 60, 151, 152, 203, 333, 444, 555, 666, 777, 888, 955, 1050]
 const SHORT_WINDOW := 30
 const SHORT_BATCH := 40
@@ -43,21 +50,35 @@ var _ticks_air := 0
 var _ticks_wall := 0
 var _jumps := 0
 var _max_height := 0.0
+var _varying_rate := false
+var _physics_frames := 0
 
 @onready var _actor: ActorBody = $Actor
 
 
 func _ready() -> void:
-	Engine.physics_ticks_per_second = 60
+	SimClock.apply_tick_rate(SimClock.TICK_RATE)
 	Engine.physics_jitter_fix = 0.0
-	get_tree().create_timer(TIMEOUT_SECONDS).timeout.connect(_on_timeout)
+	var rate_text := "60"
+	for arg in OS.get_cmdline_user_args():
+		if arg == "--rate=varying":
+			_varying_rate = true
+			rate_text = "variable %s" % str(VARYING_RATES)
+		elif arg.begins_with("--rate="):
+			SimClock.apply_tick_rate(arg.trim_prefix("--rate=").to_int())
+			rate_text = str(Engine.physics_ticks_per_second)
+	get_tree().create_timer(TIMEOUT_SECONDS, true, false, true).timeout.connect(_on_timeout)
 	_build_inputs()
 	_initial.position = _actor.global_position
 	_initial.quantize()
-	print("%s %d ticks de input" % [LOG_PREFIX, _inputs.size()])
+	print("%s %d ticks de input, ritmo %s ticks por segundo" % [LOG_PREFIX, _inputs.size(), rate_text])
 
 
 func _physics_process(_delta: float) -> void:
+	if _varying_rate:
+		_physics_frames += 1
+		if _physics_frames % RATE_SWITCH_FRAMES == 0:
+			SimClock.apply_tick_rate(VARYING_RATES[(_physics_frames / RATE_SWITCH_FRAMES) % VARYING_RATES.size()])
 	match _phase:
 		Phase.LIVE:
 			_live_tick()
@@ -131,6 +152,11 @@ func _finish() -> void:
 	_phase = Phase.DONE
 	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d tocando pared, %d saltos, altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_wall, _jumps, _max_height])
 	print("%s %d repeticiones, %d ticks repetidos" % [LOG_PREFIX, _replays, _replayed_ticks])
+	var hashing := HashingContext.new()
+	hashing.start(HashingContext.HASH_SHA256)
+	for bytes in _live:
+		hashing.update(bytes)
+	print("%s huella de la pasada en vivo: %s" % [LOG_PREFIX, hashing.finish().hex_encode().left(16)])
 	if _failure_count == 0:
 		print("%s OK: todas las repeticiones coinciden byte a byte con la pasada en vivo" % LOG_PREFIX)
 		get_tree().quit(0)

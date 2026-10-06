@@ -111,6 +111,13 @@ func smooth_from(seen: Vector3) -> void:
 	_visual.position = visual_offset
 
 
+## Fija el desvío visual tal cual, sin que decaiga solo: lo va moviendo quien
+## lo pide. Va en el tick, como decay_visual_offset().
+func set_visual_offset(offset: Vector3) -> void:
+	visual_offset = offset
+	_visual.position = offset
+
+
 ## Una vez por tick, en el tick: el desvío decae hacia cero. Va en el tick
 ## para que la interpolación de física lo suavice entre ticks.
 func decay_visual_offset(dt: float) -> void:

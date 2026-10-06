@@ -172,8 +172,9 @@ func _shown_state(samples: Array, frame: int) -> ActorState:
 	var state := _in_frame(from[1], from[0], frame)
 	if samples.size() >= 2:
 		var to: Array = samples[1]
-		var weight := clampf((_render_tick - from[0]) / float(to[0] - from[0]), 0.0, 1.0)
-		state = _blend(state, _in_frame(to[1], to[0], frame), weight)
+		var span := float(to[0] - from[0])
+		var weight := clampf((_render_tick - from[0]) / span, 0.0, 1.0)
+		state = _blend(state, _in_frame(to[1], to[0], frame), weight, span)
 	return state
 
 
@@ -244,10 +245,19 @@ func _base_at(base_id: int, tick: int) -> Array:
 
 
 ## Pose intermedia entre dos snapshots, los dos ya en el mismo marco. Lo que
-## no es continuo (modo, piso, época) sale del más cercano. Si entre los dos
-## hubo un teleport, no se mezcla.
-static func _blend(from: ActorState, to: ActorState, weight: float) -> ActorState:
+## no es continuo (modo, piso, época, postura) sale del más cercano. Si entre
+## los dos hubo un teleport, no se mezcla. Si cambió de postura, tampoco: en el
+## aire eso mueve los pies de golpe, y mezclar las alturas dibujaría la forma
+## nueva a mitad de camino. Se sigue al más cercano, avanzado con su velocidad,
+## y el salto se ve de una vez (ActorBody.present). `span` es cuántos ticks
+## separan a los dos.
+static func _blend(from: ActorState, to: ActorState, weight: float, span: float) -> ActorState:
 	var nearest := from if weight < 0.5 else to
+	if from.stance != to.stance:
+		var moved := nearest.copy()
+		var ticks_away := weight * span if nearest == from else (weight - 1.0) * span
+		moved.position += nearest.velocity * ticks_away * SimClock.TICK_DT
+		return moved
 	if from.position.distance_to(to.position) > TELEPORT_DISTANCE:
 		return nearest
 	var state := nearest.copy()

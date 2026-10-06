@@ -13,7 +13,9 @@ extends RefCounted
 ## sus bytes. La posición se cuantiza a 0,1 mm: alcanza para niveles de
 ## hasta unos 800 m desde el origen; más lejos, float32 pierde ese detalle.
 
-enum Mode { GROUND, AIR }
+enum Mode { GROUND, AIR, SLIDE }
+## Postura: parado o agachado. Cada una tiene su forma de colisión preparada.
+enum Stance { STANDING, CROUCHED }
 
 const POSITION_STEP := 0.0001
 const VELOCITY_STEP := 0.001
@@ -21,7 +23,7 @@ const NORMAL_STEP := 0.0001
 const TIME_STEP := 0.0001
 const YAW_STEPS := 65536
 ## Largo de to_bytes(). Lo que llega por red con otro largo se descarta.
-const BYTE_SIZE := 53
+const BYTE_SIZE := 55
 
 ## Con base, relativa a ella; sin base, en el mundo. Ver BaseRegistry.world_position().
 var position := Vector3.ZERO
@@ -45,6 +47,10 @@ var jump_presses_seen := 0
 var epoch := 0
 ## Id de red de la base sobre la que está parado (plataforma, balsa), o 0.
 var base_id := 0
+## Postura que pidieron el modo o el input en el último tick.
+var stance_wanted: int = Stance.STANDING
+## Postura concedida: la que cupo. Decide la forma de colisión activa.
+var stance: int = Stance.STANDING
 
 
 func quantize() -> void:
@@ -76,6 +82,8 @@ func to_bytes() -> PackedByteArray:
 	b.put_u8(jump_presses_seen & 0xFF)
 	b.put_u16(epoch & 0xFFFF)
 	b.put_u16(base_id & 0xFFFF)
+	b.put_u8(stance_wanted)
+	b.put_u8(stance)
 	return b.data_array
 
 
@@ -94,13 +102,15 @@ static func from_bytes(bytes: PackedByteArray) -> ActorState:
 	s.jump_presses_seen = b.get_u8()
 	s.epoch = b.get_u16()
 	s.base_id = b.get_u16()
+	s.stance_wanted = b.get_u8()
+	s.stance = b.get_u8()
 	return s
 
 
 func describe() -> String:
-	return "modo=%s suelo=%s base=%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
-		Mode.keys()[mode], on_floor, base_id, position, velocity, facing_yaw,
-		coyote_left, jump_buffer_left, jump_presses_seen, epoch,
+	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
+		Mode.keys()[mode], Stance.keys()[stance], Stance.keys()[stance_wanted], on_floor, base_id,
+		position, velocity, facing_yaw, coyote_left, jump_buffer_left, jump_presses_seen, epoch,
 	]
 
 

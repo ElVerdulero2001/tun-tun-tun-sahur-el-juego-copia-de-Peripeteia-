@@ -7,6 +7,8 @@ extends RefCounted
 ## ticks y lo que viaja por red (desde el paso 4) es exactamente lo mismo.
 
 const BUTTON_JUMP := 1 << 0
+const BUTTON_CROUCH := 1 << 1
+const BUTTON_RUN := 1 << 2
 const AXIS_STEPS := 127.0
 
 var tick := 0

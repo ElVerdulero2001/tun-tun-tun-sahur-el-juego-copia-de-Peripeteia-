@@ -22,9 +22,14 @@ extends Node3D
 ## --bind=IP (solo host), --autoquit=SEGUNDOS (imprime un resumen y cierra),
 ## --report-after=SEGUNDOS (imprime el estado de cada actor), --trace (el
 ## cliente imprime su adelanto cada medio segundo), --test-input=walk (camina y
-## salta solo, sin teclado) o --test-input=zigzag (cambia de dirección cada
-## medio segundo durante 25 s), --no-adoption y --test-push-at=S1,S2 (solo
-## host: empuja a los demás a esos segundos) y, para simular red,
+## salta solo, sin teclado), --test-input=zigzag (cambia de dirección cada
+## medio segundo durante 25 s), --test-input=ride:ID (se sube a esa base y
+## salta arriba cada 3 s), --test-input=hop:ID (se sube y después salta afuera
+## y adentro cada 2,5 s), --test-input=edge:ID (igual, pero salta hacia el
+## borde), --test-input=walkoff:ID (sale y entra caminando, sin saltar),
+## --test-spawn-at=X,Z (solo host), --no-adoption y
+## --test-push-at=S1,S2 (solo host: empuja a los demás a esos segundos) y,
+## para simular red,
 ## --sim-rtt=MS, --sim-jitter=MS, --sim-loss=PORCENTAJE, --sim-seed=N, los
 ## tirones con --sim-stall-every=MS y --sim-stall=MS y, si la red simulada
 ## tiene que empezar o terminar en plena partida, --sim-after=SEGUNDOS y
@@ -36,6 +41,11 @@ const PUSH_UP_SPEED := 5.0
 const PUSH_AWAY_SPEED := 4.0
 ## Más abajo que esto, el actor cayó del mapa y reaparece.
 const FALL_LIMIT := -30.0
+## Cliente: a menos de esta distancia del actor propio, en metros, una
+## plataforma guionada se ve en el tick propio; a más de PLATFORM_FAR, en el
+## mismo pasado que los demás jugadores; en el medio, pasa de a poco.
+const PLATFORM_NEAR := 1.5
+const PLATFORM_FAR := 6.0
 ## Niveles del simulador de red, con las teclas 1 a 5. La demora es de ida y
 ## vuelta; los tirones traban la conexión stall ms cada stall_every ms.
 const NET_PRESETS := [
@@ -97,8 +107,10 @@ var pushes := 0
 var respawns := 0
 ## Cliente (paso 8): los demás jugadores, interpolados entre snapshots.
 var _interpolation := RemoteInterpolation.new()
-## Prueba de bases: contador de saltos del input de prueba `ride`.
+## Prueba de bases: contador de saltos de los inputs de prueba `ride` y `hop`.
 var _ride_presses := 0
+## Prueba `hop`: tick local en que llegó a la base por primera vez.
+var _hop_start := -1
 ## Cliente: cuánto se traban en pantalla los demás jugadores. Un tick cuenta
 ## como tirón si el actor se movió menos de un cuarto o más del doble de lo
 ## que corresponde a su velocidad.
@@ -280,6 +292,12 @@ func _local_input(tick: int) -> ActorInput:
 		return ActorInput.make(tick, Vector2(0, 1) if walking else Vector2.ZERO, 0.0, 0, presses)
 	if test_input.begins_with("ride:"):
 		return _ride_input(tick, test_input.trim_prefix("ride:").to_int())
+	if test_input.begins_with("hop:"):
+		return _hop_input(tick, test_input.trim_prefix("hop:").to_int(), 3.2, true)
+	if test_input.begins_with("edge:"):
+		return _hop_input(tick, test_input.trim_prefix("edge:").to_int(), 1.4, true)
+	if test_input.begins_with("walkoff:"):
+		return _hop_input(tick, test_input.trim_prefix("walkoff:").to_int(), 2.5, false)
 	if test_input == "zigzag":
 		# Un cuadrado que cambia de lado cada medio segundo y un salto cada dos:
 		# como el input cambia seguido, un input tardío se nota en las correcciones.
@@ -322,6 +340,29 @@ func _ride_input(tick: int, base_id: int) -> ActorInput:
 	return ActorInput.make(tick, move, 0.0, 0, _ride_presses)
 
 
+## Prueba de subir y bajar: llega a la base como `ride` y después, cada 2,5 s,
+## va hasta `side` metros al costado del centro de la base o vuelve al centro,
+## saltando al empezar cada tramo si `jump`.
+func _hop_input(tick: int, base_id: int, side: float, jump: bool) -> ActorInput:
+	var base = BaseRegistry.find(base_id)
+	if base == null or not is_instance_valid(_local_actor):
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _ride_presses)
+	if _hop_start < 0:
+		if _local_actor.state.base_id != base_id:
+			return _ride_input(tick, base_id)
+		_hop_start = _local_ticks
+	var elapsed := _local_ticks - _hop_start
+	if jump and elapsed % 150 == 0:
+		_ride_presses = (_ride_presses + 1) & 0xFF
+	var me := BaseRegistry.world_position(_local_actor.state)
+	var target: Vector3 = base.base_origin()
+	if (elapsed / 150) % 2 == 0:
+		target += Vector3(0.0, 0.0, side)
+	var to := Vector2(target.x - me.x, target.z - me.z)
+	var move := Vector2(to.x, -to.y).limit_length(1.0) if to.length() > 0.15 else Vector2.ZERO
+	return ActorInput.make(tick, move, 0.0, 0, _ride_presses)
+
+
 ## Al empezar cada tick. Host: aplica los eventos (reapariciones y empujones)
 ## antes de mover a nadie. Cliente: primero corrige con el último snapshot y
 ## ubica a los demás en su pose interpolada, después arma el input de este
@@ -339,6 +380,7 @@ func _on_tick_started(tick: int) -> void:
 		return
 	_net_sync.apply_pending_snapshot(_on_own_state.bind(tick), _interpolation.add, _interpolation.add_base)
 	_interpolation.advance()
+	_update_platform_lag(tick)
 	for actor in _clock.sorted_actors():
 		if _is_remote(actor):
 			_interpolation.place(actor)
@@ -367,19 +409,40 @@ func _on_tick_finished(tick: int) -> void:
 		_measure_remote_smoothness()
 
 
+## Cliente: cuánto más atrás se dibuja cada plataforma guionada. El actor
+## propio la necesita en su tick, que va por delante del host; los demás
+## jugadores se ven en el pasado. Lejos del actor propio se la dibuja en ese
+## mismo pasado, así quien se sube o se baja se ve donde corresponde.
+func _update_platform_lag(tick: int) -> void:
+	var shown := _interpolation.shown_tick()
+	var gap := maxf(float(tick) - shown, 0.0) if shown >= 0.0 else 0.0
+	for base in BaseRegistry.all():
+		if not (base is ScriptedPlatform):
+			continue
+		var near := 1.0
+		if is_instance_valid(_local_actor) and _local_actor.state.base_id != base.base_id:
+			var distance: float = base.distance_to(BaseRegistry.world_position(_local_actor.state))
+			near = 1.0 - smoothstep(PLATFORM_NEAR, PLATFORM_FAR, distance)
+		base.visual_lag = gap * (1.0 - near)
+
+
 ## Cliente: mide, tick a tick, si los demás jugadores se mueven parejo en pantalla.
 func _measure_remote_smoothness() -> void:
 	for actor in _clock.sorted_actors():
 		if not _is_remote(actor):
 			continue
 		var peer := actor.owner_peer_id
+		var seen := actor.seen_position()
 		var last: Variant = _remote_last_positions.get(peer)
-		_remote_last_positions[peer] = actor.global_position
-		var speed := Vector2(actor.state.velocity.x, actor.state.velocity.z).length()
+		_remote_last_positions[peer] = seen
+		# Lo que se ve es el movimiento en el mundo: sobre una base, el propio
+		# más el de la base.
+		var velocity := actor.state.velocity + BaseRegistry.visual_velocity(actor.state.base_id)
+		var speed := Vector2(velocity.x, velocity.z).length()
 		if last == null or speed < 1.0:
 			continue
 		var expected := speed / _clock.rate_hz
-		var moved := Vector2(actor.global_position.x - last.x, actor.global_position.z - last.z).length()
+		var moved := Vector2(seen.x - last.x, seen.z - last.z).length()
 		remote_ticks_measured += 1
 		if moved < expected * 0.25 or moved > expected * 2.0:
 			remote_stutters += 1

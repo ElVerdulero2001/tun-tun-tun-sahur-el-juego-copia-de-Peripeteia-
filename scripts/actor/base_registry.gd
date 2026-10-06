@@ -50,3 +50,24 @@ static func id_of(collider: Object) -> int:
 ## Posición de un actor en el mundo: su posición relativa más el origen de su base.
 static func world_position(state: ActorState) -> Vector3:
 	return origin(state.base_id) + state.position
+
+
+## Dónde se ve la base, que en un cliente puede ir más atrás que su física
+## (ScriptedPlatform.visual_lag). Para dibujar a los demás encima de ella.
+static func visual_origin(id: int) -> Vector3:
+	var base = find(id)
+	if base == null:
+		return Vector3.ZERO
+	return base.visual_origin() if base.has_method("visual_origin") else base.base_origin()
+
+
+static func visual_velocity(id: int) -> Vector3:
+	var base = find(id)
+	if base == null:
+		return Vector3.ZERO
+	return base.visual_velocity() if base.has_method("visual_velocity") else base.base_velocity()
+
+
+## Dónde se ve a un actor: su posición relativa más el origen visible de su base.
+static func visual_world_position(state: ActorState) -> Vector3:
+	return visual_origin(state.base_id) + state.position

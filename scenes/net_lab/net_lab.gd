@@ -27,7 +27,11 @@ extends Node3D
 ## salta arriba cada 3 s), --test-input=hop:ID (se sube y después salta afuera
 ## y adentro cada 2,5 s), --test-input=edge:ID (igual, pero salta hacia el
 ## borde), --test-input=walkoff:ID (sale y entra caminando, sin saltar),
-## --test-spawn-at=X,Z (solo host), --no-adoption y
+## --test-input=tunnel (se desliza en el túnel largo y sale agachado),
+## --test-input=crouchjump (salta frente a la pared de medidas y se agacha
+## en el aire),
+## --test-spawn-at=X,Z (solo host), --test-pause-at=TICK (jugando solo: se
+## pone la pausa en ese tick), --no-adoption y
 ## --test-push-at=S1,S2 (solo host: empuja a los demás a esos segundos) y,
 ## para simular red,
 ## --sim-rtt=MS, --sim-jitter=MS, --sim-loss=PORCENTAJE, --sim-seed=N, los
@@ -46,6 +50,8 @@ const FALL_LIMIT := -30.0
 ## mismo pasado que los demás jugadores; en el medio, pasa de a poco.
 const PLATFORM_NEAR := 1.5
 const PLATFORM_FAR := 6.0
+## Cuánto dura un aviso arriba del panel, en milisegundos.
+const FLASH_MSEC := 3000
 ## Niveles del simulador de red, con las teclas 1 a 5. La demora es de ida y
 ## vuelta; los tirones traban la conexión stall ms cada stall_every ms.
 const NET_PRESETS := [
@@ -81,6 +87,8 @@ var sim_until_seconds := 0.0
 var trace := false
 ## Segundos a los que el host empuja a los demás, pedidos por argumentos.
 var test_push_seconds := PackedFloat64Array()
+## Jugando solo: tick en que se pone la pausa sola, para probarla. 0 = nunca.
+var test_pause_tick := 0
 var _ready_msec := 0
 var _sim_preset_name := "sin simulación"
 ## Contador de pulsaciones de salto: se suma en cada evento, no en cada tick,
@@ -111,6 +119,14 @@ var _interpolation := RemoteInterpolation.new()
 var _ride_presses := 0
 ## Prueba `hop`: tick local en que llegó a la base por primera vez.
 var _hop_start := -1
+## Prueba `tunnel`: tramo del recorrido y ticks en que quedó parado bajo el techo.
+var _tunnel_phase := 0
+var _tunnel_standing_under_roof := 0
+## Prueba `crouchjump`: tick local en que llegó frente a la pared de medidas.
+var _crouch_jump_start := -1
+## Aviso que se muestra arriba del panel hasta _flash_until_msec.
+var _flash_text := ""
+var _flash_until_msec := 0
 ## Cliente: cuánto se traban en pantalla los demás jugadores. Un tick cuenta
 ## como tirón si el actor se movió menos de un cuarto o más del doble de lo
 ## que corresponde a su velocidad.
@@ -196,8 +212,14 @@ func _real_timer(seconds: float, callback: Callable) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("jump"):
+	if event.is_action_pressed("captura"):
+		_save_capture()
+	elif event.is_action_pressed("jump"):
 		jump_presses = (jump_presses + 1) & 0xFF
+	elif _started and role == Role.LOCAL and event.is_action_pressed("toggle_debug_freeze"):
+		_set_paused(not _clock.paused)
+	elif _started and role == Role.LOCAL and _clock.paused and event.is_action_pressed("avanzar_tick"):
+		_clock.step()
 	elif _started and event is InputEventKey and event.pressed and not event.echo:
 		var index: int = [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5].find(event.keycode)
 		if index >= 0:
@@ -207,6 +229,39 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif role == Role.HOST and event.keycode == KEY_Q:
 			_adoption.enabled = not _adoption.enabled
 			print("[net_lab] adopción %s" % ("prendida" if _adoption.enabled else "apagada"))
+
+
+## Captura de pantalla (F12, acción `captura`): guarda en el Escritorio lo que
+## se ve, con el panel. Anda aunque haya otras teclas apretadas, como Ctrl para
+## agacharse. Espera a que termine de dibujarse el cuadro.
+func _save_capture() -> void:
+	await RenderingServer.frame_post_draw
+	var image := get_viewport().get_texture().get_image()
+	if image == null or image.is_empty():
+		_flash("No se pudo tomar la captura")
+		return
+	var stamp := Time.get_datetime_string_from_system().replace("T", "_").replace(":", "-")
+	var file_name := "captura_lab_%s_%03d.png" % [stamp, Time.get_ticks_msec() % 1000]
+	var path := OS.get_system_dir(OS.SYSTEM_DIR_DESKTOP).path_join(file_name)
+	var error := image.save_png(path)
+	print("[net_lab] captura: %s (error %d)" % [path, error])
+	_flash("Captura guardada en el Escritorio: %s" % file_name if error == OK
+			else "No se pudo guardar la captura (error %d)" % error)
+
+
+## Muestra un aviso arriba del panel durante unos segundos.
+func _flash(text: String) -> void:
+	_flash_text = text
+	_flash_until_msec = Time.get_ticks_msec() + FLASH_MSEC
+
+
+## Jugando solo: congela la simulación donde está, para mirarla. La balsa la
+## mueve la física y no el reloj, así que se congela aparte.
+func _set_paused(on: bool) -> void:
+	_clock.paused = on
+	for base in BaseRegistry.all():
+		if base is HostRaft and base.simulated:
+			base.freeze = on
 
 
 func _process(_delta: float) -> void:
@@ -298,17 +353,28 @@ func _local_input(tick: int) -> ActorInput:
 		return _hop_input(tick, test_input.trim_prefix("edge:").to_int(), 1.4, true)
 	if test_input.begins_with("walkoff:"):
 		return _hop_input(tick, test_input.trim_prefix("walkoff:").to_int(), 2.5, false)
+	if test_input == "tunnel":
+		return _tunnel_input(tick)
+	if test_input == "crouchjump":
+		return _crouch_jump_input(tick)
 	if test_input == "zigzag":
 		# Un cuadrado que cambia de lado cada medio segundo y un salto cada dos:
 		# como el input cambia seguido, un input tardío se nota en las correcciones.
 		# A los 25 s se queda quieto, para comparar el estado final en las dos PCs.
 		var moving := _local_ticks < 1500
 		var sides := [Vector2(0, 1), Vector2(1, 0), Vector2(0, -1), Vector2(-1, 0)]
-		var move: Vector2 = sides[(_local_ticks / 30) % sides.size()] if moving else Vector2.ZERO
+		@warning_ignore("integer_division")
+		var side: Vector2 = sides[(_local_ticks / 30) % sides.size()] if moving else Vector2.ZERO
+		@warning_ignore("integer_division")
 		var zigzag_presses := (mini(_local_ticks, 1500) / 120) & 0xFF
-		return ActorInput.make(tick, move, 0.0, 0, zigzag_presses)
+		return ActorInput.make(tick, side, 0.0, 0, zigzag_presses)
 	var move := Input.get_vector("move_left", "move_right", "move_back", "move_forward")
-	return ActorInput.make(tick, move, _camera.yaw, 0, jump_presses)
+	var buttons := 0
+	if Input.is_action_pressed("crouch"):
+		buttons |= ActorInput.BUTTON_CROUCH
+	if Input.is_action_pressed("run"):
+		buttons |= ActorInput.BUTTON_RUN
+	return ActorInput.make(tick, move, _camera.yaw, buttons, jump_presses)
 
 
 ## Prueba de bases: va hasta la base pedida y se queda arriba, dando vueltas
@@ -356,11 +422,84 @@ func _hop_input(tick: int, base_id: int, side: float, jump: bool) -> ActorInput:
 		_ride_presses = (_ride_presses + 1) & 0xFF
 	var me := BaseRegistry.world_position(_local_actor.state)
 	var target: Vector3 = base.base_origin()
+	@warning_ignore("integer_division")
 	if (elapsed / 150) % 2 == 0:
 		target += Vector3(0.0, 0.0, side)
 	var to := Vector2(target.x - me.x, target.z - me.z)
 	var move := Vector2(to.x, -to.y).limit_length(1.0) if to.length() > 0.15 else Vector2.ZERO
 	return ActorInput.make(tick, move, 0.0, 0, _ride_presses)
+
+
+## Prueba de postura en el túnel largo (techo a 1,2 m, de z 14 a z 24): se
+## alinea con la entrada, corre y se agacha a 3 m para deslizarse adentro,
+## suelta agacharse mientras se desliza, sale caminando por la otra punta (se
+## tiene que parar solo al salir) y vuelve agachado por adentro.
+func _tunnel_input(tick: int) -> ActorInput:
+	if not is_instance_valid(_local_actor):
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
+	var s := _local_actor.state
+	var me := BaseRegistry.world_position(s)
+	if s.stance == ActorState.Stance.STANDING and absf(me.x) < 2.35 and me.z > 13.65 and me.z < 24.35:
+		_tunnel_standing_under_roof += 1
+	var target := me
+	var buttons := 0
+	var phase := _tunnel_phase
+	match _tunnel_phase:
+		0:
+			target = Vector3(0.0, 0.0, 9.0)
+			if Vector2(me.x, me.z - 9.0).length() < 0.2 and _horizontal(s) < 0.5:
+				_tunnel_phase = 1
+		1:
+			target = Vector3(0.0, 0.0, 30.0)
+			buttons |= ActorInput.BUTTON_RUN
+			if me.z > 11.0:
+				buttons |= ActorInput.BUTTON_CROUCH
+			if s.mode == ActorState.Mode.SLIDE:
+				_tunnel_phase = 2
+		2:
+			if s.mode != ActorState.Mode.SLIDE:
+				_tunnel_phase = 3
+		3:
+			target = Vector3(0.0, 0.0, 27.0)
+			if me.z > 26.5:
+				_tunnel_phase = 4
+		4:
+			target = Vector3(0.0, 0.0, 11.0)
+			buttons |= ActorInput.BUTTON_CROUCH
+			if me.z < 12.0:
+				_tunnel_phase = 5
+	if phase != _tunnel_phase:
+		print("[net_lab] túnel: tramo %d en z=%.2f, %s" % [_tunnel_phase, me.z, s.describe()])
+	var to := Vector2(target.x - me.x, target.z - me.z)
+	var move := Vector2(to.x, -to.y).limit_length(1.0) if to.length() > 0.15 else Vector2.ZERO
+	return ActorInput.make(tick, move, 0.0, buttons, 0)
+
+
+## Prueba de agacharse en el aire frente a la pared de medidas: llega frente a
+## la pared, salta parado 20 ticks después y se agacha a los 10 ticks del salto.
+func _crouch_jump_input(tick: int) -> ActorInput:
+	if not is_instance_valid(_local_actor):
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
+	var me := BaseRegistry.world_position(_local_actor.state)
+	if _crouch_jump_start < 0:
+		var to := Vector2(-6.0 - me.x, 5.9 - me.z)
+		if to.length() > 0.1 or _horizontal(_local_actor.state) > 0.1:
+			var move := Vector2(to.x, -to.y).limit_length(1.0) if to.length() > 0.1 else Vector2.ZERO
+			return ActorInput.make(tick, move, 0.0, 0, 0)
+		_crouch_jump_start = _local_ticks
+	var elapsed := _local_ticks - _crouch_jump_start
+	var buttons := ActorInput.BUTTON_CROUCH if elapsed >= 30 else 0
+	var state := _local_actor.state
+	if elapsed == 20 or elapsed == 30:
+		print("[net_lab] salto agachado: tick %d, %s" % [tick, "salta" if elapsed == 20 else "se agacha (pies antes: %.3f)" % me.y])
+	if elapsed == 31:
+		print("[net_lab] salto agachado: tick %d, postura %s, pies %.3f, cabeza %.3f" % [
+			tick, ActorState.Stance.keys()[state.stance], me.y, me.y + _local_actor.stance_height(state.stance)])
+	return ActorInput.make(tick, Vector2.ZERO, 0.0, buttons, 1 if elapsed >= 20 else 0)
+
+
+static func _horizontal(state: ActorState) -> float:
+	return Vector2(state.velocity.x, state.velocity.z).length()
 
 
 ## Al empezar cada tick. Host: aplica los eventos (reapariciones y empujones)
@@ -392,6 +531,9 @@ func _on_tick_started(tick: int) -> void:
 ## Al terminar cada tick. Host: decide qué afirmaciones adopta y después manda
 ## el snapshot. Cliente: guarda lo predicho y se lo manda al host con el input.
 func _on_tick_finished(tick: int) -> void:
+	if role == Role.LOCAL and tick == test_pause_tick:
+		_set_paused(true)
+		print("[net_lab] pausa en el tick %d: %s" % [tick, _local_actor.state.describe() if is_instance_valid(_local_actor) else "sin actor"])
 	if role == Role.HOST:
 		for actor in _clock.sorted_actors():
 			if _is_remote(actor):
@@ -580,6 +722,8 @@ func _read_launch_args() -> void:
 		elif arg.begins_with("--test-push-at="):
 			for seconds in arg.trim_prefix("--test-push-at=").split(","):
 				test_push_seconds.append(seconds.to_float())
+		elif arg.begins_with("--test-pause-at="):
+			test_pause_tick = arg.trim_prefix("--test-pause-at=").to_int()
 		elif arg.begins_with("--test-spawn-at="):
 			var xz := arg.trim_prefix("--test-spawn-at=").split(",")
 			_session.host_spawn_override = Vector3(xz[0].to_float(), 0.0, xz[1].to_float())
@@ -627,15 +771,27 @@ func _update_hud() -> void:
 				])
 	if is_instance_valid(_local_actor):
 		var s := _local_actor.state
+		if _clock.paused:
+			lines.append("EN PAUSA (tick %d)   ·   G sigue   ·   F avanza un tick" % _clock.tick)
 		lines.append("Modo: %s   ·   en suelo: %s   ·   época: %d" % [ActorState.Mode.keys()[s.mode], "sí" if s.on_floor else "no", s.epoch])
+		var stance_names := ["parado", "agachado"]
+		lines.append("Postura: %s%s" % [stance_names[s.stance],
+				"   ·   pedida: %s (no hay lugar)" % stance_names[s.stance_wanted] if s.stance_wanted != s.stance else ""])
 		var world := BaseRegistry.world_position(s)
 		var base = BaseRegistry.find(s.base_id)
 		lines.append("Velocidad%s: %.2f m/s horizontal, %.2f m/s vertical" % [" (sobre la base)" if base != null else "", Vector2(s.velocity.x, s.velocity.z).length(), s.velocity.y])
-		lines.append("Posición: (%.2f, %.2f, %.2f)   ·   base: %s" % [world.x, world.y, world.z, "%s (%d)" % [base.name, s.base_id] if base != null else "ninguna"])
+		lines.append("Pies en (%.3f, %.3f, %.3f)   ·   cabeza a %.3f m de altura   ·   base: %s" % [
+				world.x, world.y, world.z, world.y + _local_actor.stance_height(s.stance),
+				"%s (%d)" % [base.name, s.base_id] if base != null else "ninguna"])
 	lines.append("")
-	lines.append("WASD mover · Espacio saltar · mouse mirar · Esc suelta el mouse")
+	lines.append("WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse) · mouse mirar · Esc suelta el mouse")
 	if role == Role.HOST:
 		lines.append("E empuja a los demás jugadores · Q prende o apaga la adopción")
+	if role == Role.LOCAL:
+		lines.append("G pausa y congela · F avanza un tick en pausa")
+	lines.append("F12 guarda una captura en el Escritorio")
+	if Time.get_ticks_msec() < _flash_until_msec:
+		lines.insert(0, ">> %s" % _flash_text)
 	_info.text = "\n".join(lines)
 
 
@@ -654,9 +810,9 @@ func _print_trace() -> void:
 		])
 	if is_instance_valid(_local_actor):
 		var s := _local_actor.state
-		print("[net_lab] traza %.1fs actor: base=%d mundo=%s rel=%s vel=%s modo=%s suelo=%s" % [
+		print("[net_lab] traza %.1fs actor: base=%d mundo=%s rel=%s vel=%s modo=%s postura=%s suelo=%s" % [
 			(Time.get_ticks_msec() - _ready_msec) / 1000.0, s.base_id, BaseRegistry.world_position(s),
-			s.position, s.velocity, ActorState.Mode.keys()[s.mode], s.on_floor,
+			s.position, s.velocity, ActorState.Mode.keys()[s.mode], ActorState.Stance.keys()[s.stance], s.on_floor,
 		])
 	_real_timer(0.5, _print_trace)
 
@@ -686,6 +842,8 @@ func _print_summary_and_quit() -> void:
 		])
 	if respawns > 0:
 		print("[net_lab] reapariciones: %d" % respawns)
+	if test_input == "tunnel":
+		print("[net_lab] túnel: llegó al tramo %d; ticks parado bajo el techo: %d" % [_tunnel_phase, _tunnel_standing_under_roof])
 	for peer in _adoption.peers():
 		print("[net_lab] adopción del jugador %d: prendida=%s empujones=%d iguales=%d adoptadas=%d (máx %.3f m) rechazadas: época=%d distancia=%d pose=%d apagada=%d sin_afirmación=%d" % [
 			peer, _adoption.enabled, pushes,

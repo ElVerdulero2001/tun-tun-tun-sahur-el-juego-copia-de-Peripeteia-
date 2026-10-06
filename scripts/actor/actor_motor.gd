@@ -5,9 +5,10 @@ extends RefCounted
 ## el estado del tick siguiente. No guarda nada propio; por eso cualquier tick
 ## se puede repetir después de restaurar el estado.
 ##
-## Sigue el orden fijo de etapas de la arquitectura. En este paso del esqueleto
-## solo existen los modos Suelo y Aire, y todavía no hace falta la etapa de
-## sondas (4): la única sonda, la de suelo, corre en la etapa de contactos.
+## Sigue el orden fijo de etapas de la arquitectura. Por ahora existen los modos
+## Suelo, Aire y Deslizamiento, y la postura (parado o agachado). Todavía no
+## hace falta la etapa de sondas (4): la de suelo corre en la etapa de
+## contactos y la de espacio libre, en la de postura.
 ##
 ## Sobre una base (plataforma, balsa), la posición y la velocidad del estado
 ## son relativas a ella. La base no se rebobina al repetir ticks: si se repiten,
@@ -33,6 +34,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 
 	# 5. Transición: como máximo una por tick, decidida por la situación actual.
 	var wants_jump := state.jump_buffer_left > 0.0
+	var crouch_held := input.is_held(ActorInput.BUTTON_CROUCH)
 	match state.mode:
 		ActorState.Mode.GROUND:
 			if wants_jump:
@@ -40,24 +42,44 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 			elif not state.on_floor:
 				state.mode = ActorState.Mode.AIR
 				state.coyote_left = tuning.coyote_time
+			elif crouch_held and state.stance == ActorState.Stance.STANDING \
+					and _horizontal_speed(state) >= tuning.slide_entry_speed:
+				state.mode = ActorState.Mode.SLIDE
 		ActorState.Mode.AIR:
 			if state.on_floor and state.velocity.y <= 0.0:
 				state.mode = ActorState.Mode.GROUND
 			elif wants_jump and state.coyote_left > 0.0:
 				_jump(state, tuning)
+		ActorState.Mode.SLIDE:
+			if wants_jump:
+				_jump(state, tuning)
+			elif not state.on_floor:
+				state.mode = ActorState.Mode.AIR
+				state.coyote_left = tuning.coyote_time
+			elif _horizontal_speed(state) < tuning.slide_min_speed:
+				state.mode = ActorState.Mode.GROUND
 
 	# 6. Modo: el modo activo decide la velocidad.
-	var wish := _wish_velocity(input, tuning)
+	var direction := _wish_direction(input)
 	match state.mode:
 		ActorState.Mode.GROUND:
-			_ground(state, wish, tuning, dt)
+			_ground(state, direction * _ground_speed(state, input, tuning), tuning, dt)
 		ActorState.Mode.AIR:
-			_air(state, wish, tuning, dt)
-	if wish.length_squared() > 0.0001:
-		state.facing_yaw = atan2(-wish.x, -wish.z)
+			_air(state, direction, tuning, dt)
+		ActorState.Mode.SLIDE:
+			_slide(state, direction, tuning, dt)
+	if state.mode == ActorState.Mode.SLIDE:
+		if _horizontal_speed(state) > 0.01:
+			state.facing_yaw = _yaw_of(state.velocity)
+	elif direction.length_squared() > 0.0001:
+		state.facing_yaw = _yaw_of(direction)
 
-	# 7. Movimiento. El snap al piso solo existe en Suelo.
-	var snap := tuning.floor_snap_length if state.mode == ActorState.Mode.GROUND else 0.0
+	# 7. Postura y movimiento. Deslizamiento siempre pide agachado; si no, lo
+	# pide el input. El snap al piso no existe en el aire.
+	var wanted := ActorState.Stance.CROUCHED if crouch_held or state.mode == ActorState.Mode.SLIDE \
+			else ActorState.Stance.STANDING
+	_resolve_stance(body, state, wanted)
+	var snap := 0.0 if state.mode == ActorState.Mode.AIR else tuning.floor_snap_length
 	body.slide(state, snap, dt)
 
 	# 8. Contactos: los indicadores de Godot pasan al estado, y la sonda de
@@ -82,9 +104,28 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	body.global_position = origin + state.position
 
 
-static func _wish_velocity(input: ActorInput, tuning: ActorTuning) -> Vector3:
+## Dirección pedida en el mundo, de largo hasta 1 (los ejes pueden ser parciales).
+static func _wish_direction(input: ActorInput) -> Vector3:
 	var local := Vector3(input.move.x, 0.0, -input.move.y)
-	return local.rotated(Vector3.UP, input.look_yaw) * tuning.walk_speed
+	return local.rotated(Vector3.UP, input.look_yaw)
+
+
+## En Suelo: agachado va despacio; correr pide postura parada.
+static func _ground_speed(state: ActorState, input: ActorInput, tuning: ActorTuning) -> float:
+	if state.stance == ActorState.Stance.CROUCHED:
+		return tuning.crouch_speed
+	if input.is_held(ActorInput.BUTTON_RUN):
+		return tuning.sprint_speed
+	return tuning.walk_speed
+
+
+static func _horizontal_speed(state: ActorState) -> float:
+	return Vector2(state.velocity.x, state.velocity.z).length()
+
+
+## Orientación de una dirección horizontal: 0 mira hacia -Z.
+static func _yaw_of(v: Vector3) -> float:
+	return atan2(-v.x, -v.z)
 
 
 static func _ground(state: ActorState, wish: Vector3, tuning: ActorTuning, dt: float) -> void:
@@ -95,12 +136,49 @@ static func _ground(state: ActorState, wish: Vector3, tuning: ActorTuning, dt: f
 	state.velocity = horizontal
 
 
-static func _air(state: ActorState, wish: Vector3, tuning: ActorTuning, dt: float) -> void:
+## En el aire, el control lleva hacia la dirección pedida sin frenar a quien
+## venía más rápido que caminando (de una carrera o un deslizamiento).
+static func _air(state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> void:
 	var horizontal := Vector3(state.velocity.x, 0.0, state.velocity.z)
-	if wish.length_squared() > 0.0:
+	if direction.length_squared() > 0.0:
+		var wish := direction * maxf(tuning.walk_speed, horizontal.length())
 		horizontal = horizontal.move_toward(wish, tuning.air_accel * dt)
 	var vertical := maxf(state.velocity.y - tuning.gravity * dt, -tuning.max_fall_speed)
 	state.velocity = Vector3(horizontal.x, vertical, horizontal.z)
+
+
+## Deslizamiento: frena por rozamiento, acelera en bajada y gira poco hacia la
+## dirección pedida. Como en Suelo, la velocidad vertical es cero y el snap lo
+## pega a la pendiente.
+static func _slide(state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> void:
+	var horizontal := Vector3(state.velocity.x, 0.0, state.velocity.z)
+	var downhill := Vector3.DOWN.slide(state.floor_normal) * tuning.gravity
+	horizontal += Vector3(downhill.x, 0.0, downhill.z) * dt
+	horizontal = horizontal.move_toward(Vector3.ZERO, tuning.slide_friction * dt)
+	if direction.length_squared() > 0.0001 and horizontal.length_squared() > 0.0001:
+		var turn := wrapf(_yaw_of(direction) - _yaw_of(horizontal), -PI, PI)
+		var limit := tuning.slide_turn_rate * dt
+		horizontal = horizontal.rotated(Vector3.UP, clampf(turn, -limit, limit))
+	state.velocity = horizontal.limit_length(tuning.slide_max_speed)
+
+
+## Etapa 7, antes de mover: concede la postura pedida si cabe. Achicarse
+## siempre cabe; crecer necesita espacio libre, y nunca se crece hacia un
+## espacio ocupado. En el suelo la forma cambia con los pies fijos; en el
+## aire, con la cabeza fija: agacharse sube los pies y pararse los baja.
+static func _resolve_stance(body: ActorBody, state: ActorState, wanted: int) -> void:
+	state.stance_wanted = wanted
+	if wanted == state.stance:
+		return
+	var growth := body.stance_height(wanted) - body.stance_height(state.stance)
+	var feet := body.global_position
+	if state.mode == ActorState.Mode.AIR:
+		feet.y -= growth
+	if growth > 0.0 and not body.stance_fits(wanted, feet):
+		return
+	state.stance = wanted
+	body.global_position = feet
+	body.use_stance(wanted)
 
 
 ## Etapa 2: si el actor está sobre una base, lo lleva hasta donde quedó la base

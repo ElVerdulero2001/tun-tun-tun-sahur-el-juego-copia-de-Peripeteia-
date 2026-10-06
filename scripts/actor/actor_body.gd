@@ -17,6 +17,9 @@ const POSE_TOLERANCE := 0.01
 const CORRECTION_HALF_LIFE := 0.025
 ## Saltos más grandes que esto no se suavizan: se ven como un salto.
 const MAX_SMOOTHED_JUMP := 1.5
+## Espacio libre: la forma de prueba se achica esto por cada lado, para que
+## tocar el piso o una pared no cuente como choque.
+const FREE_SPACE_MARGIN := 0.02
 
 ## Desvío del visual respecto del cuerpo. Es solo presentación: la simulación
 ## no lo lee nunca.
@@ -32,7 +35,21 @@ var placed := false
 ## propio (predicción), y a los demás los muestra como los manda el host.
 var simulated := true
 
+## Forma activa: la de la postura concedida.
+var _active_stance: int = ActorState.Stance.STANDING
+## Postura que mostró present() la última vez.
+var _presented_stance := -1
+## Formas para probar el espacio libre, una por postura, ya achicadas.
+var _probe_shapes: Array[CapsuleShape3D] = []
+var _probe_params := PhysicsShapeQueryParameters3D.new()
+
 @onready var _visual: Node3D = $Visual
+## Por postura, en el orden de ActorState.Stance. Las formas están preparadas
+## en la escena: cambiar las medidas de una forma en pleno juego obliga a Jolt
+## a reconstruirla.
+@onready var _shapes: Array[CollisionShape3D] = [$Shape, $CrouchShape]
+@onready var _bodies: Array[Node3D] = [$Visual/Body, $Visual/BodyCrouch]
+@onready var _nose: Node3D = $Visual/Nose
 
 
 func _ready() -> void:
@@ -43,17 +60,48 @@ func _ready() -> void:
 	platform_on_leave = PLATFORM_ON_LEAVE_DO_NOTHING
 	floor_block_on_wall = true
 	floor_stop_on_slope = true
+	for shape in _shapes:
+		var capsule: CapsuleShape3D = shape.shape
+		var probe := CapsuleShape3D.new()
+		probe.radius = capsule.radius - FREE_SPACE_MARGIN
+		probe.height = capsule.height - 2.0 * FREE_SPACE_MARGIN
+		_probe_shapes.append(probe)
+
+
+## Activa la forma de colisión de una postura.
+func use_stance(stance: int) -> void:
+	if stance == _active_stance:
+		return
+	_active_stance = stance
+	for i in _shapes.size():
+		_shapes[i].disabled = i != stance
+
+
+## Alto de la forma de una postura, de los pies a la cabeza.
+func stance_height(stance: int) -> float:
+	var capsule: CapsuleShape3D = _shapes[stance].shape
+	return capsule.height
+
+
+## Si la forma de `stance` cabe con los pies en `feet`. No cuentan el propio
+## cuerpo ni los demás jugadores, que están en otra capa.
+func stance_fits(stance: int, feet: Vector3) -> bool:
+	_probe_params.shape = _probe_shapes[stance]
+	_probe_params.transform = Transform3D(Basis(), feet + _shapes[stance].position)
+	_probe_params.collision_mask = collision_mask
+	_probe_params.exclude = [get_rid()]
+	return get_world_3d().direct_space_state.intersect_shape(_probe_params, 1).is_empty()
 
 
 ## Mueve el cuerpo con move_and_slide() avanzando exactamente dt.
 ## move_and_slide() toma el delta del frame de física por su cuenta; el factor
 ## lo compensa cuando dt es otro (escala de tiempo, ticks repetidos).
-func slide(state: ActorState, snap_length: float, dt: float) -> void:
+func slide(actor_state: ActorState, snap_length: float, dt: float) -> void:
 	var factor := dt / get_physics_process_delta_time()
 	floor_snap_length = snap_length
-	velocity = state.velocity * factor
+	velocity = actor_state.velocity * factor
 	move_and_slide()
-	state.velocity = velocity / factor
+	actor_state.velocity = velocity / factor
 
 
 ## Pone el cuerpo en el estado dado, por ejemplo al restaurar una corrección.
@@ -68,8 +116,9 @@ func slide(state: ActorState, snap_length: float, dt: float) -> void:
 ## Sobre una base, la posición del estado es relativa: el cuerpo va a la pose
 ## que la base tiene ahora (al repetir ticks, eso es trabajar en coordenadas
 ## de la base).
-func apply_state(state: ActorState) -> bool:
-	var world := BaseRegistry.world_position(state)
+func apply_state(actor_state: ActorState) -> bool:
+	use_stance(actor_state.stance)
+	var world := BaseRegistry.world_position(actor_state)
 	global_position = world
 	# Un movimiento de velocidad cero refresca los indicadores según el
 	# contacto real; con el snap en 0 no arrastra el cuerpo hacia el piso.
@@ -80,19 +129,30 @@ func apply_state(state: ActorState) -> bool:
 	# Apoyado, el cuerpo queda a la distancia del margen, y al cuantizar puede
 	# quedar una fracción de milímetro más arriba: fuera del margen, el
 	# movimiento de arriba no ve el piso. El snap manual lo encuentra igual.
-	if state.on_floor and not is_on_floor():
+	if actor_state.on_floor and not is_on_floor():
 		floor_snap_length = RESTORE_SNAP_LENGTH
 		apply_floor_snap()
 		fits = fits and is_on_floor()
 	global_position = world
-	velocity = state.velocity
-	present(state)
+	velocity = actor_state.velocity
+	present(actor_state)
 	return fits
 
 
-## Presentación mínima: orienta el visual. No escribe nada en la simulación.
-func present(state: ActorState) -> void:
-	_visual.rotation.y = state.facing_yaw
+## Presentación mínima: orienta el visual y muestra la postura concedida. No
+## escribe nada en la simulación.
+func present(actor_state: ActorState) -> void:
+	_visual.rotation.y = actor_state.facing_yaw
+	for i in _bodies.size():
+		_bodies[i].visible = i == actor_state.stance
+	_nose.position.y = stance_height(actor_state.stance) - 0.3
+	# En el aire, cambiar de postura mueve los pies y deja la cabeza: el origen
+	# salta, no se mueve. Interpolarlo dibujaría la forma nueva desde los pies
+	# viejos, con la cabeza bajando o subiendo durante un tick.
+	if _presented_stance != -1 and actor_state.stance != _presented_stance \
+			and actor_state.mode == ActorState.Mode.AIR:
+		reset_physics_interpolation()
+	_presented_stance = actor_state.stance
 
 
 ## Dónde se ve el actor: el cuerpo más el desvío visual.

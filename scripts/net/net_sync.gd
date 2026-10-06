@@ -106,6 +106,7 @@ func _accept_snapshot(data: PackedByteArray) -> void:
 		return
 	var newest_known := maxi(_pending_snapshot_tick, latest_snapshot_tick)
 	if newest_known >= 0:
+		@warning_ignore("integer_division")
 		snapshots_missing += maxi(tick - newest_known - SNAPSHOT_INTERVAL_TICKS, 0) / SNAPSHOT_INTERVAL_TICKS
 	snapshots_received += 1
 	_pending_snapshot = data

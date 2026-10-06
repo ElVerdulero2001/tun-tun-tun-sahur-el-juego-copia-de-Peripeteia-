@@ -17,7 +17,7 @@ extends Node3D
 ## La huella final de la pasada en vivo tiene que dar igual a cualquier ritmo.
 
 const TICK_DT := 1.0 / 60.0
-const TIMEOUT_SECONDS := 150.0
+const TIMEOUT_SECONDS := 400.0
 ## Ritmos que recorre --rate=varying, uno cada RATE_SWITCH_FRAMES frames de física.
 const VARYING_RATES := [60, 72, 57, 66, 61, 69, 58, 64]
 const RATE_SWITCH_FRAMES := 7
@@ -48,6 +48,10 @@ var _failures: Array[String] = []
 var _ticks_ground := 0
 var _ticks_air := 0
 var _ticks_wall := 0
+var _ticks_slide := 0
+var _ticks_crouched := 0
+## Ticks agachado aunque pedía pararse: el techo no lo dejaba.
+var _ticks_kept_crouched := 0
 var _jumps := 0
 var _max_height := 0.0
 var _varying_rate := false
@@ -78,6 +82,7 @@ func _physics_process(_delta: float) -> void:
 	if _varying_rate:
 		_physics_frames += 1
 		if _physics_frames % RATE_SWITCH_FRAMES == 0:
+			@warning_ignore("integer_division")
 			SimClock.apply_tick_rate(VARYING_RATES[(_physics_frames / RATE_SWITCH_FRAMES) % VARYING_RATES.size()])
 	match _phase:
 		Phase.LIVE:
@@ -96,10 +101,17 @@ func _live_tick() -> void:
 	ActorMotor.step(_actor, _state, _inputs[_tick], _tuning, TICK_DT)
 	_live.append(_state.to_bytes())
 
-	if _state.mode == ActorState.Mode.GROUND:
-		_ticks_ground += 1
-	else:
-		_ticks_air += 1
+	match _state.mode:
+		ActorState.Mode.GROUND:
+			_ticks_ground += 1
+		ActorState.Mode.AIR:
+			_ticks_air += 1
+		ActorState.Mode.SLIDE:
+			_ticks_slide += 1
+	if _state.stance == ActorState.Stance.CROUCHED:
+		_ticks_crouched += 1
+		if _state.stance_wanted == ActorState.Stance.STANDING:
+			_ticks_kept_crouched += 1
 	if _actor.is_on_wall():
 		_ticks_wall += 1
 	if previous_vertical <= 0.0 and _state.velocity.y > 1.0:
@@ -150,7 +162,8 @@ func _replay(start: int, stop: int) -> void:
 
 func _finish() -> void:
 	_phase = Phase.DONE
-	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d tocando pared, %d saltos, altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_wall, _jumps, _max_height])
+	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d tocando pared, %d saltos, altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_wall, _jumps, _max_height])
+	print("%s postura: %d ticks agachado, %d de ellos pidiendo pararse sin lugar" % [LOG_PREFIX, _ticks_crouched, _ticks_kept_crouched])
 	print("%s %d repeticiones, %d ticks repetidos" % [LOG_PREFIX, _replays, _replayed_ticks])
 	var hashing := HashingContext.new()
 	hashing.start(HashingContext.HASH_SHA256)
@@ -174,13 +187,27 @@ func _on_timeout() -> void:
 	get_tree().quit(2)
 
 
-## Recorrido guionado por el laboratorio: piso, escalón, pared, esquina, costado
-## del túnel, rampa y caída desde la plataforma. Las posiciones son aproximadas;
-## lo que importa es tocar cosas y que el resultado se repita.
+## Recorrido guionado por el laboratorio: deslizamiento hasta frenar bajo el
+## techo del túnel largo, salida agachado, cambios de postura en el aire,
+## piso, escalón, pared, esquina, costado del túnel, rampa y caída desde la
+## plataforma. Las posiciones son aproximadas; lo que importa es tocar cosas y
+## que el resultado se repita.
 func _build_inputs() -> void:
+	var run := ActorInput.BUTTON_RUN
+	var crouch := ActorInput.BUTTON_CROUCH
 	var segments := [
-		# [ticks, ejes (x derecha, y adelante), yaw de la mirada, ticks del tramo con pulsación de salto]
+		# [ticks, ejes (x derecha, y adelante), yaw de la mirada, ticks del tramo con pulsación de salto, botones]
 		[30, Vector2.ZERO, 0.0, []],  # se asienta en el piso
+		[20, Vector2(0, 1), PI, [], run],  # corre hacia el túnel largo
+		[100, Vector2(0, 1), PI, [], run | crouch],  # se desliza adentro y frena agachado
+		[60, Vector2(0, 1), PI, [], 0],  # suelta agacharse: el techo lo deja agachado
+		[120, Vector2(0, 1), PI, [], 0],  # sale por la otra punta y se para solo
+		[20, Vector2.ZERO, 0.0, [], 0],  # frena
+		[10, Vector2.ZERO, 0.0, [0], 0],  # salta parado
+		[10, Vector2.ZERO, 0.0, [], crouch],  # se agacha en el aire: suben los pies
+		[50, Vector2.ZERO, 0.0, [], 0],  # se para en el aire, cae y aterriza
+		[450, Vector2(0, 1), 0.0, [], crouch],  # vuelve agachado por adentro del túnel
+		[10, Vector2.ZERO, 0.0, [], 0],  # se para afuera
 		[150, Vector2(0, 1), 0.0, []],  # camina hasta el escalón y lo empuja
 		[50, Vector2(0, 1), 0.0, [0, 30]],  # salta al escalón y sigue
 		[120, Vector2(0, 1), -PI / 2.0, []],  # gira a la derecha hasta la pared
@@ -194,9 +221,10 @@ func _build_inputs() -> void:
 	var presses := 0
 	var tick := 0
 	for segment in segments:
+		var buttons: int = segment[4] if segment.size() > 4 else 0
 		for i in segment[0]:
 			if i in segment[3]:
 				presses += 1
-			_inputs.append(ActorInput.make(tick, segment[1], segment[2], 0, presses))
+			_inputs.append(ActorInput.make(tick, segment[1], segment[2], buttons, presses))
 			tick += 1
 		_segment_ends.append(tick - 1)

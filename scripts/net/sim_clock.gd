@@ -78,6 +78,9 @@ var ticks_gained := 0.0
 var ticks_shed := 0.0
 ## Cliente: saltos de tick después de la primera sincronización.
 var resyncs := 0
+## Pausa para inspeccionar, solo jugando solo: no corre ningún tick, salvo los
+## que se pidan de a uno con step(). En red congelaría a una sola máquina.
+var paused := false
 
 var _ticks_since_ping := 0
 ## Pings recientes: [ida y vuelta en µs, adelanto medido al recibirlo, ajustes hechos hasta ese momento].
@@ -93,6 +96,13 @@ var _adjust_history_tick := PackedInt64Array()
 var _bad_estimates := 0
 ## Márgenes recientes: [tick del host, margen, _adjust_total al mandar ese input].
 var _margins: Array = []
+## Ticks pedidos con step() mientras está en pausa.
+var _steps_requested := 0
+
+
+## En pausa, corre un solo tick en el próximo frame de física.
+func step() -> void:
+	_steps_requested += 1
 
 
 ## Cambia cuántos ticks entran en un segundo real. time_scale compensa para
@@ -114,6 +124,10 @@ func _exit_tree() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	if paused:
+		if _steps_requested == 0:
+			return
+		_steps_requested -= 1
 	_run_tick()
 	if client_sync and synced:
 		_update_rate()
@@ -188,6 +202,7 @@ func report_input_margin(host_tick: int, margin: int) -> void:
 ## y deja de acelerar apenas lo ganado alcanza, sin esperar el ida y vuelta
 ## que tarda el host en confirmarlo.
 func _update_rate() -> void:
+	@warning_ignore("integer_division")
 	if _margins.is_empty() or _margins[-1][0] - _margins[0][0] < MARGIN_WINDOW_TICKS / 2:
 		_set_rate(TICK_RATE)
 		return

@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/actor/scripted_platform.gd" id="1_platform"]
 [ext_resource type="Script" path="res://scripts/actor/host_raft.gd" id="2_raft"]
+[ext_resource type="Script" path="res://scenes/net_lab/measure_wall.gd" id="3_measure"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_lab"]
 
@@ -80,6 +81,30 @@ size = Vector3(4, 0.3, 4)
 [sub_resource type="BoxMesh" id="BoxMesh_slab"]
 material = SubResource("StandardMaterial3D_tunnel")
 size = Vector3(4, 0.3, 4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_long_wall"]
+size = Vector3(0.5, 1.2, 10)
+
+[sub_resource type="BoxMesh" id="BoxMesh_long_wall"]
+material = SubResource("StandardMaterial3D_tunnel")
+size = Vector3(0.5, 1.2, 10)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_long_slab"]
+size = Vector3(4, 0.3, 10)
+
+[sub_resource type="BoxMesh" id="BoxMesh_long_slab"]
+material = SubResource("StandardMaterial3D_tunnel")
+size = Vector3(4, 0.3, 10)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_measure"]
+albedo_color = Color(0.92, 0.9, 0.82, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_measure"]
+size = Vector3(4, 3.5, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_measure"]
+material = SubResource("StandardMaterial3D_measure")
+size = Vector3(4, 3.5, 0.2)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_base"]
 albedo_color = Color(0.85, 0.5, 0.2, 1)
@@ -194,6 +219,43 @@ shape = SubResource("BoxShape3D_slab")
 
 [node name="Mesh" type="MeshInstance3D" parent="TunnelSlab"]
 mesh = SubResource("BoxMesh_slab")
+
+[node name="MeasureWall" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 1.75, 5)
+script = ExtResource("3_measure")
+
+[node name="Shape" type="CollisionShape3D" parent="MeasureWall"]
+shape = SubResource("BoxShape3D_measure")
+
+[node name="Mesh" type="MeshInstance3D" parent="MeasureWall"]
+mesh = SubResource("BoxMesh_measure")
+
+[node name="LongTunnelLeft" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.75, 0.6, 19)
+
+[node name="Shape" type="CollisionShape3D" parent="LongTunnelLeft"]
+shape = SubResource("BoxShape3D_long_wall")
+
+[node name="Mesh" type="MeshInstance3D" parent="LongTunnelLeft"]
+mesh = SubResource("BoxMesh_long_wall")
+
+[node name="LongTunnelRight" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.75, 0.6, 19)
+
+[node name="Shape" type="CollisionShape3D" parent="LongTunnelRight"]
+shape = SubResource("BoxShape3D_long_wall")
+
+[node name="Mesh" type="MeshInstance3D" parent="LongTunnelRight"]
+mesh = SubResource("BoxMesh_long_wall")
+
+[node name="LongTunnelSlab" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.35, 19)
+
+[node name="Shape" type="CollisionShape3D" parent="LongTunnelSlab"]
+shape = SubResource("BoxShape3D_long_slab")
+
+[node name="Mesh" type="MeshInstance3D" parent="LongTunnelSlab"]
+mesh = SubResource("BoxMesh_long_slab")
 
 [node name="Vagon" type="AnimatableBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, -0.13, 0)

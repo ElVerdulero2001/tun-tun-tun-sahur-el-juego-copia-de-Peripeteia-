@@ -198,8 +198,10 @@ func _on_timeout() -> void:
 ## techo del túnel largo, salida agachado, cambios de postura en el aire,
 ## piso, escalón, pared, esquina, costado del túnel, rampa, caída desde la
 ## plataforma y su escalera (agarrarse, subir, salir arriba, volver a
-## agarrarse, saltar, y dos empujones: uno débil y uno fuerte). Las posiciones
-## son aproximadas; lo que importa es tocar cosas y que el resultado se repita.
+## agarrarse, saltar, y dos empujones: uno débil y uno fuerte), y la pista de
+## escalones (uno que no se sube y las dos escaleras, subiendo y bajando). Las
+## posiciones son aproximadas; lo que importa es tocar cosas y que el
+## resultado se repita.
 func _build_inputs() -> void:
 	var run := ActorInput.BUTTON_RUN
 	var crouch := ActorInput.BUTTON_CROUCH
@@ -216,8 +218,8 @@ func _build_inputs() -> void:
 		[50, Vector2.ZERO, 0.0, [], 0],  # se para en el aire, cae y aterriza
 		[450, Vector2(0, 1), 0.0, [], crouch],  # vuelve agachado por adentro del túnel
 		[10, Vector2.ZERO, 0.0, [], 0],  # se para afuera
-		[150, Vector2(0, 1), 0.0, []],  # camina hasta el escalón y lo empuja
-		[50, Vector2(0, 1), 0.0, [0, 30]],  # salta al escalón y sigue
+		[150, Vector2(0, 1), 0.0, []],  # camina hasta el escalón de 25 cm, lo sube y baja del otro lado
+		[50, Vector2(0, 1), 0.0, [0, 30]],  # salta y sigue
 		[120, Vector2(0, 1), -PI / 2.0, []],  # gira a la derecha hasta la pared
 		[140, Vector2(0, 1), -PI / 4.0, []],  # en diagonal contra la pared, hasta la esquina
 		[90, Vector2(0, 1), PI / 2.0, [0, 25, 50, 75]],  # hacia la izquierda saltando, contra el túnel
@@ -236,6 +238,22 @@ func _build_inputs() -> void:
 		[80, Vector2(0.5, 0.86), PI, [], 0],  # vuelve en diagonal, se agarra y sube un poco
 		[6, Vector2(0, 1), PI, [0], 0],  # salta de la escalera
 		[40, Vector2(0, 1), PI, [], 0],  # empuja hacia ella con el bloqueo de reagarre puesto
+		[30, Vector2.ZERO, 0.0, [], 0],  # se queda quieto
+		# Pista de escalones, detrás de donde se aparece:
+		[30, Vector2(0, 1), PI, [], 0],  # sale por arriba de la escalera a la plataforma
+		[170, Vector2(0, 1), PI, [], 0],  # baja de la plataforma, baja la rampa y sigue
+		[40, Vector2(0, 1), -PI / 2.0, [], 0],  # a la derecha, para pasar por el costado de la pared de medidas
+		[100, Vector2(0, 1), PI, [], 0],  # hacia atrás, hasta delante de la pista
+		[106, Vector2(0, 1), PI / 2.0, [], 0],  # a la izquierda, por delante de los escalones sueltos
+		[60, Vector2(0, 1), PI, [], 0],  # contra el de 40 cm, que no se sube
+		[14, Vector2(0, 1), 0.0, [], 0],  # se aleja
+		[47, Vector2(0, 1), PI / 2.0, [], 0],  # a la izquierda, hasta la escalera sin rampa
+		[58, Vector2(0, 1), PI, [], 0],  # la sube, escalón por escalón
+		[20, Vector2.ZERO, 0.0, [], 0],  # se queda arriba
+		[70, Vector2(0, 1), 0.0, [], 0],  # la baja: sin rampa, cae por encima de los escalones
+		[39, Vector2(0, 1), PI / 2.0, [], 0],  # a la izquierda, hasta la escalera con rampa
+		[82, Vector2(0, 1), PI, [], 0],  # la sube por la rampa
+		[82, Vector2(0, 1), 0.0, [], 0],  # la baja por la rampa, siempre en Suelo
 		[30, Vector2.ZERO, 0.0, [], 0],  # se queda quieto
 	]
 	var presses := 0

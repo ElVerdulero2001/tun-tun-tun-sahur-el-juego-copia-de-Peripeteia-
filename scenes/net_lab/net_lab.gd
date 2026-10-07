@@ -157,6 +157,11 @@ var _crouch_jump_start := -1
 ## ya llegó arriba.
 var _ladder_direction := 1.0
 var _ladder_top_done := false
+## Prueba `steps`: punto del recorrido al que va, ticks desde que lo empezó y
+## la altura más alta de los pies.
+var _steps_index := 0
+var _steps_since := 0
+var _steps_max_height := 0.0
 ## Aviso que se muestra arriba del panel hasta _flash_until_msec.
 var _flash_text := ""
 var _flash_until_msec := 0
@@ -391,6 +396,8 @@ func _local_input(tick: int) -> ActorInput:
 		return _hop_input(tick, test_input.trim_prefix("walkoff:").to_int(), 2.5, false)
 	if test_input == "tunnel":
 		return _tunnel_input(tick)
+	if test_input == "steps":
+		return _steps_input(tick)
 	if test_input == "crouchjump":
 		return _crouch_jump_input(tick)
 	if test_input == "ladder" or test_input == "laddertop":
@@ -466,6 +473,33 @@ func _hop_input(tick: int, base_id: int, side: float, jump: bool) -> ActorInput:
 	var to := Vector2(target.x - me.x, target.z - me.z)
 	var move := Vector2(to.x, -to.y).limit_length(1.0) if to.length() > 0.15 else Vector2.ZERO
 	return ActorInput.make(tick, move, 0.0, 0, _ride_presses)
+
+
+## Prueba de escalones en la pista (origen en x -4, z 12): cruza los escalones
+## sueltos de 10, 20 y 30 cm, choca contra el de 40 hasta que se le acaba el
+## tiempo, y sube y baja las dos escaleras, la sin rampa y la con rampa. Cada
+## punto es [x, z, ticks como máximo para llegar].
+const STEPS_ROUTE := [
+	[-4.0, 10.5, 300], [-4.0, 15.0, 240], [-6.5, 15.0, 240], [-6.5, 10.5, 240],
+	[-9.0, 10.5, 240], [-9.0, 15.0, 240], [-9.0, 10.5, 240], [-11.5, 10.5, 240],
+	[-11.5, 15.0, 90], [-15.25, 10.5, 240], [-15.25, 15.5, 240], [-15.25, 10.5, 240],
+	[-18.25, 10.5, 240], [-18.25, 15.5, 240], [-18.25, 10.5, 240],
+]
+
+
+func _steps_input(tick: int) -> ActorInput:
+	if not is_instance_valid(_local_actor) or _steps_index >= STEPS_ROUTE.size():
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
+	var me := BaseRegistry.world_position(_local_actor.state)
+	_steps_max_height = maxf(_steps_max_height, me.y)
+	var point: Array = STEPS_ROUTE[_steps_index]
+	var to := Vector2(point[0] - me.x, point[1] - me.z)
+	_steps_since += 1
+	if to.length() < 0.3 or _steps_since > point[2]:
+		_steps_index += 1
+		_steps_since = 0
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
+	return ActorInput.make(tick, Vector2(to.x, -to.y).limit_length(1.0), 0.0, 0, 0)
 
 
 ## Prueba de postura en el túnel largo (techo a 1,2 m, de z 14 a z 24): se
@@ -998,6 +1032,8 @@ func _print_summary_and_quit() -> void:
 		print("[net_lab] reapariciones: %d" % respawns)
 	if test_input == "tunnel":
 		print("[net_lab] túnel: llegó al tramo %d; ticks parado bajo el techo: %d" % [_tunnel_phase, _tunnel_standing_under_roof])
+	if test_input == "steps":
+		print("[net_lab] escalones: punto %d de %d; pies a %.2f m como máximo" % [_steps_index, STEPS_ROUTE.size(), _steps_max_height])
 	for peer in _adoption.peers():
 		print("[net_lab] adopción del jugador %d: prendida=%s empujones=%d iguales=%d adoptadas=%d (máx %.3f m) rechazadas: época=%d distancia=%d pose=%d apagada=%d sin_afirmación=%d" % [
 			peer, _adoption.enabled, pushes,

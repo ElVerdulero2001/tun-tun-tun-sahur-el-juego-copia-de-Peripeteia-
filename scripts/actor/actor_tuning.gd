@@ -18,6 +18,9 @@ extends Resource
 @export var sprint_speed := 8.0
 ## Velocidad con postura agachada.
 @export var crouch_speed := 2.5
+## Escalón más alto que sube caminando, en metros. Igual al snap, así sube y
+## baja los mismos escalones. 0 lo apaga.
+@export var step_height := 0.3
 
 @export_group("Deslizamiento")
 ## Rapidez horizontal mínima para empezar a deslizarse desde Suelo, en m/s.

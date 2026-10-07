@@ -8,8 +8,9 @@ extends RefCounted
 ## Sigue el orden fijo de etapas de la arquitectura. Por ahora existen los modos
 ## Suelo, Aire, Deslizamiento y Ladder, y la postura (parado o agachado). La
 ## etapa de sondas (4) todavía no es una etapa aparte: la de suelo corre en la
-## de contactos, la de espacio libre en la de postura y la de escalera en la
-## de transición, que es la única que la usa.
+## de contactos, la de espacio libre en la de postura, la de escalera en la
+## de transición, que es la única que la usa, y la de escalón en la de
+## movimiento, porque necesita saber si el movimiento chocó.
 ##
 ## Sobre una base (plataforma, balsa), la posición y la velocidad del estado
 ## son relativas a ella. La base no se rebobina al repetir ticks: si se repiten,
@@ -20,6 +21,8 @@ static var _probe_params: PhysicsShapeQueryParameters3D
 
 
 static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
+	body.stepped_up = 0.0
+
 	# 1. Tiempo: todo lo que dura se descuenta en tiempo del actor.
 	state.coyote_left = maxf(state.coyote_left - dt, 0.0)
 	state.jump_buffer_left = maxf(state.jump_buffer_left - dt, 0.0)
@@ -100,7 +103,8 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 
 	# 7. Postura y movimiento. Deslizamiento siempre pide agachado; en la
 	# escalera se va parado; si no, lo pide el input. Los modos libres mueven
-	# con move_and_slide(), sin snap en el aire; Ladder, con un barrido.
+	# con move_and_slide(), sin snap en el aire; Ladder, con un barrido. En
+	# Suelo, si el movimiento chocó, la sonda de escalón prueba subirlo.
 	var wanted := ActorState.Stance.STANDING
 	if state.mode == ActorState.Mode.SLIDE or (crouch_held and state.mode != ActorState.Mode.LADDER):
 		wanted = ActorState.Stance.CROUCHED
@@ -109,7 +113,11 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		_move_on_ladder(body, state)
 	else:
 		var snap := 0.0 if state.mode == ActorState.Mode.AIR else tuning.floor_snap_length
+		var start := body.global_transform
+		var wish := state.velocity
 		body.slide(state, snap, dt)
+		if state.mode == ActorState.Mode.GROUND:
+			_step_up(body, state, start, wish, tuning, dt)
 
 	# 8. Contactos: los indicadores de Godot pasan al estado, y la sonda de
 	# suelo dice sobre qué base quedó parado. Al cambiar de base, la velocidad
@@ -209,6 +217,72 @@ static func _resolve_stance(body: ActorBody, state: ActorState, wanted: int) -> 
 	state.stance = wanted
 	body.global_position = feet
 	body.use_stance(wanted)
+
+
+## Sonda de escalón de Suelo, en la etapa 7: el movimiento normal chocó contra
+## algo. Desde donde arrancó el tick prueba subir hasta step_height, avanzar y
+## bajar, y lo acepta solo si cae más arriba, en suelo caminable, y llega más
+## lejos que el movimiento normal. Es un snap lógico: el cuerpo queda arriba en
+## este tick, y la presentación reparte la subida.
+##
+## La parte de abajo de la cápsula es redonda: apoyada sobre el filo de un
+## escalón, solo cuenta como suelo si el centro ya se acercó bastante al filo.
+## Por eso, al subir, se acerca al escalón como mínimo eso, aunque vaya
+## despacio o en diagonal. Y por lo mismo, el alto del escalón no sale de la
+## cápsula, que puede quedar apoyada en el filo más abajo, sino de un rayo
+## sobre la superficie que pisa.
+static func _step_up(body: ActorBody, state: ActorState, start: Transform3D, wish: Vector3, tuning: ActorTuning, dt: float) -> void:
+	if tuning.step_height <= 0.0 or not body.is_on_wall():
+		return
+	var motion := Vector3(wish.x, 0.0, wish.z) * dt
+	if motion.length_squared() < 1e-8:
+		return
+	var direction := motion.normalized()
+	var wall := body.get_wall_normal()
+	var into := -Vector3(wall.x, 0.0, wall.z).normalized()
+	var advanced := (body.global_position - start.origin).dot(direction)
+	var reach := body.capsule_radius() * (1.0 - sin(body.floor_max_angle)) + 0.01
+	var forward := motion + into * maxf(reach - motion.dot(into), 0.0)
+	var hit := KinematicCollision3D.new()
+	var rise := tuning.step_height
+	if body.test_move(start, Vector3.UP * rise, hit):
+		rise = hit.get_travel().y
+	if rise < 0.01:
+		return
+	var raised := start.translated(Vector3.UP * rise)
+	var travel := forward
+	if body.test_move(raised, forward, hit):
+		travel = hit.get_travel()
+	if travel.dot(direction) <= advanced + 0.001:
+		return
+	var above := raised.translated(travel)
+	if not body.test_move(above, Vector3.DOWN * rise, hit):
+		return
+	if hit.get_normal().angle_to(Vector3.UP) > body.floor_max_angle:
+		return
+	var landing := above.origin + hit.get_travel()
+	var gained := landing.y - start.origin.y
+	if gained < 0.01:
+		return
+	# Lo que pisa: un rayo justo pasando el punto de apoyo, desde la altura del
+	# centro de la parte redonda. Tiene que ser suelo caminable, más arriba que
+	# los pies y a no más de step_height del piso de partida.
+	var spot := hit.get_position() + into * 0.02
+	var ray := PhysicsRayQueryParameters3D.create(
+			Vector3(spot.x, landing.y + body.capsule_radius(), spot.z),
+			Vector3(spot.x, start.origin.y, spot.z), body.collision_mask, [body.get_rid()])
+	var ground := body.get_world_3d().direct_space_state.intersect_ray(ray)
+	if ground.is_empty():
+		return
+	var top: float = ground["position"].y
+	if top < landing.y - 0.005 or top - start.origin.y > tuning.step_height + 0.005:
+		return
+	if (ground["normal"] as Vector3).angle_to(Vector3.UP) > body.floor_max_angle:
+		return
+	body.global_position = landing
+	body.settle_on_floor(tuning.floor_snap_length)
+	state.velocity = Vector3(wish.x, 0.0, wish.z)
+	body.stepped_up += gained
 
 
 ## Etapa 2: si el actor está sobre una base, lo lleva hasta donde quedó la base

@@ -19,6 +19,8 @@ const INPUT_HISTORY_TICKS := 120
 ## Cuantización de la pose de las bases del host en el snapshot.
 const BASE_POSITION_STEP := 0.0001
 const BASE_VELOCITY_STEP := 0.001
+## Cuantización del impulso de un evento programado.
+const IMPULSE_STEP := 0.001
 
 ## Simulador de red (paso 5). Todo lo que se manda o se recibe pasa por acá.
 var link: LinkSimulator
@@ -29,6 +31,9 @@ var acked_input_tick := -1
 ## Cliente: snapshots aceptados y snapshots que nunca llegaron a tiempo.
 var snapshots_received := 0
 var snapshots_missing := 0
+## Cliente: eventos programados que llegaron y todavía no tomó el juego, como
+## [tick, impulso, fuerza].
+var received_events: Array = []
 
 # Cliente
 var _pending_snapshot := PackedByteArray()
@@ -38,6 +43,7 @@ var _inputs := {}  # peer -> {tick: ActorInput}
 var _claims := {}  # peer -> {tick: estado afirmado, en bytes}
 var _latest_input := {}  # peer -> ActorInput con el tick más alto recibido
 var _used_input_tick := {}  # peer -> tick del input usado en el último tick simulado
+var _peer_rtt_ms := {}  # peer -> ida y vuelta que midió ese cliente, en ms
 
 
 func _ready() -> void:
@@ -48,8 +54,11 @@ func _ready() -> void:
 
 ## Manda al host los ticks predichos más recientes: por cada uno, el input y
 ## la afirmación ([ActorInput, estado en bytes], del más viejo al más nuevo).
-func send_ticks(records: Array) -> void:
+## Adelante va la ida y vuelta que mide el cliente: con eso el host calcula
+## con cuánta anticipación programar un evento para él.
+func send_ticks(records: Array, rtt_ms: float) -> void:
 	var b := StreamPeerBuffer.new()
+	b.put_u16(clampi(roundi(rtt_ms), 0, 65535))
 	b.put_u8(records.size())
 	for record in records:
 		var claim: PackedByteArray = record[1]
@@ -131,6 +140,7 @@ func _accept_inputs(peer_id: int, data: PackedByteArray) -> void:
 	var claims: Dictionary = _claims[peer_id]
 	var b := StreamPeerBuffer.new()
 	b.data_array = data
+	_peer_rtt_ms[peer_id] = float(b.get_u16())
 	var count := b.get_u8()
 	for i in count:
 		var input := ActorInput.read_from(b)
@@ -176,6 +186,44 @@ func claim_for(peer_id: int, tick: int) -> PackedByteArray:
 func input_margin_ticks(peer_id: int, tick: int) -> int:
 	var latest: ActorInput = _latest_input.get(peer_id)
 	return latest.tick - tick if latest != null else 0
+
+
+## La ida y vuelta que dice medir un jugador, en ms (con la red simulada incluida).
+func peer_rtt_ms(peer_id: int) -> float:
+	return _peer_rtt_ms.get(peer_id, 0.0)
+
+
+## Host: anuncia a un jugador un evento programado, un impulso con su fuerza
+## para el tick `tick`. Va por un canal confiable: no se puede perder.
+func send_scheduled_event(peer_id: int, tick: int, impulse: Vector3, force: int) -> void:
+	var b := StreamPeerBuffer.new()
+	b.put_32(tick)
+	_put_vector(b, impulse, IMPULSE_STEP)
+	b.put_u8(force)
+	var data := b.data_array
+	_send_reliable(func() -> void: _receive_scheduled_event.rpc_id(peer_id, data))
+
+
+## Cliente: lo que se recibió con el impulso ya cuantizado, como lo usa el host.
+static func quantize_impulse(impulse: Vector3) -> Vector3:
+	var b := StreamPeerBuffer.new()
+	_put_vector(b, impulse, IMPULSE_STEP)
+	b.seek(0)
+	return _get_vector(b, IMPULSE_STEP)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _receive_scheduled_event(data: PackedByteArray) -> void:
+	_receive_reliable(_accept_scheduled_event.bind(data))
+
+
+func _accept_scheduled_event(data: PackedByteArray) -> void:
+	var b := StreamPeerBuffer.new()
+	b.data_array = data
+	var tick := b.get_32()
+	var impulse := _get_vector(b, IMPULSE_STEP)
+	var force := b.get_u8()
+	received_events.append([tick, impulse, force])
 
 
 ## Manda a todos los clientes el estado de todos los actores en este tick, y la
@@ -225,6 +273,7 @@ func forget_peer(peer_id: int) -> void:
 	_claims.erase(peer_id)
 	_latest_input.erase(peer_id)
 	_used_input_tick.erase(peer_id)
+	_peer_rtt_ms.erase(peer_id)
 
 
 # --- Paso por el simulador de red -------------------------------------------
@@ -245,6 +294,25 @@ func _send(packet: Callable) -> void:
 func _receive(packet: Callable) -> void:
 	if link != null:
 		link.deliver(packet)
+	else:
+		packet.call()
+
+
+## Como _send() y _receive(), para el canal confiable: el simulador lo demora
+## pero no lo pierde, igual que ENet, que reenvía lo confiable hasta que llega.
+func _send_reliable(packet: Callable) -> void:
+	var guarded := func() -> void:
+		if _is_connected():
+			packet.call()
+	if link != null:
+		link.deliver_reliable(guarded)
+	else:
+		guarded.call()
+
+
+func _receive_reliable(packet: Callable) -> void:
+	if link != null:
+		link.deliver_reliable(packet)
 	else:
 		packet.call()
 

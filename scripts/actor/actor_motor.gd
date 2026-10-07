@@ -6,9 +6,10 @@ extends RefCounted
 ## se puede repetir después de restaurar el estado.
 ##
 ## Sigue el orden fijo de etapas de la arquitectura. Por ahora existen los modos
-## Suelo, Aire y Deslizamiento, y la postura (parado o agachado). Todavía no
-## hace falta la etapa de sondas (4): la de suelo corre en la etapa de
-## contactos y la de espacio libre, en la de postura.
+## Suelo, Aire, Deslizamiento y Ladder, y la postura (parado o agachado). La
+## etapa de sondas (4) todavía no es una etapa aparte: la de suelo corre en la
+## de contactos, la de espacio libre en la de postura y la de escalera en la
+## de transición, que es la única que la usa.
 ##
 ## Sobre una base (plataforma, balsa), la posición y la velocidad del estado
 ## son relativas a ella. La base no se rebobina al repetir ticks: si se repiten,
@@ -22,6 +23,9 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	# 1. Tiempo: todo lo que dura se descuenta en tiempo del actor.
 	state.coyote_left = maxf(state.coyote_left - dt, 0.0)
 	state.jump_buffer_left = maxf(state.jump_buffer_left - dt, 0.0)
+	state.regrab_left = maxf(state.regrab_left - dt, 0.0)
+	if state.regrab_left == 0.0:
+		state.regrab_id = 0
 
 	# 2. Base: la base se movió desde el tick anterior y lleva al actor.
 	_ride_base(body, state)
@@ -33,8 +37,10 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		state.jump_buffer_left = tuning.jump_buffer_time
 
 	# 5. Transición: como máximo una por tick, decidida por la situación actual.
+	# Cada modo revisa su lista de salidas en orden de prioridad.
 	var wants_jump := state.jump_buffer_left > 0.0
 	var crouch_held := input.is_held(ActorInput.BUTTON_CROUCH)
+	var direction := _wish_direction(input)
 	match state.mode:
 		ActorState.Mode.GROUND:
 			if wants_jump:
@@ -42,6 +48,8 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 			elif not state.on_floor:
 				state.mode = ActorState.Mode.AIR
 				state.coyote_left = tuning.coyote_time
+			elif _try_grab_ladder(body, state, direction):
+				pass
 			elif crouch_held and state.stance == ActorState.Stance.STANDING \
 					and _horizontal_speed(state) >= tuning.slide_entry_speed:
 				state.mode = ActorState.Mode.SLIDE
@@ -50,6 +58,8 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				state.mode = ActorState.Mode.GROUND
 			elif wants_jump and state.coyote_left > 0.0:
 				_jump(state, tuning)
+			else:
+				_try_grab_ladder(body, state, direction)
 		ActorState.Mode.SLIDE:
 			if wants_jump:
 				_jump(state, tuning)
@@ -58,9 +68,21 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				state.coyote_left = tuning.coyote_time
 			elif _horizontal_speed(state) < tuning.slide_min_speed:
 				state.mode = ActorState.Mode.GROUND
+		ActorState.Mode.LADDER:
+			var ladder := Ladder.find(state.anchor_id)
+			var toward := direction.dot(-ladder.outward()) if ladder != null else 0.0
+			if ladder == null:
+				# Invariante roto: la escalera ya no existe. Sale al respaldo.
+				_leave_anchor(state, tuning, Vector3.ZERO, false)
+			elif wants_jump:
+				_leave_anchor(state, tuning,
+						ladder.outward() * tuning.ladder_jump_out + ladder.up() * tuning.ladder_jump_up, true)
+			elif state.anchor_t <= 0.0 and toward < -0.5:
+				_leave_anchor(state, tuning, Vector3.ZERO, false)
+			elif state.anchor_t >= ladder.height and toward > 0.5:
+				_climb_out_top(body, state, ladder, tuning)
 
 	# 6. Modo: el modo activo decide la velocidad.
-	var direction := _wish_direction(input)
 	match state.mode:
 		ActorState.Mode.GROUND:
 			_ground(state, direction * _ground_speed(state, input, tuning), tuning, dt)
@@ -68,26 +90,34 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 			_air(state, direction, tuning, dt)
 		ActorState.Mode.SLIDE:
 			_slide(state, direction, tuning, dt)
+		ActorState.Mode.LADDER:
+			_ladder(state, direction, tuning, dt)
 	if state.mode == ActorState.Mode.SLIDE:
 		if _horizontal_speed(state) > 0.01:
 			state.facing_yaw = _yaw_of(state.velocity)
-	elif direction.length_squared() > 0.0001:
+	elif state.mode != ActorState.Mode.LADDER and direction.length_squared() > 0.0001:
 		state.facing_yaw = _yaw_of(direction)
 
-	# 7. Postura y movimiento. Deslizamiento siempre pide agachado; si no, lo
-	# pide el input. El snap al piso no existe en el aire.
-	var wanted := ActorState.Stance.CROUCHED if crouch_held or state.mode == ActorState.Mode.SLIDE \
-			else ActorState.Stance.STANDING
+	# 7. Postura y movimiento. Deslizamiento siempre pide agachado; en la
+	# escalera se va parado; si no, lo pide el input. Los modos libres mueven
+	# con move_and_slide(), sin snap en el aire; Ladder, con un barrido.
+	var wanted := ActorState.Stance.STANDING
+	if state.mode == ActorState.Mode.SLIDE or (crouch_held and state.mode != ActorState.Mode.LADDER):
+		wanted = ActorState.Stance.CROUCHED
 	_resolve_stance(body, state, wanted)
-	var snap := 0.0 if state.mode == ActorState.Mode.AIR else tuning.floor_snap_length
-	body.slide(state, snap, dt)
+	if state.mode == ActorState.Mode.LADDER:
+		_move_on_ladder(body, state)
+	else:
+		var snap := 0.0 if state.mode == ActorState.Mode.AIR else tuning.floor_snap_length
+		body.slide(state, snap, dt)
 
 	# 8. Contactos: los indicadores de Godot pasan al estado, y la sonda de
 	# suelo dice sobre qué base quedó parado. Al cambiar de base, la velocidad
 	# pasa al marco de la nueva: quien deja una base se lleva su velocidad.
 	# Todo se cuantiza, y el cuerpo arranca el tick siguiente desde la posición
-	# cuantizada, igual que arrancaría después de restaurar.
-	state.on_floor = body.is_on_floor()
+	# cuantizada, igual que arrancaría después de restaurar. En la escalera no
+	# hubo move_and_slide(): los indicadores de Godot quedaron viejos.
+	state.on_floor = body.is_on_floor() and state.mode != ActorState.Mode.LADDER
 	state.floor_normal = body.get_floor_normal() if state.on_floor else Vector3.UP
 	var base_now := _probe_base(body) if state.on_floor else 0
 	if base_now != state.base_id:
@@ -225,14 +255,121 @@ static func _probe_base(body: ActorBody) -> int:
 	return best
 
 
-## Empujón: un evento del host, que lo aplica al empezar el tick, antes del
-## paso. Suma el impulso y pasa a Aire como el salto, así el snap no lo vuelve
-## a pegar al piso. Quien lo aplica también sube la época del actor.
-static func push(state: ActorState, impulse: Vector3) -> void:
+## Impulso de afuera, como un empujón, con su fuerza de 0 a 5. Es un evento:
+## lo aplica quien lo maneja al empezar el tick, antes del paso, y sube la
+## época del actor. Regla de fuerza contra agarre: en los modos libres
+## (agarre 0) se suma y pasa a Aire, como el salto, así el snap no lo vuelve a
+## pegar al piso. En un modo anclado, si la fuerza alcanza el agarre, se
+## suelta y sale a Aire con el impulso y un bloqueo de reagarre; si no, el
+## modo lo proyecta sobre lo que puede moverse (en Ladder, sobre el eje) y el
+## resto se descarta.
+static func apply_impulse(state: ActorState, impulse: Vector3, force: int, tuning: ActorTuning) -> void:
+	if state.mode == ActorState.Mode.LADDER:
+		if force >= tuning.ladder_grip:
+			_leave_anchor(state, tuning, impulse, true)
+		else:
+			state.velocity += impulse
+		return
 	state.velocity += impulse
 	state.mode = ActorState.Mode.AIR
 	state.jump_buffer_left = 0.0
 	state.coyote_left = 0.0
+
+
+## Para validar una afirmación en un modo anclado: el ancla existe, el
+## parámetro está en rango y el cuerpo está en la pose que le corresponde.
+static func anchored_pose_valid(state: ActorState) -> bool:
+	if state.mode != ActorState.Mode.LADDER:
+		return true
+	var ladder := Ladder.find(state.anchor_id)
+	if ladder == null or state.anchor_t < 0.0 or state.anchor_t > ladder.height:
+		return false
+	return BaseRegistry.world_position(state).distance_to(ladder.pose_at(state.anchor_t)) <= 0.1
+
+
+## Ladder desde Suelo o Aire: dentro del volumen de una escalera y con
+## intención de ir hacia ella. Con varias, gana la de id más chico, así todas
+## las máquinas eligen la misma. La que se acaba de soltar está bloqueada un rato.
+static func _try_grab_ladder(body: ActorBody, state: ActorState, direction: Vector3) -> bool:
+	if direction.length_squared() < 0.01:
+		return false
+	var ladders := Ladder.all()
+	ladders.sort_custom(func(a: Ladder, b: Ladder) -> bool: return a.ladder_id < b.ladder_id)
+	for ladder: Ladder in ladders:
+		if ladder.ladder_id == state.regrab_id:
+			continue
+		var t := ladder.height_for(body.global_position)
+		if t < 0.0 or direction.dot(-ladder.outward()) < 0.5:
+			continue
+		state.mode = ActorState.Mode.LADDER
+		state.anchor_id = ladder.ladder_id
+		state.anchor_t = t
+		state.velocity = Vector3.ZERO
+		state.jump_buffer_left = 0.0
+		state.coyote_left = 0.0
+		return true
+	return false
+
+
+## Sale de un ancla a Aire con una velocidad. Si `block`, no se la puede
+## volver a agarrar por un rato (salto o empujón: todavía está al alcance).
+static func _leave_anchor(state: ActorState, tuning: ActorTuning, velocity: Vector3, block: bool) -> void:
+	if block:
+		state.regrab_id = state.anchor_id
+		state.regrab_left = tuning.regrab_block_time
+	state.mode = ActorState.Mode.AIR
+	state.velocity = velocity
+	state.anchor_id = 0
+	state.anchor_t = 0.0
+	state.jump_buffer_left = 0.0
+	state.coyote_left = 0.0
+
+
+## Ladder: la velocidad va sobre el eje. Empujar hacia la escalera sube y
+## alejarse baja; de costado no hace nada. Lo que llegó de afuera (un empujón
+## menor al agarre) queda proyectado sobre el eje y se va frenando.
+static func _ladder(state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> void:
+	var ladder := Ladder.find(state.anchor_id)
+	if ladder == null:
+		return
+	var along := state.velocity.dot(ladder.up())
+	var wish := clampf(direction.dot(-ladder.outward()), -1.0, 1.0) * tuning.climb_speed
+	along = move_toward(along, wish, tuning.climb_accel * dt)
+	var t := state.anchor_t + along * dt
+	if t <= 0.0 or t >= ladder.height:
+		along = 0.0
+	state.anchor_t = clampf(t, 0.0, ladder.height)
+	state.velocity = ladder.up() * along
+	state.facing_yaw = _yaw_of(-ladder.outward())
+
+
+## Etapa 7 en Ladder: un barrido hasta la pose de la altura pedida. Si algo lo
+## frena, la altura queda donde llegó.
+static func _move_on_ladder(body: ActorBody, state: ActorState) -> void:
+	var ladder := Ladder.find(state.anchor_id)
+	if ladder == null:
+		return
+	var motion := ladder.pose_at(state.anchor_t) - body.global_position
+	if motion.length_squared() < 1e-12:
+		return
+	if body.move_and_collide(motion) != null:
+		var climbed := (body.global_position - ladder.pose_at(0.0)).dot(ladder.up())
+		state.anchor_t = clampf(climbed, 0.0, ladder.height)
+		state.velocity = Vector3.ZERO
+
+
+## Salida por arriba: una trayectoria autorada de dos tramos, un poco hacia
+## arriba y después hacia adentro sobre el borde. Se valida antes con
+## test_move(); si algo la tapa, sigue en la escalera. Termina en Aire, a pocos
+## centímetros del piso de arriba: el tick siguiente aterriza.
+static func _climb_out_top(body: ActorBody, state: ActorState, ladder: Ladder, tuning: ActorTuning) -> void:
+	var rise := ladder.up() * 0.05
+	var inward := -ladder.outward() * (ladder.standoff + tuning.ladder_top_step)
+	var start := body.global_transform
+	if body.test_move(start, rise) or body.test_move(start.translated(rise), inward):
+		return
+	body.global_position += rise + inward
+	_leave_anchor(state, tuning, Vector3.ZERO, false)
 
 
 ## Impulso que fija el eje vertical. El snap no lo vuelve a pegar al piso

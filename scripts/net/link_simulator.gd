@@ -48,6 +48,19 @@ func deliver(packet: Callable) -> void:
 	if _rng.randf() * 100.0 < loss_percent:
 		dropped += 1
 		return
+	_enqueue(packet)
+
+
+## Como deliver(), para lo que viaja confiable: se demora pero nunca se pierde.
+func deliver_reliable(packet: Callable) -> void:
+	if not is_active():
+		delivered += 1
+		packet.call()
+		return
+	_enqueue(packet)
+
+
+func _enqueue(packet: Callable) -> void:
 	var delay_ms := maxf(added_rtt_ms / 2.0 + _rng.randf_range(-jitter_ms, jitter_ms), 0.0) + _stall_left_ms()
 	_queue.append([Time.get_ticks_usec() + int(delay_ms * 1000.0), packet])
 

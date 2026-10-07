@@ -11,8 +11,8 @@ extends RefCounted
 ## - la época coincide: el cliente ya incluyó todos los eventos del host;
 ## - la posición difiere de la del host en menos de MAX_DIFFERENCE;
 ## - la pose entra en el mundo del host: no queda metida en la geometría y,
-##   si dice estar apoyada, hay piso. Los modos anclados agregarán su propio
-##   validador.
+##   si dice estar apoyada, hay piso. En un modo anclado, además, el ancla
+##   existe y el cuerpo está en la pose que le corresponde.
 ##
 ## Riesgo: adoptar puede tapar una desincronización real. Por eso se registra
 ## cuánto difería cada afirmación adoptada, y la adopción se puede apagar.
@@ -64,6 +64,8 @@ func _decide(actor: ActorBody, claim_bytes: PackedByteArray, stats: Dictionary) 
 	var difference := BaseRegistry.world_position(claim).distance_to(BaseRegistry.world_position(actor.state))
 	if difference > MAX_DIFFERENCE:
 		return Result.TOO_FAR
+	if not ActorMotor.anchored_pose_valid(claim):
+		return Result.BAD_POSE
 	var seen := actor.seen_position()
 	if not actor.apply_state(claim):
 		actor.apply_state(actor.state)

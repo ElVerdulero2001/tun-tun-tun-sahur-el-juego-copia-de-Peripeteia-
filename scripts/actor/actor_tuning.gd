@@ -30,6 +30,25 @@ extends Resource
 ## Cuánto puede girar la dirección del deslizamiento, en radianes por segundo.
 @export var slide_turn_rate := 1.5
 
+@export_group("Escalera")
+## Velocidad de trepada, en m/s.
+@export var climb_speed := 2.5
+## Aceleración sobre el eje de la escalera, en m/s².
+@export var climb_accel := 20.0
+## Al saltar de la escalera: velocidad hacia afuera y hacia arriba, en m/s.
+@export var ladder_jump_out := 3.0
+@export var ladder_jump_up := 3.5
+## Al soltar un ancla por un salto o un empujón, cuánto tiempo no se la puede
+## volver a agarrar, en segundos de tiempo del actor.
+@export var regrab_block_time := 0.4
+## Al salir por arriba: cuánto avanza sobre el borde, en metros.
+@export var ladder_top_step := 0.7
+
+@export_group("Agarre")
+## Cuánta fuerza externa resiste cada modo antes de soltarse (escala de 0 a 5).
+## Los modos libres (Suelo, Aire, Deslizamiento) tienen agarre 0.
+@export var ladder_grip := 3
+
 @export_group("Aire")
 ## Aceleración hacia la velocidad pedida en el aire, en m/s².
 @export var air_accel := 12.0

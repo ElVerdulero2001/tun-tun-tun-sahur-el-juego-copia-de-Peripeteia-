@@ -29,10 +29,14 @@ extends Node3D
 ## borde), --test-input=walkoff:ID (sale y entra caminando, sin saltar),
 ## --test-input=tunnel (se desliza en el túnel largo y sale agachado),
 ## --test-input=crouchjump (salta frente a la pared de medidas y se agacha
-## en el aire),
+## en el aire), --test-input=ladder (sube y baja por la escalera de la torre)
+## o --test-input=laddertop (la sube y sale al techo de la torre),
 ## --test-spawn-at=X,Z (solo host), --test-pause-at=TICK (jugando solo: se
 ## pone la pausa en ese tick), --no-adoption y
-## --test-push-at=S1,S2 (solo host: empuja a los demás a esos segundos) y,
+## --test-push-at=S1,S2 y --test-scheduled-push-at=S1,S2 (solo host: empuja a
+## los demás a esos segundos, inmediato o programado), --test-push-force=N
+## (fuerza de esos empujones, de 0 a 5; 4 si no se pide), --test-schedule-ticks=N
+## (el programado se fija N ticks adelante, para probar uno que llega tarde) y,
 ## para simular red,
 ## --sim-rtt=MS, --sim-jitter=MS, --sim-loss=PORCENTAJE, --sim-seed=N, los
 ## tirones con --sim-stall-every=MS y --sim-stall=MS y, si la red simulada
@@ -43,6 +47,12 @@ const DEFAULT_PORT := 7777
 ## Empujón de la tecla E: velocidad hacia arriba y hacia afuera del host, en m/s.
 const PUSH_UP_SPEED := 5.0
 const PUSH_AWAY_SPEED := 4.0
+## Fuerza de los empujones (escala de 0 a 5 contra el agarre de cada modo). El
+## fuerte saca de una escalera (agarre 3); el débil, con Shift, no.
+const PUSH_FORCE_STRONG := 4
+const PUSH_FORCE_WEAK := 2
+## Empujón programado: además de lo que tarda en llegar, este colchón en ticks.
+const SCHEDULE_BUFFER_TICKS := 4
 ## Más abajo que esto, el actor cayó del mapa y reaparece.
 const FALL_LIMIT := -30.0
 ## Cliente: a menos de esta distancia del actor propio, en metros, una
@@ -85,8 +95,14 @@ var sim_stall_ms := 0.0
 var sim_after_seconds := 0.0
 var sim_until_seconds := 0.0
 var trace := false
-## Segundos a los que el host empuja a los demás, pedidos por argumentos.
+## Segundos a los que el host empuja a los demás, pedidos por argumentos:
+## inmediato o programado, con la fuerza de test_push_force.
 var test_push_seconds := PackedFloat64Array()
+var test_scheduled_push_seconds := PackedFloat64Array()
+var test_push_force := PUSH_FORCE_STRONG
+## Para probar un empujón programado que llega tarde: si es mayor que cero, el
+## host lo programa para dentro de esta cantidad fija de ticks.
+var test_schedule_ticks := 0
 ## Jugando solo: tick en que se pone la pausa sola, para probarla. 0 = nunca.
 var test_pause_tick := 0
 var _ready_msec := 0
@@ -109,10 +125,23 @@ var _current_input: ActorInput
 var _prediction_start_tick := 0
 ## Host (paso 7): adopción de lo que afirman los clientes.
 var _adoption := ClaimAdoption.new()
-## Host: empujones pedidos, que se aplican al empezar el próximo tick.
-var _push_requested := false
+## Host: empujones pedidos, que se aplican al empezar el próximo tick, como
+## [programado, fuerza].
+var _push_requests: Array = []
+## Host: empujones programados que todavía no llegaron a su tick, como
+## [tick, peer, impulso, fuerza].
+var _host_events: Array = []
 var pushes := 0
+var scheduled_pushes := 0
 var respawns := 0
+## Cliente: empujones programados que le anunció el host, por tick: [impulso, fuerza].
+var _client_events := {}
+## Cliente: empujones programados que llegaron antes de su tick, los que
+## llegaron tarde y se repitió desde su tick, y los que llegaron tan tarde que
+## los tuvo que arreglar la corrección del snapshot.
+var events_on_time := 0
+var events_late := 0
+var events_too_late := 0
 ## Cliente (paso 8): los demás jugadores, interpolados entre snapshots.
 var _interpolation := RemoteInterpolation.new()
 ## Prueba de bases: contador de saltos de los inputs de prueba `ride` y `hop`.
@@ -124,6 +153,10 @@ var _tunnel_phase := 0
 var _tunnel_standing_under_roof := 0
 ## Prueba `crouchjump`: tick local en que llegó frente a la pared de medidas.
 var _crouch_jump_start := -1
+## Prueba `ladder`: hacia dónde trepa (1 sube, -1 baja) y, en `laddertop`, si
+## ya llegó arriba.
+var _ladder_direction := 1.0
+var _ladder_top_done := false
 ## Aviso que se muestra arriba del panel hasta _flash_until_msec.
 var _flash_text := ""
 var _flash_until_msec := 0
@@ -186,7 +219,9 @@ func _ready() -> void:
 	if trace:
 		_real_timer(0.5, _print_trace)
 	for seconds in test_push_seconds:
-		_real_timer(seconds, func() -> void: _push_requested = true)
+		_real_timer(seconds, func() -> void: _push_requests.append([false, test_push_force]))
+	for seconds in test_scheduled_push_seconds:
+		_real_timer(seconds, func() -> void: _push_requests.append([true, test_push_force]))
 	_session.status_changed.connect(func(text: String) -> void: print("[net_lab] %s" % text))
 	_session.local_actor_spawned.connect(_on_local_actor_spawned)
 	$Hud/Menu/Box/Solo.pressed.connect(_start.bind(Role.LOCAL))
@@ -224,8 +259,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		var index: int = [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5].find(event.keycode)
 		if index >= 0:
 			_apply_net_preset(index)
-		elif role == Role.HOST and event.keycode == KEY_E:
-			_push_requested = true
+		elif role == Role.HOST and (event.keycode == KEY_E or event.keycode == KEY_R):
+			var force := PUSH_FORCE_WEAK if event.shift_pressed else PUSH_FORCE_STRONG
+			_push_requests.append([event.keycode == KEY_R, force])
 		elif role == Role.HOST and event.keycode == KEY_Q:
 			_adoption.enabled = not _adoption.enabled
 			print("[net_lab] adopción %s" % ("prendida" if _adoption.enabled else "apagada"))
@@ -357,6 +393,8 @@ func _local_input(tick: int) -> ActorInput:
 		return _tunnel_input(tick)
 	if test_input == "crouchjump":
 		return _crouch_jump_input(tick)
+	if test_input == "ladder" or test_input == "laddertop":
+		return _ladder_input(tick, test_input == "laddertop")
 	if test_input == "zigzag":
 		# Un cuadrado que cambia de lado cada medio segundo y un salto cada dos:
 		# como el input cambia seguido, un input tardío se nota en las correcciones.
@@ -498,6 +536,38 @@ func _crouch_jump_input(tick: int) -> ActorInput:
 	return ActorInput.make(tick, Vector2.ZERO, 0.0, buttons, 1 if elapsed >= 20 else 0)
 
 
+## Prueba de escalera: va al pie de la escalera de la torre, se agarra
+## caminando hacia ella y sube y baja entre 0,5 y 2 m. Si la suelta (un
+## empujón fuerte), vuelve. Con `to_top`, sube hasta arriba, sale al techo de
+## la torre y se queda ahí.
+func _ladder_input(tick: int, to_top: bool) -> ActorInput:
+	var ladder := Ladder.find(1)
+	if ladder == null or not is_instance_valid(_local_actor):
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
+	var s := _local_actor.state
+	var facing := atan2(ladder.outward().x, ladder.outward().z)
+	if s.mode == ActorState.Mode.LADDER:
+		if to_top:
+			if s.anchor_t >= ladder.height - 0.01:
+				_ladder_top_done = true
+			return ActorInput.make(tick, Vector2(0, 1), facing, 0, 0)
+		if s.anchor_t >= 2.0:
+			_ladder_direction = -1.0
+		elif s.anchor_t <= 0.5:
+			_ladder_direction = 1.0
+		return ActorInput.make(tick, Vector2(0, _ladder_direction), facing, 0, 0)
+	if to_top and _ladder_top_done:
+		return ActorInput.make(tick, Vector2.ZERO, facing, 0, 0)
+	var me := BaseRegistry.world_position(s)
+	var local := ladder.global_transform.affine_inverse() * me
+	if absf(local.x) < 0.3 and local.z < 1.8 and local.y < 0.5:
+		# Alineado delante de la escalera: camina hacia ella hasta agarrarse.
+		return ActorInput.make(tick, Vector2(0, 1), facing, 0, 0)
+	var foot := ladder.pose_at(0.0) + ladder.outward() * 1.2
+	var to := Vector2(foot.x - me.x, foot.z - me.z)
+	return ActorInput.make(tick, Vector2(to.x, -to.y).limit_length(1.0), 0.0, 0, 0)
+
+
 static func _horizontal(state: ActorState) -> float:
 	return Vector2(state.velocity.x, state.velocity.z).length()
 
@@ -512,11 +582,14 @@ func _on_tick_started(tick: int) -> void:
 	_local_ticks += 1
 	if role != Role.CLIENT:
 		_respawn_fallen()
-	if role == Role.HOST and _push_requested:
-		_push_requested = false
-		_push_others()
+	if role == Role.HOST:
+		for request in _push_requests:
+			_push_others(request[0], request[1])
+		_push_requests.clear()
+		_apply_host_events(tick)
 	if role != Role.CLIENT or not _clock.client_sync:
 		return
+	_take_scheduled_events(tick)
 	_net_sync.apply_pending_snapshot(_on_own_state.bind(tick), _interpolation.add, _interpolation.add_base)
 	_interpolation.advance()
 	_update_platform_lag(tick)
@@ -526,6 +599,7 @@ func _on_tick_started(tick: int) -> void:
 	if is_instance_valid(_local_actor) and _clock.synced:
 		_local_actor.simulated = true
 		_current_input = _local_input(tick)
+		_apply_client_events(_local_actor.state, tick)
 
 
 ## Al terminar cada tick. Host: decide qué afirmaciones adopta y después manda
@@ -543,7 +617,7 @@ func _on_tick_finished(tick: int) -> void:
 	elif role == Role.CLIENT and is_instance_valid(_local_actor) and _local_actor.simulated \
 			and _current_input != null and _current_input.tick == tick:
 		_prediction.record(tick, _current_input, _local_actor.state)
-		_net_sync.send_ticks(_prediction.recent(NetSync.INPUT_REDUNDANCY))
+		_net_sync.send_ticks(_prediction.recent(NetSync.INPUT_REDUNDANCY), _clock.rtt_ms)
 	if role == Role.CLIENT:
 		# La balsa del host se coloca para el tick que viene, en la pose que se
 		# va a mostrar entonces: un tick del cliente son 60/ritmo ticks del host.
@@ -590,11 +664,17 @@ func _measure_remote_smoothness() -> void:
 			remote_stutters += 1
 
 
-## Host: empuja a los demás actores, hacia arriba y lejos del propio. Es un
-## evento inmediato: cada cliente se entera con el snapshot y se corrige. Sube
-## la época del empujado, así el host no adopta las afirmaciones que ese
-## cliente predijo sin saber del empujón.
-func _push_others() -> void:
+## Host: empuja a los demás actores, hacia arriba y lejos del propio, con una
+## fuerza de 0 a 5 contra el agarre del modo en que estén.
+##
+## Inmediato: se aplica en este tick; cada cliente se entera con el snapshot y
+## se corrige. Programado: se fija para un tick que el cliente todavía no
+## simuló (lo que tarda su input en llegar, más la ida y vuelta, más un
+## colchón) y se le anuncia ya, por el canal confiable; el cliente lo aplica
+## en ese mismo tick y no recibe corrección. En los dos casos el host sube la
+## época del empujado en el tick en que lo aplica, así no adopta afirmaciones
+## de ticks en que el cliente no sabía del empujón.
+func _push_others(scheduled: bool, force: int) -> void:
 	for actor in _clock.sorted_actors():
 		if not _is_remote(actor):
 			continue
@@ -604,10 +684,66 @@ func _push_others() -> void:
 			offset.y = 0.0
 			if offset.length_squared() > 0.0001:
 				away = offset.normalized()
-		ActorMotor.push(actor.state, away * PUSH_AWAY_SPEED + Vector3.UP * PUSH_UP_SPEED)
-		actor.state.epoch += 1
-	pushes += 1
-	print("[net_lab] empujón %d en el tick %d" % [pushes, _clock.tick])
+		var impulse := NetSync.quantize_impulse(away * PUSH_AWAY_SPEED + Vector3.UP * PUSH_UP_SPEED)
+		if not scheduled:
+			ActorMotor.apply_impulse(actor.state, impulse, force, tuning)
+			actor.state.epoch += 1
+			continue
+		var peer := actor.owner_peer_id
+		var margin := maxi(_net_sync.input_margin_ticks(peer, _clock.tick), 0)
+		var rtt_ticks := ceili(_net_sync.peer_rtt_ms(peer) * SimClock.TICK_RATE / 1000.0)
+		var at := _clock.tick + margin + rtt_ticks + SCHEDULE_BUFFER_TICKS
+		if test_schedule_ticks > 0:
+			at = _clock.tick + test_schedule_ticks
+		_host_events.append([at, peer, impulse, force])
+		_net_sync.send_scheduled_event(peer, at, impulse, force)
+	if scheduled:
+		scheduled_pushes += 1
+	else:
+		pushes += 1
+	print("[net_lab] empujón %s de fuerza %d en el tick %d" % ["programado" if scheduled else "inmediato", force, _clock.tick])
+
+
+## Host: aplica los empujones programados que tocan en este tick, igual que
+## los aplica el empujado en su predicción. Sube su época.
+func _apply_host_events(tick: int) -> void:
+	var waiting: Array = []
+	for event in _host_events:
+		if event[0] > tick:
+			waiting.append(event)
+			continue
+		for actor in _clock.sorted_actors():
+			if actor.owner_peer_id == event[1]:
+				ActorMotor.apply_impulse(actor.state, event[2], event[3], tuning)
+				actor.state.epoch += 1
+	_host_events = waiting
+
+
+## Cliente: toma los empujones programados que anunció el host y los anota
+## para su tick. Si su tick ya se predijo (llegó tarde), repite desde ahí con
+## el empujón; si ya ni eso se puede, lo arregla la corrección del snapshot.
+func _take_scheduled_events(tick: int) -> void:
+	for event in _net_sync.received_events:
+		var at: int = event[0]
+		_client_events.get_or_add(at, []).append([event[1], event[2]])
+		if at >= tick or not is_instance_valid(_local_actor) or not _local_actor.simulated:
+			events_on_time += 1
+		elif _prediction.replay_from(_local_actor, at, tick, _step_local):
+			events_late += 1
+		else:
+			events_too_late += 1
+	_net_sync.received_events.clear()
+	for at in _client_events.keys():
+		if at < tick - 600:
+			_client_events.erase(at)
+
+
+## Cliente: aplica a un estado los empujones programados de un tick, como el
+## host. Va antes del paso de ese tick, también al repetir ticks.
+func _apply_client_events(state: ActorState, tick: int) -> void:
+	for event in _client_events.get(tick, []):
+		ActorMotor.apply_impulse(state, event[0], event[1], tuning)
+		state.epoch += 1
 
 
 ## Host o modo local: quien cayó del mapa reaparece en su lugar, quieto y
@@ -653,6 +789,7 @@ func _on_own_state(host_tick: int, state_bytes: PackedByteArray, used_input_tick
 
 
 func _step_local(input: ActorInput) -> void:
+	_apply_client_events(_local_actor.state, input.tick)
 	ActorMotor.step(_local_actor, _local_actor.state, input, tuning, SimClock.TICK_DT)
 
 
@@ -722,6 +859,13 @@ func _read_launch_args() -> void:
 		elif arg.begins_with("--test-push-at="):
 			for seconds in arg.trim_prefix("--test-push-at=").split(","):
 				test_push_seconds.append(seconds.to_float())
+		elif arg.begins_with("--test-scheduled-push-at="):
+			for seconds in arg.trim_prefix("--test-scheduled-push-at=").split(","):
+				test_scheduled_push_seconds.append(seconds.to_float())
+		elif arg.begins_with("--test-push-force="):
+			test_push_force = arg.trim_prefix("--test-push-force=").to_int()
+		elif arg.begins_with("--test-schedule-ticks="):
+			test_schedule_ticks = arg.trim_prefix("--test-schedule-ticks=").to_int()
 		elif arg.begins_with("--test-pause-at="):
 			test_pause_tick = arg.trim_prefix("--test-pause-at=").to_int()
 		elif arg.begins_with("--test-spawn-at="):
@@ -754,12 +898,15 @@ func _update_hud() -> void:
 		lines.append("tu input le llega al host con %.1f ticks de anticipación, en el peor caso   ·   ritmo: %d ticks por segundo (ganados +%.1f / perdidos -%.1f)" % [_clock.worst_margin, _clock.rate_hz, _clock.ticks_gained, _clock.ticks_shed])
 		lines.append("predicción: %d coincidencias, %d correcciones (la última de %.2f m), %d esperas por input tardío" % [_prediction.matches, _prediction.corrections, _prediction.last_correction_meters, _prediction.waits_late_input])
 		lines.append("snapshots que no llegaron a tiempo: %.1f %%" % _snapshot_loss_percent())
+		lines.append("empujones programados: %d llegaron a tiempo, %d tarde (se repitió desde su tick), %d demasiado tarde" % [
+				events_on_time, events_late, events_too_late])
 		lines.append("los demás se ven %d ms en el pasado   ·   %d ticks esperando un snapshot   ·   tirones: %.1f %%" % [
 			roundi(RemoteInterpolation.DELAY_TICKS * SimClock.TICK_DT * 1000.0), _interpolation.starved,
 			100.0 * remote_stutters / maxi(remote_ticks_measured, 1),
 		])
 	if role == Role.HOST:
-		lines.append("adopción: %s   ·   empujones: %d   ·   reapariciones: %d" % ["prendida" if _adoption.enabled else "apagada", pushes, respawns])
+		lines.append("adopción: %s   ·   empujones: %d inmediatos, %d programados   ·   reapariciones: %d" % [
+				"prendida" if _adoption.enabled else "apagada", pushes, scheduled_pushes, respawns])
 		for actor in _clock.sorted_actors():
 			if actor != _local_actor:
 				var peer := actor.owner_peer_id
@@ -777,6 +924,10 @@ func _update_hud() -> void:
 		var stance_names := ["parado", "agachado"]
 		lines.append("Postura: %s%s" % [stance_names[s.stance],
 				"   ·   pedida: %s (no hay lugar)" % stance_names[s.stance_wanted] if s.stance_wanted != s.stance else ""])
+		if s.mode == ActorState.Mode.LADDER:
+			lines.append("Escalera %d   ·   pies a %.2f m sobre su base" % [s.anchor_id, s.anchor_t])
+		elif s.regrab_left > 0.0:
+			lines.append("Recién soltó la escalera %d: no la puede volver a agarrar por %.2f s" % [s.regrab_id, s.regrab_left])
 		var world := BaseRegistry.world_position(s)
 		var base = BaseRegistry.find(s.base_id)
 		lines.append("Velocidad%s: %.2f m/s horizontal, %.2f m/s vertical" % [" (sobre la base)" if base != null else "", Vector2(s.velocity.x, s.velocity.z).length(), s.velocity.y])
@@ -786,7 +937,7 @@ func _update_hud() -> void:
 	lines.append("")
 	lines.append("WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse) · mouse mirar · Esc suelta el mouse")
 	if role == Role.HOST:
-		lines.append("E empuja a los demás jugadores · Q prende o apaga la adopción")
+		lines.append("E empuja a los demás ya · R los empuja programado · con Shift, empujón débil · Q prende o apaga la adopción")
 	if role == Role.LOCAL:
 		lines.append("G pausa y congela · F avanza un tick en pausa")
 	lines.append("F12 guarda una captura en el Escritorio")
@@ -810,9 +961,10 @@ func _print_trace() -> void:
 		])
 	if is_instance_valid(_local_actor):
 		var s := _local_actor.state
-		print("[net_lab] traza %.1fs actor: base=%d mundo=%s rel=%s vel=%s modo=%s postura=%s suelo=%s" % [
+		print("[net_lab] traza %.1fs actor: base=%d mundo=%s rel=%s vel=%s modo=%s postura=%s suelo=%s ancla=%d t=%.3f época=%d" % [
 			(Time.get_ticks_msec() - _ready_msec) / 1000.0, s.base_id, BaseRegistry.world_position(s),
 			s.position, s.velocity, ActorState.Mode.keys()[s.mode], ActorState.Stance.keys()[s.stance], s.on_floor,
+			s.anchor_id, s.anchor_t, s.epoch,
 		])
 	_real_timer(0.5, _print_trace)
 
@@ -837,6 +989,8 @@ func _print_summary_and_quit() -> void:
 		_snapshot_loss_percent(), _net_sim_text(), _link.dropped,
 	])
 	if role == Role.CLIENT:
+		print("[net_lab] empujones programados: %d a tiempo, %d tarde (repetido desde su tick), %d demasiado tarde" % [
+			events_on_time, events_late, events_too_late])
 		print("[net_lab] los demás en pantalla: %d tirones en %d ticks medidos (%.1f %%), %d ticks esperando un snapshot" % [
 			remote_stutters, remote_ticks_measured, 100.0 * remote_stutters / maxi(remote_ticks_measured, 1), _interpolation.starved,
 		])

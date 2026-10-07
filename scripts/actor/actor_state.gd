@@ -13,7 +13,7 @@ extends RefCounted
 ## sus bytes. La posición se cuantiza a 0,1 mm: alcanza para niveles de
 ## hasta unos 800 m desde el origen; más lejos, float32 pierde ese detalle.
 
-enum Mode { GROUND, AIR, SLIDE }
+enum Mode { GROUND, AIR, SLIDE, LADDER }
 ## Postura: parado o agachado. Cada una tiene su forma de colisión preparada.
 enum Stance { STANDING, CROUCHED }
 
@@ -23,7 +23,7 @@ const NORMAL_STEP := 0.0001
 const TIME_STEP := 0.0001
 const YAW_STEPS := 65536
 ## Largo de to_bytes(). Lo que llega por red con otro largo se descarta.
-const BYTE_SIZE := 55
+const BYTE_SIZE := 67
 
 ## Con base, relativa a ella; sin base, en el mundo. Ver BaseRegistry.world_position().
 var position := Vector3.ZERO
@@ -51,6 +51,14 @@ var base_id := 0
 var stance_wanted: int = Stance.STANDING
 ## Postura concedida: la que cupo. Decide la forma de colisión activa.
 var stance: int = Stance.STANDING
+## Modos anclados: id de red del ancla (en Ladder, la escalera) y el parámetro
+## sobre ella (en Ladder, la altura de los pies sobre la escalera, en metros).
+var anchor_id := 0
+var anchor_t := 0.0
+## Bloqueo de reagarre: al soltar un ancla por un salto o un empujón, no se la
+## puede volver a agarrar por este tiempo.
+var regrab_id := 0
+var regrab_left := 0.0
 
 
 func quantize() -> void:
@@ -63,6 +71,10 @@ func quantize() -> void:
 	jump_presses_seen &= 0xFF
 	epoch &= 0xFFFF
 	base_id &= 0xFFFF
+	anchor_id &= 0xFFFF
+	anchor_t = _q(anchor_t, POSITION_STEP)
+	regrab_id &= 0xFFFF
+	regrab_left = _q(regrab_left, TIME_STEP)
 
 
 func copy() -> ActorState:
@@ -84,6 +96,10 @@ func to_bytes() -> PackedByteArray:
 	b.put_u16(base_id & 0xFFFF)
 	b.put_u8(stance_wanted)
 	b.put_u8(stance)
+	b.put_u16(anchor_id & 0xFFFF)
+	b.put_32(roundi(anchor_t / POSITION_STEP))
+	b.put_u16(regrab_id & 0xFFFF)
+	b.put_32(roundi(regrab_left / TIME_STEP))
 	return b.data_array
 
 
@@ -104,12 +120,17 @@ static func from_bytes(bytes: PackedByteArray) -> ActorState:
 	s.base_id = b.get_u16()
 	s.stance_wanted = b.get_u8()
 	s.stance = b.get_u8()
+	s.anchor_id = b.get_u16()
+	s.anchor_t = b.get_32() * POSITION_STEP
+	s.regrab_id = b.get_u16()
+	s.regrab_left = b.get_32() * TIME_STEP
 	return s
 
 
 func describe() -> String:
-	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
+	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f reagarre=%d/%.4f pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
 		Mode.keys()[mode], Stance.keys()[stance], Stance.keys()[stance_wanted], on_floor, base_id,
+		anchor_id, anchor_t, regrab_id, regrab_left,
 		position, velocity, facing_yaw, coyote_left, jump_buffer_left, jump_presses_seen, epoch,
 	]
 

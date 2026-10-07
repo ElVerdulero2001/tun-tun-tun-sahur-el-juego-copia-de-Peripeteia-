@@ -84,6 +84,27 @@ func reconcile(actor: ActorBody, host_tick: int, host_state: PackedByteArray, us
 	_forget_up_to(host_tick)
 
 
+## Un evento programado llegó cuando ya se había predicho su tick: se
+## restaura lo predicho para el tick anterior y se repite desde ahí, ahora con
+## el evento (`step` lo aplica en su tick). Devuelve falso si ese tick ya se
+## olvidó; entonces lo arregla la corrección del snapshot.
+func replay_from(actor: ActorBody, tick: int, current_tick: int, step: Callable) -> bool:
+	var before: Variant = _states.get(tick - 1)
+	if before == null:
+		return false
+	var seen := actor.seen_position()
+	actor.state = ActorState.from_bytes(before)
+	actor.apply_state(actor.state)
+	for t in range(tick, current_tick):
+		var input: ActorInput = _inputs.get(t)
+		if input == null:
+			continue
+		step.call(input)
+		_states[t] = actor.state.to_bytes()
+	actor.smooth_from(seen)
+	return true
+
+
 func _forget_up_to(tick: int) -> void:
 	for t in _states.keys():
 		if t <= tick:

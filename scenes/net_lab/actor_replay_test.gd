@@ -49,6 +49,9 @@ var _ticks_ground := 0
 var _ticks_air := 0
 var _ticks_wall := 0
 var _ticks_slide := 0
+var _ticks_ladder := 0
+## Empujones del recorrido, por tick: [impulso, fuerza].
+var _events := {}
 var _ticks_crouched := 0
 ## Ticks agachado aunque pedía pararse: el techo no lo dejaba.
 var _ticks_kept_crouched := 0
@@ -98,6 +101,7 @@ func _live_tick() -> void:
 		_state = _initial.copy()
 		_actor.apply_state(_state)
 	var previous_vertical := _state.velocity.y
+	_apply_events(_state, _tick)
 	ActorMotor.step(_actor, _state, _inputs[_tick], _tuning, TICK_DT)
 	_live.append(_state.to_bytes())
 
@@ -108,6 +112,8 @@ func _live_tick() -> void:
 			_ticks_air += 1
 		ActorState.Mode.SLIDE:
 			_ticks_slide += 1
+		ActorState.Mode.LADDER:
+			_ticks_ladder += 1
 	if _state.stance == ActorState.Stance.CROUCHED:
 		_ticks_crouched += 1
 		if _state.stance_wanted == ActorState.Stance.STANDING:
@@ -150,6 +156,7 @@ func _replay(start: int, stop: int) -> void:
 	var state := _initial.copy() if start == 0 else ActorState.from_bytes(_live[start - 1])
 	_actor.apply_state(state)
 	for t in range(start, stop):
+		_apply_events(state, t)
 		ActorMotor.step(_actor, state, _inputs[t], _tuning, TICK_DT)
 		_replayed_ticks += 1
 		if state.to_bytes() != _live[t]:
@@ -162,7 +169,7 @@ func _replay(start: int, stop: int) -> void:
 
 func _finish() -> void:
 	_phase = Phase.DONE
-	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d tocando pared, %d saltos, altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_wall, _jumps, _max_height])
+	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d tocando pared, %d saltos, altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_wall, _jumps, _max_height])
 	print("%s postura: %d ticks agachado, %d de ellos pidiendo pararse sin lugar" % [LOG_PREFIX, _ticks_crouched, _ticks_kept_crouched])
 	print("%s %d repeticiones, %d ticks repetidos" % [LOG_PREFIX, _replays, _replayed_ticks])
 	var hashing := HashingContext.new()
@@ -189,9 +196,10 @@ func _on_timeout() -> void:
 
 ## Recorrido guionado por el laboratorio: deslizamiento hasta frenar bajo el
 ## techo del túnel largo, salida agachado, cambios de postura en el aire,
-## piso, escalón, pared, esquina, costado del túnel, rampa y caída desde la
-## plataforma. Las posiciones son aproximadas; lo que importa es tocar cosas y
-## que el resultado se repita.
+## piso, escalón, pared, esquina, costado del túnel, rampa, caída desde la
+## plataforma y su escalera (agarrarse, subir, salir arriba, volver a
+## agarrarse, saltar, y dos empujones: uno débil y uno fuerte). Las posiciones
+## son aproximadas; lo que importa es tocar cosas y que el resultado se repita.
 func _build_inputs() -> void:
 	var run := ActorInput.BUTTON_RUN
 	var crouch := ActorInput.BUTTON_CROUCH
@@ -217,14 +225,39 @@ func _build_inputs() -> void:
 		[105, Vector2(0, 1), PI / 2.0, []],  # hacia la izquierda por el piso abierto, frente a la rampa
 		[230, Vector2(0, 1), 0.0, [150, 165, 180]],  # sube la rampa, cae de la plataforma y salta al caer
 		[40, Vector2.ZERO, 0.0, []],  # se queda quieto
+		# Escalera de la cara sur de la plataforma verde, justo delante:
+		[90, Vector2(0, 1), PI, [], 0],  # camina hacia ella, se agarra, sube y sale arriba
+		[20, Vector2.ZERO, 0.0, [], 0],  # se queda arriba de la plataforma
+		[45, Vector2(0, 1), 0.0, [], 0],  # se va por el borde, alejándose de la escalera, y cae
+		[20, Vector2.ZERO, 0.0, [], 0],  # se queda en el piso
+		[75, Vector2(0, 1), PI, [], 0],  # se vuelve a agarrar y sube un poco
+		[30, Vector2.ZERO, PI, [], 0, [[5, Vector3(1, 4, -1), 2]]],  # quieto: un empujón débil lo sube por la escalera
+		[60, Vector2.ZERO, PI, [], 0, [[10, Vector3(2, 3, -4), 4]]],  # un empujón fuerte lo saca y cae
+		[80, Vector2(0.5, 0.86), PI, [], 0],  # vuelve en diagonal, se agarra y sube un poco
+		[6, Vector2(0, 1), PI, [0], 0],  # salta de la escalera
+		[40, Vector2(0, 1), PI, [], 0],  # empuja hacia ella con el bloqueo de reagarre puesto
+		[30, Vector2.ZERO, 0.0, [], 0],  # se queda quieto
 	]
 	var presses := 0
 	var tick := 0
 	for segment in segments:
 		var buttons: int = segment[4] if segment.size() > 4 else 0
+		if segment.size() > 5:
+			# Empujones del tramo: [tick dentro del tramo, impulso, fuerza].
+			for event in segment[5]:
+				_events[tick + event[0]] = [event[1], event[2]]
 		for i in segment[0]:
 			if i in segment[3]:
 				presses += 1
 			_inputs.append(ActorInput.make(tick, segment[1], segment[2], buttons, presses))
 			tick += 1
 		_segment_ends.append(tick - 1)
+
+
+## Un empujón del recorrido, como lo aplica el host: antes del paso de su tick,
+## subiendo la época. En vivo y al repetir, igual.
+func _apply_events(state: ActorState, tick: int) -> void:
+	var event: Variant = _events.get(tick)
+	if event != null:
+		ActorMotor.apply_impulse(state, event[0], event[1], _tuning)
+		state.epoch += 1

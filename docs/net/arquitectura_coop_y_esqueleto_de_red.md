@@ -1,8 +1,13 @@
 # Arquitectura de movimiento co-op y esqueleto de red: todo lo hecho hasta ahora
 
 **Proyecto:** tun-tun-tun-sahur · **Motor:** Godot 4.7.2 estable con Jolt Physics (`3d/physics_engine="Jolt Physics"` en `project.godot`).
-**Período:** del 2026-10-01 a las 20:41 al 2026-10-03 a las 16:29. Todas las horas están en hora de Argentina (UTC−3).
+**Período:** del 2026-10-01 a las 20:41 al 2026-10-06 a las 21:26. Todas las horas están en hora de Argentina (UTC−3).
 **Documento de arquitectura original:** [Arquitectura de movimiento co-op (Godot 4.7 + Jolt)](https://claude.ai/code/artifact/6760c3bf-39ed-4f2f-8d9d-23642c7ac797), en Claude Docs. Está copiado completo en el Apéndice A.
+
+**Historial de este documento:**
+
+- **Primera versión:** 2026-10-03, commit `9caaec3`. Cubría hasta el esqueleto de red completo.
+- **Esta actualización:** pedida el 2026-10-06 a las 21:26. Suma la validación de la arquitectura (puntos 2, 3 y 4 de su lista) y pone al día el estado del código, las pruebas, los hechos comprobados, los errores, las decisiones, los commits y los pendientes. No se borró nada de la versión anterior. Donde algo cambió, se aclara qué era antes.
 
 Este documento junta todo lo que se hizo, sin recortes:
 
@@ -10,6 +15,7 @@ Este documento junta todo lo que se hizo, sin recortes:
 - la arquitectura y las decisiones que se tomaron después;
 - el plan de 8 pasos del esqueleto de red y en qué se apartó la implementación;
 - cada paso implementado, con sus archivos, decisiones, problemas, pruebas automáticas, mediciones y pruebas en dos PC reales;
+- la validación de la arquitectura, punto por punto: base propia, postura y espacio libre, y escalera con empujones programados e inmediatos;
 - el estado actual del código, los formatos de red y las constantes;
 - cómo usar el laboratorio;
 - los hechos de Godot y Jolt que se comprobaron en el camino, los errores (incluidos los míos) y cómo se arreglaron;
@@ -24,14 +30,15 @@ Este documento junta todo lo que se hizo, sin recortes:
 5. El plan del esqueleto de red
 6. Entorno de trabajo y de pruebas
 7. Paso a paso
-8. Estado actual del código
-9. Cómo usar el laboratorio
-10. Todas las pruebas y sus resultados
-11. Hechos de Godot y Jolt comprobados durante la implementación
-12. Problemas y errores, y cómo se resolvieron
-13. Decisiones tomadas y forma de trabajo acordada
-14. Commits y entregas
-15. Pendientes, limitaciones conocidas y próximos pasos
+8. Validación de la arquitectura
+9. Estado actual del código
+10. Cómo usar el laboratorio
+11. Todas las pruebas y sus resultados
+12. Hechos de Godot y Jolt comprobados durante la implementación
+13. Problemas y errores, y cómo se resolvieron
+14. Decisiones tomadas y forma de trabajo acordada
+15. Commits y entregas
+16. Pendientes, limitaciones conocidas y próximos pasos
 - Apéndice A: documento de arquitectura completo
 - Apéndice B: scripts usados para las pruebas automáticas
 
@@ -45,8 +52,20 @@ Este documento junta todo lo que se hizo, sin recortes:
 - **Dos decisiones posteriores:** Hanging usa snap, y subir al borde desde el colgado es una salida de Hanging, no mantle. Mantle sigue fuera del alcance.
 - **El esqueleto de red completo:** los 8 pasos del plan, más un retoque del adelanto (6b). Está implementado en carpetas nuevas (`scripts/actor/`, `scripts/net/`, `scenes/actor/`, `scenes/net_lab/`), sin tocar nada del parkour.
 - **Probado de dos formas:** con pruebas automáticas (Godot sin ventana, host y cliente como dos procesos en la misma PC) y en dos PC reales con Windows, ambas por Wi-Fi.
-- **Cuatro commits locales** en la rama `codex/parkour-v3-h0-lab`: `d75ef67`, `9cd1936`, `7547de1` y `c0e0421`. No se subió nada a ningún remoto.
-- **Cambios pendientes:** los cambios previos sin commitear de esa rama quedaron intactos. Eran 136; hoy son 137, por un archivo temporal que dejó el editor de Godot.
+- **La validación de la arquitectura, puntos 2 a 4 de su lista** (sección 8), cada uno probado en las dos PC y commiteado:
+    - **Base propia:** una plataforma guionada que va y viene (el vagón), un ascensor y una balsa que mueve solo el host. Sobre una base, el estado guarda la posición y la velocidad relativas a ella. Se pulió además cómo se ve al otro jugador cuando sube o baja de una plataforma.
+    - **Postura y espacio libre:** agacharse, correr, deslizarse y un túnel largo de techo bajo. Para pararse, primero se prueba si hay lugar. Se sumaron herramientas de prueba: pausa con avance de a un tick, pared con medidas y capturas con F12.
+    - **Escalera (Ladder)**, el primer modo anclado, con **empujones inmediatos y programados**. Los programados se anuncian por adelantado y se aplican sin corrección.
+- **Nueve commits locales** en la rama `codex/parkour-v3-h0-lab`:
+    - el esqueleto de red: `d75ef67`, `9cd1936`, `7547de1` y `c0e0421`;
+    - la primera versión de este documento: `9caaec3`;
+    - la validación: `600002a`, `25f7806`, `cb71b16` y `91a4433`.
+
+  No se subió nada a ningún remoto.
+- **Cambios pendientes:** los cambios previos sin commitear de esa rama quedaron intactos.
+    - La primera versión de este documento contaba 137: los 136 del parkour más un archivo temporal del editor de Godot.
+    - Hoy `git status` muestra 138 entradas. No se averiguó cuál es la nueva; ninguna es del laboratorio.
+    - Entre ellas está `project.godot`, con el cambio de versión 4.6 → 4.7 que hizo el editor. Las dos acciones del Mapa de entrada que agregó el laboratorio sí están commiteadas.
 
 **Resultados principales:**
 
@@ -60,6 +79,11 @@ Este documento junta todo lo que se hizo, sin recortes:
 | Empujones del host con la época | Se respetan; con el chequeo de época apagado a propósito, el host los borraba |
 | Tirones en pantalla de los demás jugadores, con "internet mala" | 73,3 % de los ticks antes de interpolar; 0,5 % después (paso 8) |
 | Prueba final en dos PC con ~400 ms de ida y vuelta | "se siente muy bien, no hay tirones raros"; la latencia se nota, pero se siente bien |
+| Base propia en dos PC (vagón, ascensor y balsa) | 0 correcciones arriba de las bases, salvo 2 chicas (la mayor de 0,37 m) en la balsa con internet mala |
+| Cuánto se acomoda el otro jugador al subir o bajar del vagón, visto desde lejos | De 0,35 m (red limpia) y 0,83 m (internet mala) a 0 |
+| Postura en dos PC, con el túnel | Agachados bajo el techo con "pedida: parado (no hay lugar)"; 1 sola corrección, por un corte del Wi-Fi |
+| Escalera en dos PC, con internet mala en las dos (~300 ms) | 50 empujones inmediatos: 50 correcciones. 29 programados: 0 correcciones (18 a tiempo y 11 tarde, repetidos desde su tick) |
+| Repetición determinista con bases, postura, escalera y empujones | 2.467 repeticiones y 106.057 ticks idénticos byte a byte, también con el ritmo variando |
 
 ---
 
@@ -103,7 +127,31 @@ Este documento junta todo lo que se hizo, sin recortes:
 | 2026-10-03 15:53–16:10 | Paso 8: interpolación de los demás, suavizado de correcciones, 30 snapshots por segundo y reaparición. Zip `_paso8`. |
 | 2026-10-03 16:21 | Capturas del paso 8: "se siente muy bien, no hay tirones raros, si hay latencia [...] e inclusive así se siente bien". |
 | 2026-10-03 16:22 | Commit `c0e0421`. El esqueleto de red quedó completo. |
-| 2026-10-03 16:29 | Pedido de este documento. |
+| 2026-10-03 16:29 | Pedido de la primera versión de este documento. |
+| 2026-10-03 17:09–17:10 | "dale, armá el commit local del md, despues de eso, vamos a la validacion anterior, donde presentaste los 6 puntos y empecemos con el primero". Commit `9caaec3`, solo con el documento. |
+| 2026-10-03 17:10–17:45 | Punto 2, base propia: vagón, ascensor y balsa del host. Se confirmó la inferencia I2 del documento (Jolt ve un cuerpo cinemático movido recién en el tick siguiente). Zip `_base_propia` (17:44). |
+| 2026-10-03 19:07 | Capturas de la base propia en las dos PC. Con lluvia y Starlink, "cada tanto se desconectaba", y una vez "hizo un tp" antes de cortarse. |
+| 2026-10-03 19:08–19:57 | Análisis de las 13 capturas. Medición del plazo de corte de ENet: con la conexión estable, 9,7 s de silencio. Arreglo del saltito del otro jugador al subir o bajar del vagón. Commit `600002a` (19:54), con lo probado. Zip `_base_propia_2` (19:56). |
+| 2026-10-04 10:24 | Reporte: el salto del host, visto desde la notebook, "tiene que hacer un ajuste cuando la capsula toca la plataforma". |
+| 2026-10-04 10:26–10:49 | El arreglo del día anterior había convertido el saltito en un deslizamiento al aterrizar. Cambio a marcos de dibujo: un salto desde el vagón se dibuja respecto del vagón. Zip `_base_propia_3` (10:48). |
+| 2026-10-06 11:54 | Reporte: "en los bordes, todavía es apreciable la corrección". |
+| 2026-10-06 11:56–12:28 | Reproducido sin pantalla (0,36 m con red limpia, 0,87 m con internet mala). Arreglo de raíz: lejos del jugador local, el vagón se dibuja en el mismo pasado que los demás. Zip `_base_propia_4` (12:28). |
+| 2026-10-06 12:50–12:51 | "podría decirse que esta casi que arreglado"; queda un caso raro. Commit `25f7806`. |
+| 2026-10-06 13:27 | "estaba cerca, dale, seguí con el punto de postura": el caso raro queda como límite conocido. |
+| 2026-10-06 13:27–13:48 | Punto 3, postura y espacio libre: agacharse, correr, deslizarse y el túnel largo. Zip `_postura`. |
+| 2026-10-06 13:54–13:58 | Preguntas sobre agacharse en el suelo y en el aire. Medido tick a tick: en el suelo quedan los pies; en el aire, la cabeza. |
+| 2026-10-06 14:10–14:17 | "nop, mi teoría es correcta [...] antes de tocar eso, hay que agregar un botón de pausa [...] Tambien agregar un muro con medidas de referencia". Pausa (P y O) y pared de medidas. Zip `_postura_2`. |
+| 2026-10-06 14:19–14:38 | "¿la tecla P esta mapeada en la configuración del proyecto?". Después: "usa la G para pausar y mapea la tecla F para avanzar de tick". Hecho y verificado con teclas simuladas. Zip `_postura_3` (14:37). |
+| 2026-10-06 14:44–14:47 | Explicación de cómo funciona la pausa, y aclaración de que solo anda en Jugar solo. |
+| 2026-10-06 14:48–14:55 | "efectivamente, como habías hecho la implementación era correcta, lo que pasaba es que el movimiento de cámara rápido [...] daba la ilusión". Arreglo de la cámara y del dibujo de la cápsula al cambiar de postura en el aire. Zip `_postura_4`. |
+| 2026-10-06 15:57 | "ahora se ve perfecto, no hace el movimiento raro de antes." |
+| 2026-10-06 16:07–16:28 | Primeras capturas de postura en dos PC (todavía sin el túnel). Pregunta: "¿que es?" la postura. Los 9 avisos del depurador (captura 1025) y "dale, limpialos". Zip `_postura_5` (16:28). |
+| 2026-10-06 16:37–16:39 | No se puede capturar con Windows + Impr Pant mientras se mantiene Ctrl: "dale, agregá la tecla F12 para capturas". Zip `_postura_6`. |
+| 2026-10-06 17:19–17:23 | Capturas de postura en dos PC, con el túnel: 8 del host (1600×900) y 7 de la notebook (1280×720). Commit `cb71b16`. |
+| 2026-10-06 19:09–19:18 | "¿que es esto de «en el aire, la forma crece hacia abajo»?" y "decimelo en pocas palabras". Decisión: "perfecto, que se quede asi, seguí con el punto de la escalera". |
+| 2026-10-06 19:18–19:49 | Punto 4: escalera, empujones inmediatos y programados, y el canal de eventos programados. Zip `_escalera` (19:49). |
+| 2026-10-06 21:00–21:02 | Capturas de la escalera en dos PC con internet mala en las dos. Commit `91a4433`. |
+| 2026-10-06 21:26 | Pedido de esta actualización: "antes de continuar, arma un md donde se detalle todo lo hecho por hasta ahora, si ya existe un documento anterior cuyo objetivo sea documentar los avances de la implementación, actualizalo con todo lo nuevo agregado." |
 
 ---
 
@@ -920,63 +968,596 @@ Traza del reloj nuevo al subir la latencia: a los 5,0 s, 72 ticks por segundo y 
 
 ---
 
-## 8. Estado actual del código
+## 8. Validación de la arquitectura
 
-### 8.1 Archivos
+El documento de arquitectura termina con una lista, "Qué validan las primeras pruebas". El punto 1, el esqueleto de red, es la sección 7. El 2026-10-03 a las 17:09 se pidió seguir con el resto, de a uno: "vamos a la validacion anterior, donde presentaste los 6 puntos y empecemos con el primero".
 
-Todo el código del esqueleto vive en carpetas nuevas. No se tocó ningún archivo existente del proyecto. Tampoco `project.godot`, que ya usaba Jolt Physics.
+| Punto | Qué valida | Estado |
+| --- | --- | --- |
+| 1 | Esqueleto de red | Hecho (sección 7) |
+| 2 | Base propia: una plataforma guionada y una balsa del host | Hecho, probado en dos PC: commits `600002a` y `25f7806` |
+| 3 | Postura y espacio libre: el deslizamiento bajo un techo | Hecho, probado en dos PC: commit `cb71b16` |
+| 4 | Un modo anclado simple, Ladder, con empujones programados e inmediatos | Hecho, probado en dos PC: commit `91a4433` |
+| 5 | El laboratorio de Hanging con snap y sus pruebas de confirmación | Pendiente; es el próximo |
+| 6 | Una interacción con cambio de línea: sujetar a un compañero | Pendiente |
+| 7 | Cámara lenta del mundo y personal | Pendiente |
+
+Cada punto siguió la misma rutina:
+
+1. leer lo que pide el documento;
+2. implementarlo en el laboratorio;
+3. pruebas automáticas, incluidas las de los pasos anteriores, para ver que nada se rompió;
+4. un zip en el Escritorio para la notebook y las instrucciones clic por clic;
+5. la prueba en las dos PC, con capturas;
+6. el commit local, después de comprobar que los archivos son idénticos a los del zip probado.
+
+### 8.1 Punto 2: base propia
+
+#### Lo que pide el documento
+
+- **Bases:** un actor parado sobre algo que se mueve guarda su posición y su velocidad relativas a esa base.
+- **Etapa 2 del paso por tick:** la base lleva al actor.
+- **Plataformas guionadas:** como se mueven según el tick, todas las máquinas las calculan igual y se pueden predecir.
+- **Bases del host:** una balsa con física la simula solo el host, y los clientes ven una copia. El documento anticipa que ahí puede haber correcciones.
+- **Inferencia I2, a confirmar:** con Jolt, un cuerpo cinemático movido durante un tick recién se ve en las consultas del tick siguiente.
+
+#### Hecho confirmado: la inferencia I2 era cierta
+
+Antes de escribir las bases, dos diagnósticos (`diag_kinematic_update.gd` y `diag_kinematic_next_tick.gd`, en el Apéndice B) movieron cuerpos de todas las formas probadas y consultaron el espacio en el mismo tick y en el siguiente:
+
+- **No se ven hasta el paso de física siguiente:** `AnimatableBody3D`, con o sin `sync_to_physics`; `RigidBody3D` congelado en modo cinemático, aun con `force_update_transform()`; y el transform puesto directo en `PhysicsServer3D`.
+- **Se ve en el acto:** un `StaticBody3D` con `force_update_transform()`.
+
+**Consecuencias para el diseño:**
+
+- **Plataformas guionadas:** al terminar el tick T se colocan en la pose de T+1, y su malla se corre un tick hacia atrás para no dibujarse adelantada al personaje.
+- **Balsa en el host:** la mueve el motor de física, que la deja en su lugar antes del tick siguiente; no necesita corrimiento.
+- **Copias de la balsa en los clientes:** al final de cada tick se colocan en la pose interpolada que tendrán en el tick siguiente, también con la malla corrida.
+
+#### Qué se implementó
+
+**Archivos nuevos:**
+
+- **`scripts/actor/base_registry.gd` (`BaseRegistry`):** registro estático de bases por id de red. Da el origen y la velocidad de cada base, y `world_position(state)`, la posición de un estado en el mundo.
+- **`scripts/actor/scripted_platform.gd` (`ScriptedPlatform`, un `AnimatableBody3D`):** su pose sale solo del tick: `pose_at(tick) = inicio + recorrido × (0,5 − 0,5 × cos(2π × tiempo / período))`. Con `prepare_tick(tick)` queda colocada para ese tick.
+- **`scripts/actor/host_raft.gd` (`HostRaft`, un `RigidBody3D`):**
+    - **En el host:** flota sin gravedad, con frenado, sin girar y sin poder subir o bajar. Cada 3 s elige al azar un punto dentro de una zona de 10 × 10 m alrededor de donde empezó y se empuja hacia él. Como se mueve al azar, nadie más la puede predecir.
+    - **En el cliente:** `become_copy()` la congela en modo cinemático, y `place_copy()` la coloca con lo que llega en los snapshots.
+
+**Cambios:**
+
+- **`ActorState`:** suma `base_id`, de 16 bits; el estado pasó de 51 a 53 bytes. Con base, `position` y `velocity` son relativas a ella.
+- **`ActorMotor`, etapa 2 (`_ride_base`):** lleva al actor hasta donde quedó su base, con `move_and_collide` e ignorando la base. Si algo fijo le cierra el paso, se baja ahí y se lleva la velocidad de la base. Si la base ya no existe, sigue sin base.
+- **`ActorMotor`, etapa 8 (`_probe_base`):** una sonda de suelo, una caja de 0,2 × 0,1 × 0,2 m bajo los pies, dice sobre qué base quedó parado. Con varias gana el id más chico, así todas las máquinas eligen la misma. Al cambiar de base, la velocidad pasa al marco de la nueva: quien deja una base se lleva su velocidad.
+- **`ActorBody.apply_state()`:** traduce la posición relativa al mundo con el origen actual de la base.
+- **`SimClock`:** al terminar cada tick coloca las plataformas guionadas para el tick siguiente.
+- **`NetSync`:** el snapshot suma una sección de bases del host: cantidad (8 bits) y, por base, id (16 bits), posición y velocidad (3 enteros de 32 bits cada una).
+- **`RemoteInterpolation`:** guarda muestras de la balsa y coloca sus copias. Interpola a los demás en coordenadas de la base cuando las dos muestras tienen la misma.
+- **`ClaimAdoption` y `ClientPrediction`:** comparan posiciones en el mundo.
+- **`NetSession`:** `host_spawn_override`, para que las pruebas hagan aparecer al host en otro lado.
+- **Laboratorio:**
+    - la traza imprime una línea "actor:" con base, posición en el mundo y relativa, velocidad, modo y suelo;
+    - el panel muestra la base y "Velocidad (sobre la base)";
+    - la reaparición y la dirección del empujón usan posiciones en el mundo;
+    - el host manda las balsas en el snapshot y el cliente convierte la suya en copia;
+    - argumentos `--test-input=ride:<id>` y `--test-spawn-at=x,z`.
+- **Nivel:**
+    - **Vagón** (id 1): una plataforma naranja de 3 × 0,3 × 3 m a ras del piso que va y viene 8 m; cada ida y vuelta dura 8 s.
+    - **Ascensor** (id 2): de 3 × 0,3 × 4 m; sube 1,98 m y vuelve a bajar en ciclos de 10 s, pegado a la plataforma verde alta.
+    - **Balsa** (id 3): una tabla marrón que flota a 30 cm.
+
+**Un error encontrado y corregido antes de entregar:** al caer sobre el ascensor mientras bajaba, el actor quedaba rebotando en Aire varios segundos. Godot deja en cero la velocidad vertical en el mundo al aterrizar, y en el marco de una base que baja eso es subir. Ahora, apoyado sobre una base, la velocidad relativa vertical no puede ser hacia arriba.
+
+**Límites de esta primera vuelta:**
+
+- Las bases solo se trasladan, no giran.
+- Una plataforma que choca de costado contra un personaje todavía no lo empuja.
+
+#### Pruebas automáticas
+
+Con el cliente arriba de cada base, dando vueltas cerca del centro y saltando cada 3 s (`ride:<id>`):
+
+| Prueba | Resultado |
+| --- | --- |
+| Vagón, sin red simulada | 0 correcciones; 818 coincidencias |
+| Vagón, internet mala | 0 correcciones |
+| Balsa, sin red simulada | 7 correcciones, todas juntas al subirse por primera vez desde el piso (14 afirmaciones rechazadas por pose) |
+| Balsa, internet mala | 0 correcciones; 22 afirmaciones adoptadas, la más lejana a 0,945 m |
+| Regresiones: caminar con las tres redes, y tirones de Wi-Fi | 0 correcciones; con tirones, 8 adoptadas (la más lejana a 0,147 m) |
+| Repetición determinista | Pasa; huella nueva `7f845dfdc63f3a57` (cambió el formato del estado) |
+| Fotogramas de Movie Maker, 300 por base (10 s) | El actor se ve apoyado sobre el vagón y la balsa, sin desfase |
+
+**En la balsa pasa lo que anticipaba el documento:** en el aire, el cliente se mueve respecto de una copia que va unos 100 ms atrasada. La adopción absorbe casi todo. Las 7 correcciones son de un solo momento: el host rechazó la pose porque, en su mundo, caía dentro de la balsa real.
+
+#### Prueba en dos PC (2026-10-03, 19:07)
+
+Fueron 13 capturas, entre las 18:57 y las 19:03: cuatro del host (1020 a 1023) y nueve de la notebook (47 a 55). Llovía, y la conexión por Starlink tenía microcortes.
+
+| Sesión | Base | Red en la notebook | Correcciones arriba de la base | Final |
+| --- | --- | --- | --- | --- |
+| 1 | Vagón | sin simulación | 0 (895 coincidencias) | no se ve en las capturas |
+| 2 | Balsa | internet mala (también en el host) | 2 chicas, la mayor de 0,37 m | se cortó |
+| 3 | Ascensor | internet mala y sin simulación | 0 | se cortó |
+| 4 | Vagón | internet mala | 0 | se cortó |
+
+**Por qué se cortaba:**
+
+- En los tres cortes pasó lo mismo: lo que mandaba la notebook dejó de llegar al host, pero ella seguía recibiendo lo del host.
+- Al cortarse, el host llevaba entre 4,5 y 5,4 s sin recibir nada. Eso es el −273, −315 y −322 ticks de la línea "tu input le llega al host" de las capturas.
+- En la sesión 3 hubo antes un silencio de 3 s que la conexión aguantó.
+- No era un problema de las bases: el laboratorio no sabe reconectarse, así que al cortarse se termina la sesión.
+
+**El plazo de corte, medido** (`diag_enet_timeout.gd` y `diag_enet_timeout_long.gd`, en el Apéndice B):
+
+- **Primera prueba:** aguantó 8 s de silencio, porque la conexión recién arrancaba y su ida y vuelta medida todavía estaba inflada.
+- **Segunda prueba:** 40 s de conexión asentada y después un solo silencio de 15 s, congelando el host. Se cortó a los 9,7–10 s.
+- **La cuenta:** ENet reenvía duplicando la espera cada vez. Con una espera inicial de unos 19 ms, la suma da 511 × 19 ms ≈ 9,7 s. El plazo depende de la ida y vuelta medida y nunca baja de 5 s, así que los cortes reales, de unos 5 s, cuadran.
+
+**El "tp":** con las capturas no se pudo ubicar. Sí descartan dos cosas: la cápsula de la notebook no tuvo correcciones grandes, y la otra cápsula casi nunca se quedó esperando datos (menos de un tercio de segundo por sesión). La sospecha, sin probar: se vio en la pantalla del host. Mientras no llega nada de la notebook, el host mueve su cápsula repitiendo el último input recibido, y cuando vuelve la conexión la acomoda de golpe.
+
+**Corrección de algo que se informó mal:** la balsa con internet mala no da siempre 0 correcciones. Al subirse desde el piso a veces hay una ráfaga de 2 a 3 s. En cinco pruebas salieron 0, 0, 24, 46 y 51, y en pruebas posteriores 37 y 11. Depende de por dónde ande la balsa, que se mueve al azar. Una vez arriba, ninguna. Quedó pendiente.
+
+### Commit `600002a`
+
+**Fecha:** 2026-10-03, 19:54. `feat(net): carry actors on scripted platforms and host rafts`: 17 archivos, +533 / −32 líneas.
+
+- **Nuevos:** `base_registry.gd`, `scripted_platform.gd` y `host_raft.gd`, con sus `.uid`.
+- **Cambiados:** `actor_state.gd`, `actor_motor.gd`, `actor_body.gd`, `sim_clock.gd`, `net_sync.gd`, `remote_interpolation.gd`, `net_session.gd`, `claim_adoption.gd`, `client_prediction.gd`, `net_lab.gd` y `net_lab_level.tscn`.
+
+El commit lleva exactamente lo que se probó en las dos PC. Tres archivos ya tenían encima el arreglo siguiente, todavía sin probar. Para esos se guardó en git la copia del zip, con `git hash-object -w` y `git update-index --cacheinfo`, sin tocar el árbol de trabajo. Antes del commit se comparó archivo por archivo contra el zip.
+
+#### Cómo se ve al otro jugador sobre una plataforma: tres vueltas
+
+**Primera vuelta: el saltito al subir o bajar** (2026-10-03, zip `_base_propia_2`)
+
+- **Qué pasaba:** en la sesión 1 el panel marcó 5,3 % de tirones de los demás. Investigado sin pantalla (`diag_remote_on_base.gd`), apareció algo real. Visto desde la notebook, cuando el jugador del host saltaba del vagón en movimiento o caía sobre él, su cápsula pegaba un salto de hasta 0,41 m en un cuadro.
+- **La causa:** arriba del vagón se lo dibujaba pegado al vagón de la notebook, que va unos ticks adelantado; en el aire, donde estaba en el host, que va atrasado.
+- **El arreglo:** ese cambio se repartía en unos 0,2 s. El paso más grande bajó a 0,18 m, y en promedio a 0,08 m, como caminar.
+- **El panel de tirones:** contaba mal arriba de una base, porque usaba la velocidad relativa. Corregido, marca 1 % en esa prueba, y entre 3,5 y 4 % con internet mala.
+
+**Segunda vuelta: el ajuste al aterrizar** (reporte del 2026-10-04 a las 10:24, zip `_base_propia_3`)
+
+- **El reporte:** "el salto que se ve desde esa notebook, en la otra llega, pero tiene que hacer un ajuste cuando la capsula toca la plataforma. [...] a mas ping es mas notorio". Era el arreglo anterior: el salto de golpe se había convertido en un deslizamiento al aterrizar.
+- **La causa:** en el aire se dibujaba al jugador donde estaba en el host. Al caer había que llevarlo hasta el vagón, y cuanto más ping, más se había corrido el vagón en ese tiempo.
+- **El cambio, marcos de dibujo:**
+    - cada jugador remoto se dibuja en un marco, una base o el mundo;
+    - el marco se elige con el snapshot más nuevo, se mantiene en el aire y no se deja mientras se lo muestra parado sobre su base;
+    - si salta desde el vagón, todo el salto se dibuja respecto del vagón, y toca la plataforma en el mismo punto que en el host;
+    - si salta del piso al vagón o al revés, el ajuste se hace en el aire y termina justo al tocar.
+- **Prueba nueva:** `--test-input=hop:<id>`: llega a la base y, cada 2,5 s, salta a 3,2 m del centro (afuera de la base) o vuelve saltando al centro.
+
+| Cuánto se acomoda la cápsula al tocar | Antes | Después |
+| --- | --- | --- |
+| Saltar sobre el vagón, red limpia | 0,35 m de promedio | 0 |
+| Saltar sobre el vagón, internet mala | 0,83 m (hasta 1,24) | 0 |
+| Saltar sobre el ascensor, internet mala | 0,18 m | 0 |
+| Saltar del piso al vagón o al revés, red limpia | no medido | 0,02 m |
+| Ídem con internet mala | no medido | 0,10 m (hasta 0,37) |
+
+Los tirones del otro jugador sobre las bases bajaron a menos del 1 %.
+
+**Tercera vuelta: los bordes** (reporte del 2026-10-06 a las 11:54, zip `_base_propia_4`)
+
+- **El reporte:** "el parche hace su trabajo, pero a medias. [...] en los bordes, todavía es apreciable la corrección".
+- **Reproducido** con dos pruebas nuevas: `walkoff:<id>`, que sale y entra del vagón caminando (va a 2,5 m del centro y vuelve), y `edge:<id>`, que salta a caer en el borde (a 1,4 m del centro). Al salir o entrar caminando, la notebook acomodaba al jugador del host 0,36 m con red limpia y 0,87 m con internet mala, en una décima de segundo y con el jugador todavía parado sobre el vagón.
+- **La causa de fondo:** la notebook dibujaba el vagón en su propio momento, que va adelantado, y al otro jugador en el pasado. Cada vez que el otro subía o bajaba había que pasarlo de un momento al otro.
+- **El cambio (`visual_lag`):**
+    - lejos del jugador local, el vagón se dibuja en el mismo pasado que los demás, y así siempre coinciden;
+    - cerca (a menos de 1,5 m) o arriba, se dibuja como antes, porque la cápsula propia lo necesita en su momento;
+    - entre 1,5 y 6 m pasa de a poco;
+    - solo cambia el dibujo: la física del vagón no se toca.
+- **Un resto de 0,1 m:** primero quedaba eso en cada cambio de marco, con buena y mala red. Venía de comparar el lugar visto en el tick anterior con el nuevo. Se arregló comparando los dos marcos en el mismo momento mostrado.
+
+| Cuánto se acomoda el otro jugador, mirando desde lejos | Zip anterior (red limpia / mala) | Después (red limpia / mala) |
+| --- | --- | --- |
+| Salir o entrar caminando | 0,36 m / 0,87 m | 0 / 0 |
+| Saltar del vagón al piso o del piso al vagón | 0,34 m / 0,85 m | 0 / 0 |
+| Saltar y caer en el borde, o en el ascensor | — | 0 / 0 |
+
+**Lo que queda,** y se avisó al entregar: si el jugador local también está arriba del vagón o cerca, el vagón tiene que estar en su momento, y queda un ajuste de unos 0,3 m que solo se puede disimular.
+
+- Al bajarse, el ajuste empieza cuando ya salió del vagón y dura 0,2 s.
+- Al subirse, termina justo al tocar el vagón, en una décima de segundo.
+- Además, al acercarse caminando desde lejos, el vagón se va adelantando de a poco hasta su momento real.
+
+**Prueba en las dos PC (12:50):** "podría decirse que esta casi que arreglado". Queda un caso: entrar a la plataforma caminando al final de un salto bajo, casi horizontal. No se reprodujo. La explicación, sin probar: el ajuste lento de haberse bajado se suma al corto de volver a subirse. Eso solo puede pasar si la cápsula que mira está cerca o arriba del vagón. Se preguntó, y la respuesta (13:27) fue "estaba cerca": queda como límite conocido.
+
+### Commit `25f7806`
+
+**Fecha:** 2026-10-06, 12:51. `feat(net): draw other players consistently on moving platforms`: 5 archivos, +268 / −38 líneas. Son `net_lab.gd`, `actor_body.gd`, `base_registry.gd`, `scripted_platform.gd` y `remote_interpolation.gd`. Lleva las tres vueltas juntas, tal como se probaron en el zip `_base_propia_4`.
+
+### 8.2 Punto 3: postura y espacio libre
+
+#### Qué se implementó
+
+**El actor:**
+
+- **Dos formas ya preparadas,** como pide el documento: la parada, una cápsula de 1,8 m de alto y 0,35 m de radio, y la agachada, de 1,0 m. Se cambia cuál está activa; no se cambia el tamaño de una forma.
+- **`ActorState`:** el modo Deslizamiento (`SLIDE`) y la postura, pedida (`stance_wanted`) y concedida (`stance`).
+- **`ActorInput`:** botones nuevos, agacharse (Ctrl, bit 1) y correr (Shift, bit 2).
+
+**`ActorBody`:**
+
+- `use_stance()` activa una forma u otra.
+- `stance_fits()` prueba si una forma entra con `intersect_shape`, usando una copia de la forma achicada 2 cm, para que tocar el piso no cuente como choque. No cuentan el propio cuerpo ni los demás jugadores, que están en otra capa.
+- `present()` muestra la malla de cada postura y ubica la nariz.
+
+**`ActorMotor`:**
+
+- **Velocidades:** caminar a 5 m/s, correr a 8 m/s (solo parado) y agachado a 2,5 m/s.
+- **Deslizamiento:** se entra corriendo, parado y a 6 m/s o más, al apretar Ctrl. Frena por rozamiento (4 m/s²), acelera en bajada, gira poco (1,5 rad/s) y no pasa de 12 m/s. Cuando baja de 2,5 m/s vuelve a Suelo. Siempre pide agachado.
+- **Etapa 7, `_resolve_stance()`:**
+    - agacharse siempre se concede;
+    - crecer necesita espacio libre, y nunca se crece hacia un espacio ocupado;
+    - en el suelo la forma cambia con los pies fijos;
+    - en el aire, con la cabeza fija: agacharse sube los pies 0,8 m y pararse los baja.
+- **Un cambio chico que no se pidió, avisado al entregar:** en el aire, el control ya no frena a quien venía más rápido que caminando. Sin eso, al saltar corriendo o deslizándose se perdía velocidad en el aire. Los saltos caminando quedan igual.
+
+**Presentación y red:**
+
+- **`LabCamera`:** la altura de la cabeza depende de la postura: 1,6 m parado y 0,8 m agachado. Así, bajo el techo, la cámara queda adentro del túnel.
+- **`RemoteInterpolation`:** entre dos datos con distinta postura no mezcla las alturas de los pies.
+- **Nivel:** el túnel largo, detrás de donde aparecen los jugadores. Dos paredes y un techo a lo largo de z, de 14 a 24, centrado en x = 0. El techo empieza a 1,2 m y su cara de arriba está a 1,5 m.
+- **Laboratorio:** el panel suma la línea "Postura: agachado · pedida: parado (no hay lugar)". Pruebas nuevas: `--test-input=tunnel` y `crouchjump`.
+
+#### Pruebas automáticas
+
+| Prueba | Resultado |
+| --- | --- |
+| El cliente corre, se desliza al túnel, suelta Ctrl adentro, sale caminando y vuelve agachado; red limpia, mala y con tirones | 0 correcciones; 697, 452 y 664 coincidencias. Frena adentro, sigue agachado y se para solo al salir |
+| Ticks parado bajo el techo | 0 en todas |
+| El host hace el túnel y el cliente lo mira; red limpia y mala | 0 correcciones; tirones del otro jugador 1,2 % y 1,1 % |
+| Repetición con deslizamiento, agachado bajo techo y agacharse en el aire | 1.971 repeticiones y 83.241 ticks idénticos, también con el ritmo variando. 715 ticks agachado, 155 de ellos pidiendo pararse sin lugar. Huella `7401f6f3c81f517e` |
+| Pruebas anteriores (piso plano, vagón, balsa) | Igual que antes |
+| Fotogramas de Movie Maker | La cámara baja con la postura, y bajo el techo queda adentro del túnel |
+
+**Problemas de la ruta de prueba:** la prueba del túnel primero se caía del mapa, porque saltaba sin frenar, todavía a 5 m/s. Se le agregó una pausa antes del salto.
+
+#### Agacharse en el aire: la duda, la pausa y la pared
+
+- **13:54, la pregunta:** "cuando agregaste la capacidad de agacharse, ¿usaste el mismo sistema cuando se esta tocando el piso y saltando (sin tocar el piso)?". La respuesta: sí, el mismo; cambia solo qué parte queda quieta.
+- **13:56, el pedido:** "busca en el código actual la función que se encarga de esto, porque me parece que la posicion relativa de los pies es la misma en ambos casos".
+- **La medición** (`diag_postura_aire.gd`): la primera corrida dio números basura, porque el script movía al actor antes de que estuviera dentro del juego. Corregida, mostró dos comportamientos distintos, desde `_resolve_stance` en `actor_motor.gd`:
+
+| Momento | Pies antes → después | Cabeza antes → después |
+| --- | --- | --- |
+| Se agacha en el aire (tick 40) | 0,651 → 1,502 m (suben 0,85) | 2,451 → 2,502 m (solo lo que sigue subiendo por el salto) |
+| Se para en el aire (tick 55) | 1,918 → 1,127 m (bajan 0,79) | 2,918 → 2,927 m (quieta) |
+| Se agacha en el piso (tick 120) | 0,001 → 0,001 m (quietos) | 1,801 → 1,001 m (baja 0,8) |
+| Se para en el piso (tick 140) | 0,001 → 0,001 m (quietos) | 1,001 → 1,801 m (sube 0,8) |
+
+- **La sospecha, deducida del código y avisada como tal:** la culpa era de la cámara. Se apoyaba en los pies y les sumaba la altura de la cabeza, suavizada. En el aire, los pies suben 0,8 m de golpe, la cámara sube con ellos y después baja despacio: parece que los pies quedaron y la cabeza bajó.
+- **14:10, la respuesta:** "nop, mi teoría es correcta, no se como esta armado esto, pero los pies siempre se mantienen en el mismo lugar [...] pero antes de tocar eso, hay que agregar un botón de pausa para que detenga el movimiento del player y lo congele en la posicion que tenga, ademas de su coordenadas. Tambien agregar un muro con medidas de referencia para poder usarla como escala."
+
+**Las herramientas nuevas** (zip `_postura_2`):
+
+- **Pausa:** congela todo donde está, y otra tecla avanza un solo tick.
+    - `SimClock.paused` hace que `_physics_process` no corra ningún tick, salvo los pedidos con `step()`.
+    - La cápsula es un `CharacterBody3D`, y si nadie llama al motor no se mueve: queda en el aire, con su estado intacto.
+    - El vagón y el ascensor también quedan quietos, porque su pose sale del tick.
+    - La balsa la mueve el motor de física, así que se congela aparte (`_set_paused`).
+    - La cámara y el panel siguen andando.
+    - Anda solo en Jugar solo: en red, congelar una sola PC desincroniza los relojes.
+- **Coordenadas en el panel:** "Pies en (x, y, z) · cabeza a … m de altura", con milímetros, y "EN PAUSA (tick N)".
+- **Pared de medidas** (`measure_wall.gd`), adelante a la izquierda de donde se aparece, en (−6; 1,75; 5): rayas cada 10 cm desde el piso y números cada 50 cm.
+
+Con ellas se grabaron dos imágenes frente a la pared. En el tick 126, parado en el aire: pies a 0,651 m y cabeza a 2,451 m. En el tick 127, recién agachado: pies a 1,501 m y cabeza a 2,501 m.
+
+**Las teclas:**
+
+- **14:19:** "¿la tecla P esta mapeada en la configuración del proyecto?". No: P y O se leían directo en el código, como 1 a 5, E y Q.
+- **Lo que había en el Mapa de entrada:** `toggle_debug_freeze`, en la G, del parkour; `interactuar`, en la E; y `toggle_free_cam`, en la F. El laboratorio no usa esas acciones.
+- **14:36, la decisión:** "usa la G para pausar y mapea la tecla F para avanzar de tick".
+    - La G usa `toggle_debug_freeze`.
+    - La F es una acción nueva, `avanzar_tick`, en `project.godot`. Comparte tecla con `toggle_free_cam` sin chocar.
+    - Verificado con teclas simuladas (`diag_teclas_pausa.gd`): la G congela y 30 cuadros después sigue en el mismo tick; la F avanza exactamente un tick; otra G suelta.
+- **Aviso al entregar:** cerrar y volver a abrir Godot, porque el editor abierto tenía el mapa viejo en memoria y al guardar podía borrar la acción nueva.
+
+**La aclaración pedida (14:44–14:47):**
+
+- Se explicó cómo funciona la pausa.
+- A la pregunta "¿en alguna parte me dijiste que tenia que hacerlo en una sesión sin conexión red?": sí, en dos lugares, pero enterrado. En red, la G no hace nada y no dice por qué.
+- Se ofreció un aviso en el panel para las partidas en red; no se pidió.
+
+#### Arreglo de la cámara
+
+**14:48, la confirmación:** "efectivamente, como habías hecho la implementación era correcta, lo que pasaba es que el movimiento de cámara rápido [...] daba la ilusión de que solo existía una manera de agacharse".
+
+**Medido cuadro por cuadro** (`diag_camara_aire.gd`), aparecieron dos causas:
+
+- **La cámara:** cuando los pies subían 0,8 m de golpe en el aire, subía con ellos y después bajaba en 0,17 s.
+- **El dibujo de la cápsula:** durante un tick la forma agachada se dibujaba desde los pies viejos. La interpolación de física trataba el salto de los pies como movimiento, y la cabeza bajaba de 2,43 a 1,65 m y volvía.
+
+**Los arreglos** (zip `_postura_4`):
+
+- **Cámara:** en el aire, al cambiar de postura, ajusta su altura de golpe en lo mismo que saltaron los pies. En el piso sigue a la cabeza con suavizado, como antes.
+- **Dibujo:** en el aire, el cambio de postura reinicia la interpolación de física (`reset_physics_interpolation()`), y el salto de los pies se dibuja de una vez.
+- **La cápsula del otro jugador:** el mismo arreglo. Medido desde el cliente con red limpia y mala (`diag_remoto_postura.gd`), la cabeza sigue pareja.
+
+| A dos cuadros por tick, al agacharse en el aire | Antes | Después |
+| --- | --- | --- |
+| Cabeza dibujada | 2,43 → 1,65 → 2,08 → 2,50 m | 2,43 → 2,50 → 2,53 m |
+| Cámara | sube 0,67 m de golpe y baja despacio | 2,20 → 2,30 → 2,33 m, siguiendo a la cabeza |
+
+La huella de la repetición siguió siendo `7401f6f3c81f517e`, y el túnel dio 0 correcciones con las tres redes. **15:57:** "ahora se ve perfecto, no hace el movimiento raro de antes."
+
+#### Primeras capturas en dos PC y avisos del depurador
+
+**16:07, las capturas:** la notebook, parada sobre el vagón, tenía 4.083 coincidencias, 0 correcciones, 0,1 % de datos tarde y 0 % de tirones. El host no tenía afirmaciones adoptadas ni rechazadas. Las cápsulas estaban paradas, así que todavía no mostraban la postura.
+
+**La pregunta "Con respecto a postura, ¿que es?".** La respuesta:
+
+- **Las dos posturas:** parado, 1,8 m, se puede correr; agachado, 1,0 m, más lento, sin correr, y pasa bajo techos bajos.
+- **Pedida y concedida:** la pedida es la que se quiere; la concedida, la que se tiene. Agacharse siempre se concede; pararse, solo si arriba hay lugar.
+- **Por qué importa en red:** si la notebook creyera estar agachada y el host parada, en el host chocaría con el techo del túnel y llegaría una corrección.
+
+**Los avisos:** en la captura del host, la pestaña Debugger marcaba 9. La captura 1025 mostró que eran avisos, no errores, y ninguno de postura:
+
+| Aviso | Cuántos | Dónde | Desde cuándo |
+| --- | --- | --- | --- |
+| El parámetro `state` tapa a la variable `state` del actor | 3 | `actor_body.gd`: `slide`, `apply_state` y `present` | Primeros pasos de la red |
+| División entera: se descarta la parte decimal | 2 | `net_sync.gd` y `sim_clock.gd` | Primeros pasos de la red |
+| División entera | 2 | `net_lab.gd`, prueba en zigzag | Paso 7 |
+| División entera | 1 | `net_lab.gd`, prueba de subir y bajar del vagón | Base propia |
+| La variable `move` se declara también más abajo | 1 | `net_lab.gd`, prueba en zigzag | Paso 7 |
+
+**16:24, "dale, limpialos"** (zip `_postura_5`):
+
+- **Nombres:** el parámetro pasó a llamarse `actor_state`, y la variable `move` del zigzag, `side`.
+- **Divisiones enteras:** las seis quedaron marcadas como a propósito con `@warning_ignore("integer_division")`. Se sumó una sexta, de la prueba de repetición, que apareció al verificar.
+- **La verificación:** Godot imprime estos avisos sin ventana solo con el depurador encendido (`-d`). Primero se comprobó con un script de ensayo con una división entera a propósito (`diag_aviso_prueba.gd`), y el aviso salió. Después el laboratorio y la repetición corrieron sin ningún aviso.
+- **El movimiento no cambió:** la misma huella y 0 correcciones en red.
+
+#### Capturas con F12
+
+**16:37:** "no puedo sacarlas con la configuración clásica de la tecla de windows + prt sc/imp pnt, porque para estar agachado tengo que tener mantenido la tecla control". Para la captura del túnel no hacía falta: adentro se sigue agachado solo. Se ofreció una tecla del juego, y la respuesta fue "dale, agregá la tecla F12 para capturas" (zip `_postura_6`).
+
+- **La acción:** `captura`, en la F12, en `project.godot`.
+- **El archivo:** se guarda en el Escritorio como `captura_lab_<fecha>_<hora>_<milésimas>.png`, así dos seguidas no se pisan.
+- **Qué incluye:** lo que se ve, con el panel. Espera al final del dibujo (`frame_post_draw`).
+- **El aviso:** "Captura guardada en el Escritorio: …" arriba del panel, 3 s. No sale en la imagen.
+- **Dónde anda:** con cualquier otra tecla apretada, y en Jugar solo, en el host y en el cliente.
+- **Verificada** con teclas simuladas (`diag_captura.gd`): con Ctrl apretado, la imagen quedó guardada con la cápsula agachada y el panel. Esa captura de prueba se borró del Escritorio.
+
+#### Prueba final en dos PC (17:19)
+
+Fueron 15 capturas: 8 del host, a 1600 × 900, y 7 de la notebook, a 1280 × 720.
+
+- **Bajo el techo:** los dos jugadores quedaron agachados con "pedida: parado (no hay lugar)", y se pararon solos al salir.
+- **Agacharse en el aire:** los pies suben y la cabeza queda. En una captura del host, pies a 1,776 m y cabeza a 2,776 m.
+- **La red:** la notebook pasó las 12.800 coincidencias, con 0,5 % de datos tarde y 0,7 % de tirones.
+- **La única corrección:** una de 1,21 m en la notebook, junto con 80 esperas y un salto de reloj, todo en los 6 s entre dos capturas. Es la marca de un corte del Wi-Fi.
+- **El corte, repetido sin pantalla** con cortes de 1,5 s cada 4 s: deslizándose al túnel, 1 corrección; caminando en zigzag, sin agacharse, 5. La corrección viene del corte, no de la postura.
+- **Saltar y agacharse llega más alto:** como agacharse en el aire sube los pies 0,8 m, los dos jugadores subieron al techo del túnel, a 1,5 m. Un salto parado llega a unos 1,17 m. Se avisó como consecuencia de la regla del documento.
+
+### Commit `cb71b16`
+
+**Fecha:** 2026-10-06, 17:23. `feat(net): add stance, free space and slide (validation item 3)`: 16 archivos, +592 / −58 líneas.
+
+- **Lo que lleva:** postura, espacio libre y deslizamiento; el túnel largo y la pared de medidas; la pausa con G y F; las capturas con F12; el arreglo de la cámara; y la limpieza de los avisos.
+- **Archivos:** `project.godot`, `actor.tscn`, `actor_replay_test.gd`, `lab_camera.gd`, `measure_wall.gd` y su `.uid`, `net_lab.gd`, `net_lab_level.tscn`, `actor_body.gd`, `actor_input.gd`, `actor_motor.gd`, `actor_state.gd`, `actor_tuning.gd`, `net_sync.gd`, `remote_interpolation.gd` y `sim_clock.gd`.
+- **`project.godot`:** se guardaron solo las dos acciones nuevas del Mapa de entrada, con `git apply --cached` de un parche parcial. El cambio de versión 4.6 → 4.7 que hizo el editor quedó afuera, sin commitear.
+- **La verificación:** los zips ya no estaban en el Escritorio. Se comprobó en cambio que ningún archivo había cambiado después de armar el último, a las 16:39.
+
+#### "En el aire, la forma crece hacia abajo"
+
+**19:09:** "¿que es esto de «en el aire, la forma crece hacia abajo»?". Es una regla del documento de arquitectura: "En suelo la forma crece hacia arriba; en el aire, hacia abajo".
+
+- **Por qué la eligió el documento:** pararse en el aire cerca de un techo bajo no choca, y en primera persona la vista queda quieta al cambiar de postura saltando.
+- **Lo que se agregó en la implementación:** el documento solo habla de crecer. Para agacharse en el aire se aplicó la misma regla al revés, y agacharse y volver a pararse en el aire deja en el mismo lugar.
+- **La alternativa, explicada sin recomendarla:** pies fijos también en el aire. Ya no se ganaría altura, pero la cabeza y la cámara bajarían 0,8 m de golpe en pleno salto.
+
+Pedido "decimelo en pocas palabras": en el piso, los pies quedan y se mueve la cabeza; en el aire, la cabeza queda y se mueven los pies. Por eso, agachándose al saltar se llega más alto.
+
+**Decisión, 19:18:** "perfecto, que se quede asi, seguí con el punto de la escalera".
+
+### 8.3 Punto 4: escalera, con empujones programados e inmediatos
+
+#### Lo que pide el documento
+
+- **Ladder:** un modo anclado sobre un objeto autorado con su eje.
+- **Entrada:** por intención, caminando hacia la escalera.
+- **Salidas:** salto, abajo, arriba con una trayectoria autorada, y el respaldo si se rompe un invariante.
+- **Regla de fuerza contra agarre:** un impulso de fuerza igual o mayor que el agarre del modo lo suelta; uno menor se proyecta sobre lo que el modo puede mover.
+- **Eventos del host sobre un personaje predicho:**
+    - **inmediatos:** el cliente se entera tarde y se corrige;
+    - **programados:** el host fija un tick E = ahora + ida y vuelta + colchón, lo manda confiable, y los dos lo aplican en E.
+
+#### Qué se implementó
+
+**`scripts/actor/ladder.gd` (`Ladder`), nuevo:**
+
+- **El objeto:** escalera autorada con id de red, alto, ancho (0,8 m), distancia del eje al centro de quien trepa (0,45 m) y alcance para agarrarla (0,9 m).
+- **El eje:** sube por +Y local, y se trepa desde el lado +Z local.
+- **La pose:** `pose_at(t)` da dónde van los pies a la altura t.
+- **La entrada:** `height_for(pies)` da la altura, o −1 fuera del volumen de entrada.
+- **El dibujo:** dos largueros y un peldaño cada 30 cm, sin colisión.
+- **Registro estático** por id, como las bases. Por ahora las escaleras están fijas.
+
+**`ActorState`:**
+
+- el modo `LADDER`;
+- el ancla: qué escalera (`anchor_id`) y a qué altura (`anchor_t`);
+- el bloqueo de reagarre: qué escalera (`regrab_id`) y por cuánto tiempo (`regrab_left`).
+
+Pasó de 53 a 67 bytes.
+
+**`ActorMotor`:**
+
+- **Entrada** (`_try_grab_ladder`), desde Suelo o Aire: dentro del volumen y yendo hacia la escalera. Con varias, gana la de id más chico. La que se acaba de soltar está bloqueada.
+- **Trepar** (`_ladder`): hacia la escalera sube y alejarse baja, a 2,5 m/s con aceleración de 20 m/s²; de costado no hace nada. Se mueve con un barrido (`move_and_collide`) hasta la pose de la altura pedida; si algo lo frena, la altura queda donde llegó.
+- **Salidas:**
+    - **Salto:** a Aire, 3 m/s hacia afuera y 3,5 m/s hacia arriba, con 0,4 s de bloqueo de reagarre.
+    - **Abajo:** alejarse estando abajo de todo.
+    - **Arriba:** seguir hacia la escalera estando arriba de todo. Es una trayectoria de dos tramos, 5 cm hacia arriba y después hacia adentro sobre el borde, validada antes con `test_move()`. Si algo la tapa, sigue en la escalera.
+    - **Respaldo:** si la escalera ya no existe, sale a Aire.
+- **`apply_impulse(state, impulso, fuerza, tuning)`,** que reemplazó a `push()`:
+    - en los modos libres (agarre 0), el impulso se suma y pasa a Aire;
+    - en la escalera, una fuerza de 3 o más la suelta, con el impulso y bloqueo de reagarre;
+    - una fuerza menor se suma, y el modo la proyecta sobre el eje.
+- **`anchored_pose_valid(state)`:** el host rechaza por pose una afirmación en la escalera si el ancla no existe, la altura está fuera de rango o el cuerpo está a más de 10 cm de su pose.
+
+**Eventos programados:**
+
+- **`NetSync`:**
+    - cada paquete del cliente empieza con la ida y vuelta que mide (16 bits), para que el host sepa con cuánta anticipación programar;
+    - `send_scheduled_event()` manda por un RPC confiable (`_receive_scheduled_event`) el tick, el impulso cuantizado a 1 mm/s y la fuerza.
+- **`LinkSimulator`:** con `deliver_reliable()`, el simulador demora los mensajes confiables pero no los pierde, como ENet.
+- **Laboratorio:**
+    - **Host:** fija E = tick actual + margen del input de ese jugador (si es positivo) + su ida y vuelta en ticks, redondeada hacia arriba + 4 de colchón. Anota el evento, lo anuncia y lo aplica al empezar el tick E, subiendo la época.
+    - **Cliente:** anota cada evento para su tick y lo aplica antes del paso de ese tick, también al repetir ticks.
+    - **Evento tardío:** si llega cuando ese tick ya se predijo, `ClientPrediction.replay_from()` repite desde ahí con el evento incluido.
+    - **Demasiado tarde:** si ya ni eso se puede, lo arregla la corrección del snapshot, como a uno inmediato.
+- **Teclas, en el host:** E, empujón inmediato; R, programado; con Shift, débil (fuerza 2), y sin Shift, fuerte (fuerza 4).
+- **Panel del cliente:** "empujones programados: N llegaron a tiempo, N tarde (se repitió desde su tick), N demasiado tarde".
+- **Argumentos:** `--test-scheduled-push-at`, `--test-push-force` y `--test-schedule-ticks`, este último para forzar un aviso corto.
+
+**Nivel:**
+
+- **Una torre de 2,5 m** (3 × 2,5 × 3 m, en (8; 1,25; 14)), detrás de donde se aparece y a la derecha. Tiene una escalera (id 1) en la cara que da hacia donde se aparece.
+- **Otra escalera** (id 2, de 2 m) en la cara de atrás de la plataforma verde alta, la que no da hacia donde se aparece.
+
+**Prueba de repetición:** suma tramos de escalera y dos empujones, uno débil y uno fuerte, aplicados igual en la pasada en vivo y en las repeticiones.
+
+**Simplificaciones, avisadas al entregar:**
+
+- **Salida por arriba:** sube al techo en un solo tick, sin animación. El documento pide una trayectoria en el tiempo; quedó para el laboratorio de Hanging, que tiene el mismo problema.
+- **Al agarrarse:** pone de golpe sobre el eje, a hasta 90 cm.
+- **No hay botón de agarrar:** basta caminar hacia la escalera.
+- **Las escaleras están fijas:** ninguna va sobre una plataforma móvil.
+
+#### Pruebas automáticas
+
+En pareja: el cliente sube y baja la escalera de la torre (`--test-input=ladder`). El host le da dos empujones inmediatos (a los 8 y 16 s) y dos programados (a los 12 y 20 s).
+
+| Prueba | Correcciones | Programados | Afirmaciones rechazadas por época |
+| --- | --- | --- | --- |
+| Fuertes (4), red limpia | 2 | 2 a tiempo | 6 |
+| Débiles (2), red limpia | 2 | 2 a tiempo | 4 |
+| Fuertes, internet mala | 2 | 2 a tiempo | 30 |
+| Débiles, internet mala | 2 | 2 a tiempo | 29 |
+| 4 programados fuertes con solo 3 ticks de aviso, internet mala | 0 | 4 tarde, repetidos desde su tick | 48 |
+| 4 programados débiles con 3 ticks de aviso, internet mala | 1 | 3 tarde, 1 demasiado tarde | 52 |
+| 4 programados fuertes con 1 tick de aviso, internet mala | 1 | 3 tarde, 1 demasiado tarde | 60 |
+
+- **Las correcciones:** en las cuatro primeras son exactamente las de los dos inmediatos.
+- **El efecto del empujón:** el fuerte lo saca de la escalera; cae, vuelve y se agarra de nuevo. El débil lo deja en la escalera, más arriba.
+- **Ninguna afirmación se rechazó por distancia ni por pose.**
+
+| Prueba | Resultado |
+| --- | --- |
+| Repetición con escalera, empujones y saltos, a 60 y con el ritmo variando | 2.467 repeticiones y 106.057 ticks idénticos; huella `d5f212653ef1bf8b` |
+| Piso plano, con las tres redes | 0 correcciones |
+| Vagón y balsa, con el cliente arriba y con el host arriba | 0 correcciones; esta vez la balsa no dio la ráfaga al subirse. Afirmaciones adoptadas en la balsa: 18 (la más lejana a 0,389 m con red limpia y 0,996 m con internet mala) |
+| Túnel | 0 correcciones |
+| Fotogramas de Movie Maker (`diag_escalera_frames.gd`) | La cápsula trepa delante de la escalera; el panel dice "Escalera 1 · pies a 1,62 m sobre su base"; arriba queda parada sobre la torre |
+
+**Problemas de la ruta de prueba:**
+
+- **En el pie de la escalera,** la prueba oscilaba entre alinearse y agarrarse. Se arregló fijando la alineación una vez lograda.
+- **En la repetición,** la ruta primero se caía del mapa: se acortó un tramo y se agregó una parada antes del salto. Después no llegaba a reagarrar, o el empujón fuerte la tiraba arriba de la plataforma: se reordenaron los tramos y se volvió en diagonal.
+- **En el análisis:** las ventanas de tiempo del primer filtro estaban corridas, porque el cliente arranca 1,5 s después que el host. Se pasó a mirar solo los momentos en que cambian el modo o la época.
+
+#### Prueba en dos PC (2026-10-06, 21:00)
+
+Fueron tres capturas, dos de la notebook y una del host, con internet mala en las dos PC (unos 300 ms de ida y vuelta).
+
+| Qué | Resultado |
+| --- | --- |
+| Empujones del host | 50 inmediatos y 29 programados |
+| Época de la notebook | 79 = 50 + 29: todos se aplicaron en las dos PC |
+| Correcciones en la notebook | 50, una por cada inmediato |
+| Programados | 18 a tiempo, 11 tarde y repetidos desde su tick, 0 demasiado tarde |
+| Afirmaciones rechazadas en el host | 647 por época, 0 por distancia y 0 por pose. Son las de los ticks en que la notebook todavía no sabía del empujón |
+| Última corrección | 3,43 m: con tanta latencia, un inmediato se ve como un salto. El programado lo evita, que es lo que había que validar |
+
+### Commit `91a4433`
+
+**Fecha:** 2026-10-06, 21:01. `feat(net): add Ladder mode and scheduled host events (validation item 4)`: 12 archivos, +643 / −51 líneas.
+
+- **Nuevos:** `ladder.gd` y su `.uid`.
+- **Cambiados:** `actor_motor.gd`, `actor_state.gd`, `actor_tuning.gd`, `claim_adoption.gd`, `client_prediction.gd`, `link_simulator.gd`, `net_sync.gd`, `net_lab.gd`, `net_lab_level.tscn` y `actor_replay_test.gd`.
+- **La verificación:** antes del commit se comprobó que los 12 archivos eran idénticos a los del zip probado.
+- **`project.godot`:** no tenía cambios del laboratorio en este punto, solo el 4.6 → 4.7 del editor, así que no se incluyó.
+
+---
+
+## 9. Estado actual del código
+
+### 9.1 Archivos
+
+Todo el código del laboratorio vive en carpetas nuevas: `scripts/actor/`, `scripts/net/`, `scenes/actor/` y `scenes/net_lab/`. Del resto del proyecto solo se tocó `project.godot`, para sumar dos acciones al Mapa de entrada (punto 3): `avanzar_tick` (F) y `captura` (F12). La pausa usa una acción que ya existía, `toggle_debug_freeze` (G). Jolt Physics ya estaba configurado.
+
+Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (paso 8), cuando cambiaron.
 
 | Archivo | Líneas | Qué hace |
 | --- | --- | --- |
-| `scripts/actor/actor_state.gd` (`ActorState`) | 130 | Estado completo del actor al final de un tick; cuantización, bytes (51), copia y descripción |
-| `scripts/actor/actor_input.gd` (`ActorInput`) | 59 | Input de un tick, cuantizado al crearlo; 10 bytes |
-| `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 29 | Parámetros de movimiento, un recurso |
-| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 100 | Paso por tick en orden fijo (Suelo y Aire) y el empujón |
-| `scripts/actor/actor_body.gd` (`ActorBody`) | 130 | Cuerpo (`CharacterBody3D`): deslizar, restaurar y validar poses, presentación y desvío visual |
-| `scenes/actor/actor.tscn` | 41 | El actor: cápsula y visual con "nariz" |
-| `scripts/net/sim_clock.gd` (`SimClock`) | 267 | Reloj único: ticks, orden fijo, sincronización y adelanto del cliente por ritmo variable |
-| `scripts/net/net_session.gd` (`NetSession`) | 132 | Conexión ENet, aparición con `MultiplayerSpawner`, salidas y lugares de aparición |
-| `scripts/net/net_sync.gd` (`NetSync`) | 222 | Transporte: inputs y afirmaciones del cliente, snapshots del host, márgenes |
-| `scripts/net/link_simulator.gd` (`LinkSimulator`) | 84 | Simulador de red: demora, variación, pérdida y tirones |
-| `scripts/net/client_prediction.gd` (`ClientPrediction`) | 91 | Predicción del cliente: historial, reconciliación, esperas y suavizado |
-| `scripts/net/claim_adoption.gd` (`ClaimAdoption`) | 74 | Adopción de afirmaciones en el host, con su registro |
-| `scripts/net/remote_interpolation.gd` (`RemoteInterpolation`) | 90 | Interpolación de los demás jugadores en el cliente |
+| `scripts/actor/actor_state.gd` (`ActorState`) | 169 (130) | Estado completo del actor al final de un tick: modos Suelo, Aire, Deslizamiento y Escalera, postura, base, ancla y reagarre. Cuantización, bytes (67; eran 51), copia y descripción |
+| `scripts/actor/actor_input.gd` (`ActorInput`) | 61 (59) | Input de un tick, cuantizado al crearlo; 10 bytes. Botones: saltar, agacharse y correr |
+| `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 63 (29) | Parámetros de movimiento, un recurso |
+| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 381 (100) | Paso por tick en orden fijo con los cuatro modos, la base, la postura, la escalera, los impulsos con fuerza y la validación de poses ancladas |
+| `scripts/actor/actor_body.gd` (`ActorBody`) | 202 (130) | Cuerpo (`CharacterBody3D`): deslizar, restaurar y validar poses, las dos formas y el espacio libre, presentación y desvío visual |
+| `scripts/actor/base_registry.gd` (`BaseRegistry`) | 73 (nuevo) | Registro de bases por id; origen, velocidad y posición en el mundo, real y dibujada |
+| `scripts/actor/scripted_platform.gd` (`ScriptedPlatform`) | 85 (nuevo) | Plataforma guionada: su pose sale del tick; se dibuja en el pasado cuando conviene |
+| `scripts/actor/host_raft.gd` (`HostRaft`) | 95 (nuevo) | Balsa que simula solo el host; en los clientes, una copia interpolada |
+| `scripts/actor/ladder.gd` (`Ladder`) | 94 (nuevo) | Escalera autorada: eje, alto, volumen de entrada y dibujo |
+| `scenes/actor/actor.tscn` | 60 (41) | El actor: las dos formas (parada y agachada), sus mallas y la "nariz" |
+| `scripts/net/sim_clock.gd` (`SimClock`) | 288 (267) | Reloj único: ticks, orden fijo, sincronización, adelanto del cliente por ritmo variable, plataformas colocadas para el tick siguiente y pausa |
+| `scripts/net/net_session.gd` (`NetSession`) | 137 (132) | Conexión ENet, aparición con `MultiplayerSpawner`, salidas y lugares de aparición |
+| `scripts/net/net_sync.gd` (`NetSync`) | 322 (222) | Transporte: inputs, afirmaciones e ida y vuelta del cliente; snapshots del host con las balsas; márgenes; eventos programados por canal confiable |
+| `scripts/net/link_simulator.gd` (`LinkSimulator`) | 97 (84) | Simulador de red: demora, variación, pérdida y tirones; los mensajes confiables se demoran pero no se pierden |
+| `scripts/net/client_prediction.gd` (`ClientPrediction`) | 112 (91) | Predicción del cliente: historial, reconciliación, esperas, suavizado y repetición desde un tick para los eventos tardíos |
+| `scripts/net/claim_adoption.gd` (`ClaimAdoption`) | 77 (74) | Adopción de afirmaciones en el host, con su registro; valida también las poses ancladas |
+| `scripts/net/remote_interpolation.gd` (`RemoteInterpolation`) | 267 (90) | Interpolación de los demás jugadores y de las balsas en el cliente, con marcos de dibujo |
 | `scenes/net_lab/net_lab.tscn` | 125 | Escena del laboratorio, con menú y panel |
-| `scenes/net_lab/net_lab_level.tscn` | 169 | Nivel del laboratorio |
-| `scenes/net_lab/net_lab.gd` | 585 | Script del laboratorio: roles, menú, teclas, eventos del host, cableado de red, panel, mediciones y argumentos de prueba |
-| `scenes/net_lab/lab_camera.gd` (`LabCamera`) | 46 | Cámara de tercera persona |
-| `scenes/net_lab/actor_replay_test.gd` y `.tscn` | 202 + 13 | Prueba de repetición determinista, a cualquier ritmo |
+| `scenes/net_lab/net_lab_level.tscn` | 324 (169) | Nivel del laboratorio: suma el vagón, el ascensor, la balsa, el túnel largo, la pared de medidas, la torre y las dos escaleras |
+| `scenes/net_lab/net_lab.gd` | 1.012 (585) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, cableado de red, panel, pausa, capturas, mediciones y pruebas guionadas |
+| `scenes/net_lab/lab_camera.gd` (`LabCamera`) | 65 (46) | Cámara de tercera persona; la altura de la cabeza sigue la postura |
+| `scenes/net_lab/measure_wall.gd` | 46 (nuevo) | Pared de medidas: rayas cada 10 cm y números cada 50 cm |
+| `scenes/net_lab/actor_replay_test.gd` y `.tscn` | 263 + 13 (202 + 13) | Prueba de repetición determinista, a cualquier ritmo, con bases, postura, escalera y empujones |
 | Archivos `.uid` | — | Uno por script, generados por Godot |
 
-**Total:** 2.589 líneas entre scripts y escenas.
+**Total:** 4.431 líneas entre scripts y escenas (eran 2.589).
 
-### 8.2 Funciones públicas
+### 9.2 Funciones públicas
 
 - **`ActorState`:**
     - `quantize()`, `copy()`, `to_bytes()` y `from_bytes()` (estática);
     - `describe()`;
     - `quantize_yaw()`, `yaw_to_index()` e `index_to_yaw()` (estáticas).
 - **`ActorInput`:** `make()` (estática), `is_held()`, `write_to()` y `read_from()` (estática).
-- **`ActorMotor`:** `step(body, state, input, tuning, dt)` y `push(state, impulse)`, las dos estáticas.
+- **`ActorMotor`, todas estáticas:**
+    - `step(body, state, input, tuning, dt)`;
+    - `apply_impulse(state, impulse, force, tuning)`, que reemplazó a `push(state, impulse)`;
+    - `anchored_pose_valid(state)`.
 - **`ActorBody`:**
     - `slide()` y `apply_state()`, que devuelve si la pose entra en el mundo;
-    - `present()`, `seen_position()`, `smooth_from()`, `decay_visual_offset()`, `teleported()` y `visual_root()`.
+    - postura: `use_stance()`, `stance_height()` y `stance_fits()`;
+    - `present()`, `seen_position()`, `smooth_from()`, `set_visual_offset()`, `decay_visual_offset()`, `teleported()` y `visual_root()`.
+- **`BaseRegistry`, todas estáticas:**
+    - `add()`, `remove()`, `find(id)`, `all()` e `id_of(collider)`;
+    - `origin(id)`, `velocity(id)` y `world_position(state)`;
+    - `visual_origin(id)`, `visual_velocity(id)` y `visual_world_position(state)`, para dibujar.
+- **`ScriptedPlatform`:** `pose_at(tick)`, `prepare_tick(tick)`, `base_origin()`, `base_velocity()`, `visual_origin()`, `visual_velocity()` y `distance_to(point)`.
+- **`HostRaft`:** `become_copy()`, `place_copy(next_origin, current_origin, next_velocity)`, `base_origin()` y `base_velocity()`.
+- **`Ladder`:** `find(id)` y `all()`, estáticas; `up()`, `outward()`, `pose_at(t)` y `height_for(feet)`.
 - **`SimClock`:**
     - señales `tick_started(tick)`, `tick_finished(tick)` y `hard_resynced`;
-    - `apply_tick_rate(rate)` (estática), `sorted_actors()` y `report_input_margin(host_tick, margin)`.
+    - `apply_tick_rate(rate)` (estática), `sorted_actors()` y `report_input_margin(host_tick, margin)`;
+    - pausa: la variable `paused` y `step()`, que pide un tick.
 - **`NetSession`:**
     - señales `status_changed(text)` y `local_actor_spawned(actor)`;
     - `start_local()`, `start_host(port, bind)`, `start_client(address, port)` y `spawn_position(peer)`.
 - **`NetSync`:**
-    - del cliente: `send_ticks(records)` y `apply_pending_snapshot(on_own_state, on_other_state)`;
-    - del host: `input_for(peer, tick)`, `claim_for(peer, tick)`, `input_margin_ticks(peer, tick)` y `send_snapshot(tick, actors)`;
-    - `forget_peer(peer)`.
-- **`LinkSimulator`:** `configure(rtt, jitter, loss, seed, stall_every, stall)`, `is_active()`, `deliver(packet)` y `clear()`.
-- **`ClientPrediction`:** `record()`, `clear()`, `recent(count)` y `reconcile(actor, host_tick, host_state, used_input_tick, current_tick, step)`.
+    - del cliente: `send_ticks(records, rtt_ms)` y `apply_pending_snapshot(on_own_state, on_other_state, on_base_state)`; los eventos recibidos quedan en `received_events`;
+    - del host: `input_for(peer, tick)`, `claim_for(peer, tick)`, `input_margin_ticks(peer, tick)`, `peer_rtt_ms(peer)`, `send_snapshot(tick, actors, host_bases)` y `send_scheduled_event(peer, tick, impulse, force)`;
+    - `quantize_impulse(impulse)` (estática) y `forget_peer(peer)`.
+- **`LinkSimulator`:** `configure(rtt, jitter, loss, seed, stall_every, stall)`, `is_active()`, `deliver(packet)`, `deliver_reliable(packet)` y `clear()`.
+- **`ClientPrediction`:** `record()`, `clear()`, `recent(count)`, `reconcile(actor, host_tick, host_state, used_input_tick, current_tick, step)` y `replay_from(actor, tick, current_tick, step)`.
 - **`ClaimAdoption`:** `consider(actor, claim_bytes)`, `peers()`, `count(peer, result)` y `max_difference(peer)`.
-- **`RemoteInterpolation`:** `add(peer, host_tick, state)`, `advance()`, `place(actor)` y `forget(peer)`.
+- **`RemoteInterpolation`:** `add(peer, host_tick, state)`, `add_base(id, tick, position, velocity)`, `advance()`, `shown_tick()`, `place(actor)`, `place_bases(ahead)` y `forget(peer)`.
 
-### 8.3 Formatos de red
+### 9.3 Formatos de red
 
 **`ActorInput`, 10 bytes:**
 
@@ -986,10 +1567,25 @@ Todo el código del esqueleto vive en carpetas nuevas. No se tocó ningún archi
 | move.x | entero de 8 bits | eje −1 a 1 × 127 |
 | move.y | entero de 8 bits | eje −1 a 1 × 127 |
 | look_yaw | entero sin signo de 16 bits | yaw en 65.536 pasos |
-| buttons | entero sin signo de 8 bits | botones mantenidos, en bits |
+| buttons | entero sin signo de 8 bits | botones mantenidos, en bits: saltar (bit 0), agacharse (bit 1, desde el punto 3) y correr (bit 2, desde el punto 3) |
 | jump_presses | entero sin signo de 8 bits | contador de pulsaciones de salto (0 a 255, da la vuelta) |
 
-**`ActorState`, 51 bytes:**
+**`ActorState`, hoy 67 bytes.** Los primeros 51 son los del esqueleto, en el mismo orden, y después vienen los campos que agregó la validación:
+
+| Campo | Tipo | Paso de cuantización | Desde |
+| --- | --- | --- | --- |
+| (los 51 bytes de la tabla siguiente) | | | esqueleto |
+| base_id | entero sin signo de 16 bits | id de red de la base, 0 sin base | punto 2 (53 bytes) |
+| stance_wanted | entero sin signo de 8 bits | postura pedida: parado = 0, agachado = 1 | punto 3 |
+| stance | entero sin signo de 8 bits | postura concedida | punto 3 |
+| anchor_id | entero sin signo de 16 bits | id del ancla (en Ladder, la escalera) | punto 4 |
+| anchor_t | entero de 32 bits | 0,1 mm (en Ladder, la altura de los pies sobre la escalera) | punto 4 |
+| regrab_id | entero sin signo de 16 bits | ancla bloqueada para reagarrar | punto 4 |
+| regrab_left | entero de 32 bits | 0,1 ms | punto 4 |
+
+Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, Aire = 1, Deslizamiento = 2 y Escalera = 3.
+
+**`ActorState` del esqueleto, 51 bytes:**
 
 | Campo | Tipo | Paso de cuantización |
 | --- | --- | --- |
@@ -1004,35 +1600,69 @@ Todo el código del esqueleto vive en carpetas nuevas. No se tocó ningún archi
 | jump_presses_seen | entero sin signo de 8 bits | último contador procesado |
 | epoch | entero sin signo de 16 bits | época (da la vuelta en 65.536) |
 
-**Mensajes (todos RPC no confiables):**
+**Mensajes.** Todos son RPC no confiables, salvo el evento programado:
 
 | Mensaje | Sentido | Contenido |
 | --- | --- | --- |
-| `_submit_inputs` | cliente → host, un paquete por tick | cantidad (8 bits) y, por cada tick sin confirmar (hasta 6): el input (10 bytes), el largo de la afirmación (8 bits) y la afirmación (51 bytes) |
-| `_receive_snapshot` | host → todos, cada 2 ticks | tick del host (32 bits), cantidad de actores (8 bits) y, por actor: dueño (32 bits), tick del input usado (32 bits), margen del input (16 bits), largo del estado (8 bits) y estado (51 bytes) |
+| `_submit_inputs` | cliente → host, un paquete por tick | ida y vuelta que mide el cliente, en ms (16 bits, desde el punto 4); cantidad (8 bits); y, por cada tick sin confirmar (hasta 6): el input (10 bytes), el largo de la afirmación (8 bits) y la afirmación (67 bytes) |
+| `_receive_snapshot` | host → todos, cada 2 ticks | tick del host (32 bits); cantidad de actores (8 bits); y, por actor: dueño (32 bits), tick del input usado (32 bits), margen del input (16 bits), largo del estado (8 bits) y estado (67 bytes). Al final, desde el punto 2, las bases que simula el host: cantidad (8 bits) y, por base, id (16 bits), posición (3 enteros de 32 bits, en 0,1 mm) y velocidad (3 enteros de 32 bits, en 1 mm/s). Las plataformas guionadas no viajan: cada máquina las calcula desde el tick |
+| `_receive_scheduled_event` | host → un cliente, **confiable** (desde el punto 4) | tick en que se aplica (32 bits), impulso (3 enteros de 32 bits, en 1 mm/s) y fuerza (8 bits) |
 | `_ping` / `_pong` | cliente → host → cliente, cada 30 ticks | microsegundos del cliente al mandar; el host responde con eso y su tick |
 
-### 8.4 Qué pasa en cada tick
+### 9.4 Qué pasa en cada tick
+
+**El paso por tick de un actor** (`ActorMotor.step`), hoy:
+
+1. **Tiempo:** se descuentan coyote, memoria del salto y bloqueo de reagarre.
+2. **Base:** si está sobre una base, la base lo lleva hasta donde quedó en este tick.
+3. **Eventos:** una pulsación nueva de salto se detecta porque cambió el contador. Los empujones, en cambio, no se aplican acá (ver abajo).
+4. **Sondas:** todavía no hay una etapa aparte. La única lectura del entorno para una transición, el volumen de entrada de la escalera, se hace dentro de la transición.
+5. **Transición:** como máximo una por tick.
+    - **Suelo:** salto, caída, agarrar una escalera o deslizamiento.
+    - **Aire:** aterrizaje, salto con coyote o agarrar una escalera.
+    - **Deslizamiento:** salto, caída o fin por velocidad.
+    - **Escalera:** respaldo, salto, salida abajo o salida arriba.
+6. **Modo:** el modo activo decide la velocidad.
+7. **Postura y movimiento:** se resuelve la postura. Después, los modos libres se mueven con `move_and_slide()`, y la escalera con un barrido.
+8. **Contactos:** los indicadores de Godot pasan al estado. La sonda de suelo dice sobre qué base quedó parado, y al cambiar de base la velocidad cambia de marco. Todo se cuantiza.
+
+**Los empujones no entran al paso.** Los aplica con `apply_impulse` quien maneja el actor (el host, o el cliente en su predicción) al empezar el tick, antes del paso, y suben la época. El documento los pone en la etapa 3. Una diferencia que sale de leer el código: el bloqueo de reagarre que pone un empujón empieza a descontarse en el mismo tick, en la etapa 1. Host y cliente lo hacen igual, así que no causa correcciones.
 
 **En el host** (y en modo local, sin red):
 
-1. **Al empezar el tick:** reaparece quien cayó por debajo de −30 m, y se aplican los empujones pedidos (suben la época del empujado).
+1. **Al empezar el tick:**
+    - reaparece quien cayó por debajo de −30 m;
+    - se atienden los empujones pedidos con E y R: los inmediatos se aplican ya, y los programados se anotan para su tick y se anuncian;
+    - se aplican los programados que tocan en este tick.
+
+    Los dos tipos suben la época del empujado.
 2. **Los actores, en orden de dueño:** cada uno toma su input (el propio del teclado; el de cada cliente, el que llegó, o el último repetido si falta), corre el paso por tick, se orienta y su desvío visual decae.
 3. **Al terminar el tick:** para cada actor de otro jugador, la adopción considera su afirmación de ese tick.
-4. **Snapshot:** se manda si el tick es par.
+4. **Snapshot:** se manda si el tick es par, con las balsas.
+5. **Plataformas:** se colocan en su pose del tick siguiente.
+6. **La balsa del host** la mueve el motor de física, en su propio paso.
 
 **En el cliente:**
 
 1. **Al empezar el tick:**
-    1. se aplica el snapshot más nuevo: el estado propio va a la predicción (y el margen al reloj), y el de los demás al colchón de interpolación;
-    2. la predicción compara: si coincide, sigue; si no coincide y el estado se calculó con un input repetido, espera; si no coincide con input real, restaura, repite y suaviza;
-    3. avanza el momento que se muestra y ubica a los demás en su pose interpolada;
-    4. arma el input del tick.
+    1. toma los eventos programados que llegaron y los anota para su tick: si ese tick ya pasó, repite desde ahí con el evento; si ya ni eso se puede, lo cuenta como demasiado tarde;
+    2. se aplica el snapshot más nuevo: el estado propio va a la predicción (y el margen al reloj), el de los demás y el de las balsas al colchón de interpolación;
+    3. la predicción compara: si coincide, sigue; si no coincide y el estado se calculó con un input repetido, espera; si no coincide con input real, restaura, repite (con los eventos programados de esos ticks) y suaviza;
+    4. avanza el momento que se muestra;
+    5. decide cuánto en el pasado se dibuja cada plataforma, según lo cerca que esté el propio jugador;
+    6. ubica a los demás en su pose interpolada, cada uno en su marco de dibujo;
+    7. arma el input del tick y aplica los eventos programados de este tick al propio actor.
 2. **El propio actor:** corre el paso por tick con ese input.
-3. **Al terminar el tick:** se guarda lo predicho, y se manda al host el input con la afirmación de los ticks sin confirmar.
+3. **Al terminar el tick:**
+    - se guarda lo predicho;
+    - se manda al host el input con la afirmación de los ticks sin confirmar y la ida y vuelta medida;
+    - se colocan las copias de las balsas en su pose del tick siguiente;
+    - las plataformas quedan colocadas para el tick siguiente.
 4. **Después del tick:** el reloj ajusta el ritmo (57 a 72 ticks por segundo) según el peor margen corregido. Cada 30 ticks manda un ping.
 
-### 8.5 Constantes
+**En pausa** (solo Jugar solo): no corre ningún tick, salvo uno por cada F. La balsa se congela aparte.
+
+### 9.5 Constantes
 
 | Constante | Valor | Dónde | Para qué |
 | --- | --- | --- | --- |
@@ -1065,7 +1695,25 @@ Todo el código del esqueleto vive en carpetas nuevas. No se tocó ningún archi
 | `MOUSE_SENSITIVITY`, `PITCH_MIN`, `PITCH_MAX`, `HEAD_HEIGHT` | 0,0025; −1,2; 0,6; 1,6 m | `LabCamera` | Cámara |
 | Cuantización | posición 0,0001 m; velocidad 0,001 m/s; normal 0,0001; tiempo 0,0001 s; yaw 65.536 pasos; ejes 1/127 | `ActorState` / `ActorInput` | Estados comparables byte a byte |
 
-**Parámetros de movimiento (`ActorTuning`):**
+**Constantes que sumó la validación:**
+
+| Constante | Valor | Dónde | Para qué |
+| --- | --- | --- | --- |
+| `FREE_SPACE_MARGIN` | 0,02 m | `ActorBody` | Cuánto se achica la forma de prueba del espacio libre, para que tocar el piso no cuente como choque |
+| `BASE_POSITION_STEP` / `BASE_VELOCITY_STEP` | 0,0001 m / 0,001 m/s | `NetSync` | Cuantización de las balsas en el snapshot |
+| `IMPULSE_STEP` | 0,001 m/s | `NetSync` | Cuantización del impulso de un evento programado |
+| `MIN_FRAME_BLEND_TICKS` | 6 | `RemoteInterpolation` | Al cambiar de marco de dibujo, el ajuste se reparte en al menos 6 ticks (100 ms) |
+| `LEAVE_BLEND_SPEED` / `MAX_LEAVE_BLEND_TICKS` | 1,5 m/s / 45 ticks | `RemoteInterpolation` | Al dejar una base, el ajuste se reparte a esa velocidad media y en no más de 45 ticks (0,75 s) |
+| `PLATFORM_NEAR` / `PLATFORM_FAR` | 1,5 / 6 m | laboratorio | Más cerca que 1,5 m, la plataforma se dibuja en su momento; más lejos que 6 m, en el pasado de los demás |
+| `PUSH_FORCE_STRONG` / `PUSH_FORCE_WEAK` | 4 / 2 | laboratorio | Fuerza del empujón sin Shift y con Shift |
+| `SCHEDULE_BUFFER_TICKS` | 4 | laboratorio | Colchón del tick de un evento programado |
+| `FLASH_MSEC` | 3.000 ms | laboratorio | Duración del aviso de captura guardada |
+| `HEAD_FOLLOW_RATE` | 12 | `LabCamera` | Rapidez con que la cámara sigue la altura de la cabeza en el suelo |
+| `STEP` | 0,1 m | pared de medidas | Una raya cada 10 cm; un número cada 5 rayas |
+
+**El actor** (`actor.tscn`): cápsula parada de 1,8 m de alto y cápsula agachada de 1,0 m, las dos de 0,35 m de radio.
+
+**Parámetros de movimiento (`ActorTuning`).** Los marcados con * los sumó la validación:
 
 | Parámetro | Valor |
 | --- | --- |
@@ -1073,39 +1721,71 @@ Todo el código del esqueleto vive en carpetas nuevas. No se tocó ningún archi
 | Aceleración en el suelo | 45 m/s² |
 | Frenado en el suelo, sin input | 60 m/s² |
 | Snap al piso, en Suelo | 0,3 m |
-| Aceleración en el aire | 12 m/s² |
+| Velocidad al correr* | 8 m/s, solo parado |
+| Velocidad agachado* | 2,5 m/s |
+| Velocidad mínima para empezar a deslizarse* | 6 m/s |
+| Velocidad a la que termina el deslizamiento* | 2,5 m/s |
+| Velocidad máxima deslizando* | 12 m/s |
+| Rozamiento al deslizar* | 4 m/s² |
+| Giro al deslizar* | 1,5 rad/s |
+| Velocidad al trepar* | 2,5 m/s |
+| Aceleración al trepar* | 20 m/s² |
+| Salto desde la escalera* | 3 m/s hacia afuera y 3,5 m/s hacia arriba |
+| Bloqueo de reagarre* | 0,4 s |
+| Avance al salir por arriba de la escalera* | 0,7 m más allá del eje, además de la distancia de 0,45 m |
+| Agarre de la escalera* | 3 (fuerza de 0 a 5; los modos libres tienen 0) |
+| Aceleración en el aire | 12 m/s²; desde el punto 3 no frena a quien viene más rápido que caminando |
 | Gravedad | 9,8 m/s² |
 | Caída máxima | 40 m/s |
 | Velocidad de salto | 4,8 m/s (con la cápsula, el salto llega a ~1,17 m) |
 | Coyote | 0,1 s |
 | Memoria del salto | 0,12 s |
 
+**Escaleras del nivel (`Ladder`):** ancho 0,8 m; distancia del eje al centro de quien trepa 0,45 m; alcance para agarrar 0,9 m. La de la torre tiene 2,5 m de alto y la de la plataforma verde, 2 m.
+
+**Bases del nivel:**
+
+| Base | Id | Tipo | Movimiento |
+| --- | --- | --- | --- |
+| Vagón | 1 | `ScriptedPlatform` | 8 m en x, ida y vuelta en 8 s |
+| Ascensor | 2 | `ScriptedPlatform` | 1,98 m en y, ida y vuelta en 10 s |
+| Balsa | 3 | `HostRaft` | Al azar en 10 × 10 m; rumbo nuevo cada 3 s; empuje de 2,5 m/s² |
+
 **Lugares de aparición (`NetSession.SPAWN_SLOTS`):** (0, 0, 8), (2, 0, 8), (−2, 0, 8), (4, 0, 8), (−4, 0, 8), (6, 0, 8), (−6, 0, 8) y (8, 0, 8), en orden de llegada.
 
 ---
 
-## 9. Cómo usar el laboratorio
+## 10. Cómo usar el laboratorio
 
-### 9.1 El menú
+### 10.1 El menú
 
 Al correr `scenes/net_lab/net_lab.tscn` con **F6** aparece un menú con:
 
-- **Jugar solo:** el laboratorio sin red.
+- **Jugar solo:** el laboratorio sin red. Es el único modo donde anda la pausa.
 - **Crear partida:** abre el host. Arriba se ve la IP de esta PC en la red local.
 - **Unirse:** se escribe la IP del host en el campo (por defecto `127.0.0.1`) y se toca el botón.
 - **Simular internet:** el nivel de red con el que arranca esta máquina.
 
-### 9.2 Teclas
+### 10.2 Teclas
 
 | Tecla | Quién | Qué hace |
 | --- | --- | --- |
-| WASD | todos | Mover |
-| Espacio | todos | Saltar |
+| WASD | todos | Mover. En la escalera, hacia ella sube y alejarse baja |
+| Espacio | todos | Saltar; en la escalera, salta hacia atrás |
+| Shift | todos | Correr (desde el punto 3) |
+| Ctrl | todos | Agacharse; corriendo, deslizarse (desde el punto 3) |
 | Mouse | todos | Mirar; un clic vuelve a tomar el mouse |
 | Esc | todos | Suelta el mouse |
 | 1 a 5 | todos | Nivel de red simulada de esta máquina: sin simulación, internet buena, normal, mala y Wi-Fi con tirones |
-| E | host | Empuja a los demás jugadores |
+| E | host | Empujón inmediato a los demás jugadores (desde el punto 4, con fuerza 4) |
+| R | host | Empujón programado a los demás jugadores, con fuerza 4 (desde el punto 4) |
+| Shift + E, Shift + R | host | Los mismos empujones, débiles (fuerza 2): no sueltan la escalera |
 | Q | host | Prende o apaga la adopción |
+| G | solo en Jugar solo | Pausa: congela todo donde está; otra G lo suelta (acción `toggle_debug_freeze`, desde el punto 3) |
+| F | solo en Jugar solo, en pausa | Avanza un tick, con las teclas que estén apretadas en ese momento (acción `avanzar_tick`) |
+| F12 | todos | Guarda una captura en el Escritorio, aunque haya otras teclas apretadas (acción `captura`, desde el punto 3) |
+
+1 a 5, E, R y Q se leen directo del teclado. G, F y F12 son acciones del Mapa de entrada, y se pueden cambiar en **Proyecto > Configuración del proyecto > Mapa de entrada**. La F comparte tecla con `toggle_free_cam` del parkour, y la E con `interactuar`; el laboratorio no usa esas acciones, así que no chocan. En una partida en red, la G no hace nada y no avisa.
 
 Los niveles de red afectan solo a la máquina donde se eligen:
 
@@ -1117,14 +1797,20 @@ Los niveles de red afectan solo a la máquina donde se eligen:
 | internet mala | +200 ms | ±40 ms | 5 % | no |
 | Wi-Fi con tirones | +20 ms | ±5 ms | 0 % | se traba 150 ms cada 3 s |
 
-### 9.3 El panel
+### 10.3 El panel
 
 **Siempre:**
 
 - el estado de la sesión;
 - el tick y los actores;
 - la red simulada;
-- el modo del propio actor, si está en el suelo, la época, la velocidad y la posición;
+- el modo del propio actor, si está en el suelo y la época;
+- la postura: "Postura: agachado · pedida: parado (no hay lugar)" cuando el techo no deja pararse (desde el punto 3);
+- en la escalera, "Escalera N · pies a X m sobre su base", y después de soltarla, cuánto falta para poder volver a agarrarla (desde el punto 4);
+- la velocidad, aclarando "(sobre la base)" si es relativa a una base;
+- "Pies en (x, y, z) · cabeza a … m de altura · base: …", con milímetros (desde el punto 3);
+- en pausa, "EN PAUSA (tick N) · G sigue · F avanza un tick";
+- arriba de todo, durante 3 s, el aviso de captura guardada;
 - la ayuda de teclas.
 
 **En el cliente:**
@@ -1133,14 +1819,15 @@ Los niveles de red afectan solo a la máquina donde se eligen:
 - **Input y ritmo:** el peor margen reciente con que le llega el input al host, corregido por lo que el cliente ya ajustó; el ritmo actual en ticks por segundo; y los ticks de adelanto ganados y perdidos.
 - **Predicción:** coincidencias, correcciones (y el tamaño de la última) y esperas por input tardío.
 - **Snapshots** que no llegaron a tiempo.
-- **Los demás:** se ven 100 ms en el pasado; ticks esperando un snapshot y porcentaje de tirones medidos.
+- **Empujones programados** (desde el punto 4): cuántos llegaron a tiempo, cuántos tarde (se repitió desde su tick) y cuántos demasiado tarde.
+- **Los demás:** se ven 100 ms en el pasado; ticks esperando un snapshot y porcentaje de tirones medidos. Desde el punto 2, los tirones se miden con la velocidad en el mundo y la posición dibujada.
 
 **En el host:**
 
-- adopción prendida o apagada, empujones y reapariciones;
+- adopción prendida o apagada, empujones inmediatos y programados, y reapariciones;
 - por cada jugador: con cuántos ticks de anticipación le llega su input, su época, y sus afirmaciones adoptadas (con la diferencia más grande) y rechazadas por época, distancia y pose.
 
-### 9.4 Argumentos para pruebas automáticas
+### 10.4 Argumentos para pruebas automáticas
 
 Van después de `--` en la línea de comandos. Los temporizadores cuentan segundos reales.
 
@@ -1150,11 +1837,24 @@ Van después de `--` en la línea de comandos. Los temporizadores cuentan segund
 | `--address=IP`, `--port=N`, `--bind=IP` | Dirección del host, puerto e IP donde escucha el host |
 | `--autoquit=SEGUNDOS` | Imprime un resumen y cierra |
 | `--report-after=SEGUNDOS` | Imprime el estado de cada actor |
-| `--trace` | El cliente imprime su adelanto, margen, ritmo, correcciones, esperas, alineaciones y época cada medio segundo |
+| `--trace` | El cliente imprime su adelanto, margen, ritmo, correcciones, esperas, alineaciones y época cada medio segundo. Desde el punto 2, cualquier rol imprime además una línea "actor:" con base, posición en el mundo y relativa, velocidad, modo, postura, suelo, ancla y época |
 | `--test-input=walk` | Camina 1,5 s, salta a los 0,5 s y se queda quieto |
 | `--test-input=zigzag` | Un cuadrado que cambia de lado cada medio segundo, con un salto cada dos; a los 25 s se queda quieto |
+| `--test-input=ride:<id>` | Va hasta la base y se queda arriba, dando vueltas cerca del centro y saltando cada 3 s. Si la base está más alta, salta para subirse; si está muy alta (el ascensor arriba), la espera afuera (punto 2) |
+| `--test-input=hop:<id>` | Llega a la base y, cada 2,5 s, salta a 3,2 m del centro o vuelve saltando (punto 2) |
+| `--test-input=edge:<id>` | Igual, pero a 1,4 m del centro: cae en el borde (punto 2) |
+| `--test-input=walkoff:<id>` | Igual, a 2,5 m del centro y caminando, sin saltar (punto 2) |
+| `--test-input=tunnel` | Se alinea con el túnel, corre, se desliza adentro, suelta Ctrl, sale caminando por la otra punta y vuelve agachado. Al final imprime los ticks que estuvo parado bajo el techo (punto 3) |
+| `--test-input=crouchjump` | Frente a la pared de medidas, salta y se agacha a los 10 ticks del salto (punto 3) |
+| `--test-input=ladder` | Va a la escalera de la torre, se agarra y sube y baja entre 0,5 y 2 m; si la suelta, vuelve (punto 4) |
+| `--test-input=laddertop` | Sube la escalera hasta arriba y sale al techo de la torre (punto 4) |
+| `--test-spawn-at=x,z` | El host aparece en ese lugar (punto 2) |
+| `--test-pause-at=TICK` | Jugando solo, pone la pausa en ese tick (punto 3) |
 | `--no-adoption` | El host arranca con la adopción apagada |
-| `--test-push-at=S1,S2,…` | El host empuja a los demás a esos segundos |
+| `--test-push-at=S1,S2,…` | El host da empujones inmediatos a esos segundos |
+| `--test-scheduled-push-at=S1,S2,…` | El host da empujones programados a esos segundos (punto 4) |
+| `--test-push-force=N` | Fuerza de los empujones de prueba; por defecto 4 (punto 4) |
+| `--test-schedule-ticks=N` | Los programados se fijan solo N ticks adelante, para probar uno que llega tarde (punto 4) |
 | `--sim-rtt=MS`, `--sim-jitter=MS`, `--sim-loss=PORCENTAJE`, `--sim-seed=N` | Red simulada |
 | `--sim-stall-every=MS`, `--sim-stall=MS` | Tirones |
 | `--sim-after=SEGUNDOS`, `--sim-until=SEGUNDOS` | La red simulada empieza o termina en plena partida |
@@ -1166,15 +1866,32 @@ Van después de `--` en la línea de comandos. Los temporizadores cuentan segund
 - saltos de reloj, coincidencias, correcciones, esperas y alineaciones;
 - snapshots perdidos, red y paquetes descartados por el simulador.
 
-En el cliente agrega los tirones de los demás. En el host agrega, por jugador, las afirmaciones por resultado (iguales, adoptadas, rechazadas por época, distancia y pose, con la adopción apagada y sin afirmación) y la diferencia más grande adoptada.
+En el cliente agrega los tirones de los demás y, desde el punto 4, los empujones programados a tiempo, tarde y demasiado tarde. En el host agrega las reapariciones y, por jugador, las afirmaciones por resultado (iguales, adoptadas, rechazadas por época, distancia y pose, con la adopción apagada y sin afirmación) y la diferencia más grande adoptada. Con `tunnel`, imprime hasta qué tramo llegó y los ticks que estuvo parado bajo el techo.
 
-**Prueba de repetición:** `--scene res://scenes/net_lab/actor_replay_test.tscn -- --rate=N` (o `--rate=varying`). Sale con 0 si todas las repeticiones coinciden e imprime la huella de la pasada en vivo.
+**Prueba de repetición:** `--scene res://scenes/net_lab/actor_replay_test.tscn -- --rate=N` (o `--rate=varying`). Sale con 0 si todas las repeticiones coinciden e imprime la huella de la pasada en vivo. Desde el punto 3 también imprime cuántos ticks pasó agachado y cuántos de ellos pidiendo pararse sin lugar.
+
+**Avisos de GDScript sin ventana:** Godot los imprime solo con el depurador encendido. Para verlos, se agrega `-d` antes de `--scene`.
+
+### 10.5 Qué hay en el nivel
+
+Las direcciones son desde donde se aparece (z = 8), mirando como la cámara inicial, hacia −z.
+
+| Qué | Dónde | Coordenadas |
+| --- | --- | --- |
+| Lugares de aparición | En fila, de x = −6 a x = 8 | z = 8 |
+| Vagón (base 1, naranja) | A la derecha, detrás del muro largo; se llega rodeándolo por la punta más cercana | empieza en (10; −0,13; 0) y va hasta x = 18 |
+| Ascensor (base 2) | Adelante a la izquierda, pegado a la plataforma verde alta | (−9; −0,13; −12), sube hasta 2 m |
+| Balsa (base 3, marrón) | A la izquierda, flotando | empieza en (−16; 0,15; 0) |
+| Pared de medidas | Adelante a la izquierda | (−6; 1,75; 5) |
+| Túnel largo (violeta, techo a 1,2 m) | Detrás | x = 0, de z = 14 a z = 24 |
+| Torre con escalera 1 (2,5 m) | Detrás y a la derecha; la escalera da hacia donde se aparece | torre en (8; 1,25; 14); escalera en (8; 0; 12,5) |
+| Escalera 2 (2 m) | Adelante, en la cara de atrás de la plataforma verde alta (la que no da hacia donde se aparece) | (−6; 0; −14) |
 
 ---
 
-## 10. Todas las pruebas y sus resultados
+## 11. Todas las pruebas y sus resultados
 
-Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente como dos procesos por localhost. Las de dos PC corrieron entre esta PC y la notebook, por Wi-Fi.
+Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente como dos procesos por localhost. Las de dos PC corrieron entre esta PC y la notebook, por Wi-Fi. En la columna "Paso", P2, P3 y P4 son los puntos de la validación (sección 8).
 
 | Paso | Prueba | Resultado |
 | --- | --- | --- |
@@ -1210,10 +1927,41 @@ Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente c
 | 8 | Suavizado | 0,5 m baja a 3 cm en 100 ms; 2 m se muestra como salto |
 | 8 | Cámara (fotogramas de Movie Maker) | Sigue al personaje; la escena se dibuja bien |
 | 8 | Dos PC con tirones y después con ~400 ms | 0 saltos; tirones de los demás 2,1 % y 2,0 %; "se siente muy bien, no hay tirones raros" |
+| P2 | Jolt: ¿cuándo ven las consultas un cuerpo movido? | Los cinemáticos, recién en el paso siguiente; un `StaticBody3D` con `force_update_transform()`, en el acto (inferencia I2 confirmada) |
+| P2 | Vagón, cliente arriba, sin simulación y con internet mala | 0 correcciones en los dos; 818 coincidencias sin simulación |
+| P2 | Balsa, cliente arriba, sin simulación y con internet mala | 7 correcciones al subirse por primera vez (14 rechazadas por pose); 0 con internet mala (22 adoptadas, hasta 0,945 m) |
+| P2 | Balsa con internet mala, repetida | Ráfagas al subirse desde el piso: 0, 0, 24, 46 y 51 correcciones en cinco pruebas, y 37 y 11 en pruebas posteriores; arriba, ninguna |
+| P2 | Regresiones (caminar con tres redes, tirones de Wi-Fi) | 0 correcciones; con tirones, 8 adoptadas (hasta 0,147 m) |
+| P2 | Repetición | Pasa; huella `7f845dfdc63f3a57` |
+| P2 | Fotogramas de Movie Maker, 300 por base | El actor se ve apoyado sobre el vagón y la balsa |
+| P2 | Dos PC, 4 sesiones con lluvia y Starlink | 0 correcciones arriba de las bases, salvo 2 chicas en la balsa (hasta 0,37 m); tres sesiones cortadas por silencios de 4,5–5,4 s |
+| P2 | Plazo de corte de ENet | 8 s de silencio aguantados con la conexión recién empezada; con la conexión asentada, corte a los 9,7–10 s |
+| P2 | Otro jugador saltando del vagón, antes y después del primer arreglo | Salto de hasta 0,41 m en un cuadro; después, paso máximo de 0,18 m y promedio de 0,08 m |
+| P2 | Ajuste al aterrizar, antes y después de los marcos de dibujo | Vagón: de 0,35 m (red limpia) y 0,83 m (mala, hasta 1,24) a 0. Ascensor con red mala: de 0,18 m a 0. Del piso al vagón o al revés: 0,02 m (limpia) y 0,10 m (mala, hasta 0,37) |
+| P2 | Bordes, antes y después de dibujar el vagón en el pasado | Caminando: de 0,36 / 0,87 m a 0 / 0; saltando del vagón al piso o al revés: de 0,34 / 0,85 m a 0 / 0; borde y ascensor: 0 / 0 |
+| P2 | Dos PC, bordes | "podría decirse que esta casi que arreglado"; queda un caso raro con la cápsula que mira cerca del vagón |
+| P3 | Túnel con el cliente, red limpia, mala y con tirones | 0 correcciones (697, 452 y 664 coincidencias); 0 ticks parado bajo el techo |
+| P3 | Túnel con el host, mirado desde el cliente, red limpia y mala | 0 correcciones; tirones del otro 1,2 % y 1,1 % |
+| P3 | Repetición, a 60 y con ritmo variable | 1.971 repeticiones y 83.241 ticks idénticos; huella `7401f6f3c81f517e` |
+| P3 | Pies y cabeza al cambiar de postura, tick a tick | En el aire se mueven los pies (0,85 y 0,79 m) y la cabeza queda; en el piso, al revés (0,8 m) |
+| P3 | Pausa con G y F, con teclas simuladas | La G congela (30 cuadros después, el mismo tick); la F avanza exactamente un tick; otra G suelta |
+| P3 | Cabeza dibujada y cámara al agacharse en el aire, antes y después del arreglo | Cabeza: de 2,43 → 1,65 → 2,08 → 2,50 m a 2,43 → 2,50 → 2,53 m. Cámara: de subir 0,67 m y bajar despacio a 2,20 → 2,30 → 2,33 m |
+| P3 | La cápsula del otro jugador al cambiar de postura en el aire, red limpia y mala | La cabeza sigue pareja |
+| P3 | Avisos de GDScript con `-d` | Un script de ensayo sí los imprime; el laboratorio y la repetición, ninguno |
+| P3 | F12 con Ctrl apretado, con teclas simuladas | La imagen se guarda con la cápsula agachada y el panel |
+| P3 | Dos PC, primeras capturas | Parada sobre el vagón: 4.083 coincidencias, 0 correcciones, 0,1 % de datos tarde y 0 % de tirones |
+| P3 | Dos PC, con el túnel | Agachados bajo el techo; más de 12.800 coincidencias; 0,5 % tarde y 0,7 % de tirones; 1 corrección de 1,21 m por un corte |
+| P3 | Cortes de 1,5 s cada 4 s, sin pantalla | Túnel: 1 corrección; zigzag sin agacharse: 5 |
+| P4 | Empujones en la escalera, 2 inmediatos y 2 programados, fuertes y débiles, red limpia y mala | 2 correcciones en cada caso, las de los inmediatos; los programados, a tiempo |
+| P4 | Programados con aviso corto, internet mala | Fuertes con 3 ticks: 4 tarde, 0 correcciones. Débiles con 3 ticks: 3 tarde, 1 demasiado tarde, 1 corrección. Fuertes con 1 tick: 3 tarde, 1 demasiado tarde, 1 corrección |
+| P4 | Repetición, a 60 y con ritmo variable | 2.467 repeticiones y 106.057 ticks idénticos; huella `d5f212653ef1bf8b` |
+| P4 | Regresiones: piso plano, vagón, balsa y túnel | 0 correcciones |
+| P4 | Fotogramas de Movie Maker | Trepa delante de la escalera; arriba queda parada sobre la torre |
+| P4 | Dos PC, internet mala en las dos (~300 ms) | 50 inmediatos: 50 correcciones (la última de 3,43 m). 29 programados: 18 a tiempo, 11 tarde, 0 demasiado tarde y 0 correcciones. Época 79 |
 
 ---
 
-## 11. Hechos de Godot y Jolt comprobados durante la implementación
+## 12. Hechos de Godot y Jolt comprobados durante la implementación
 
 Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras se construía el esqueleto. Los de la investigación original están en la sección "Hechos comprobados e inferencias" del Apéndice A.
 
@@ -1237,9 +1985,27 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - **Interpolación en hijos:** `reset_physics_interpolation()` también reinicia a los hijos. `get_global_transform_interpolated()` del nodo `Visual`, hijo del cuerpo, da la posición interpolada con el desvío incluido.
 - **Exportar:** en esta PC solo están instaladas las plantillas de exportación de Godot 4.6.
 
+**Comprobados durante la validación (puntos 2 a 4):**
+
+- **Cuerpos cinemáticos y consultas (inferencia I2, confirmada):** con Jolt, `AnimatableBody3D` (con o sin `sync_to_physics`), un `RigidBody3D` congelado en modo cinemático (aun con `force_update_transform()`) y un transform puesto directo en `PhysicsServer3D` recién se ven en las consultas después del paso de física siguiente. Un `StaticBody3D` con `force_update_transform()` se ve en el acto.
+- **Velocidad vertical al aterrizar:** al aterrizar, `move_and_slide()` deja en cero la velocidad vertical en el mundo. Sobre una base que baja, en el marco de la base eso es subir; por eso se limita a cero la velocidad relativa vertical del que está apoyado.
+- **Plazo de corte de ENet:**
+    - una conexión asentada se corta después de unos 9,7–10 s de silencio total;
+    - ENet reenvía duplicando la espera, y con una espera inicial de ~19 ms la suma da 511 × 19 ms ≈ 9,7 s;
+    - el plazo depende de la ida y vuelta medida y nunca baja de 5 s;
+    - con la conexión recién empezada aguantó 8 s, y en las dos PC hubo silencios de 3 s que no la cortaron.
+- **Cambiar de forma de colisión:** activar una `CollisionShape3D` y desactivar otra (`disabled`) vale en el acto para `move_and_slide()` y las consultas. La repetición determinista con cambios de postura coincide byte a byte.
+- **Espacio libre:** `intersect_shape` con una copia de la forma achicada 2 cm distingue "toca el piso" de "choca con el techo".
+- **Saltos que no son movimiento:** si un cuerpo salta de lugar a propósito, por ejemplo los pies al cambiar de postura en el aire, la interpolación de física lo dibuja como un movimiento durante un tick. Para dibujarlo de una vez hay que llamar `reset_physics_interpolation()` en ese tick.
+- **Avisos de GDScript sin ventana:** los avisos al cargar scripts (división entera, variable que tapa a otra) solo se imprimen con el depurador encendido (`-d`). Sin `-d`, una corrida limpia no prueba que no haya avisos.
+- **Scripts de diagnóstico con `-s`:** mover el actor desde el `SceneTree` mismo, antes de que el actor y el nivel estén dentro del árbol corriendo su física, da posiciones basura (`get_physics_process_delta_time()` daba 0). Moverlo desde un nodo hijo con su propio `_physics_process`, como hace la prueba de repetición, da posiciones correctas.
+- **Mapa de entrada editado desde afuera:** si se cambia `project.godot` con el editor abierto, el editor tiene el mapa viejo en memoria y al guardar puede borrar las acciones nuevas. Hay que cerrar y volver a abrir Godot.
+- **Captura de pantalla:** `get_viewport().get_texture().get_image()` después de esperar `RenderingServer.frame_post_draw` da la imagen con el panel; un aviso que se muestra después no sale en la imagen.
+- **Movie Maker para verificar el dibujo:** `--write-movie <carpeta>/f.png --fixed-fps <n> --quit-after <cuadros> --resolution 960x540` graba cuadros numerados del juego, con ventana y sin intervención. Se puede combinar con `-s` para mover la cámara desde un script. Sirvió para ver las bases, la cámara con la postura y la escalera.
+
 ---
 
-## 12. Problemas y errores, y cómo se resolvieron
+## 13. Problemas y errores, y cómo se resolvieron
 
 | Cuándo | Problema | Causa | Arreglo |
 | --- | --- | --- | --- |
@@ -1258,12 +2024,39 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 | Paso 7 (diseño) | La adopción causaría una corrección y otra de vuelta | El cliente corregía con estados que el host calculó repitiendo un input | El cliente espera esos estados provisorios |
 | Paso 7 | En el primer tick, el host trataba a su propio actor como ajeno | `_local_actor` se asigna un frame después | Comparar el dueño con el id de esta máquina |
 | Paso 7 (dos PC) | Con 61 empujones, la cápsula salió del mapa y cayó para siempre | Los empujones suman velocidad y el laboratorio no tenía reaparición | Reaparición por debajo de −30 m en el paso 8 |
-| Paso 8 (dos PC) | Una corrección de 1,70 m por un empujón se ve como salto | Los empujones son eventos inmediatos; con 400 ms la diferencia pasa de 1,5 m | Pendiente: eventos programados |
+| Paso 8 (dos PC) | Una corrección de 1,70 m por un empujón se ve como salto | Los empujones son eventos inmediatos; con 400 ms la diferencia pasa de 1,5 m | Eventos programados en el punto 4: el programado no corrige. El inmediato sigue igual, a propósito (en la prueba del punto 4, la última corrección fue de 3,43 m) |
 | Este documento | Los scripts de PowerShell con acentos fallaban | PowerShell 5.1 lee los scripts UTF-8 sin BOM como ANSI, y un carácter roto pasó por comilla | Scripts en ASCII; el contenido con acentos se lee de archivos UTF-8 |
+| P2 | La prueba `ride` se trababa contra el muro en x = 5,65 | Iba en línea recta hacia la base | Ruta de dos tramos: primero en x, después en z |
+| P2 | Al caer sobre el ascensor bajando, el actor rebotaba en Aire varios segundos | Godot deja en cero la velocidad vertical en el mundo; en el marco de una base que baja, eso es subir | Apoyado sobre una base, la velocidad relativa vertical no puede ser hacia arriba |
+| P2 | Un cambio no entró al archivo | El comentario de referencia había cambiado en el paso 7 | Se insertó antes del comentario actual |
+| P2 | Partes del laboratorio leían `state.position` como posición en el mundo (reaparición, dirección del empujón, panel) | Con bases, la posición es relativa | Se pasaron a `BaseRegistry.world_position()` y se revisó el resto del código |
+| P2 (dos PC) | Tres sesiones se cortaron | Silencios de 4,5–5,4 s en lo que mandaba la notebook (lluvia, Starlink); ENet corta y el laboratorio no se reconecta | Explicado y medido; la reconexión queda pendiente |
+| P2 | La primera medición del plazo de ENet aguantó 8 s | La conexión recién empezaba y su ida y vuelta medida estaba inflada | Repetida con 40 s de conexión asentada: 9,7–10 s |
+| P2 (error mío) | Se buscaron estadísticas de ENet que no existen (`PEER_TIMEOUT_*`) | Supuse constantes que `ENetPacketPeer` no tiene | Se sacaron, y el plazo se midió congelando el host |
+| P2 (error mío) | Informé que la balsa con internet mala daba 0 correcciones | Era una sola prueba; la balsa se mueve al azar | Corregido al entregar: ráfagas de 0 a 51 al subirse |
+| P2 | El otro jugador pegaba un salto de hasta 0,41 m al saltar del vagón o caer sobre él | Arriba se lo dibujaba con el vagón adelantado de la notebook; en el aire, en el pasado | Primera vuelta: repartir el cambio en ~0,2 s |
+| P2 | El panel de tirones contaba mal sobre una base | Usaba la velocidad relativa | Usa la velocidad en el mundo y la posición dibujada |
+| P2 (reporte del usuario) | "tiene que hacer un ajuste cuando la capsula toca la plataforma" | La primera vuelta había convertido el salto en un deslizamiento al aterrizar | Marcos de dibujo (segunda vuelta) |
+| P2 (reporte del usuario) | "en los bordes, todavía es apreciable la corrección" | El vagón se dibujaba en el momento propio y el otro jugador en el pasado | Lejos, el vagón se dibuja en el mismo pasado (tercera vuelta) |
+| P2 | Quedaba un ajuste de 0,1 m en cada cambio de marco | Se comparaba el lugar visto en el tick anterior con el nuevo | Se comparan los dos marcos en el mismo momento mostrado |
+| P2 | Caso raro: volver al vagón al final de un salto bajo, con la cápsula que mira cerca | Se suman el ajuste lento de bajarse y el corto de subirse (sospecha, sin reproducir) | Aceptado como límite conocido ("estaba cerca") |
+| P2 | Hook de la herramienta bloqueó un PowerShell con `-match` y `$Matches` | Lo interpretó como un borrado en una ruta del sistema | Reescrito con `Select-String` |
+| P3 | La prueba del túnel se caía del mapa | Saltaba sin frenar, todavía a 5 m/s | Una pausa antes del salto |
+| P3 (error mío) | La primera medición de pies y cabeza dio números basura | El script movía al actor antes de que estuviera dentro del juego | Un nodo hijo con su propio `_physics_process` |
+| P3 (reporte del usuario) | "los pies siempre se mantienen en el mismo lugar" al agacharse, en el piso y en el aire | El código sí hacía dos cosas distintas; la cámara subía con los pies y bajaba despacio, y el dibujo interpolaba el salto de los pies | Pausa, pared y medición para verlo; después, arreglo de la cámara y del dibujo |
+| P3 | La pausa con P y O no estaba en el Mapa de entrada | Se leían las teclas directo en el código | G (`toggle_debug_freeze`) y F (`avanzar_tick`), a pedido |
+| P3 (error mío) | El aviso de que la pausa solo anda en Jugar solo quedó enterrado entre explicaciones | — | Explicado; se ofreció un aviso en el panel (no pedido) |
+| P3 | 9 avisos en el Debugger (8 de los primeros pasos, 1 de la base propia) y 1 más en la repetición | Parámetro `state` repetido, divisiones enteras y una variable repetida | Nombres cambiados y divisiones marcadas a propósito |
+| P3 | No se podía capturar la pantalla con Ctrl apretado | Windows + Impr Pant necesita soltar teclas | F12 dentro del juego |
+| P3 (dos PC) | 1 corrección de 1,21 m en la prueba del túnel | Un corte del Wi-Fi (80 esperas y un salto de reloj en 6 s) | Confirmado sin pantalla: viene del corte, no de la postura |
+| P4 | La prueba de escalera oscilaba al pie | Alternaba entre alinearse y agarrarse | Una vez alineada, la alineación queda fija |
+| P4 | La ruta de la repetición se caía del mapa, no llegaba a reagarrar o el empujón fuerte la tiraba arriba de la plataforma | Tramos largos y orden de los tramos | Tramo acortado, parada antes del salto, tramos reordenados y vuelta en diagonal |
+| P4 | El primer análisis de la prueba en pareja miraba momentos equivocados | El cliente arranca 1,5 s después que el host | Se miran solo los momentos en que cambian el modo o la época |
+| P3 | Los zips ya no estaban en el Escritorio para comparar antes del commit | Se habían movido o borrado | Se comprobó que ningún archivo cambió después de armar el último zip |
 
 ---
 
-## 13. Decisiones tomadas y forma de trabajo acordada
+## 14. Decisiones tomadas y forma de trabajo acordada
 
 **Decisiones de diseño:**
 
@@ -1277,6 +2070,17 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - **Seguir con el paso 6 empezando por el reloj** (20:34), después de discutir el orden.
 - **Retoque 6b antes del paso 7**, con un commit local antes del retoque (21:21).
 
+**Decisiones de la validación:**
+
+- **Validar la arquitectura de a un punto,** en el orden de la lista del documento (2026-10-03, 17:09): "vamos a la validacion anterior, donde presentaste los 6 puntos y empecemos con el primero".
+- **El caso raro del vagón queda como límite conocido** (2026-10-06, 13:27): el ajuste al volver a la plataforma al final de un salto bajo, con la cápsula que mira cerca. "estaba cerca, dale, seguí con el punto de postura".
+- **Herramientas de prueba antes de tocar la postura** (14:10): una pausa que congela al jugador con sus coordenadas, y una pared con medidas.
+- **Teclas** (14:36): "usa la G para pausar y mapea la tecla F para avanzar de tick". La G usa la acción del parkour que ya existía; la F es una acción nueva.
+- **Limpiar los avisos del depurador** (16:24): "dale, limpialos".
+- **Capturas con F12** dentro del juego (16:37).
+- **En el aire, la forma crece hacia abajo, y agacharse sube los pies** (19:18): "perfecto, que se quede asi, seguí con el punto de la escalera". Se mantiene que agacharse saltando llega más alto.
+- **El cambio en el control aéreo** (no frenar a quien viene más rápido que caminando) se avisó al entregar el punto 3 y quedó así.
+
 **Forma de trabajo acordada:**
 
 - **Instrucciones clic por clic:** nada de argumentos ni jerga para probar. El laboratorio tiene un menú dentro del juego, y las instrucciones nombran los botones exactos ("literal no entendí una absoluta mierda", 13:45).
@@ -1284,10 +2088,15 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - **Commits locales solo cuando se piden, y sin subir nada.** Cada commit lleva solo los archivos del laboratorio, verificados antes; los cambios de parkour sin commitear no se tocan.
 - **Cada paso se prueba en las dos PC** con un zip nuevo, y se analizan las capturas del panel.
 - **Antes y después medidos:** antes de cambiar algo, se mide el comportamiento actual en el mismo escenario.
+- **Desde la validación, el commit va después de la prueba en dos PC,** con lo que se probó. Antes de cada commit se comprueba que los archivos son idénticos a los del zip probado. Si el zip ya no está, se comprueba que nada cambió después de armarlo. Si un arreglo nuevo ya está encima, se commitea la versión probada sin tocar el árbol de trabajo.
+- **`project.godot` va solo con las líneas del laboratorio:** el cambio de versión 4.6 → 4.7 que hizo el editor no se commitea.
+- **Ante una duda del usuario sobre cómo se comporta algo, no se discute:** se mide y se le dan herramientas para verlo por sí mismo, como la pausa, la pared y las capturas.
+- **Lo que sale de leer el código y no de una prueba se avisa como tal** ("no lo probé en partida, sale de leerlo").
+- **Archivos de prueba:** solo se borran los que hice yo, como la captura de prueba del Escritorio.
 
 ---
 
-## 14. Commits y entregas
+## 15. Commits y entregas
 
 **Commits** (todos locales, en la rama `codex/parkour-v3-h0-lab`, sin remota configurada):
 
@@ -1297,8 +2106,13 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 | `9cd1936` | 2026-10-03 11:38 | feat(net): hold client lead by varying the tick rate (step 6b) | 3 | +206 / −64 |
 | `7547de1` | 2026-10-03 15:53 | feat(net): add claims, adoption and epoch (step 7) | 9 | +289 / −42 |
 | `c0e0421` | 2026-10-03 16:22 | feat(net): interpolate other players and smooth corrections (step 8) | 9 | +242 / −21 |
+| `9caaec3` | 2026-10-03 17:10 | docs(net): record architecture and network skeleton history | 1 | +2.393 |
+| `600002a` | 2026-10-03 19:54 | feat(net): carry actors on scripted platforms and host rafts | 17 | +533 / −32 |
+| `25f7806` | 2026-10-06 12:51 | feat(net): draw other players consistently on moving platforms | 5 | +268 / −38 |
+| `cb71b16` | 2026-10-06 17:23 | feat(net): add stance, free space and slide (validation item 3) | 16 | +592 / −58 |
+| `91a4433` | 2026-10-06 21:01 | feat(net): add Ladder mode and scheduled host events (validation item 4) | 12 | +643 / −51 |
 
-**Zips en el escritorio**, cada uno de 18 MB, para copiar el proyecto a la otra PC:
+**Zips en el escritorio** para copiar el proyecto a la otra PC. Los del esqueleto pesaban 18 MB cada uno; el tamaño de los de la validación no se anotó. Hoy solo queda en el Escritorio el de la escalera; los demás se movieron o se borraron.
 
 | Zip | Fecha | Contenido |
 | --- | --- | --- |
@@ -1309,20 +2123,60 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 | `tun-tun-tun-sahur_2026-10-02_paso6b.zip` | 2026-10-02 21:43 | Retoque 6b (885 archivos) |
 | `tun-tun-tun-sahur_2026-10-03_paso7.zip` | 2026-10-03 12:05 | Paso 7 (888 archivos) |
 | `tun-tun-tun-sahur_2026-10-03_paso8.zip` | 2026-10-03 16:10 | Paso 8 (890 archivos) |
+| `tun-tun-tun-sahur_2026-10-03_base_propia.zip` | 2026-10-03 17:44 | Punto 2: vagón, ascensor y balsa (897 archivos). Es lo que guardó `600002a` |
+| `tun-tun-tun-sahur_2026-10-03_base_propia_2.zip` | 2026-10-03 19:56 | Primera vuelta del dibujo del otro jugador sobre el vagón |
+| `tun-tun-tun-sahur_2026-10-04_base_propia_3.zip` | 2026-10-04 10:48 | Segunda vuelta: marcos de dibujo |
+| `tun-tun-tun-sahur_2026-10-06_base_propia_4.zip` | 2026-10-06 12:28 | Tercera vuelta: el vagón en el pasado. Es lo que guardó `25f7806` |
+| `tun-tun-tun-sahur_2026-10-06_postura.zip` | 2026-10-06 13:48 | Punto 3: postura, deslizamiento y túnel |
+| `tun-tun-tun-sahur_2026-10-06_postura_2.zip` | 2026-10-06 14:17 | Pausa con P y O, y pared de medidas |
+| `tun-tun-tun-sahur_2026-10-06_postura_3.zip` | 2026-10-06 14:37 | Pausa con G y F |
+| `tun-tun-tun-sahur_2026-10-06_postura_4.zip` | 2026-10-06 14:55 | Arreglo de la cámara y del dibujo en el aire |
+| `tun-tun-tun-sahur_2026-10-06_postura_5.zip` | 2026-10-06 16:28 | Limpieza de avisos |
+| `tun-tun-tun-sahur_2026-10-06_postura_6.zip` | 2026-10-06 16:39 | Capturas con F12. Es lo que guardó `cb71b16` |
+| `tun-tun-tun-sahur_2026-10-06_escalera.zip` | 2026-10-06 19:49 | Punto 4: escalera y empujones (901 archivos). Es lo que guardó `91a4433` |
 
-**Lo que no se tocó:** los cambios previos sin commitear de la rama siguen igual. Son 136, más el temporal del editor `project.godot~RF78902d2f.TMP`: 137. Incluyen `project.godot`, `docs/parkour/*`, `scenes/test/*`, `scripts/player_v2/*` y `assets/models/collectibles/*`.
+**Lo que no se tocó:** los cambios previos sin commitear de la rama siguen igual. Incluyen `project.godot` (solo con el cambio de versión 4.6 → 4.7 del editor), `docs/parkour/*`, `scenes/test/*`, `scripts/player_v2/*` y `assets/models/*`.
+
+- **Primera versión de este documento:** eran 136, más el temporal del editor `project.godot~RF78902d2f.TMP`: 137.
+- **Hoy:** `git status` muestra 138 entradas, ninguna de las carpetas del laboratorio.
 
 ---
 
-## 15. Pendientes, limitaciones conocidas y próximos pasos
+## 16. Pendientes, limitaciones conocidas y próximos pasos
+
+**Lo que sigue en la validación** (sección 8):
+
+- **Punto 5, el próximo:** el laboratorio de Hanging con snap y las pruebas de confirmación de su sección del documento. Se ofreció el 2026-10-06 a las 21:02, y el usuario pidió antes esta actualización.
+- **Punto 6:** una interacción con cambio de línea, sujetar a un compañero.
+- **Punto 7:** cámara lenta del mundo y personal.
 
 **Del plan original, sin hacer:**
 
-- **Eventos programados:** el host anuncia el evento por adelantado (tick E = ahora + ida y vuelta del cliente + colchón, enviado confiable) y el cliente lo aplica en ese tick como propio, sin corrección. Hoy el único evento es el empujón inmediato, y con mucha latencia su corrección puede pasar de 1,5 m y verse como salto.
+- ~~**Eventos programados.**~~ Hechos en el punto 4 (sección 8.3).
 - **Registro por tick en cada máquina,** para comparar dos archivos por número de tick.
 - **Prueba con dos binarios distintos** (editor contra build exportada; hacen falta las plantillas de exportación de 4.7.2) **y con otras plataformas**, como Linux o Steam Deck.
 - **La matriz exacta de la prueba final:** 0, 60, 120 y 200 ms; pérdida de 0, 2 y 5 %.
-- **Rama propia del esqueleto:** los 4 commits están en la rama de parkour. Moverlos a una rama propia sigue ofrecido.
+- **Rama propia del esqueleto:** los 9 commits están en la rama de parkour. Moverlos a una rama propia sigue ofrecido.
+
+**Limitaciones conocidas de la validación:**
+
+- **Bases:**
+    - solo se trasladan, no giran;
+    - una plataforma que choca de costado contra un personaje todavía no lo empuja (el documento lo llama empujador guionado);
+    - la balsa del host puede dar una ráfaga de correcciones al subirse desde el piso con internet mala (0 a 51 en las pruebas); arriba, ninguna.
+- **El otro jugador sobre una plataforma:** con la cápsula que mira cerca del vagón o arriba, queda un ajuste de unos 0,3 m al subirse o bajarse, y el caso raro de volver al final de un salto bajo. Al acercarse desde lejos, el vagón se adelanta de a poco a su momento real.
+- **Conexión:** el laboratorio no se reconecta. Un silencio de unos 5 s o más (según la ida y vuelta medida) termina la sesión.
+- **Pausa:** solo anda en Jugar solo. En red, la G no hace nada y no avisa; el aviso en el panel quedó ofrecido.
+- **Postura:**
+    - agacharse saltando llega más alto que un salto normal (decidido así);
+    - para deslizarse hay que estar parado al apretar Ctrl: si se salta corriendo con Ctrl apretado, se cae agachado y camina a 2,5 m/s, en vez de deslizarse. Esto sale de leer el código y no se probó en partida; se ofreció cambiarlo y no se pidió.
+- **Escalera:**
+    - la salida por arriba es instantánea, en un tick, y no una trayectoria en el tiempo como pide el documento (queda para el laboratorio de Hanging);
+    - al agarrarse, se pone de golpe sobre el eje, hasta 90 cm;
+    - no hay botón de agarrar;
+    - las escaleras están fijas.
+- **Empujones inmediatos:** con mucha latencia su corrección pasa de 1,5 m y se ve como salto (3,43 m en la prueba del punto 4). Para eso están los programados.
+- **El "tp" de la prueba de la base propia** no se pudo ubicar en las capturas. La sospecha es que se vio en el host, al volver la conexión.
 
 **Para calibrar:**
 
@@ -1330,26 +2184,23 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - El control del adelanto con tirones periódicos: con tirones cada 3 s, el ritmo pasa casi todo el tiempo en 57. Ahora que la adopción absorbe los inputs tardíos, podría reaccionar menos.
 - El colchón de interpolación (100 ms): con tirones de 150 ms se vacía a veces (14 ticks en la prueba automática; 70 a 96 en las dos PC).
 - El umbral de suavizado (1,5 m) y la vida media del desvío (25 ms).
-- El ancho de banda: cada paquete del cliente lleva hasta 6 inputs con su afirmación (~373 bytes), 60 veces por segundo. El snapshot lleva 62 bytes por actor, 30 veces por segundo.
+- **El ancho de banda.** En la primera versión de este documento: hasta ~373 bytes por paquete del cliente y 62 bytes por actor en el snapshot. Hoy, con el estado de 67 bytes, la cuenta da:
+    - **cada paquete del cliente:** 2 + 1 + 6 × (10 + 1 + 67) = 471 bytes como máximo, 60 veces por segundo;
+    - **el snapshot:** 78 bytes por actor y 26 por balsa (más 1 byte con la cantidad de balsas), 30 veces por segundo.
+- **El colchón de los eventos programados** (4 ticks): en la prueba de dos PC llegaron tarde 11 de 29, pero todos se repitieron sin corrección.
 
 **Observaciones de las pruebas reales:**
 
-- La adopción quedó apagada en la última prueba (Q). Para jugar normal conviene tenerla prendida; vuelve a estarlo al abrir la escena de nuevo con F6.
-- Hubo 1 salto de reloj de causa desconocida en una sesión del paso 7. Si se repite, conviene registrar su causa.
+- La adopción quedó apagada en la prueba del paso 8 (Q). Para jugar normal conviene tenerla prendida; vuelve a estarlo al abrir la escena de nuevo con F6.
+- Hubo 1 salto de reloj de causa desconocida en una sesión del paso 7. En la prueba de postura hubo otro, junto con un corte del Wi-Fi.
 - El empujón suma velocidad sin límite; con decenas seguidos saca al jugador del mapa. Hoy eso termina en una reaparición.
 
 **Del documento de arquitectura:**
 
 - **La regla de esperar los estados provisorios** que agregué en el paso 7 todavía no está escrita en el documento.
+- **La inferencia I2 quedó confirmada** en el punto 2, pero el documento todavía la lista como inferencia. Anotarlo quedó ofrecido.
 - **Cuando el esqueleto pase a ser el juego,** los ajustes que hoy aplica el laboratorio al arrancar (60 ticks, `physics_jitter_fix` en 0 e interpolación de física) van a `project.godot`.
-- **Lo que sigue validar,** según "Qué validan las primeras pruebas" del documento (el punto 1, el esqueleto de red, ya está hecho):
-    1. Base propia: una plataforma guionada y una balsa del host.
-    2. Postura y espacio libre: el deslizamiento bajo un techo.
-    3. Un modo anclado simple, Ladder, con empujones programados e inmediatos.
-    4. El laboratorio de Hanging con snap y sus pruebas de confirmación.
-    5. Una interacción con cambio de línea: sujetar a un compañero.
-    6. Cámara lenta del mundo y personal.
-- **Fuera del esqueleto** quedan los modos anclados, los cuerpos rígidos, las interacciones, Steam y NAT.
+- **Fuera del laboratorio** quedan los demás modos anclados, los cuerpos rígidos, las interacciones, Steam y NAT.
 
 ---
 
@@ -2161,6 +3012,27 @@ Estos scripts no están en el repositorio: vivieron en una carpeta temporal de l
 - **`run_pair.ps1`** lanza un host y, 1,5 s después, un cliente, y junta las dos salidas.
 - **Los `diag_*.gd`** son diagnósticos que extienden `SceneTree` y se corren con `-s <ruta>`.
 
+**Scripts que sumó la validación** (copiados al final de este apéndice):
+
+| Script | Punto | Qué hace |
+| --- | --- | --- |
+| `diag_kinematic_update.gd` | 2 | Inferencia I2: mueve un cuerpo cinemático y consulta en el mismo tick |
+| `diag_kinematic_next_tick.gd` | 2 | Inferencia I2: consulta en el tick siguiente, y un `StaticBody3D` con `force_update_transform()` |
+| `diag_enet_timeout.gd` y `diag_enet_timeout_long.gd` | 2 | Plazo de corte de ENet: congelan el host por silencios cada vez más largos, después de asentar la conexión |
+| `diag_remote_on_base.gd` | 2 | En el cliente, registra tick a tick dónde se ve al otro jugador, su base y la copia local de la base |
+| `medir_aterrizajes.ps1` | 2 | Corre pares con el host saltando sobre una base y el cliente registrando con `diag_remote_on_base.gd` |
+| `analizar_aterrizajes.sh` y `analizar_cambios.sh` | 2 | Analizan esos registros: cuánto se acomoda el dibujo al aterrizar y en cada cambio de marco |
+| `regresiones_bases2.ps1` | 2 a 4 | Regresiones en pareja: piso plano, el cliente sobre cada base y el host sobre cada base |
+| `postura_pares.ps1` | 3 | Pares con el túnel: el cliente lo hace con tres redes, y el host lo hace mientras el cliente mira |
+| `diag_postura_aire.gd` | 3 | Pies y cabeza tick a tick al agacharse y pararse, en el aire y en el piso |
+| `diag_teclas_pausa.gd` | 3 | La G y la F con teclas simuladas |
+| `diag_camara_aire.gd` | 3 | Altura de la cámara, los pies y la cabeza dibujados, cuadro por cuadro |
+| `diag_remoto_postura.gd` | 3 | Lo mismo para el otro jugador, en el cliente |
+| `diag_aviso_prueba.gd` | 3 | Control: una división entera a propósito, para ver que `-d` imprime los avisos |
+| `diag_captura.gd` | 3 | La F12 con Ctrl apretado, con teclas simuladas |
+| `escalera_pares.ps1` | 4 | Pares con la escalera: empujones fuertes y débiles, con red limpia y mala |
+| `diag_escalera_frames.gd` | 4 | Orienta la cámara hacia la torre para grabar fotogramas de la escalera |
+
 Ejemplo de prueba en pareja (la del 6b con la red saltando a 400 ms):
 
 ```powershell
@@ -2390,4 +3262,881 @@ func _initialize() -> void:
 	actor.smooth_from(Vector3(2.0, 0, 8))
 	print("[diag] corrección de 2 m: desvío %.3f (se acepta el salto si es 0)" % actor.visual_offset.length())
 	quit()
+```
+
+### Scripts de la validación
+
+Los scripts de esta parte se agregaron en la actualización del 2026-10-06. Se copian tal cual, como los anteriores.
+
+#### diag_kinematic_update.gd
+
+```gdscript
+extends SceneTree
+
+# Inferencia I2 del documento: si un cuerpo cinemático movido por transform se
+# ve en su lugar nuevo en las consultas del MISMO tick, o recién en el siguiente.
+# Se prueba con AnimatableBody3D (sync_to_physics apagado y prendido) y con un
+# RigidBody3D congelado en modo cinemático.
+
+var _probe: CharacterBody3D
+
+
+func _initialize() -> void:
+	_probe = CharacterBody3D.new()
+	var probe_shape := CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = 0.2
+	probe_shape.shape = sphere
+	_probe.add_child(probe_shape)
+	_probe.collision_mask = 1
+	_probe.collision_layer = 2
+	root.add_child(_probe)
+	_probe.global_position = Vector3(0, 5, 0)
+
+	var cases := [
+		["AnimatableBody3D, sync_to_physics apagado", _make_animatable(false, Vector3(0, 0, 0)), "nodo"],
+		["AnimatableBody3D, sync_to_physics prendido", _make_animatable(true, Vector3(10, 0, 0)), "nodo"],
+		["RigidBody3D congelado en modo cinemático", _make_rigid(Vector3(20, 0, 0)), "nodo"],
+		["AnimatableBody3D apagado + force_update_transform()", _make_animatable(false, Vector3(30, 0, 0)), "forzado"],
+		["RigidBody3D cinemático + force_update_transform()", _make_rigid(Vector3(40, 0, 0)), "forzado"],
+		["AnimatableBody3D apagado + transform directo al servidor", _make_animatable(false, Vector3(50, 0, 0)), "servidor"],
+		["RigidBody3D cinemático + transform directo al servidor", _make_rigid(Vector3(60, 0, 0)), "servidor"],
+	]
+	await physics_frame
+	await physics_frame
+	await physics_frame
+	for c in cases:
+		_check(c[0], c[1], c[2])
+		await physics_frame
+	quit()
+
+
+## Dentro del tick: sube el cuerpo 0,5 m y, sin esperar, barre la sonda hacia
+## abajo encima de él. Si choca a 0,5 m de altura, la consulta ya lo ve movido.
+func _check(label: String, body: Node3D, how: String) -> void:
+	var x := body.global_position.x
+	var target := Vector3(x, 0.35, 0)  # cara de arriba de 0,0 a 0,5 m
+	match how:
+		"nodo":
+			body.global_position = target
+		"forzado":
+			body.global_position = target
+			body.force_update_transform()
+		"servidor":
+			body.global_position = target
+			PhysicsServer3D.body_set_state((body as PhysicsBody3D).get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, Transform3D(Basis(), target))
+	var collision := KinematicCollision3D.new()
+	var hit := _probe.test_move(Transform3D(Basis(), Vector3(x, 2.0, 0)), Vector3(0, -3, 0), collision)
+	var top := collision.get_position().y if hit else -999.0
+	print("[diag] %s: en el mismo tick el barrido choca a y=%.3f (%s)" % [
+		label, top, "ya lo ve movido" if absf(top - 0.5) < 0.01 else ("todavía lo ve abajo" if absf(top) < 0.01 else "otra cosa"),
+	])
+
+
+func _make_animatable(sync: bool, at: Vector3) -> AnimatableBody3D:
+	var body := AnimatableBody3D.new()
+	body.sync_to_physics = sync
+	body.add_child(_box())
+	root.add_child(body)
+	body.global_position = at + Vector3(0, -0.15, 0)  # cara de arriba en y=0
+	return body
+
+
+func _make_rigid(at: Vector3) -> RigidBody3D:
+	var body := RigidBody3D.new()
+	body.freeze = true
+	body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	body.add_child(_box())
+	root.add_child(body)
+	body.global_position = at + Vector3(0, -0.15, 0)
+	return body
+
+
+func _box() -> CollisionShape3D:
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(3, 0.3, 3)
+	shape.shape = box
+	return shape
+```
+
+#### diag_kinematic_next_tick.gd
+
+```gdscript
+extends SceneTree
+
+# Segunda parte de la inferencia I2: un cuerpo movido por transform en el tick N,
+# ¿se ve movido en las consultas del tick N+1? Y un StaticBody3D, ¿se ve en el
+# mismo tick si se fuerza la actualización?
+
+var _probe: CharacterBody3D
+
+
+func _initialize() -> void:
+	_probe = CharacterBody3D.new()
+	var probe_shape := CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = 0.2
+	probe_shape.shape = sphere
+	_probe.add_child(probe_shape)
+	_probe.collision_mask = 1
+	_probe.collision_layer = 2
+	root.add_child(_probe)
+	_probe.global_position = Vector3(0, 5, 0)
+
+	var animatable := _place(AnimatableBody3D.new(), Vector3(0, 0, 0))
+	(animatable as AnimatableBody3D).sync_to_physics = false
+	var rigid := RigidBody3D.new()
+	rigid.freeze = true
+	rigid.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	_place(rigid, Vector3(10, 0, 0))
+	var static_plain := _place(StaticBody3D.new(), Vector3(20, 0, 0))
+	var static_forced := _place(StaticBody3D.new(), Vector3(30, 0, 0))
+	await physics_frame
+	await physics_frame
+	await physics_frame
+
+	# Tick N: se mueven todos. Los estáticos se consultan en el mismo tick.
+	for body in [animatable, rigid, static_plain, static_forced]:
+		body.global_position = Vector3(body.global_position.x, 0.35, 0)
+	static_forced.force_update_transform()
+	_report("StaticBody3D, mismo tick, sin forzar", static_plain)
+	_report("StaticBody3D, mismo tick, con force_update_transform()", static_forced)
+	_report("AnimatableBody3D, mismo tick", animatable)
+
+	# Tick N+1: los cinemáticos, después de un paso de física.
+	await physics_frame
+	_report("AnimatableBody3D (sync_to_physics apagado), tick siguiente", animatable)
+	_report("RigidBody3D cinemático, tick siguiente", rigid)
+	_report("StaticBody3D sin forzar, tick siguiente", static_plain)
+	await physics_frame
+	quit()
+
+
+func _report(label: String, body: Node3D) -> void:
+	var x := body.global_position.x
+	var collision := KinematicCollision3D.new()
+	var hit := _probe.test_move(Transform3D(Basis(), Vector3(x, 2.0, 0)), Vector3(0, -3, 0), collision)
+	var top := collision.get_position().y if hit else -999.0
+	print("[diag] %s: choca a y=%.3f (%s)" % [
+		label, top, "lo ve movido" if absf(top - 0.5) < 0.01 else ("lo ve en la pose vieja" if absf(top) < 0.01 else "otra cosa"),
+	])
+
+
+func _place(body: CollisionObject3D, at: Vector3) -> Node3D:
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(3, 0.3, 3)
+	shape.shape = box
+	body.add_child(shape)
+	root.add_child(body)
+	body.global_position = at + Vector3(0, -0.15, 0)  # cara de arriba en y=0
+	return body
+```
+
+#### diag_enet_timeout.gd
+
+```gdscript
+extends SceneTree
+
+# Diagnostic: how long can the network be silent before ENet drops the peer?
+# After a warm-up (so ENet's round-trip estimate settles, like in a real
+# session), the host freezes its main loop (no ENet service: no acks, no
+# packets) for growing spans. The client logs which silences it survives and
+# when it loses the host.
+
+const PORT := 7801
+const WARMUP_MS := 40000
+
+var role := ""
+var peer := ENetMultiplayerPeer.new()
+var start_ms := 0
+var last_packet_ms := 0
+var connected_ms := -1
+var gone_ms := -1
+var freezes := []
+var next_stats_ms := 0
+
+
+func _initialize() -> void:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--role="):
+			role = arg.get_slice("=", 1)
+	start_ms = Time.get_ticks_msec()
+	if role == "host":
+		print("host create_server: ", peer.create_server(PORT, 4))
+		freezes = [
+			[WARMUP_MS, 3000],
+			[WARMUP_MS + 10000, 4500],
+			[WARMUP_MS + 22000, 6000],
+			[WARMUP_MS + 36000, 8000],
+		]
+	else:
+		print("client create_client: ", peer.create_client("127.0.0.1", PORT))
+	peer.peer_connected.connect(_on_connected)
+	peer.peer_disconnected.connect(_on_disconnected)
+
+
+func _now() -> int:
+	return Time.get_ticks_msec() - start_ms
+
+
+func _stats(id: int) -> String:
+	var p: ENetPacketPeer = peer.get_peer(id)
+	if p == null:
+		return "no peer"
+	return "rtt=%d rtt_var=%d" % [
+		p.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME),
+		p.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME_VARIANCE)]
+
+
+func _on_connected(id: int) -> void:
+	connected_ms = _now()
+	print("%s t=%d connected to peer %d; %s" % [role, _now(), id, _stats(id)])
+
+
+func _on_disconnected(id: int) -> void:
+	gone_ms = _now()
+	print("%s t=%d LOST peer %d after %d ms without receiving anything" % [role, _now(), id, _now() - last_packet_ms])
+
+
+func _process(_delta: float) -> bool:
+	if gone_ms < 0:
+		peer.poll()
+	while gone_ms < 0 and peer.get_available_packet_count() > 0:
+		peer.get_packet()
+		if last_packet_ms > 0 and _now() - last_packet_ms > 1000:
+			print("%s t=%d traffic again after %d ms of silence, still connected" % [role, _now(), _now() - last_packet_ms])
+		last_packet_ms = _now()
+	if connected_ms >= 0 and gone_ms < 0:
+		peer.set_target_peer(MultiplayerPeer.TARGET_PEER_BROADCAST)
+		peer.transfer_mode = MultiplayerPeer.TRANSFER_MODE_UNRELIABLE
+		peer.put_packet(PackedByteArray([1]))
+		if role == "client" and _now() >= next_stats_ms:
+			next_stats_ms = _now() + 10000
+			print("client t=%d %s" % [_now(), _stats(1)])
+	if role == "host" and connected_ms >= 0 and gone_ms < 0 and not freezes.is_empty() and _now() - connected_ms >= freezes[0][0]:
+		var f: Array = freezes.pop_front()
+		print("host t=%d freezing for %d ms (total silence)" % [_now(), f[1]])
+		OS.delay_msec(f[1])
+		print("host t=%d resumed" % _now())
+	if (gone_ms >= 0 and _now() - gone_ms > 1500) or _now() > 100000:
+		print("%s t=%d done" % [role, _now()])
+		quit()
+	return false
+```
+
+#### diag_enet_timeout_long.gd
+
+```gdscript
+extends SceneTree
+
+# Diagnostic: how long can the network be silent before ENet drops the peer?
+# After a warm-up (so ENet's round-trip estimate settles, like in a real
+# session), the host freezes its main loop (no ENet service: no acks, no
+# packets) for growing spans. The client logs which silences it survives and
+# when it loses the host.
+
+const PORT := 7801
+const WARMUP_MS := 40000
+
+var role := ""
+var peer := ENetMultiplayerPeer.new()
+var start_ms := 0
+var last_packet_ms := 0
+var connected_ms := -1
+var gone_ms := -1
+var freezes := []
+var next_stats_ms := 0
+
+
+func _initialize() -> void:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--role="):
+			role = arg.get_slice("=", 1)
+	start_ms = Time.get_ticks_msec()
+	if role == "host":
+		print("host create_server: ", peer.create_server(PORT, 4))
+		freezes = [
+			[WARMUP_MS, 15000],
+		]
+	else:
+		print("client create_client: ", peer.create_client("127.0.0.1", PORT))
+	peer.peer_connected.connect(_on_connected)
+	peer.peer_disconnected.connect(_on_disconnected)
+
+
+func _now() -> int:
+	return Time.get_ticks_msec() - start_ms
+
+
+func _stats(id: int) -> String:
+	var p: ENetPacketPeer = peer.get_peer(id)
+	if p == null:
+		return "no peer"
+	return "rtt=%d rtt_var=%d" % [
+		p.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME),
+		p.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME_VARIANCE)]
+
+
+func _on_connected(id: int) -> void:
+	connected_ms = _now()
+	print("%s t=%d connected to peer %d; %s" % [role, _now(), id, _stats(id)])
+
+
+func _on_disconnected(id: int) -> void:
+	gone_ms = _now()
+	print("%s t=%d LOST peer %d after %d ms without receiving anything" % [role, _now(), id, _now() - last_packet_ms])
+
+
+func _process(_delta: float) -> bool:
+	if gone_ms < 0:
+		peer.poll()
+	while gone_ms < 0 and peer.get_available_packet_count() > 0:
+		peer.get_packet()
+		if last_packet_ms > 0 and _now() - last_packet_ms > 1000:
+			print("%s t=%d traffic again after %d ms of silence, still connected" % [role, _now(), _now() - last_packet_ms])
+		last_packet_ms = _now()
+	if connected_ms >= 0 and gone_ms < 0:
+		peer.set_target_peer(MultiplayerPeer.TARGET_PEER_BROADCAST)
+		peer.transfer_mode = MultiplayerPeer.TRANSFER_MODE_UNRELIABLE
+		peer.put_packet(PackedByteArray([1]))
+		if role == "client" and _now() >= next_stats_ms:
+			next_stats_ms = _now() + 10000
+			print("client t=%d %s" % [_now(), _stats(1)])
+	if role == "host" and connected_ms >= 0 and gone_ms < 0 and not freezes.is_empty() and _now() - connected_ms >= freezes[0][0]:
+		var f: Array = freezes.pop_front()
+		print("host t=%d freezing for %d ms (total silence)" % [_now(), f[1]])
+		OS.delay_msec(f[1])
+		print("host t=%d resumed" % _now())
+	if (gone_ms >= 0 and _now() - gone_ms > 1500) or _now() > 100000:
+		print("%s t=%d done" % [role, _now()])
+		quit()
+	return false
+```
+
+#### diag_remote_on_base.gd
+
+```gdscript
+extends SceneTree
+
+# Diagnostic: on the client, record every tick where the remote actor is seen
+# (body + visual offset), its base and mode, and the local copy of its base.
+# Run the host with --test-input=ride:1 so the host's actor rides the wagon
+# and jumps every 3 s. Lines start with "R," for later analysis.
+
+var lab: Node
+var clock: SimClock
+var connected := false
+
+
+func _initialize() -> void:
+	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
+	root.add_child(lab)
+
+
+func _process(_delta: float) -> bool:
+	if not connected and lab.get("_clock") != null:
+		clock = lab.get("_clock")
+		clock.tick_finished.connect(_record)
+		connected = true
+	return false
+
+
+func _record(tick: int) -> void:
+	var me := root.multiplayer.get_unique_id()
+	if me == 1:
+		return
+	for actor in clock.sorted_actors():
+		if actor.owner_peer_id == me:
+			continue
+		var seen: Vector3 = actor.seen_position()
+		var s: ActorState = actor.state
+		var wagon = BaseRegistry.find(1)
+		var wagon_x: float = wagon.base_origin().x if wagon != null else 0.0
+		var samples: Array = lab.get("_interpolation").get("_samples").get(actor.owner_peer_id, [])
+		var newest: ActorState = samples[-1][1] if not samples.is_empty() else s
+		print("R,%d,%d,%.4f,%.4f,%.4f,%d,%s,%.4f,%.4f,%.4f,%d,%s,%d" % [
+			tick, clock.rate_hz, seen.x, seen.y, seen.z, s.base_id,
+			ActorState.Mode.keys()[s.mode], wagon_x, Vector2(s.velocity.x, s.velocity.z).length(),
+			actor.visual_offset.length(), newest.base_id, newest.on_floor,
+			samples[-1][0] if not samples.is_empty() else -1])
+```
+
+#### medir_aterrizajes.ps1
+
+```powershell
+param([string]$Label, [string[]]$Only = @())
+$sp = 'C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad'
+$proj = 'C:\Users\ElCaido97\Documents\tun-tun-tun-sahur'
+$diag = Join-Path $sp 'diag_remote_on_base.gd'
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5','--sim-seed=7')
+$near = @('--test-input=ride:1')
+$cases = [ordered]@{
+  'vagon_sin' = @('ride:1', @()); 'vagon_mala' = @('ride:1', $mala)
+  'ascensor_sin' = @('ride:2', @()); 'ascensor_mala' = @('ride:2', $mala)
+  'hop_sin' = @('hop:1', @()); 'hop_mala' = @('hop:1', $mala)
+  'borde_sin' = @('edge:1', @()); 'borde_mala' = @('edge:1', $mala)
+  'caminando_sin' = @('walkoff:1', @()); 'caminando_mala' = @('walkoff:1', $mala)
+  'cerca_caminando_sin' = @('walkoff:1', $near); 'cerca_caminando_mala' = @('walkoff:1', $near + $mala)
+  'cerca_hop_sin' = @('hop:1', $near); 'cerca_hop_mala' = @('hop:1', $near + $mala)
+}
+foreach ($name in $cases.Keys) {
+  if ($Only.Count -gt 0 -and -not ($Only -contains $name)) { continue }
+  $hostArgs = @('--headless','--path',$proj,'res://scenes/net_lab/net_lab.tscn','--','--host','--bind=127.0.0.1','--port=7799',"--test-input=$($cases[$name][0])",'--autoquit=40')
+  $clientArgs = @('--headless','--path',$proj,'-s',$diag,'--','--client','--address=127.0.0.1','--port=7799','--autoquit=37') + $cases[$name][1]
+  $file = Join-Path $sp "aterrizajes_$($Label)_$name.txt"
+  & (Join-Path $sp 'run_pair.ps1') -HostArgs $hostArgs -ClientArgs $clientArgs -ClientDelayMs 1500 -TimeoutSeconds 90 | Set-Content -Encoding utf8 $file
+  "done $name"
+}
+```
+
+#### analizar_aterrizajes.sh
+
+```sh
+#!/bin/sh
+# For each file: the visual correction (offset between drawn body and what is
+# seen) around landings and takeoffs, what is left of it at touchdown after a
+# frame change, and the biggest per-tick visible step.
+for f in "$@"; do
+  echo "== $f"
+  grep -a "SCRIPT ERROR" "$f" | head -n 3
+  grep -a "los dem" "$f" | tr -d '\r' | sed 's/^\[net_lab\] //'
+  grep -a '^R,' "$f" | tr -d '\r' | awk -F, '
+  { t[NR]=$2; x[NR]=$4; y[NR]=$5; z[NR]=$6; b[NR]=$7; m[NR]=$8; off[NR]=$11; n=NR }
+  END {
+    land=0; lsum=0; lmax=0; smax=0; fc=0; fsum=0; fmax=0; tds=0; tsum=0; tmax=0; cmax=0
+    for (i=2;i<=n;i++) {
+      dc=off[i]-off[i-1]; if (dc<0) dc=-dc; if (dc*60>cmax) cmax=dc*60
+      dx=x[i]-x[i-1]; dy=y[i]-y[i-1]; dz=z[i]-z[i-1]; s=sqrt(dx*dx+dy*dy+dz*dz); if (s>smax && i>60) smax=s
+      if (m[i-1]=="AIR" && m[i]=="GROUND") { land++; w=off[i]; for (j=i;j<=i+30 && j<=n;j++) if (off[j]>w) w=off[j]; lsum+=w; if (w>lmax) lmax=w }
+      if (b[i]!=b[i-1]) { fc++; fsum+=off[i]; if (off[i]>fmax) fmax=off[i]
+        for (j=i;j<=i+40 && j<=n;j++) if (j>1 && m[j-1]=="AIR" && m[j]=="GROUND") { tds++; tsum+=off[j]; if (off[j]>tmax) tmax=off[j]; break } }
+    }
+    if (land>0) printf "landings=%d  correction still showing at/after touchdown: avg %.3f m, max %.3f m\n", land, lsum/land, lmax
+    if (fc>0) printf "frame changes=%d  offset when switching: avg %.3f m, max %.3f m; left at touchdown: avg %.3f, max %.3f (%d touchdowns)\n", fc, fsum/fc, fmax, (tds?tsum/tds:0), tmax, tds
+    printf "biggest visible step in one tick: %.3f m; fastest correction: %.1f m/s\n", smax, cmax
+  }'
+done
+```
+
+#### analizar_cambios.sh
+
+```sh
+#!/bin/sh
+# Per frame change: entering a base (0->N) or leaving it (N->0), the jump to
+# spread, how long the spreading lasts, the fastest it moves the drawing
+# (excluding the switch tick itself) and the offset still left when the actor
+# touches down (if it was in the air).
+for f in "$@"; do
+  echo "== $f"
+  grep -a '^R,' "$f" | tr -d '\r' | awk -F, '
+  { t[NR]=$2; x[NR]=$4; y[NR]=$5; z[NR]=$6; b[NR]=$7; m[NR]=$8; off[NR]=$11; n=NR }
+  END {
+    for (k=0;k<2;k++) { cnt[k]=0; dsum[k]=0; dmax[k]=0; lsum[k]=0; cmx[k]=0; csum[k]=0; tdl[k]=0; tdn[k]=0; tdmax[k]=0 }
+    for (i=3;i<=n;i++) if (b[i]!=b[i-1]) {
+      k = (b[i]!=0) ? 0 : 1
+      cnt[k]++; dsum[k]+=off[i]; if (off[i]>dmax[k]) dmax[k]=off[i]
+      len=0; c=0
+      for (j=i+1;j<=n && j<=i+80;j++) { if (b[j]!=b[j-1]) break; d=off[j-1]-off[j]; if (d<0) d=-d; if (d*60>c) c=d*60; len++; if (off[j]<0.005) break }
+      lsum[k]+=len; csum[k]+=c; if (c>cmx[k]) cmx[k]=c
+      if (m[i]=="AIR") for (j=i;j<=i+40 && j<=n;j++) if (m[j-1]=="AIR" && m[j]=="GROUND") { tdn[k]++; tdl[k]+=off[j]; if (off[j]>tdmax[k]) tdmax[k]=off[j]; break }
+    }
+    split("subirse bajarse", name, " ")
+    for (k=0;k<2;k++) if (cnt[k]>0) printf "%s: %d veces, salto a repartir %.2f m (max %.2f), dura %.0f ms, velocidad del ajuste media %.1f m/s (max %.1f); queda al tocar %.2f m (max %.2f, %d en el aire)\n", name[k+1], cnt[k], dsum[k]/cnt[k], dmax[k], 1000*lsum[k]/cnt[k]/60, csum[k]/cnt[k], cmx[k], (tdn[k]?tdl[k]/tdn[k]:0), tdmax[k], tdn[k]
+  }'
+done
+```
+
+#### regresiones_bases2.ps1
+
+```powershell
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$proj = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+$common = @('--headless','--path',$proj,'--scene','res://scenes/net_lab/net_lab.tscn','--')
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5','--sim-seed=22')
+$tirones = @('--sim-rtt=20','--sim-jitter=5','--sim-stall-every=3000','--sim-stall=150','--sim-seed=22')
+
+function Show($file) {
+  Get-Content $file | Select-String -Pattern 'los dem|resumen: rol=CLIENT|adopci.n del jugador|SCRIPT|ERROR: res' | ForEach-Object {
+    $_.Line -replace 'ida_y_vuelta.*?saltos_de_reloj','saltos_de_reloj' -replace ' snapshots_perdidos.*$','' -replace '^\[net_lab\] ','' -replace 'm.ximo=\d+ ','' }
+}
+
+# 1. Flat ground, as in step 8: host zigzag, client walk.
+$flat = [ordered]@{ 'sin' = @(); 'mala' = $mala; 'tirones' = $tirones }
+foreach ($name in $flat.Keys) {
+  $hostArgs = $common + @('--host','--port=7799','--bind=127.0.0.1','--test-input=zigzag','--autoquit=24')
+  $clientArgs = $common + @('--client','--address=127.0.0.1','--port=7799','--test-input=walk','--autoquit=22') + $flat[$name]
+  $file = "$sp\reg2_plano_$name.txt"
+  & "$sp\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds 50 | Out-File -Encoding utf8 $file
+  "######## piso plano, red $name"
+  Show $file
+}
+
+# 2. Client rides each base, as in the base tests.
+$ride = [ordered]@{
+  'vagon_sin' = @('--test-input=ride:1'); 'vagon_mala' = @('--test-input=ride:1') + $mala
+  'balsa_sin' = @('--test-input=ride:3'); 'balsa_mala' = @('--test-input=ride:3') + $mala
+}
+foreach ($name in $ride.Keys) {
+  $hostArgs = $common + @('--host','--port=7799','--bind=127.0.0.1','--autoquit=30')
+  $clientArgs = $common + @('--client','--address=127.0.0.1','--port=7799','--trace','--autoquit=28') + $ride[$name]
+  $file = "$sp\reg2_cliente_$name.txt"
+  & "$sp\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds 50 | Out-File -Encoding utf8 $file
+  $lines = Get-Content $file
+  $on = @($lines | Select-String -Pattern 'actor: base=(1|3) ').Count
+  $all = @($lines | Select-String -Pattern 'actor: base=').Count
+  "######## cliente sobre $name (traza arriba de la base: $on de $all)"
+  Show $file
+}
+
+# 3. Host rides each base, client watches it.
+$watch = [ordered]@{
+  'vagon_sin' = @('ride:1', @()); 'vagon_mala' = @('ride:1', $mala)
+  'balsa_sin' = @('ride:3', @()); 'balsa_mala' = @('ride:3', $mala)
+}
+foreach ($name in $watch.Keys) {
+  $hostArgs = $common + @('--host','--port=7799','--bind=127.0.0.1',"--test-input=$($watch[$name][0])",'--autoquit=32')
+  $clientArgs = $common + @('--client','--address=127.0.0.1','--port=7799','--autoquit=30') + $watch[$name][1]
+  $file = "$sp\reg2_host_$name.txt"
+  & "$sp\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds 50 | Out-File -Encoding utf8 $file
+  "######## host sobre $name, el cliente lo mira"
+  Show $file
+}
+```
+
+#### postura_pares.ps1
+
+```powershell
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$proj = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+$common = @('--headless','--path',$proj,'--scene','res://scenes/net_lab/net_lab.tscn','--')
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5','--sim-seed=22')
+$tirones = @('--sim-rtt=20','--sim-jitter=5','--sim-stall-every=3000','--sim-stall=150','--sim-seed=22')
+$nets = [ordered]@{ 'sin' = @(); 'mala' = $mala; 'tirones' = $tirones }
+
+function Show($file) {
+  Get-Content $file | Select-String -Pattern 'los dem|resumen: rol=CLIENT|adopci.n del jugador|t.nel|SCRIPT|ERROR: res' | ForEach-Object {
+    $_.Line -replace 'ida_y_vuelta.*?saltos_de_reloj','saltos_de_reloj' -replace ' snapshots_perdidos.*$','' -replace '^\[net_lab\] ','' -replace 'm.ximo=\d+ ','' -replace ' vel=.*$','' }
+}
+
+foreach ($name in $nets.Keys) {
+  $hostArgs = $common + @('--host','--port=7799','--bind=127.0.0.1','--autoquit=26')
+  $clientArgs = $common + @('--client','--address=127.0.0.1','--port=7799','--test-input=tunnel','--autoquit=24') + $nets[$name]
+  $file = "$sp\postura_cliente_$name.txt"
+  & "$sp\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds 50 | Out-File -Encoding utf8 $file
+  "######## el cliente hace el tunel, red $name"
+  Show $file
+}
+foreach ($name in @('sin','mala')) {
+  $hostArgs = $common + @('--host','--port=7799','--bind=127.0.0.1','--test-input=tunnel','--autoquit=26')
+  $clientArgs = $common + @('--client','--address=127.0.0.1','--port=7799','--autoquit=24') + $nets[$name]
+  $file = "$sp\postura_host_$name.txt"
+  & "$sp\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds 50 | Out-File -Encoding utf8 $file
+  "######## el host hace el tunel y el cliente lo mira, red $name"
+  Show $file
+}
+```
+
+#### diag_postura_aire.gd
+
+```gdscript
+extends SceneTree
+
+# Diagnostic: where the feet and the head are, tick by tick, when the actor
+# crouches and stands up in the air and on the ground. Uses the real level,
+# actor and motor, one tick per physics frame from a node in the tree (like
+# the replay test).
+#   ticks 0-29    settle
+#   tick 30       jump (standing)
+#   ticks 40-54   crouch held (in the air)
+#   ticks 55+     released (stands up in the air if there is room below)
+#   ticks 120-139 crouch held on the ground, then released
+
+
+class Runner extends Node:
+	var actor: ActorBody
+	var state := ActorState.new()
+	var tuning := ActorTuning.new()
+	var tick := -1
+	var last_stance := -1
+
+	func _ready() -> void:
+		SimClock.apply_tick_rate(SimClock.TICK_RATE)
+		add_child(load("res://scenes/net_lab/net_lab_level.tscn").instantiate())
+		actor = load("res://scenes/actor/actor.tscn").instantiate()
+		actor.position = Vector3(0, 0.5, 4)
+		add_child(actor)
+
+	func _physics_process(_delta: float) -> void:
+		tick += 1
+		if tick == 0:
+			state.position = Vector3(0, 0.5, 4)
+			state.quantize()
+			actor.apply_state(state)
+		var buttons := 0
+		if (tick >= 40 and tick < 55) or (tick >= 120 and tick < 140):
+			buttons |= ActorInput.BUTTON_CROUCH
+		var presses := 1 if tick >= 30 else 0
+		var mode_before := state.mode
+		ActorMotor.step(actor, state, ActorInput.make(tick, Vector2.ZERO, 0.0, buttons, presses), tuning, 1.0 / 60.0)
+		var feet := actor.global_position.y
+		var head := feet + actor.stance_height(state.stance)
+		var changed := state.stance != last_stance and last_stance != -1
+		if (tick >= 37 and tick <= 58) or (tick >= 118 and tick <= 142) or changed:
+			print("tick %3d  modo=%-6s postura=%-9s pies=%6.3f  cabeza=%6.3f%s" % [tick, ActorState.Mode.keys()[state.mode],
+				ActorState.Stance.keys()[state.stance], feet, head, "   <- cambio de postura (modo al empezar el tick: %s)" % ActorState.Mode.keys()[mode_before] if changed else ""])
+		last_stance = state.stance
+		if tick >= 150:
+			get_tree().quit()
+
+
+func _initialize() -> void:
+	root.add_child(Runner.new())
+```
+
+#### diag_teclas_pausa.gd
+
+```gdscript
+extends SceneTree
+
+# Diagnostic: the lab's pause (action toggle_debug_freeze, G) and one-tick step
+# (action avanzar_tick, F), sending real key events through Input.
+
+var lab: Node
+var frame := 0
+var paused_tick := -1
+
+
+func _initialize() -> void:
+	for action in ["toggle_debug_freeze", "avanzar_tick"]:
+		var keys := []
+		for event in InputMap.action_get_events(action):
+			keys.append(OS.get_keycode_string((event as InputEventKey).physical_keycode))
+		print("accion %s: %s" % [action, keys])
+	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
+	root.add_child(lab)
+
+
+func _key(physical: Key) -> void:
+	var down := InputEventKey.new()
+	down.physical_keycode = physical
+	down.keycode = physical
+	down.pressed = true
+	Input.parse_input_event(down)
+	var up := down.duplicate()
+	up.pressed = false
+	Input.parse_input_event(up)
+
+
+func _process(_delta: float) -> bool:
+	frame += 1
+	var clock: SimClock = lab.get("_clock")
+	if frame == 60:
+		_key(KEY_G)
+	elif frame == 90:
+		paused_tick = clock.tick
+		print("tras G: paused=%s tick=%d" % [clock.paused, clock.tick])
+	elif frame == 120:
+		print("30 frames despues, sigue en pausa: paused=%s tick=%d (igual: %s)" % [clock.paused, clock.tick, clock.tick == paused_tick])
+		_key(KEY_F)
+	elif frame == 140:
+		print("tras F: tick=%d (avanzo %d)" % [clock.tick, clock.tick - paused_tick])
+		_key(KEY_G)
+	elif frame == 170:
+		print("tras otra G: paused=%s tick=%d (sigue corriendo: %s)" % [clock.paused, clock.tick, clock.tick > paused_tick + 1])
+		quit()
+	return false
+```
+
+#### diag_camara_aire.gd
+
+```gdscript
+extends SceneTree
+
+# Diagnostic: per drawn frame, around the crouch in the air of the
+# `crouchjump` test input, how high the camera pivot is, where the actor's
+# feet are drawn (interpolated) and where its head is drawn.
+# Run with --fixed-fps 120 so there are two drawn frames per tick.
+
+var lab: Node
+var frame := 0
+
+
+func _initialize() -> void:
+	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
+	root.add_child(lab)
+
+
+func _process(_delta: float) -> bool:
+	frame += 1
+	var clock: SimClock = lab.get("_clock")
+	var actor: ActorBody = lab.get("_local_actor")
+	var camera: Node3D = lab.get("_camera")
+	if clock == null or not is_instance_valid(actor) or camera == null:
+		return false
+	if clock.tick >= 122 and clock.tick <= 140:
+		var feet := actor.visual_root().get_global_transform_interpolated().origin.y
+		var head := feet + actor.stance_height(actor.state.stance)
+		print("frame %4d tick %3d postura=%-9s pies dibujados=%.3f cabeza dibujada=%.3f camara=%.3f" % [
+			frame, clock.tick, ActorState.Stance.keys()[actor.state.stance], feet, head, camera.global_position.y])
+	if clock.tick > 140:
+		quit()
+	return false
+```
+
+#### diag_remoto_postura.gd
+
+```gdscript
+extends SceneTree
+
+# Diagnostic, on the client: where the other player's feet and head are drawn
+# (interpolated) every frame while its stance changes in the air. Prints only
+# frames around a stance change of the drawn remote state.
+
+var lab: Node
+var frame := 0
+var last_stance := -1
+var print_until := -1
+var history: Array[String] = []
+
+
+func _initialize() -> void:
+	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
+	root.add_child(lab)
+
+
+func _process(_delta: float) -> bool:
+	frame += 1
+	var clock: SimClock = lab.get("_clock")
+	if clock == null:
+		return false
+	var me := root.multiplayer.get_unique_id() if root.multiplayer.has_multiplayer_peer() else 1
+	for actor in clock.sorted_actors():
+		if actor.owner_peer_id == me or me == 1:
+			continue
+		var feet := actor.visual_root().get_global_transform_interpolated().origin.y
+		var head := feet + actor.stance_height(actor.state.stance)
+		var line := "frame %5d tick %4d postura=%-9s pies dibujados=%.3f cabeza dibujada=%.3f" % [
+				frame, clock.tick, ActorState.Stance.keys()[actor.state.stance], feet, head]
+		if last_stance != -1 and actor.state.stance != last_stance:
+			for old in history:
+				print(old)
+			print("---- cambio de postura del otro jugador a %s" % ActorState.Stance.keys()[actor.state.stance])
+			print_until = frame + 8
+		if frame <= print_until:
+			print(line)
+		history.append(line)
+		if history.size() > 5:
+			history.pop_front()
+		last_stance = actor.state.stance
+	return false
+```
+
+#### diag_aviso_prueba.gd
+
+```gdscript
+extends SceneTree
+
+# Control for the warning check: this script has an integer division on
+# purpose. If the console debugger reports script warnings, it must show one.
+
+func _initialize() -> void:
+	var ticks := 7
+	var half := ticks / 2
+	print("half = %d" % half)
+	quit()
+```
+
+#### diag_captura.gd
+
+```gdscript
+extends SceneTree
+
+# Diagnostic: F12 (action `captura`) saves a screenshot even while Ctrl is
+# held (crouching). Sends real key events through Input.
+
+var lab: Node
+var frame := 0
+
+
+func _initialize() -> void:
+	print("accion captura: %s" % [InputMap.action_get_events("captura").map(
+		func(e): return OS.get_keycode_string((e as InputEventKey).physical_keycode))])
+	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
+	root.add_child(lab)
+
+
+func _key(physical: Key, pressed: bool, ctrl: bool) -> void:
+	var event := InputEventKey.new()
+	event.physical_keycode = physical
+	event.keycode = physical
+	event.pressed = pressed
+	event.ctrl_pressed = ctrl
+	Input.parse_input_event(event)
+
+
+func _process(_delta: float) -> bool:
+	frame += 1
+	if frame == 60:
+		_key(KEY_CTRL, true, true)
+	elif frame == 90:
+		var actor: ActorBody = lab.get("_local_actor")
+		print("con Ctrl apretado, postura: %s" % ActorState.Stance.keys()[actor.state.stance])
+		_key(KEY_F12, true, true)
+		_key(KEY_F12, false, true)
+	elif frame == 130:
+		print("aviso en el panel: %s" % lab.get("_flash_text"))
+		_key(KEY_CTRL, false, false)
+		quit()
+	return false
+```
+
+#### escalera_pares.ps1
+
+```powershell
+param([string[]]$Only = @())
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$proj = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+$common = @('--headless','--path',$proj,'-d','--scene','res://scenes/net_lab/net_lab.tscn','--')
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5','--sim-seed=22')
+$cases = [ordered]@{
+  'fuerte_sin' = @(4, @()); 'debil_sin' = @(2, @())
+  'fuerte_mala' = @(4, $mala); 'debil_mala' = @(2, $mala)
+}
+foreach ($name in $cases.Keys) {
+  if ($Only.Count -gt 0 -and -not ($Only -contains $name)) { continue }
+  $force = $cases[$name][0]
+  $hostArgs = $common + @('--host','--port=7799','--bind=127.0.0.1','--autoquit=26','--test-push-at=8,16',"--test-scheduled-push-at=12,20","--test-push-force=$force")
+  $clientArgs = $common + @('--client','--address=127.0.0.1','--port=7799','--test-input=ladder','--trace','--autoquit=24') + $cases[$name][1]
+  $file = "$sp\escalera_$name.txt"
+  & "$sp\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds 50 | Out-File -Encoding utf8 $file
+  "######## escalera, empujones de fuerza $force, red $name"
+  Get-Content $file | Select-String -Pattern 'empuj|resumen: rol=CLIENT|adopci.n del jugador|SCRIPT|WARNING: [A-Z]' | ForEach-Object {
+    $_.Line -replace 'ida_y_vuelta.*?saltos_de_reloj','saltos_de_reloj' -replace ' snapshots_perdidos.*$','' -replace '^\[net_lab\] ','' -replace 'm.ximo=\d+ ','' -replace 'actores=\[[^\]]*\] ','' }
+}
+```
+
+#### diag_escalera_frames.gd
+
+```gdscript
+extends SceneTree
+
+# Frames for the ladder: runs the lab with the given args and keeps the camera
+# looking toward the tower (+Z), slightly from the side, so it sees the climb.
+
+var lab: Node
+
+
+func _initialize() -> void:
+	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
+	root.add_child(lab)
+
+
+func _process(_delta: float) -> bool:
+	var camera = lab.get("_camera")
+	if camera != null:
+		camera.yaw = PI - 0.6
+		camera.pitch = -0.15
+	return false
 ```

@@ -34,6 +34,9 @@ var placed := false
 ## Si esta máquina lo simula. El host simula a todos; el cliente, solo al
 ## propio (predicción), y a los demás los muestra como los manda el host.
 var simulated := true
+## Evento de presentación del último paso: cuánto subió un escalón, en metros.
+## Lo pone ActorMotor y lo consume present(); la simulación no lo lee.
+var stepped_up := 0.0
 
 ## Forma activa: la de la postura concedida.
 var _active_stance: int = ActorState.Stance.STANDING
@@ -77,6 +80,12 @@ func use_stance(stance: int) -> void:
 		_shapes[i].disabled = i != stance
 
 
+## Radio de la forma activa.
+func capsule_radius() -> float:
+	var capsule: CapsuleShape3D = _shapes[_active_stance].shape
+	return capsule.radius
+
+
 ## Alto de la forma de una postura, de los pies a la cabeza.
 func stance_height(stance: int) -> float:
 	var capsule: CapsuleShape3D = _shapes[stance].shape
@@ -102,6 +111,18 @@ func slide(actor_state: ActorState, snap_length: float, dt: float) -> void:
 	velocity = actor_state.velocity * factor
 	move_and_slide()
 	actor_state.velocity = velocity / factor
+
+
+## Después de ubicar el cuerpo a mano sobre un piso (un escalón): refresca los
+## indicadores de Godot sin moverlo. El cuerpo quedó al margen de seguridad del
+## piso, donde el movimiento de velocidad cero puede no verlo; el snap lo
+## encuentra igual.
+func settle_on_floor(snap_length: float) -> void:
+	floor_snap_length = snap_length
+	velocity = Vector3.ZERO
+	move_and_slide()
+	if not is_on_floor():
+		apply_floor_snap()
 
 
 ## Pone el cuerpo en el estado dado, por ejemplo al restaurar una corrección.
@@ -153,6 +174,11 @@ func present(actor_state: ActorState) -> void:
 			and actor_state.mode == ActorState.Mode.AIR:
 		reset_physics_interpolation()
 	_presented_stance = actor_state.stance
+	# Subió un escalón: el cuerpo quedó arriba de golpe, y el visual arranca
+	# desde abajo y lo alcanza con el mismo decaimiento de las correcciones.
+	if stepped_up > 0.0:
+		set_visual_offset(visual_offset + Vector3.DOWN * stepped_up)
+		stepped_up = 0.0
 
 
 ## Dónde se ve el actor: el cuerpo más el desvío visual.

@@ -1,20 +1,21 @@
 # Arquitectura de movimiento co-op y esqueleto de red: todo lo hecho hasta ahora
 
 **Proyecto:** tun-tun-tun-sahur · **Motor:** Godot 4.7.2 estable con Jolt Physics (`3d/physics_engine="Jolt Physics"` en `project.godot`).
-**Período:** del 2026-10-01 a las 20:41 al 2026-10-08 a las 11:33. Todas las horas están en hora de Argentina (UTC−3).
+**Período:** del 2026-10-01 a las 20:41 al 2026-10-08 a las 16:35. Todas las horas están en hora de Argentina (UTC−3).
 **Documento de arquitectura original:** [Arquitectura de movimiento co-op (Godot 4.7 + Jolt)](https://claude.ai/code/artifact/6760c3bf-39ed-4f2f-8d9d-23642c7ac797), en Claude Docs. Está copiado completo en el Apéndice A.
 
 **Historial de este documento:**
 
 - **Primera versión:** 2026-10-03, commit `9caaec3`. Cubría hasta el esqueleto de red completo.
 - **Segunda versión:** pedida el 2026-10-06 a las 21:26, commit `375d419` (2026-10-07, 12:53). Sumó la validación de la arquitectura (puntos 2, 3 y 4 de su lista) y puso al día el estado del código, las pruebas, los hechos comprobados, los errores, las decisiones, los commits y los pendientes.
-- **Esta actualización:** pedida el 2026-10-08 a las 10:54: "correji los md y agrega una nota donde se explica la razon del cambio + como estaba armado originalmente". Suma:
+- **Tercera versión:** pedida el 2026-10-08 a las 10:54, commit `fa26986` (11:34): "correji los md y agrega una nota donde se explica la razon del cambio + como estaba armado originalmente". Sumó:
     - el escalón (sección 8.4);
     - el doble clic que actualiza la notebook y reemplazó a los zips (sección 6.2);
     - el punto 5, Hanging con snap (sección 8.5);
     - el cambio que se pidió después de probar Hanging: agarrarse sin apretar W, y moverse colgado con A y D sin depender de la cámara.
 
-  La nota pedida está en la sección 8.5, "El cambio después de la primera prueba": explica cómo estaba armado y por qué cambió. Donde el documento de arquitectura decía otra cosa, el Apéndice A quedó corregido, con una nota en cada lugar. A pedido ("tambien correji tu md"), el documento original en Claude Docs se corrigió igual, con sus notas (revisión 55). Como en la versión anterior, no se borró nada; donde algo cambió, se aclara qué era antes.
+  La nota pedida está en la sección 8.5, "El cambio después de la primera prueba": explica cómo estaba armado y por qué cambió. Donde el documento de arquitectura decía otra cosa, el Apéndice A quedó corregido, con una nota en cada lugar. A pedido ("tambien correji tu md"), el documento original en Claude Docs se corrigió igual, con sus notas (revisión 55).
+- **Esta actualización:** pedida el 2026-10-08 a las 16:32: "Con respecto a los md, actualízalos a los dos, y despues haces commit". Suma la sección 8.6: la subida al borde se reemplazó por un salto para arriba con control aéreo. Ahí está cómo era la subida, por qué cambió, la demostración paso a paso y las pruebas. El Apéndice A y el documento de Claude Docs (revisión 60) quedaron corregidos con notas en los mismos lugares. Como en las versiones anteriores, no se borró nada; donde algo cambió, se aclara qué era antes.
 
 Este documento junta todo lo que se hizo, sin recortes:
 
@@ -56,7 +57,7 @@ Este documento junta todo lo que se hizo, sin recortes:
 **Qué existe hoy:**
 
 - **La arquitectura**, escrita y revisada. El host es autoritativo. Cada cliente predice solo a su propio personaje, y el host adopta esa predicción cuando es válida y está al día con los eventos del host (la "época"). El movimiento se arma con un estado completo por actor, un paso por tick en orden fijo, un solo modo activo y siete reglas generales.
-- **Dos decisiones posteriores:** Hanging usa snap, y subir al borde desde el colgado es una salida de Hanging, no mantle. Mantle sigue fuera del alcance.
+- **Dos decisiones posteriores:** Hanging usa snap, y subir al borde desde el colgado es una salida de Hanging, no mantle. Mantle sigue fuera del alcance. Desde el 2026-10-08, esa salida es un salto para arriba con control aéreo, y no una trayectoria dentro de Hanging (sección 8.6).
 - **El esqueleto de red completo:** los 8 pasos del plan, más un retoque del adelanto (6b). Está implementado en carpetas nuevas (`scripts/actor/`, `scripts/net/`, `scenes/actor/`, `scenes/net_lab/`), sin tocar nada del parkour.
 - **Probado de dos formas:** con pruebas automáticas (Godot sin ventana, host y cliente como dos procesos en la misma PC) y en dos PC reales con Windows, ambas por Wi-Fi.
 - **La validación de la arquitectura, puntos 2 a 4 de su lista** (sección 8), cada uno probado en las dos PC y commiteado:
@@ -70,16 +71,18 @@ Este documento junta todo lo que se hizo, sin recortes:
     - la red de 0 a 200 ms con pérdida, y la divergencia inyectada.
 
   Después de la primera prueba en dos PC se cambiaron dos cosas a pedido: agarrarse ya no exige apretar W, y A y D colgado ya no dependen de la cámara. Cómo estaba armado y por qué cambió está en la sección 8.5.
-- **La notebook se actualiza con un doble clic** desde una carpeta compartida de esta PC. Reemplazó a los zips desde el escalón (sección 6.2).
-- **Doce commits locales** en la rama `codex/parkour-v3-h0-lab`:
-    - el esqueleto de red: `d75ef67`, `9cd1936`, `7547de1` y `c0e0421`;
-    - las dos primeras versiones de este documento: `9caaec3` y `375d419`;
-    - la validación: `600002a`, `25f7806`, `cb71b16`, `91a4433`, `b907dae` (escalón) y `3cdcc91` (Hanging).
 
-  Esta tercera versión del documento va en un commit propio, el número 13. No se subió nada a ningún remoto.
+  Después, también a pedido, la subida al borde, que era un recorrido de dos tramos, se reemplazó "temporalmente" por un salto para arriba con control aéreo (sección 8.6).
+- **La notebook se actualiza con un doble clic** desde una carpeta compartida de esta PC. Reemplazó a los zips desde el escalón (sección 6.2).
+- **Catorce commits locales** en la rama `codex/parkour-v3-h0-lab`:
+    - el esqueleto de red: `d75ef67`, `9cd1936`, `7547de1` y `c0e0421`;
+    - las tres primeras versiones de este documento: `9caaec3`, `375d419` y `fa26986`;
+    - la validación: `600002a`, `25f7806`, `cb71b16`, `91a4433`, `b907dae` (escalón), `3cdcc91` (Hanging) y `3825c2b` (salto para arriba).
+
+  Esta cuarta versión del documento va en un commit propio, el número 15. No se subió nada a ningún remoto.
 - **Cambios pendientes:** los cambios previos sin commitear de esa rama quedaron intactos.
     - La primera versión de este documento contaba 137: los 136 del parkour más un archivo temporal del editor de Godot.
-    - La segunda versión contaba 138. Hoy `git status` muestra 137 entradas. No se averiguó cuáles cambiaron; ninguna es del laboratorio.
+    - La segunda versión contaba 138; la tercera y esta, 137. No se averiguó cuáles cambiaron; ninguna es del laboratorio.
     - Entre ellas está `project.godot`, con el cambio de versión 4.6 → 4.7 que hizo el editor. Las dos acciones del Mapa de entrada que agregó el laboratorio sí están commiteadas.
 
 **Resultados principales:**
@@ -106,6 +109,9 @@ Este documento junta todo lo que se hizo, sin recortes:
 | Hanging en red: 0, 60, 120 y 200 ms con 0, 2 y 5 % de pérdida | 0 correcciones en las 12 combinaciones |
 | Hanging en dos PC | Colgado del borde que se mueve, con red limpia, internet mala y tirones: ninguna corrección nueva mientras se sacaban las capturas. Después de los dos cambios: "todo funciona como deberia" |
 | Repetición determinista con el escalón y Hanging | 4.790 repeticiones y 212.915 ticks idénticos byte a byte, también con el ritmo variando |
+| Salto para arriba desde el colgado (reemplazó a la subida) | Los pies llegan 20,4 cm sobre el filo en todos los bordes donde se puede subir. Apretando W en la punta del salto, 1.934 de 1.955 casos quedan arriba; con W desde el salto, en bloques de 1 m se pasa de largo, y quedó así a pedido |
+| Salto para arriba en red | 0 correcciones en las 12 combinaciones de red, en la plataforma guionada y con el otro jugador mirando. Sobre el borde del cuerpo del host, con internet mala, correcciones de 1,4 a 2,7 m al aterrizar arriba |
+| Salto para arriba en dos PC | "todo funciona como debería" |
 
 ---
 
@@ -189,7 +195,15 @@ Este documento junta todo lo que se hizo, sin recortes:
 | 2026-10-07 22:20 | Resultado de la prueba, en tres puntos: la subida ("me hubiese gustado mas un saltito, pero por ahora lo dejamos así"); moverse colgado dependía de la cámara; y agarrarse exigía apretar W. "Sacando esos tres puntos, el resto funciona correctamente, incluido el servidor con la otra notebook". |
 | 2026-10-07 22:21–23:05 | Los dos cambios, con el barrido corrido también sin teclas. A las 23:05, listo para probar. |
 | 2026-10-08 10:54 | "ok, todo funciona como deberia, correji los md y agrega una nota donde se explica la razon del cambio + como estaba armado originalmente." Commit `3cdcc91` (10:55) y esta actualización. |
-| 2026-10-08 11:33 | "hace el commit del md y tambien correji tu md". El documento de arquitectura en Claude Docs, corregido con notas (revisión 55), y commit de este documento. |
+| 2026-10-08 11:32–11:34 | "hace el commit del md y tambien correji tu md". El documento de arquitectura en Claude Docs, corregido con notas (revisión 55), y commit `fa26986` de este documento. |
+| 2026-10-08 11:42 | "el próximo paso es quitar temporalmente la animación de escalar y reemplazarla con un salto, pero antes de hacerlo, ¿tenemos algo asi como control aereo?". Respuesta: sí, a 12 m/s². |
+| 2026-10-08 11:50 | Pedido del salto: "en vez de salir a los lados o atras, sale hacia arriba con el mismo control aereo [...] que el salto te eleve a 2.2 metros, asi tenes margen para moniobrar". |
+| 2026-10-08 11:50–12:15 | El salto para arriba, el barrido corrido de nuevo y un hallazgo: con W apretada desde el salto, en los bloques de 1 m de fondo se pasa de largo. Pregunta sobre qué hacer; respuesta: "¿que?". Explicado de nuevo, más simple. |
+| 2026-10-08 12:17 | "abri la escena, corre la prueba y mostrame que haces en cada momento." |
+| 2026-10-08 12:17–12:40 | Demostración en una ventana en esta PC, en cámara lenta, con un cartel de las teclas, y capturas de cada paso de las dos formas de subir. |
+| 2026-10-08 12:44 | "lo probé un rato en el net_lab y la verdad lo dejaría como esta, uno aprende muy rápidamente y se adapta al toque con los controles, por ahora lo dejamos asi, le doy el visto bueno." |
+| 2026-10-08 12:44–13:25 | Las dos pruebas automáticas que apretaban W desde el salto pasan a apretarla en la punta. Pruebas de red: correcciones grandes sobre el borde del cuerpo del host con internet mala, explicadas. |
+| 2026-10-08 16:28–16:32 | Prueba en las dos PC: "todo funciona como debería", con dos capturas. "Con respecto a los md, actualízalos a los dos, y despues haces commit". Documento de Claude Docs corregido (revisión 60), esta actualización y los commits. |
 
 ---
 
@@ -317,6 +331,14 @@ Mantle, es decir trepar o saltar obstáculos sin colgarse, sigue fuera del alcan
 En la misma prueba se pidió que A y D, colgado, no dependan de la cámara. Eso no contradecía al documento, que habla de "el input lateral": era cómo lo había armado la primera versión.
 
 Los dos cambios, cómo estaba armado antes y por qué cambió están en la sección 8.5. En el Apéndice A se corrigieron los dos lugares donde el documento pedía la intención, y la regla general sobre la orientación del modelo lleva una nota. Lo mismo se hizo en el documento de Claude Docs (2026-10-08, revisión 55).
+
+**Subir al borde pasa a ser un salto para arriba** (2026-10-08, pedido a las 11:50 y aprobado a las 12:44, después de probarlo). Sigue siendo una salida de Hanging y no mantle, pero ya no es una trayectoria dentro de Hanging:
+
+- mirando a la pared, Espacio salta derecho para arriba;
+- los pies llegan 20 cm por encima del filo;
+- el jugador pasa arriba con el control aéreo.
+
+El pedido fue "quitar temporalmente la animación de escalar y reemplazarla con un salto". Cómo era la subida, por qué cambió y cómo quedó está en la sección 8.6. En el Apéndice A y en el documento de Claude Docs (revisión 60) se reescribió la sección "Subir al borde", con la subida vieja copiada en una nota, y se corrigieron otros tres lugares que la mencionaban.
 
 ---
 
@@ -1055,7 +1077,7 @@ El documento de arquitectura termina con una lista, "Qué validan las primeras p
 | 3 | Postura y espacio libre: el deslizamiento bajo un techo | Hecho, probado en dos PC: commit `cb71b16` |
 | 4 | Un modo anclado simple, Ladder, con empujones programados e inmediatos | Hecho, probado en dos PC: commit `91a4433` |
 | — | El escalón, pedido aparte antes del punto 5 | Hecho, probado en dos PC: commit `b907dae` (sección 8.4) |
-| 5 | El laboratorio de Hanging con snap y sus pruebas de confirmación | Hecho, probado en dos PC, con dos cambios pedidos después de la primera prueba: commit `3cdcc91` (sección 8.5) |
+| 5 | El laboratorio de Hanging con snap y sus pruebas de confirmación | Hecho, probado en dos PC, con dos cambios pedidos después de la primera prueba: commit `3cdcc91` (sección 8.5). La subida al borde se reemplazó después por un salto para arriba (sección 8.6) |
 | 6 | Una interacción con cambio de línea: sujetar a un compañero | Pendiente; es el próximo |
 | 7 | Cámara lenta del mundo y personal | Pendiente |
 
@@ -1729,7 +1751,7 @@ Pasó de 67 a 79 bytes: `anchor_point` son tres enteros de 32 bits al final.
     - **El invariante roto:** sale a Aire.
 
     Salvo subir, todas pasan a Aire con 0,3 s de bloqueo de reagarre para todos los bordes.
-- **Subir al borde:**
+- **Subir al borde** (reemplazado el 2026-10-08 por un salto para arriba; este código se sacó y quedó en `3cdcc91`, ver sección 8.6):
     - **Validación antes de empezar** (`_climb_clear()`), con la forma agachada: los dos tramos están libres, arriba cabe, y hay piso caminable hasta 0,6 m por debajo del final. Los otros jugadores no cuentan, porque están en otra capa.
     - **El recorrido:** dos tramos relativos al filo, siempre desde la pose de colgado. Primero 0,45 s hacia arriba, pegado a la pared, hasta 2 cm por encima del filo. Después 0,25 s hacia adentro, hasta que el centro quede el radio más 10 cm adentro del filo.
     - **El movimiento:** un barrido con `move_and_collide()` hasta la pose de cada tick.
@@ -1759,9 +1781,9 @@ Pasó de 67 a 79 bytes: `anchor_point` son tres enteros de 32 bits al final.
     - **"sobre un cuerpo del host"** (base 5, marrón): una balsa del host en (27,5; 1; 2), que se mueve al azar en 1 × 1 m con empuje de 1 m/s².
 - **El panel:**
     - "Colgado del borde: filo a X m de altura · sobre la base N";
-    - "Subiendo al borde: N %";
+    - "Subiendo al borde: N %" (se sacó con el salto para arriba, sección 8.6);
     - "Recién soltó un borde: no puede agarrar otro por X s";
-    - la ayuda "Colgado: A y D de costado · Espacio mirando a la pared sube, mirando a otro lado salta · Ctrl se suelta".
+    - la ayuda "Colgado: A y D de costado · Espacio mirando a la pared sube, mirando a otro lado salta · Ctrl se suelta", que cambió con el salto para arriba (sección 8.6).
 - **Prueba guionada** `--test-input=hang` (o `hang:<id>` para el borde de una base): se aleja 2,2 m de la cara de un bloque de 2 m, corre hacia ella, salta y se agarra al caer. Colgado va a la derecha y a la izquierda. Después, según la vuelta del ciclo, sube al borde y se baja por delante, se suelta con Ctrl, o salta hacia atrás. Al final imprime "colgar: N agarres, N subidas al borde, N vueltas del ciclo" y la corrección más grande.
 - **`--test-perturb-mm=N`:** el cliente corre su estado predicho y su cuerpo N milímetros al azar en cada tick, como si Jolt calculara distinto (prueba 6).
 - **Barrido de aproximaciones:** `scenes/net_lab/hang_sweep_test.tscn` (ver "Pruebas automáticas", más abajo).
@@ -1993,6 +2015,193 @@ var wish := clampf(input.move.x, -1.0, 1.0) * tuning.shimmy_speed
 - **La verificación:** las huellas SHA-1 de los 16 archivos coincidieron con las de la versión probada.
 - **Lo que guarda:** la versión con los dos cambios. La primera versión nunca se commiteó; su código está descripto en "El cambio después de la primera prueba".
 
+### 8.6 La subida al borde, reemplazada por un salto (2026-10-08)
+
+#### El pedido
+
+**11:42:** "no, el próximo paso es quitar temporalmente la animación de escalar y reemplazarla con un salto, pero antes de hacerlo, ¿tenemos algo asi como control aereo?, donde podemos desplazar al player en cualquier direccion mientras caemos o saltamos. Solo necesito saber eso."
+
+La respuesta: sí. En el aire, WASD mueve en cualquier dirección, relativa a la cámara, igual que en el piso, pero con menos fuerza:
+
+- **la aceleración:** 12 m/s² en el aire y 45 m/s² en el piso. Desde quieto, llegar a velocidad de caminar (5 m/s) lleva unos 0,4 s;
+- **sin teclas:** mantiene la velocidad, sin frenar;
+- **si venía más rápido que caminando:** el control aéreo no lo frena (desde el punto 3);
+- **el parámetro:** `air_accel`.
+
+**11:50, el pedido**, tal cual:
+
+> bien, ahora vamos a reemplazar la animacion de escalada del hanging con un salto, y supongo que el salto que tiene hanging para salir a los costados cuenta con control aereo. Si esto es asi, pues que bien, porque lo que quiero hacer es algo parecido, solo que en vez de salir a los lados o atras, sale hacia arriba con el mismo control aereo. Ademas al saltar en direccion al muro, como le estamos haciendo hasta ahora, porque creo que funciona asi, porque para subir al muro tenes que mirar al muro o por lo menos la direccion de la camara tiene que tener X angulo relativo a Y funcion para que se active esa accion y no otra, supongo que es asi, ni idea. Y bueno, solo eso, tener un salto hacia arriba y que te deje arriba del muro con un margen de altura, tipo si la capsula mide 2 metros, que el salto te eleve a 2.2 metros, asi tenes margen para moniobrar. Si algo de lo que te propuse te parece un sin sentido o falta de explicacion, avisame mientras lo implementas y te lo respondo
+
+Las dos suposiciones eran correctas:
+
+- **El salto de costado tiene control aéreo:** pasa a modo Aire, como cualquier salto.
+- **Para subir hay que mirar a la pared:** la cámara tiene que apuntar a menos de 60° de la pared, contando solo el giro horizontal (`climb_look_angle`). Si no, Espacio salta hacia donde mira.
+
+#### Cómo era la subida
+
+La subida era una fase dentro de Hanging, como pedía el documento:
+
+- **El pedido:** Espacio mirando a la pared, a menos de 60°.
+- **La validación previa** (`_climb_clear()`), con la forma agachada: los dos tramos libres, lugar arriba y piso caminable hasta 0,6 m por debajo del final. Si fallaba, seguía colgado.
+- **El recorrido:** dos tramos relativos al filo, en tiempo del actor, guardado en `anchor_t`:
+    - 0,45 s hacia arriba, pegado a la pared, hasta 2 cm por encima del filo;
+    - 0,25 s hacia adentro, hasta que el centro quedaba el radio más 10 cm adentro del filo.
+
+  Lo recorría agachado, con barridos de `move_and_collide()`, y terminaba en Suelo, agachado, hasta que el resolutor de postura lo paraba.
+- **Las interrupciones:** si algo tapaba el camino, volvía a colgar si cabía; si no, salía a Aire.
+- **La red:** el host validaba la pose de cada momento de la subida (`_climb_pose()` en `anchored_pose_valid()`). El panel mostraba "Subiendo al borde: N %".
+- **Lo que sostenía todo eso:**
+    - las funciones `_climb_points()`, `_climb_pose()` y `_climb_clear()`;
+    - las constantes `CLIMB_CLEARANCE` (2 cm), `CLIMB_INSET` (10 cm) y `CLIMB_FLOOR_SEARCH` (0,6 m);
+    - los parámetros `climb_up_time` (0,45 s) y `climb_in_time` (0,25 s).
+
+Qué dijo el usuario de esa subida (2026-10-07, 22:20): "no es mala o algo por el estilo, me hubiese gustado mas un saltito, pero por ahora lo dejamos así".
+
+#### Por qué cambió
+
+Lo pidió el usuario: quitar "temporalmente" esa animación y reemplazarla por un salto para arriba, con el control aéreo de los demás saltos y un margen de altura sobre el borde "para moniobrar". Todo lo que se sacó quedó en el commit `3cdcc91`.
+
+#### Cómo quedó
+
+Colgado, Espacio mirando a la pared (a menos de 60°) sale a Aire con velocidad solo vertical:
+
+```gdscript
+_leave_edge(state, tuning, Vector3.UP * _climb_jump_speed(tuning, dt))
+```
+
+Lleva el mismo bloqueo de reagarre de 0,3 s que las demás salidas. Mirando a otro lado, el salto sigue igual: hacia donde mira, a 4 m/s, y hacia arriba a 4 m/s.
+
+**El margen de altura.** Colgado, los pies quedan 1,95 m por debajo del filo. El "2.2 metros" del pedido se tomó como el alto hasta el borde más un margen: el salto sube los pies 1,95 + 0,20 m, y en la punta quedan 20 cm por encima del filo. El margen es el parámetro `hang_climb_clearance` (0,2 m):
+
+```gdscript
+static func _climb_jump_speed(tuning: ActorTuning, dt: float) -> float:
+	var rise := tuning.hang_height + tuning.hang_climb_clearance
+	return sqrt(2.0 * tuning.gravity * rise) + tuning.gravity * dt * 0.5
+```
+
+Da unos 6,57 m/s. El `g·dt/2` del final compensa que en Aire la gravedad se aplica antes de mover. Con eso, los ticks siguen la parábola de una velocidad inicial menor en `g·dt/2`, y sin compensarlo la punta quedaría más baja. Medido: los pies llegan a 20,4 cm sobre el filo.
+
+**Pasar arriba es el control aéreo:** el jugador empuja hacia la pared cuando quiere. El momento importa, porque el control aéreo sigue acelerando mientras se mantiene apretado (sección siguiente).
+
+**Lo que se sacó:**
+
+- la fase de subida dentro de Hanging, con sus funciones, constantes y parámetros;
+- la postura agachada al subir;
+- el panel "Subiendo al borde".
+
+`anchored_pose_valid()` acepta en Hanging solo la pose de colgado, con `anchor_t` en 0. `anchor_t` sigue en el formato porque lo usa la escalera; en Hanging vale siempre 0. El formato de red no cambió: 79 bytes.
+
+**El laboratorio:**
+
+- **La ayuda del panel:** "Colgado: A y D de costado · Espacio mirando a la pared salta para arriba (con W pasás arriba), mirando a otro lado salta hacia allá · Ctrl se suelta".
+- **La prueba guionada `hang`:** en la vuelta de subir, salta para arriba y aprieta W recién cuando deja de subir.
+- **La repetición:** el tramo de subir es Espacio sin W durante 40 ticks, y después W 18 ticks.
+- **El barrido:** prueba dos formas de subir:
+    - "subir", con W desde el salto;
+    - "subir con W recién arriba", apretando W cuando deja de subir.
+
+  Mide también la punta del salto sobre el filo.
+
+#### Lo que apareció al probarlo: W desde el salto
+
+**En el barrido:**
+
+- **"subir", con W desde el salto:** 221 sí, 1.281 no y 564 donde no corresponde;
+- **"subir con W recién arriba":** 1.934 sí, 21 no y 111 donde no corresponde. Los 21 que no suben son todos del borde curvo, 19 de ellos agarrados llegando a 70° de costado.
+
+Con `diag_salto_arriba.gd`, contra una pared de 2 m:
+
+- **Con W desde el salto,** la cápsula toca la pared y no avanza mientras sube. Apenas su parte redonda pasa el filo (los pies, unos 33 cm por debajo), empieza a avanzar y sigue acelerando. Cuando los pies vuelven a la altura del filo, ya está 1,5 m adentro: sobre un fondo de 2 m aterriza arriba, pero sobre uno de 1 m, como los de la pista de bordes, pasa de largo y cae del otro lado.
+- **Con W recién en la punta,** aterriza sobre el filo y queda arriba.
+
+Se lo pregunté al usuario, con una explicación enredada (error mío). La respuesta fue "¿que?", y se lo expliqué de nuevo, más simple.
+
+#### La demostración (12:17–12:40)
+
+Pedido: "abri la escena, corre la prueba y mostrame que haces en cada momento."
+
+**Cómo se armó:** el script `demo_salto_arriba.gd` (Apéndice B) abre el laboratorio en una ventana en esta PC, en Jugar solo:
+
+- **cámara lenta:** 20 ticks por segundo, tres veces más lento;
+- **la cámara:** de costado del bloque «malla» (2 m de alto, 1 m de fondo arriba), con el panel del laboratorio oculto;
+- **un cartel abajo:** el paso, lo que hago, las teclas apretadas, el estado y la altura de los pies;
+- **las teclas:** aprieta W y Espacio como un jugador, con acciones del Mapa de entrada (`Input.action_press()` y `InputEventAction`);
+- **las capturas:** guarda una en cada paso y arma una hoja por forma.
+
+**Primera forma, W desde el salto:**
+
+1. Camina con W hasta la pared, la suelta y aprieta Espacio: salta en el lugar y se agarra al caer.
+2. Colgado, aprieta Espacio mirando a la pared y también W, que no suelta.
+3. En la punta, los pies están 20 cm sobre el filo y ya está 0,4 m adentro.
+4. Sigue acelerando: con los pies todavía a 2,09 m, ya pasó el fondo del bloque.
+5. Cae al piso, del otro lado.
+
+**Segunda forma, W recién arriba:**
+
+1. Igual hasta quedar colgado.
+2. Aprieta Espacio sin W: sube derecho, sin avanzar.
+3. En la punta (pies a 2,20 m) recién aprieta W.
+4. Aterriza sobre el filo, mantiene W 4 ticks y la suelta.
+5. Queda parado arriba, 38 cm adentro.
+
+**Ajustes de la demostración:** en la primera vuelta el personaje se veía chico, el panel tapaba la imagen y la línea de teclas iba un cuadro atrasada. Se arregló antes de mostrarla.
+
+#### La decisión (12:44)
+
+"lo probé un rato en el net_lab y la verdad lo dejaría como esta, uno aprende muy rápidamente y se adapta al toque con los controles, por ahora lo dejamos asi, le doy el visto bueno."
+
+Cuánto se avanza lo maneja el jugador con el momento en que aprieta W. El salto no se tocó.
+
+#### Pruebas automáticas
+
+Después de la aprobación, la prueba guionada y la repetición pasaron a apretar W en la punta del salto. Con W desde el salto se pasaban del bloque de 1 m.
+
+| Prueba | Resultado |
+| --- | --- |
+| Altura del salto, en los bordes donde se puede subir | Los pies llegan 0,204 m sobre el filo. En los inclinados, 0,199 m (10°) y 0,190 m (25°): el filo se toma 3 cm adentro, donde la superficie ya bajó un poco |
+| Subir con W recién arriba | 1.934 sí, 21 no (todos en el borde curvo) y 111 donde no corresponde |
+| Subir con W desde el salto | 221 sí, 1.281 no y 564 donde no corresponde: en los bloques de 1 m se pasa de largo |
+| Criterios 1 a 4 del agarre | Igual que antes: 1.091 de 1.093, 0 de 330, 0 ticks metido y 0,090 m |
+| Repetición, a 60 y con el ritmo variando | 4.788 repeticiones y 212.823 ticks idénticos; huella `fccfdb253c89ed7c`. El salto llega a 2,604 m con el filo a 2,4 m, y aterriza arriba 0,26 m adentro |
+| Prueba guionada `hang` en 70 s, sin red | 6 subidas en 6 intentos. En las pruebas de red de 45 s salen 3 de 4, porque la prueba termina antes de la cuarta |
+| Red: 0, 60, 120 y 200 ms con 0, 2 y 5 % de pérdida | 0 correcciones en las 12 |
+| El otro jugador mirando y el borde de la plataforma guionada | 0 correcciones |
+| Borde sobre el cuerpo del host, red limpia | 65 correcciones, la más grande de 6,8 cm |
+| Borde sobre el cuerpo del host, internet mala | 292 correcciones, la más grande de 2,70 m. Repetida 5 veces más: de 1,46 a 2,31 m, y una de 0,20 m |
+| Divergencia de 0,5 mm por tick | Con adopción, 0 correcciones. Sin adopción, 313, la más grande de 0,200 m (antes, 0,052 m) |
+| Regresiones: bases, postura, escalera y escalones | Igual que antes. En la balsa del punto 2, al subirse: 3 y 26 correcciones (antes 2 y 18), dentro de su ráfaga de siempre |
+
+#### El borde sobre el cuerpo del host
+
+Para ver cuándo pasaban las correcciones grandes, un aviso provisorio en el laboratorio imprimió cada corrección de más de 50 cm, con el estado predicho y el del host. Después se sacó. Un ejemplo:
+
+- **la notebook había predicho** que estaba parada arriba del bloque, a 1,96 m;
+- **el host decía** que en ese tick seguía en el aire, a 2,20 m;
+- **lo que siguió:** correcciones de 0,93 m y 1,40 m, mientras uno caía y el otro aterrizaba.
+
+**La causa:** ese bloque es una balsa que mueve solo el host, y con internet mala la notebook la ve corrida. Al aterrizar arriba, los dos pueden no coincidir en si el personaje quedó arriba o cayó, y la diferencia es de casi 2 m de altura. La subida vieja iba pegada al borde todo el tiempo y por eso no pasaba: con ella, la más grande era de 21 cm.
+
+**El estado:** el documento de arquitectura anticipa correcciones sobre los cuerpos del host. Se avisó y no se tocó.
+
+#### Prueba en dos PC (16:28–16:32)
+
+"ya hice la prueba con las dos notebooks conectadas, todo funciona como debería, te cargue capturas por las dudas."
+
+Hubo dos capturas de la notebook con internet mala, a las 16:28 y 16:29, una sobre el vagón y otra en el piso:
+
+- **predicción:** 3.443 y después 4.968 coincidencias, 37 correcciones (la última de 0,27 m) y 0 saltos de reloj;
+- **snapshots tarde:** alrededor del 20 %;
+- **la ayuda del panel:** ya decía "Espacio mirando a la pared salta para arriba", o sea que la notebook tenía la versión nueva.
+
+No hubo capturas del host.
+
+### Commit `3825c2b`
+
+**Fecha:** 2026-10-08, 16:40. `feat(net): replace the Hanging climb with an upward jump`: 6 archivos, +99 / −128 líneas.
+
+- **Cambiados:** `actor_motor.gd`, `actor_state.gd` (solo un comentario), `actor_tuning.gd`, `net_lab.gd`, `actor_replay_test.gd` y `hang_sweep_test.gd`.
+- **La verificación:** las huellas SHA-1 de los 6 archivos coincidieron con la versión probada en las dos PC.
+
 ---
 
 ## 9. Estado actual del código
@@ -2007,8 +2216,8 @@ Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (p
 | --- | --- | --- |
 | `scripts/actor/actor_state.gd` (`ActorState`) | 181 (130) | Estado completo del actor al final de un tick: modos Suelo, Aire, Deslizamiento, Escalera y Colgado, postura, base, ancla (con el punto del filo) y reagarre. Cuantización, bytes (79; eran 51), copia y descripción |
 | `scripts/actor/actor_input.gd` (`ActorInput`) | 61 (59) | Input de un tick, cuantizado al crearlo; 10 bytes. Botones: saltar, agacharse y correr |
-| `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 90 (29) | Parámetros de movimiento, un recurso |
-| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 721 (100) | Paso por tick en orden fijo con los cinco modos, la base, la postura, la escalera, el escalón, el borde y la subida, los impulsos con fuerza y la validación de poses ancladas |
+| `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 91 (29) | Parámetros de movimiento, un recurso |
+| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 659 (100) | Paso por tick en orden fijo con los cinco modos, la base, la postura, la escalera, el escalón, el borde y el salto para arriba desde el colgado, los impulsos con fuerza y la validación de poses ancladas |
 | `scripts/actor/actor_body.gd` (`ActorBody`) | 280 (130) | Cuerpo (`CharacterBody3D`): deslizar, restaurar y validar poses, las dos formas y el espacio libre, asentarse en el piso después de un escalón, presentación, desvío visual (con el del agarre aparte) y las manos sobre el filo |
 | `scripts/actor/edge_probe.gd` (`EdgeProbe`) | 108 (nuevo, punto 5) | Sonda de borde: barrido de las manos, cara, superficie de arriba y filo; revalidación de un borde agarrado |
 | `scripts/actor/base_registry.gd` (`BaseRegistry`) | 73 (nuevo) | Registro de bases por id; origen, velocidad y posición en el mundo, real y dibujada |
@@ -2025,17 +2234,17 @@ Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (p
 | `scripts/net/remote_interpolation.gd` (`RemoteInterpolation`) | 267 (90) | Interpolación de los demás jugadores y de las balsas en el cliente, con marcos de dibujo |
 | `scenes/net_lab/net_lab.tscn` | 125 | Escena del laboratorio, con menú y panel |
 | `scenes/net_lab/net_lab_level.tscn` | 389 (169) | Nivel del laboratorio: suma el vagón, el ascensor, la balsa, el túnel largo, la pared de medidas, la torre, las dos escaleras, la pista de escalones, la pista de bordes y los dos bordes que se mueven |
-| `scenes/net_lab/net_lab.gd` | 1.172 (585) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, cableado de red, panel, pausa, capturas, mediciones, pruebas guionadas y la divergencia inyectada |
+| `scenes/net_lab/net_lab.gd` | 1.176 (585) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, cableado de red, panel, pausa, capturas, mediciones, pruebas guionadas y la divergencia inyectada |
 | `scenes/net_lab/lab_camera.gd` (`LabCamera`) | 65 (46) | Cámara de tercera persona; la altura de la cabeza sigue la postura |
 | `scenes/net_lab/measure_wall.gd` | 46 (nuevo) | Pared de medidas: rayas cada 10 cm y números cada 50 cm |
 | `scenes/net_lab/step_course.gd` | 96 (nuevo, escalón) | Pista de escalones: sueltos de 10 a 40 cm y dos escaleras, una con rampa invisible |
 | `scenes/net_lab/edge_course.gd` | 178 (nuevo, punto 5) | Pista de bordes: las 11 variantes fijas, con sus carteles |
-| `scenes/net_lab/actor_replay_test.gd` y `.tscn` | 313 + 13 (202 + 13) | Prueba de repetición determinista, a cualquier ritmo, con bases, postura, escalera, empujones, escalones y Hanging |
-| `scenes/net_lab/hang_sweep_test.gd` y `.tscn` | 437 + 13 (nuevo, punto 5) | Barrido de aproximaciones a los bordes, con los cuatro criterios |
+| `scenes/net_lab/actor_replay_test.gd` y `.tscn` | 314 + 13 (202 + 13) | Prueba de repetición determinista, a cualquier ritmo, con bases, postura, escalera, empujones, escalones y Hanging |
+| `scenes/net_lab/hang_sweep_test.gd` y `.tscn` | 464 + 13 (nuevo, punto 5) | Barrido de aproximaciones a los bordes, con los cuatro criterios y la altura del salto para arriba |
 | `tools/net_lab/actualizar_lab.bat` y `.ps1` | 14 + 71 (nuevo, escalón) | El doble clic que trae el laboratorio a la notebook y lo abre (sección 6.2) |
 | Archivos `.uid` | — | Uno por script, generados por Godot |
 
-**Total:** 5.998 líneas entre scripts y escenas, sin contar `tools/` (eran 2.589 al final del esqueleto y 4.431 en la segunda versión de este documento).
+**Total:** 5.969 líneas entre scripts y escenas, sin contar `tools/` (eran 2.589 al final del esqueleto, 4.431 en la segunda versión de este documento y 5.998 en la tercera).
 
 ### 9.2 Funciones públicas
 
@@ -2146,9 +2355,9 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
     - **Aire:** aterrizaje, salto con coyote, agarrar un borde (sin Ctrl; desde el punto 5) o agarrar una escalera.
     - **Deslizamiento:** salto, caída o fin por velocidad.
     - **Escalera:** respaldo, salto, salida abajo o salida arriba.
-    - **Colgado** (desde el punto 5): respaldo si el borde ya no está; nada mientras sube; Ctrl se suelta; Espacio sube o salta, según la mirada.
-6. **Modo:** el modo activo decide la velocidad. Colgado, la velocidad va a lo largo del filo, o avanza la subida.
-7. **Postura y movimiento:** se resuelve la postura; subiendo al borde, agachado. Después, los modos libres se mueven con `move_and_slide()`, y la escalera y el colgado con un barrido. En Suelo, si el movimiento chocó, la sonda de escalón prueba subirlo (desde el escalón).
+    - **Colgado** (desde el punto 5): respaldo si el borde ya no está; Ctrl se suelta; Espacio salta para arriba mirando a la pared, o hacia donde mira si no. Hasta el 2026-10-08, Espacio mirando a la pared empezaba la subida, y mientras subía no había otra transición (sección 8.6).
+6. **Modo:** el modo activo decide la velocidad. Colgado, la velocidad va a lo largo del filo.
+7. **Postura y movimiento:** se resuelve la postura. Después, los modos libres se mueven con `move_and_slide()`, y la escalera y el colgado con un barrido. En Suelo, si el movimiento chocó, la sonda de escalón prueba subirlo (desde el escalón).
 8. **Contactos:** los indicadores de Godot pasan al estado. La sonda de suelo dice sobre qué base quedó parado, y al cambiar de base la velocidad cambia de marco; colgado, la base es la del borde. Todo se cuantiza.
 
 **Los empujones no entran al paso.** Los aplica con `apply_impulse` quien maneja el actor (el host, o el cliente en su predicción) al empezar el tick, antes del paso, y suben la época. El documento los pone en la etapa 3. Una diferencia que sale de leer el código: el bloqueo de reagarre que pone un empujón empieza a descontarse en el mismo tick, en la etapa 1. Host y cliente lo hacen igual, así que no causa correcciones.
@@ -2243,8 +2452,8 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | `TOP_INSET` / `FACE_DROP` | 0,03 m / 0,05 m | `EdgeProbe` | Cuánto adentro del filo se busca la superficie de arriba, y cuánto por debajo del contacto arranca el rayo de la cara |
 | `MAX_TOP_ANGLE` / `MAX_FACE_TILT` | 30° / 20° | `EdgeProbe` | Inclinación máxima de la superficie de arriba y de la cara |
 | `HOLD_TOLERANCE` | 0,1 m | `EdgeProbe` | Cuánto puede moverse el filo de un borde agarrado al revalidarlo |
-| `CLIMB_CLEARANCE` / `CLIMB_INSET` | 0,02 m / 0,1 m | `ActorMotor` | Al subir al borde, los pies terminan 2 cm por encima de la superficie, y el centro el radio más 10 cm adentro del filo |
-| `CLIMB_FLOOR_SEARCH` | 0,6 m | `ActorMotor` | Hasta dónde se busca piso caminable debajo del final de la subida |
+| ~~`CLIMB_CLEARANCE` / `CLIMB_INSET`~~ | 0,02 m / 0,1 m | `ActorMotor` | Se sacaron con el salto para arriba (sección 8.6). Al subir al borde, los pies terminaban 2 cm por encima de la superficie, y el centro el radio más 10 cm adentro del filo |
+| ~~`CLIMB_FLOOR_SEARCH`~~ | 0,6 m | `ActorMotor` | Se sacó con el salto para arriba. Era hasta dónde se buscaba piso caminable debajo del final de la subida |
 | `GRAB_MAX_SPEED` | 1,8 m/s | `ActorBody` | Velocidad máxima con que el dibujo alcanza al cuerpo después de un agarre |
 | `VARIANT_SPACING` / `ROW_SPACING` / `WIDTH` / `DEPTH` | 3,5 m / 8 m / 2,4 m / 1 m | pista de bordes | Separación de las variantes y de las filas, y tamaño de los bloques |
 
@@ -2278,8 +2487,9 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | Desplazarse colgado* | 1,5 m/s, con la aceleración de la escalera (20 m/s²) |
 | Saltar colgado* | 4 m/s hacia donde mira y 4 m/s hacia arriba |
 | Bloqueo de reagarre de bordes* | 0,3 s, para todos los bordes |
-| Ángulo de la mirada para subir* | Espacio sube si la mirada está a menos de 60° de la pared; si no, salta |
-| Subir al borde* | 0,45 s hacia arriba y 0,25 s hacia adentro, agachado |
+| Ángulo de la mirada para subir* | Espacio salta para arriba si la mirada está a menos de 60° de la pared; si no, salta hacia donde mira |
+| ~~Subir al borde*~~ | Se sacó el 2026-10-08 (sección 8.6). Eran 0,45 s hacia arriba y 0,25 s hacia adentro, agachado |
+| Salto para arriba desde el colgado* | Los pies suben hasta 0,2 m por encima del filo (`hang_climb_clearance`): unos 6,57 m/s hacia arriba |
 | Agarre del borde* | 3 |
 | Aceleración en el aire | 12 m/s²; desde el punto 3 no frena a quien viene más rápido que caminando |
 | Gravedad | 9,8 m/s² |
@@ -2320,7 +2530,7 @@ Al correr `scenes/net_lab/net_lab.tscn` con **F6** aparece un menú con:
 | Tecla | Quién | Qué hace |
 | --- | --- | --- |
 | WASD | todos | Mover. En la escalera, hacia ella sube y alejarse baja. Colgado, A y D van a la izquierda y a la derecha del personaje frente a la pared, mire donde mire la cámara (punto 5) |
-| Espacio | todos | Saltar; en la escalera, salta hacia atrás. Colgado, mirando a la pared sube al borde, y mirando a otro lado salta hacia allá (punto 5) |
+| Espacio | todos | Saltar; en la escalera, salta hacia atrás. Colgado, mirando a la pared salta para arriba y con W se pasa arriba del borde, y mirando a otro lado salta hacia allá (punto 5; el salto para arriba, desde el 2026-10-08) |
 | Shift | todos | Correr (desde el punto 3) |
 | Ctrl | todos | Agacharse; corriendo, deslizarse (desde el punto 3). Colgado, se suelta; mantenido en el aire, no se agarra de ningún borde (punto 5) |
 | Mouse | todos | Mirar; un clic vuelve a tomar el mouse |
@@ -2358,7 +2568,7 @@ Los niveles de red afectan solo a la máquina donde se eligen:
 - el modo del propio actor, si está en el suelo y la época;
 - la postura: "Postura: agachado · pedida: parado (no hay lugar)" cuando el techo no deja pararse (desde el punto 3);
 - en la escalera, "Escalera N · pies a X m sobre su base", y después de soltarla, cuánto falta para poder volver a agarrarla (desde el punto 4);
-- colgado, "Colgado del borde: filo a X m de altura" y, si el borde va sobre una base, "· sobre la base N"; subiendo, "Subiendo al borde: N %"; y después de soltar un borde, "Recién soltó un borde: no puede agarrar otro por X s" (desde el punto 5);
+- colgado, "Colgado del borde: filo a X m de altura" y, si el borde va sobre una base, "· sobre la base N"; y después de soltar un borde, "Recién soltó un borde: no puede agarrar otro por X s" (desde el punto 5);
 - la velocidad, aclarando "(sobre la base)" si es relativa a una base;
 - "Pies en (x, y, z) · cabeza a … m de altura · base: …", con milímetros (desde el punto 3);
 - en pausa, "EN PAUSA (tick N) · G sigue · F avanza un tick";
@@ -2401,7 +2611,7 @@ Van después de `--` en la línea de comandos. Los temporizadores cuentan segund
 | `--test-input=ladder` | Va a la escalera de la torre, se agarra y sube y baja entre 0,5 y 2 m; si la suelta, vuelve (punto 4) |
 | `--test-input=laddertop` | Sube la escalera hasta arriba y sale al techo de la torre (punto 4) |
 | `--test-input=steps` | Recorre la pista de escalones en 15 puntos: cruza los sueltos de 10, 20 y 30 cm, choca contra el de 40 hasta que se le acaba el tiempo, y sube y baja las dos escaleras (escalón) |
-| `--test-input=hang` | Ciclos contra la cara de un bloque de 2 m de la pista de bordes: se aleja 2,2 m, corre, salta y se agarra al caer; colgado va a la derecha y a la izquierda; después sube y se baja por delante, se suelta con Ctrl o salta hacia atrás, según la vuelta (punto 5) |
+| `--test-input=hang` | Ciclos contra la cara de un bloque de 2 m de la pista de bordes: se aleja 2,2 m, corre, salta y se agarra al caer; colgado va a la derecha y a la izquierda; después, según la vuelta, salta para arriba y aprieta W recién cuando deja de subir, queda arriba y se baja por delante; se suelta con Ctrl; o salta hacia atrás (punto 5) |
 | `--test-input=hang:<id>` | Lo mismo contra el borde de esa base: 4, la plataforma guionada; 5, el cuerpo del host (punto 5) |
 | `--test-perturb-mm=N` | El cliente corre su estado predicho y su cuerpo N milímetros al azar en cada tick, siempre igual para la misma semilla: la divergencia inyectada (punto 5) |
 | `--test-spawn-at=x,z` | El host aparece en ese lugar (punto 2) |
@@ -2426,7 +2636,7 @@ En el cliente agrega los tirones de los demás y, desde el punto 4, los empujone
 
 **Prueba de repetición:** `--scene res://scenes/net_lab/actor_replay_test.tscn -- --rate=N` (o `--rate=varying`). Sale con 0 si todas las repeticiones coinciden e imprime la huella de la pasada en vivo. Desde el punto 3 también imprime cuántos ticks pasó agachado y cuántos de ellos pidiendo pararse sin lugar; desde el punto 5, los ticks colgado.
 
-**Barrido de Hanging** (punto 5): `--scene res://scenes/net_lab/hang_sweep_test.tscn`. Imprime cada caso, una tabla por borde, las salidas, los cuatro criterios y el resumen con teclas y sin teclas. Sale con 0 si se cumplen los cuatro criterios. Con `-- --detalle=borde,vel,llegada,ángulo,lateral,objetivo,teclas` (por ejemplo `--detalle=curvo,6,-12.0,0,0.6,colgarse,empuja`) imprime ese caso tick a tick. Tarda unos minutos.
+**Barrido de Hanging** (punto 5): `--scene res://scenes/net_lab/hang_sweep_test.tscn`. Imprime cada caso, una tabla por borde, las salidas, los cuatro criterios y el resumen con teclas y sin teclas. Desde el salto para arriba, también prueba dos formas de subir (W desde el salto y W recién arriba) e imprime hasta dónde llegan los pies sobre el filo. Sale con 0 si se cumplen los cuatro criterios. Con `-- --detalle=borde,vel,llegada,ángulo,lateral,objetivo,teclas` (por ejemplo `--detalle=curvo,6,-12.0,0,0.6,colgarse,empuja`) imprime ese caso tick a tick. Tarda unos minutos.
 
 **Avisos de GDScript sin ventana:** Godot los imprime solo con el depurador encendido. Para verlos, se agrega `-d` antes de `--scene`.
 
@@ -2536,6 +2746,12 @@ Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente c
 | P5 | Repetición después del cambio | Con la ruta vieja, la misma huella `8421b986a6efcbd3`. Con los tramos nuevos (salto sin teclas, A y D con la cámara de costado): 4.790 repeticiones y 212.915 ticks idénticos, a 60 y con ritmo variable; huella `4ea24f9067f289f7` |
 | P5 | Red y regresiones después del cambio | 0 correcciones en las 12 combinaciones y en la plataforma guionada; cuerpo del host hasta 10,5 cm (limpia) y 12,5 cm (mala); divergencia sin adopción, 663 correcciones (hasta 5,2 cm) con los mismos agarres; lo anterior, igual |
 | P5 | Dos PC, después del cambio | "ok, todo funciona como deberia" |
+| P5 | Salto para arriba: altura | Los pies llegan 0,204 m sobre el filo (0,199 y 0,190 m en los inclinados) |
+| P5 | Salto para arriba: subir con W en la punta / con W desde el salto | 1.934 de 1.955 / 221 de 1.502. Con W desde el salto, en los bloques de 1 m se pasa de largo; las fallas con W en la punta son todas del borde curvo |
+| P5 | Demostración en ventana, cámara lenta, de costado del bloque «malla» | W desde el salto: pasa el fondo y cae al piso del otro lado. W en la punta: queda arriba, 0,38 m adentro |
+| P5 | Repetición con el salto para arriba | 4.788 repeticiones y 212.823 ticks idénticos, a 60 y con ritmo variable; huella `fccfdb253c89ed7c` |
+| P5 | Red con el salto para arriba | 0 correcciones en las 12 combinaciones, con el observador y en la plataforma guionada. Cuerpo del host: 6,8 cm con red limpia; con internet mala, de 1,46 a 2,70 m (y una corrida de 0,20 m) |
+| P5 | Dos PC con el salto para arriba, internet mala | 37 correcciones (la última de 0,27 m), 0 saltos de reloj; "todo funciona como debería" |
 
 ---
 
@@ -2585,6 +2801,9 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 
 - **La cápsula sobre el filo de un escalón:** bajando con `test_move()`, la parte redonda choca con la arista, y la normal del choque va de la arista al centro de la esfera. Si queda dentro del ángulo máximo de piso, parece piso aunque la cápsula esté apoyada en el filo, más abajo de la superficie. Por eso la sonda de escalón llegó a aceptar 40 cm, y el alto real se mide con un rayo sobre la superficie.
 - **Movie Maker sin `--scene`:** corre la escena principal del proyecto, que es la del parkour, y no la del laboratorio. Hay que pasar siempre `--scene res://scenes/net_lab/net_lab.tscn`.
+- **Altura de un salto en los ticks:** en Aire la gravedad se aplica antes de mover, y así las posiciones de cada tick caen sobre la parábola de una velocidad inicial menor en `g·dt/2`. Para que un salto llegue a una altura exacta, se le suma `g·dt/2` a la velocidad de la cuenta continua. Con eso, el salto para arriba buscado a 20 cm llegó a 20,4 cm.
+- **Manejar el laboratorio con teclas simuladas:** `Input.action_press()` y `Input.action_release()` sirven para lo que se lee con `Input.get_vector()`, y un `InputEventAction` mandado con `Input.parse_input_event()` llega a `_unhandled_input()` como una pulsación (Espacio, que es la acción `jump`). Así se hizo la demostración del salto.
+- **Una cámara propia desde un script `-s`:** antes de que el nodo esté en el árbol, `look_at()` falla ("Node not inside tree"). Hay que armar el transform con `Basis.looking_at()`. Una `Camera3D` agregada con `current = true` muestra la escena desde otro lado, mientras el input sigue usando el giro de la cámara del laboratorio.
 - **Abrir el editor en una escena desde la línea de comandos:** `Godot -e --path <carpeta> res://scenes/net_lab/net_lab.tscn` abre el editor con esa escena. Antes, `--headless --path <carpeta> --import` prepara una copia recién traída y termina solo. Así funciona el doble clic de la notebook.
 
 ---
@@ -2654,6 +2873,13 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 | P5 (reporte del usuario) | Había que apretar W para agarrarse | La captura pedía intención hacia la pared, como el documento | Sin teclas, las manos buscan hacia donde mira el personaje (sección 8.5) |
 | P5 (error mío) | Al sumar el caso sin teclas al barrido, una edición con perl rompió un bloque del archivo | El reemplazo de varias líneas no hizo lo esperado | Se rearmó el bloque a mano y se revisó |
 | P5 | En la repetición, el salto sin teclas no se agarraba | El tramo terminaba un tick antes del agarre, y el siguiente apretaba D | `diag_sin_teclas.gd` mostró que se agarra; el tramo pasó de 50 a 60 ticks |
+| P5, salto | La salida "subir" del barrido fallaba en 1.281 de 1.502 casos | Con W apretada desde el salto, el personaje acelera en el aire y en los bloques de 1 m de fondo se pasa de largo | Medido con `diag_salto_arriba.gd`; se sumó la salida "subir con W recién arriba" (1.934 de 1.955) y se le preguntó al usuario, que lo dejó así |
+| P5, salto (error mío) | La pregunta sobre qué hacer con eso no se entendió: "¿que?" | Explicación enredada, con demasiados números | Explicada de nuevo, más simple, y después mostrada en una demostración con capturas paso a paso |
+| P5, salto | La repetición y la prueba guionada se pasaban del bloque de 1 m | Apretaban W desde el salto | Aprietan W en la punta del salto |
+| P5, salto | La prueba guionada en red daba 3 subidas en vez de 4 | La prueba de 45 s termina antes de la cuarta | Corrida sola 70 s: 6 subidas en 6 intentos |
+| P5, salto | Correcciones de 1,5 a 2,7 m sobre el borde del cuerpo del host, con internet mala | Al aterrizar arriba de una balsa que mueve el host, cliente y host no coinciden en si quedó arriba o cayó | Encontrado con un aviso provisorio que imprimía cada corrección de más de 50 cm (ya sacado). Avisado; no se tocó |
+| P5, salto | La primera demostración: el personaje chico, el panel tapando la imagen, la línea de teclas un cuadro atrasada y errores de Godot al apuntar la cámara | Cámara lejos; el panel del laboratorio; el texto se armaba antes de apretar; `look_at()` fuera del árbol | Cámara más cerrada, panel oculto, el texto se arma después de cada acción y el transform se arma con `Basis.looking_at()` |
+| P5, salto | Un script de reemplazos para este documento no aplicó nada | Una barra sin escapar en "m/s" | Se hicieron ediciones sueltas |
 
 ---
 
@@ -2690,6 +2916,9 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - **La subida al borde queda como está** (22:20): "me hubiese gustado mas un saltito, pero por ahora lo dejamos así".
 - **Agarrarse sin apretar W** (22:20): "no siempre queres darle a la W para llegar a X lado". Se aparta del documento, que pedía intención hacia la pared (secciones 4.4 y 8.5).
 - **A y D colgado, sin depender de la cámara** (22:20): "así puedo poner la cámara hacia la derecha y poder moverme a la derecha sin tener que poner la cámara hacia la izquierda".
+- **La subida al borde pasa a ser un salto para arriba con control aéreo** (2026-10-08, 11:50), "temporalmente". El margen es de 20 cm por encima del filo.
+- **El control aéreo del salto queda como está** (12:44): con W desde el salto, en los bordes angostos se pasa de largo. "uno aprende muy rápidamente y se adapta al toque con los controles, por ahora lo dejamos asi, le doy el visto bueno."
+- **Las correcciones sobre el borde del cuerpo del host con internet mala** se avisaron (13:25) y no se tocaron.
 
 **¿Cuánto cuesta cambiar una mecánica después?** (pregunta del 2026-10-07, 13:06). La respuesta, resumida:
 
@@ -2746,6 +2975,8 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 | `375d419` | 2026-10-07 12:53 | docs(net): add architecture validation items 2-4 to the history | 1 | +1.849 / −100 |
 | `b907dae` | 2026-10-07 16:19 | feat(net): add Ground step-up probe and a step course | 10 | +351 / −7 |
 | `3cdcc91` | 2026-10-08 10:55 | feat(net): add Hanging with snap and its confirmation tests (validation item 5) | 16 | +1.359 / −47 |
+| `fa26986` | 2026-10-08 11:34 | docs(net): add the step, Hanging and the grab and shimmy change to the history | 1 | +1.193 / −61 |
+| `3825c2b` | 2026-10-08 16:40 | feat(net): replace the Hanging climb with an upward jump | 6 | +99 / −128 |
 
 **Zips en el escritorio** para copiar el proyecto a la otra PC, hasta el escalón. Los del esqueleto pesaban 18 MB cada uno; el tamaño de los de la validación no se anotó. Hoy quedan en el Escritorio el de la escalera y el del escalón; los demás se movieron o se borraron. Desde el escalón, la notebook se actualiza con el doble clic de la sección 6.2.
 
@@ -2778,6 +3009,7 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 | 2026-10-07 16:11 | El escalón, más la primera prueba del doble clic por la red | `b907dae` |
 | 2026-10-07 19:36 | Hanging, primera versión | Nunca se commiteó |
 | 2026-10-07 23:05 | Hanging con los dos cambios | `3cdcc91` |
+| 2026-10-08 13:25 | El salto para arriba en vez de la subida, con las pruebas que aprietan W en la punta. Probado en las dos PC a las 16:28 | `3825c2b` |
 
 **Lo que no se tocó:** los cambios previos sin commitear de la rama siguen igual. Incluyen `project.godot` (solo con el cambio de versión 4.6 → 4.7 del editor), `docs/parkour/*`, `scenes/test/*`, `scripts/player_v2/*` y `assets/models/*`.
 
@@ -2796,7 +3028,7 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 - **Punto 7:** cámara lenta del mundo y personal.
 - **Hanging, prueba 7:** con 5 a 10 personas, cuando haya gente.
 
-**Pedido para más adelante:** la subida al borde con "un saltito". Hoy es un recorrido de dos tramos, 0,45 s hacia arriba y 0,25 s hacia adentro. El usuario dijo "por ahora lo dejamos así".
+**Pedido para más adelante:** la subida al borde con "un saltito". La tercera versión de este documento decía: "Hoy es un recorrido de dos tramos, 0,45 s hacia arriba y 0,25 s hacia adentro". El 2026-10-08 esa subida se reemplazó "temporalmente" por un salto para arriba con control aéreo, y el usuario dijo "por ahora lo dejamos asi" (sección 8.6). Si vuelve una animación de subida, el código viejo está en `3cdcc91`.
 
 **Del plan original, sin hacer:**
 
@@ -2835,7 +3067,9 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
     - no hay capacidades, así que nada impide subir estando aturdido;
     - la cámara se acomoda en 0,19 s de promedio después de agarrarse (el documento proponía 100 a 150 ms);
     - un borde de 1,6 m no se puede agarrar desde el piso;
-    - sobre el borde del cuerpo del host hay correcciones chicas mientras se cuelga: de 4,6 a 21 cm en las pruebas;
+    - sobre el borde del cuerpo del host hay correcciones chicas mientras se cuelga: de 4,6 a 21 cm en las pruebas. Con el salto para arriba, al aterrizar encima con internet mala, las correcciones llegan a 1,4–2,7 m;
+    - con W apretada desde el salto para arriba, en los bordes angostos se pasa de largo; quedó así a pedido;
+    - en el borde curvo, agarrado de costado, a veces el salto para arriba no deja arriba (21 de 1.955 casos en el barrido);
     - si en el aire se aprieta A o D mirando a la pared, las manos buscan hacia ese costado y no se agarra (la tecla manda).
 - **Agarrarse sin teclas usa la orientación del personaje,** que la regla general del documento quería evitar para que primera y tercera persona simulen igual. Hoy da lo mismo, porque la orientación sigue al movimiento y no hay primera persona. Hay que revisarlo cuando llegue la primera persona (sección 8.5).
 - **Las 62 correcciones y las 108 afirmaciones rechazadas** de la primera prueba de Hanging en dos PC pasaron antes de la primera captura y no se ubicaron. La sospecha es el borde sobre el cuerpo del host.
@@ -2850,7 +3084,7 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 - **El ancho de banda.** En la primera versión de este documento: hasta ~373 bytes por paquete del cliente y 62 bytes por actor en el snapshot. En la segunda, con el estado de 67 bytes: 471 y 78. Hoy, con el estado de 79 bytes, la cuenta da:
     - **cada paquete del cliente:** 2 + 1 + 6 × (10 + 1 + 79) = 543 bytes como máximo, 60 veces por segundo;
     - **el snapshot:** 90 bytes por actor y 26 por balsa (más 1 byte con la cantidad de balsas), 30 veces por segundo.
-- **Hanging:** la distancia máxima de snap (35 cm), el tope de velocidad del dibujo al agarrarse (1,8 m/s) y la altura del colgado (1,95 m).
+- **Hanging:** la distancia máxima de snap (35 cm), el tope de velocidad del dibujo al agarrarse (1,8 m/s), la altura del colgado (1,95 m) y el margen del salto para arriba (20 cm).
 - **El colchón de los eventos programados** (4 ticks): en la prueba de dos PC llegaron tarde 11 de 29, pero todos se repitieron sin corrección.
 
 **Observaciones de las pruebas reales:**
@@ -2864,6 +3098,7 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 - **La regla de esperar los estados provisorios** que agregué en el paso 7 todavía no está escrita en el documento.
 - **La inferencia I2 quedó confirmada** en el punto 2, pero el documento todavía la lista como inferencia. Anotarlo quedó ofrecido.
 - ~~**Agarrarse sin intención hacia la pared.**~~ Corregido, con notas, en la copia del Apéndice A y en el documento de Claude Docs (revisión 55).
+- ~~**Subir al borde como salto para arriba.**~~ Corregido, con la subida vieja copiada en una nota, en la copia del Apéndice A y en el documento de Claude Docs (revisión 60).
 - **Cuando el esqueleto pase a ser el juego,** los ajustes que hoy aplica el laboratorio al arrancar (60 ticks, `physics_jitter_fix` en 0 e interpolación de física) van a `project.godot`.
 - **Fuera del laboratorio** quedan los demás modos anclados, los cuerpos rígidos, las interacciones, Steam y NAT.
 
@@ -2886,6 +3121,15 @@ Ya incluye las decisiones posteriores: Hanging con snap y subir al borde como sa
 - desplazarse colgado, en esa misma lista.
 
 El cambio viene de la prueba de Hanging en dos PC (sección 8.5). El documento de Claude Docs se corrigió en los mismos lugares, con notas equivalentes: pasó de la revisión 52 a la 55. Ahí las notas de Captura y de Desplazarse colgado van juntas, debajo de la lista.
+
+**Más tarde el mismo día**, con la subida al borde reemplazada por un salto para arriba (sección 8.6), la copia y el documento de Claude Docs (revisión 60) cambiaron en otros cuatro lugares:
+
+- "Subir al borde" se reescribió, con la subida vieja copiada en una nota;
+- la lista de salidas de "Lo común": subir ya no es la excepción que no va a Aire;
+- los ejemplos de trayectorias autoradas, en "Animación";
+- las poses que se validan con `test_move()`, en "Herramientas de Godot y Jolt".
+
+La nota de "Subir al borde" cuenta los cuatro cambios.
 
 ### Arquitectura de movimiento co-op (Godot 4.7 + Jolt)
 
@@ -3183,7 +3427,7 @@ Hay condiciones, pero son listas planas por modo, no un árbol global. Un modo n
 | --- | --- | --- | --- |
 | `move_and_slide()` | Suelo, Aire, Deslizamiento, Pared | Piso, pared, techo, normales y colisiones de deslizamiento, solo justo después del llamado | Modos anclados; restauraciones |
 | `move_and_collide()` | Barridos de Ladder, Hanging, Tirolesa, Cuerda y Enganchado; arrastre de la base; snap de Hanging | El primer contacto; no toca `is_on_floor()` | Locomoción libre: no desliza ni clasifica |
-| `test_move()` o `move_and_collide()` con `test_only` | Validar poses con la forma real: pararse, entrar a una pose de agarre, subir al borde, salir de una escalera | Si chocaría y dónde | — |
+| `test_move()` o `move_and_collide()` con `test_only` | Validar poses con la forma real: pararse, entrar a una pose de agarre, salir de una escalera | Si chocaría y dónde | — |
 | Consultas directas (`intersect_shape`, `cast_motion`, `intersect_ray`, `intersect_point`, `get_rest_info`) | Todas las sondas | Puntos, normales, colisionadores y fracciones, al instante | Relaciones entre actores (inferencia I2) |
 | Transform directo | Restaurar estado de red, respawn, pose anclada ya validada | Nada: no actualiza indicadores | Locomoción |
 | Señales de `Area3D`, nodos `RayCast3D` y `ShapeCast3D` | Presentación y depuración: sonido ambiente, cartel de interacción | Una vez por paso de física | Lógica predicha (inferencia I1) |
@@ -3322,7 +3566,7 @@ La presentación lee la simulación y nunca escribe en ella. Su trabajo es absor
 
 - Se maneja leyendo el estado en cada frame: modo, postura, velocidad relativa a la base, parámetros del ancla, marcas de modificadores como aturdido o cargando. Una corrección se ve sola, sin eventos especiales.
 - La velocidad de reproducción sigue a la escala de tiempo del actor y del mundo.
-- **Sin root motion en la simulación.** Las trayectorias autoradas, como subir al borde o bajar de una escalera por arriba, son curvas dentro de la simulación, en tiempo del actor. La animación las acompaña.
+- **Sin root motion en la simulación.** Las trayectorias autoradas, como bajar de una escalera por arriba, son curvas dentro de la simulación, en tiempo del actor. La animación las acompaña.
 - IK de manos en bordes, peldaños, cables y manijas; IK de pies en el suelo.
 
 ##### Sonido, partículas y vibración
@@ -3363,7 +3607,7 @@ En A la pose depende solo del ancla y del lugar sobre el filo. En B también dep
 - **Desplazarse colgado:** el input lateral cambia la posición sobre el filo; la extensión lateral de la sonda y un barrido limitan el recorrido. El input lateral son A y D: la izquierda y la derecha del personaje frente a la pared, mire donde mire la cámara.
 
   > **Nota (2026-10-08).** El texto original termina en "limitan el recorrido"; la última oración es nueva. El documento no decía nada de la cámara. La primera versión de Hanging usaba la misma dirección que para caminar: las teclas giradas según la cámara, proyectadas sobre el filo. Con la cámara mirando 90° a un costado, D casi no movía: "movía la cámara hacia la derecha pero a la vez le daba a la tecla D para ir a la derecha y el player avanzaba muy de a poquito". A pedido del usuario, A y D pasaron a ser directos. Detalle completo en la sección 8.5.
-- **Salidas:** subir al borde, que termina en Suelo; soltarse, saltar en la dirección de la mirada, fuerza mayor al agarre, o invariante roto (borde destruido, gravedad desalineada, ancla fuera de alcance). Salvo subir, todas van a Aire con un bloqueo de reagarre corto.
+- **Salidas:** saltar para arriba mirando a la pared, para subir al borde con el control aéreo; soltarse, saltar en la dirección de la mirada, fuerza mayor al agarre, o invariante roto (borde destruido, gravedad desalineada, ancla fuera de alcance). Todas van a Aire con un bloqueo de reagarre corto.
 - **Impulsos menores al agarre:** la parte paralela al filo desplaza al personaje sobre él; el resto es balanceo visual.
 - **Subir al borde** no es mantle: es una salida de Hanging, detallada más abajo.
 
@@ -3377,14 +3621,24 @@ En A la pose depende solo del ancla y del lugar sobre el filo. En B también dep
 
 ##### Subir al borde
 
-Es una salida de Hanging, no un mantle. Siempre arranca desde la pose canónica del snap, así que la trayectoria es la misma en todos los bordes, relativa al filo.
+Es un salto desde Hanging, no un mantle. Mirando a la pared, el jugador salta derecho para arriba y pasa arriba del borde con el control aéreo. Siempre arranca desde la pose canónica del snap, así que el salto es el mismo en todos los bordes.
 
-1. **Pedido.** Input de subir mientras cuelga, con la capacidad trepar. Estar aturdido o sostener a alguien la quitan.
-2. **Validación antes de empezar.** Arriba tiene que caber el cuerpo agachado, sobre suelo caminable. El camino se prueba con `test_move()` en dos tramos: hacia arriba pegado a la pared y hacia adentro sobre el filo. Si algo falla, no sube y sigue colgado. Los otros jugadores no cuentan como obstáculo.
-3. **Subida.** El modo sigue siendo Hanging, en una fase de subida con su avance en tiempo del actor. El cuerpo usa la forma agachada y recorre los dos tramos con barridos de `move_and_collide()`; la animación sigue ese avance.
-4. **Fin.** Al completar el recorrido pasa a Suelo arriba del borde. El resolutor de postura decide si se para o queda agachado.
-5. **Interrupciones.** Con fuerza mayor al agarre sale a Aire con el impulso. Si algo ocupa el camino a mitad de la subida, vuelve a la pose de colgado si sigue siendo válida; si no, sale a Aire. Si el borde desaparece, también sale a Aire.
-6. **Red.** La inicia el jugador: se predice, y el host la adopta después de validar el mismo espacio libre, con tolerancia.
+1. **Pedido.** Saltar mientras cuelga, con la mirada a menos de unos 60° de la pared. Si mira hacia otro lado, el salto va hacia donde mira.
+2. **Salto.** Sale a Aire con velocidad solo vertical: la justa para que los pies suban unos 20 cm por encima del filo. Lleva el mismo bloqueo corto de reagarre que las demás salidas.
+3. **Pasar arriba.** Es el control aéreo de cualquier salto: para quedar arriba, el jugador empuja hacia la pared. Si empuja desde el principio, sigue acelerando y en un borde angosto se pasa de largo; si empuja en la punta del salto, aterriza cerca del filo.
+4. **Si no llega.** Cae como en cualquier salto.
+5. **Red.** Es un salto común y se predice entero. Sobre un borde que mueve el host, con mucha latencia, aterrizar arriba puede dar correcciones grandes, porque el cliente ve el borde corrido: en las pruebas, de 1,4 a 2,7 m con 200 ms de ida y vuelta.
+
+> **Nota (2026-10-08).** Esta sección se reescribió. Antes, subir al borde era una trayectoria dentro de Hanging:
+>
+> 1. **Pedido.** Input de subir mientras cuelga, con la capacidad trepar. Estar aturdido o sostener a alguien la quitan.
+> 2. **Validación antes de empezar.** Arriba tiene que caber el cuerpo agachado, sobre suelo caminable. El camino se prueba con `test_move()` en dos tramos: hacia arriba pegado a la pared y hacia adentro sobre el filo. Si algo falla, no sube y sigue colgado. Los otros jugadores no cuentan como obstáculo.
+> 3. **Subida.** El modo sigue siendo Hanging, en una fase de subida con su avance en tiempo del actor. El cuerpo usa la forma agachada y recorre los dos tramos con barridos de `move_and_collide()`; la animación sigue ese avance.
+> 4. **Fin.** Al completar el recorrido pasa a Suelo arriba del borde. El resolutor de postura decide si se para o queda agachado.
+> 5. **Interrupciones.** Con fuerza mayor al agarre sale a Aire con el impulso. Si algo ocupa el camino a mitad de la subida, vuelve a la pose de colgado si sigue siendo válida; si no, sale a Aire. Si el borde desaparece, también sale a Aire.
+> 6. **Red.** La inicia el jugador: se predice, y el host la adopta después de validar el mismo espacio libre, con tolerancia.
+>
+> En el laboratorio se implementó así: Espacio mirando a la pared, 0,45 s hacia arriba pegado a la pared y 0,25 s hacia adentro, agachado. Al probarlo en dos PC, el usuario dijo que no estaba mal, pero que le hubiese gustado más "un saltito". El 2026-10-08 pidió quitar temporalmente esa subida y reemplazarla por un salto para arriba, con control aéreo y un margen de altura sobre el borde para maniobrar. Lo probó en dos PC y lo aprobó: "uno aprende muy rapidamente y se adapta al toque con los controles". Por el mismo cambio, subir al borde salió de la lista de salidas que no van a Aire, de los ejemplos de trayectorias autoradas y de las poses que se validan con `test_move()`. La subida vieja sigue en el commit `3cdcc91` del laboratorio, por si vuelve. El detalle está en la sección 8.6.
 
 ##### Variante B: sin snap
 
@@ -3721,6 +3975,8 @@ Estos scripts no están en el repositorio: vivieron en una carpeta temporal de l
 | `diag_hanging.gd` | 5 | Hanging contra una pared de 2 m, con el motor real: agarrarse, desplazarse, subir, soltarse y saltar |
 | `diag_colgar_dibujo.gd` | 5 | Cuadro por cuadro, alrededor del primer agarre: cuerpo, pies dibujados y cámara |
 | `diag_sin_teclas.gd` | 5 | Parado contra una pared de 2,4 m, salta en el lugar con W y sin teclas, e imprime en cada tick qué decide `grab_check()` |
+| `diag_salto_arriba.gd` | 5, salto | Colgado de una pared de 2 m, salta para arriba con W desde el salto y con W recién arriba, e imprime cada tick. Cambiando el fondo de la pared a 1 m se ve que con W desde el salto se pasa de largo |
+| `demo_salto_arriba.gd` | 5, salto | La demostración: el laboratorio en una ventana, en cámara lenta y de costado, apretando W y Espacio como un jugador, con un cartel por paso y una hoja de capturas por forma. Se corre con ventana: `-s <script> --resolution 1280x720 -- --local` |
 
 El barrido de Hanging no está acá: es parte del repositorio (`scenes/net_lab/hang_sweep_test.gd`).
 
@@ -5271,4 +5527,349 @@ class Runner extends Node:
 
 func _initialize() -> void:
 	root.add_child(Runner.new())
+```
+
+#### diag_salto_arriba.gd
+
+```gdscript
+extends SceneTree
+
+# Diagnostic: hanging from a 2.0 m wall, Space looking at the wall, with W held
+# from the jump (pass 1) or only from the top of the jump (pass 2). Prints
+# every tick: mode, feet, velocity, wall contact.
+
+
+class Runner extends Node:
+	var actor: ActorBody
+	var state := ActorState.new()
+	var tuning := ActorTuning.new()
+	var tick := 0
+	var presses := 0
+	var pass_index := 0
+	var hanging := false
+
+	func _ready() -> void:
+		SimClock.apply_tick_rate(SimClock.TICK_RATE)
+		_add_box(Vector3(60, 1, 60), Vector3(0, -0.5, 0))
+		_add_box(Vector3(4, 2.0, 2), Vector3(0, 1.0, -1.5))  # front face at z = -0.5, top at 2.0
+		actor = load("res://scenes/actor/actor.tscn").instantiate()
+		add_child(actor)
+
+	func _add_box(size: Vector3, center: Vector3) -> void:
+		var body := StaticBody3D.new()
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = size
+		shape.shape = box
+		body.add_child(shape)
+		body.position = center
+		add_child(body)
+
+	func _physics_process(_delta: float) -> void:
+		var t := tick % 300
+		if t == 0:
+			state = ActorState.new()
+			state.position = Vector3(0, 0, 1.0)
+			state.mode = ActorState.Mode.GROUND
+			state.on_floor = true
+			actor.apply_state(state)
+			hanging = false
+			print("---- pasada %d: %s" % [pass_index, "W desde el salto" if pass_index == 0 else "W recién arriba"])
+		var move := Vector2.ZERO
+		if t < 60:
+			move = Vector2(0, 1)
+		if t == 10:
+			presses += 1  # jump to grab
+		if t >= 100 and state.mode == ActorState.Mode.HANGING and t == 100:
+			presses += 1  # Space looking at the wall
+		if t > 100:
+			if pass_index == 0 or state.velocity.y <= 0.0:
+				move = Vector2(0, 1)
+		var input := ActorInput.make(tick, move, 0.0, 0, presses)
+		ActorMotor.step(actor, state, input, tuning, SimClock.TICK_DT)
+		if t >= 99 and t < 175:
+			print("t=%3d modo=%-7s pies=(%.3f, %.3f, %.3f) vel=(%.2f, %.2f, %.2f) pared=%s piso=%s move=%s" % [t,
+					ActorState.Mode.keys()[state.mode], state.position.x, state.position.y, state.position.z,
+					state.velocity.x, state.velocity.y, state.velocity.z, actor.is_on_wall(), state.on_floor, move])
+		tick += 1
+		if tick == 300:
+			pass_index = 1
+		if tick >= 600:
+			get_tree().quit()
+
+
+func _initialize() -> void:
+	root.add_child(Runner.new())
+```
+
+#### demo_salto_arriba.gd
+
+```gdscript
+extends SceneTree
+
+# Demo for the user: the lab in "Jugar solo", in slow motion, seen from the side
+# of the "malla" block (2 m high, 1 m deep on top). It presses W and Space like
+# a player (input actions), shows a caption with what it is doing, and saves a
+# capture at every step. Two runs: W held from the jump, then W only once the
+# jump stops rising. At the end it builds one contact sheet per run.
+#
+# Run with a window: -s <this> --resolution 1280x720 -- --local
+
+const FACE := Vector3(27.6, 0.0, -10.0)  # front face of the "malla" block (x 26.3..28.7)
+const EDGE_Y := 2.0
+const BACK_Z := -11.0
+const START := Vector3(27.6, 0.0, -8.8)
+const SLOW_TICK_RATE := 20  # 60 ticks of simulation in 3 real seconds
+const OUT := "C:/Users/ELCAID~1/AppData/Local/Temp/claude/C--Users-ElCaido97-Documents-tun-tun-tun-sahur/5d835f7b-ceb8-45f9-9209-8dc10c4704df/scratchpad/demo_salto"
+const TITLES := ["Primera forma: W apretada desde el salto", "Segunda forma: W recién cuando deja de subir"]
+
+var lab: Node
+var run := 0
+var phase := "boot"
+var phase_tick := 0
+var step := 0
+var caption: Label
+var status: Label
+var last_jump_tick := -1000
+var title: Label
+var shots: Array = [[], []]
+var flags := {}
+var headless := false
+var done_frames := 0
+
+
+func _initialize() -> void:
+	headless = DisplayServer.get_name() == "headless"
+	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
+	root.add_child(lab)
+	var layer := CanvasLayer.new()
+	layer.layer = 10
+	root.add_child(layer)
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0.72)
+	style.set_content_margin_all(14)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.anchor_left = 0.0
+	panel.anchor_right = 1.0
+	panel.anchor_top = 1.0
+	panel.anchor_bottom = 1.0
+	panel.offset_top = -190
+	layer.add_child(panel)
+	var box := VBoxContainer.new()
+	panel.add_child(box)
+	title = Label.new()
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	box.add_child(title)
+	caption = Label.new()
+	caption.add_theme_font_size_override("font_size", 30)
+	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(caption)
+	status = Label.new()
+	status.add_theme_font_size_override("font_size", 24)
+	status.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
+	box.add_child(status)
+	var cam := Camera3D.new()
+	cam.name = "CamaraDeCostado"
+	cam.fov = 46.0
+	root.add_child(cam)
+	var from := Vector3(35.0, 2.3, -10.4)
+	cam.transform = Transform3D(Basis.looking_at(Vector3(27.6, 1.3, -10.4) - from, Vector3.UP), from)
+	cam.current = true
+
+
+func _actor() -> ActorBody:
+	return lab.get("_local_actor")
+
+
+func _tick() -> int:
+	var clock = lab.get("_clock")
+	return clock.tick if clock != null else 0
+
+
+func _say(text: String, shot: bool = true) -> void:
+	_update_status()
+	step += 1
+	title.text = "%s   ·   paso %d" % [TITLES[run], step]
+	caption.text = text
+	var actor := _actor()
+	var s := actor.state
+	print("[demo] corrida %d paso %d tick %d modo=%s pies=(%.2f, %.2f, %.2f) vel=(%.2f, %.2f, %.2f) | %s" % [run + 1, step, _tick(),
+			ActorState.Mode.keys()[s.mode], actor.global_position.x, actor.global_position.y, actor.global_position.z,
+			s.velocity.x, s.velocity.y, s.velocity.z, text])
+	if shot and not headless:
+		_snap()
+
+
+func _snap() -> void:
+	var r := run
+	await RenderingServer.frame_post_draw
+	var image := root.get_texture().get_image()
+	image.convert(Image.FORMAT_RGBA8)
+	image.save_png("%s_%d_%02d.png" % [OUT, r + 1, shots[r].size() + 1])
+	image.resize(640, 360, Image.INTERPOLATE_BILINEAR)
+	shots[r].append(image)
+
+
+func _press_jump() -> void:
+	last_jump_tick = _tick()
+	var event := InputEventAction.new()
+	event.action = "jump"
+	event.pressed = true
+	Input.parse_input_event(event)
+	var release := InputEventAction.new()
+	release.action = "jump"
+	release.pressed = false
+	Input.parse_input_event(release)
+
+
+func _update_status() -> void:
+	var actor := _actor()
+	var mode_names := {ActorState.Mode.GROUND: "en el piso", ActorState.Mode.AIR: "en el aire", ActorState.Mode.HANGING: "colgado"}
+	status.text = "Teclas apretadas: %s     Estado: %s     Pies a %.2f m de altura (el borde está a 2,00 m)" % [
+			_keys(), mode_names.get(actor.state.mode, "otro"), actor.global_position.y]
+
+
+func _keys() -> String:
+	var held: Array[String] = []
+	if Input.is_action_pressed("move_forward"):
+		held.append("W")
+	if _tick() - last_jump_tick < 6:
+		held.append("Espacio (un toque)")
+	return " + ".join(held) if not held.is_empty() else "ninguna"
+
+
+func _go(next: String) -> void:
+	phase = next
+	phase_tick = _tick()
+
+
+func _teleport() -> void:
+	var actor := _actor()
+	var s := ActorState.new()
+	s.position = START
+	s.mode = ActorState.Mode.GROUND
+	s.on_floor = true
+	s.jump_presses_seen = lab.get("jump_presses")
+	s.quantize()
+	actor.state = s
+	actor.apply_state(s)
+	actor.teleported()
+
+
+func _process(_delta: float) -> bool:
+	if lab.get("_camera") != null:
+		lab.get("_camera").yaw = 0.0  # the game's camera looks at the wall: W is toward it
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if lab.has_node("Hud/Info"):
+		lab.get_node("Hud/Info").visible = false
+	var actor := _actor()
+	if not is_instance_valid(actor):
+		return false
+	var s := actor.state
+	_update_status()
+	var since := _tick() - phase_tick
+	var feet := actor.global_position
+	match phase:
+		"boot":
+			if _tick() > 20:
+				SimClock.apply_tick_rate(SLOW_TICK_RATE)
+				_teleport()
+				flags = {}
+				_go("look")
+				_say("Parado frente al bloque «malla»: 2 m de alto y 1 m de fondo arriba. Vista de costado: la pared está a la derecha. La cámara del juego mira a la pared, así que W empuja hacia la derecha.")
+		"look":
+			if since >= 40:
+				Input.action_press("move_forward")
+				_go("walk")
+				_say("Aprieto W: camina hasta la pared.")
+		"walk":
+			if actor.is_on_wall() or since >= 40:
+				Input.action_release("move_forward")
+				_press_jump()
+				_go("grab")
+				_say("Suelto W y aprieto Espacio: salta en el lugar y se agarra al caer.")
+		"grab":
+			if s.mode == ActorState.Mode.HANGING:
+				_go("hang")
+				_say("Colgado del borde (las manos amarillas están sobre el filo).")
+			elif since > 150:
+				print("[demo] no se agarró")
+				_go("end")
+		"hang":
+			if since >= 45:
+				_press_jump()
+				if run == 0:
+					Input.action_press("move_forward")
+					_say("Aprieto Espacio mirando a la pared, y también W, que no voy a soltar.")
+				else:
+					_say("Aprieto Espacio mirando a la pared, sin W: salta derecho para arriba.")
+				_go("air")
+		"air":
+			if not flags.has("rising") and s.mode == ActorState.Mode.AIR and since >= 6:
+				flags["rising"] = true
+				_say("Sale del borde para arriba: está en el aire, con control aéreo." + (" Con W apretada, apenas pasa el borde empieza a acelerar hacia la derecha." if run == 0 else ""))
+			elif not flags.has("apex") and s.mode == ActorState.Mode.AIR and s.velocity.y <= 0.0:
+				flags["apex"] = true
+				if run == 0:
+					_say("Punto más alto: los pies, 20 cm sobre el borde. Ya está %.1f m adentro, sobre el bloque, y sigue acelerando." % (FACE.z - feet.z))
+				else:
+					Input.action_press("move_forward")
+					_say("Punto más alto: los pies, 20 cm sobre el borde. Recién ahora aprieto W.")
+			elif run == 0 and not flags.has("past") and feet.z < BACK_Z and feet.y > EDGE_Y - 0.05:
+				flags["past"] = true
+				_say("Todavía no bajó y ya pasó el fondo del bloque (1 m): no tiene dónde aterrizar.")
+			elif s.mode == ActorState.Mode.GROUND and not flags.has("landed"):
+				flags["landed"] = true
+				if run == 0:
+					Input.action_release("move_forward")
+					_say("Aterriza en el piso, del otro lado del bloque. Suelto W.")
+				else:
+					_say("Aterriza arriba del bloque, apoyado en el filo. Sigo con W un momento.")
+				_go("after")
+			elif since > 300:
+				print("[demo] no terminó el salto")
+				_go("after")
+		"after":
+			if run == 1 and since >= 4 and not flags.has("released"):
+				flags["released"] = true
+				Input.action_release("move_forward")
+				_say("Suelto W.")
+			if run == 1 and since >= 40 and not flags.has("stopped"):
+				flags["stopped"] = true
+				_say("Queda parado arriba del bloque, con los pies %.2f m adentro del borde." % (FACE.z - feet.z))
+			if since >= 50:
+				if run == 0:
+					run = 1
+					step = 0
+					flags = {}
+					_teleport()
+					_go("look")
+					_say("Vuelvo al mismo lugar para la segunda forma.")
+				else:
+					_go("end")
+		"end":
+			done_frames += 1
+			if done_frames == 30:
+				_sheets()
+			if done_frames > 60:
+				return true
+	return false
+
+
+func _sheets() -> void:
+	for r in 2:
+		var tiles: Array = shots[r]
+		if tiles.is_empty():
+			continue
+		@warning_ignore("integer_division")
+		var rows := (tiles.size() + 1) / 2
+		var sheet := Image.create(1280, rows * 360, false, Image.FORMAT_RGBA8)
+		sheet.fill(Color(0.1, 0.1, 0.12))
+		for i in tiles.size():
+			@warning_ignore("integer_division")
+			sheet.blit_rect(tiles[i], Rect2i(0, 0, 640, 360), Vector2i((i % 2) * 640, (i / 2) * 360))
+		sheet.save_png("%s_hoja_%d.png" % [OUT, r + 1])
+		print("[demo] hoja %d: %d capturas" % [r + 1, tiles.size()])
 ```

@@ -17,13 +17,19 @@ const POSE_TOLERANCE := 0.01
 const CORRECTION_HALF_LIFE := 0.025
 ## Saltos más grandes que esto no se suavizan: se ven como un salto.
 const MAX_SMOOTHED_JUMP := 1.5
+## Presentación del agarre de un borde: su desvío decae igual que el de una
+## corrección, pero a lo sumo a esta velocidad, en m/s. Así la cámara se mueve
+## como mucho 9 cm en los 50 ms después de agarrarse (criterio de la
+## arquitectura); un snap de 35 cm tarda unos 250 ms en cerrarse.
+const GRAB_MAX_SPEED := 1.8
 ## Espacio libre: la forma de prueba se achica esto por cada lado, para que
 ## tocar el piso o una pared no cuente como choque.
 const FREE_SPACE_MARGIN := 0.02
 
 ## Desvío del visual respecto del cuerpo. Es solo presentación: la simulación
-## no lo lee nunca.
+## no lo lee nunca. El del agarre va aparte porque decae más lento.
 var visual_offset := Vector3.ZERO
+var grab_offset := Vector3.ZERO
 
 ## Estado del actor. Solo lo escriben ActorMotor y la red al restaurar.
 var state := ActorState.new()
@@ -34,9 +40,12 @@ var placed := false
 ## Si esta máquina lo simula. El host simula a todos; el cliente, solo al
 ## propio (predicción), y a los demás los muestra como los manda el host.
 var simulated := true
-## Evento de presentación del último paso: cuánto subió un escalón, en metros.
-## Lo pone ActorMotor y lo consume present(); la simulación no lo lee.
-var stepped_up := 0.0
+## Evento de presentación del último paso: cuánto saltó el cuerpo a propósito
+## (un snap lógico). Lo pone ActorMotor y lo consume present(); la simulación
+## no lo lee. Subir un escalón usa snap_jump, que se suaviza como una
+## corrección; agarrarse de un borde usa grab_jump, con su tope de velocidad.
+var snap_jump := Vector3.ZERO
+var grab_jump := Vector3.ZERO
 
 ## Forma activa: la de la postura concedida.
 var _active_stance: int = ActorState.Stance.STANDING
@@ -53,6 +62,8 @@ var _probe_params := PhysicsShapeQueryParameters3D.new()
 @onready var _shapes: Array[CollisionShape3D] = [$Shape, $CrouchShape]
 @onready var _bodies: Array[Node3D] = [$Visual/Body, $Visual/BodyCrouch]
 @onready var _nose: Node3D = $Visual/Nose
+## Manos que se dibujan sobre el filo mientras cuelga. Solo presentación.
+var _hands: Array[MeshInstance3D] = []
 
 
 func _ready() -> void:
@@ -69,6 +80,15 @@ func _ready() -> void:
 		probe.radius = capsule.radius - FREE_SPACE_MARGIN
 		probe.height = capsule.height - 2.0 * FREE_SPACE_MARGIN
 		_probe_shapes.append(probe)
+	var hand_mesh := BoxMesh.new()
+	hand_mesh.size = Vector3(0.12, 0.06, 0.14)
+	hand_mesh.material = ($Visual/Nose as MeshInstance3D).mesh.material
+	for i in 2:
+		var hand := MeshInstance3D.new()
+		hand.mesh = hand_mesh
+		hand.visible = false
+		add_child(hand)
+		_hands.append(hand)
 
 
 ## Activa la forma de colisión de una postura.
@@ -78,6 +98,11 @@ func use_stance(stance: int) -> void:
 	_active_stance = stance
 	for i in _shapes.size():
 		_shapes[i].disabled = i != stance
+
+
+## Postura de la forma activa.
+func active_stance() -> int:
+	return _active_stance
 
 
 ## Radio de la forma activa.
@@ -174,23 +199,42 @@ func present(actor_state: ActorState) -> void:
 			and actor_state.mode == ActorState.Mode.AIR:
 		reset_physics_interpolation()
 	_presented_stance = actor_state.stance
-	# Subió un escalón: el cuerpo quedó arriba de golpe, y el visual arranca
-	# desde abajo y lo alcanza con el mismo decaimiento de las correcciones.
-	if stepped_up > 0.0:
-		set_visual_offset(visual_offset + Vector3.DOWN * stepped_up)
-		stepped_up = 0.0
+	# Un snap lógico (escalón, agarre): el cuerpo saltó de golpe, y el visual
+	# arranca desde donde estaba y lo alcanza con el mismo decaimiento de las
+	# correcciones.
+	if snap_jump != Vector3.ZERO:
+		set_visual_offset(visual_offset - snap_jump)
+		snap_jump = Vector3.ZERO
+	if grab_jump != Vector3.ZERO:
+		grab_offset -= grab_jump
+		grab_jump = Vector3.ZERO
+		_visual.position = visual_offset + grab_offset
+	# Colgado: las manos sobre el filo, a los costados. Cuelgan del cuerpo y no
+	# del dibujo, así quedan en el filo mientras el dibujo se acomoda.
+	var hanging := actor_state.mode == ActorState.Mode.HANGING
+	for i in _hands.size():
+		_hands[i].visible = hanging
+	if hanging:
+		var toward := Vector3.FORWARD.rotated(Vector3.UP, actor_state.facing_yaw)
+		var right := toward.cross(Vector3.UP)
+		var edge := BaseRegistry.origin(actor_state.anchor_id) + actor_state.anchor_point
+		for i in _hands.size():
+			_hands[i].position = edge - global_position + right * (0.2 if i == 0 else -0.2) + Vector3.UP * 0.03 + toward * 0.05
+			_hands[i].rotation.y = actor_state.facing_yaw
 
 
 ## Dónde se ve el actor: el cuerpo más el desvío visual.
 func seen_position() -> Vector3:
-	return global_position + visual_offset
+	return global_position + visual_offset + grab_offset
 
 
 ## El cuerpo acaba de saltar por una corrección y antes se lo veía en `seen`:
 ## el visual arranca desde ahí y llega solo a la posición nueva. Un salto más
-## grande que MAX_SMOOTHED_JUMP se muestra tal cual.
+## grande que MAX_SMOOTHED_JUMP se muestra tal cual. Lo que faltaba del agarre
+## pasa a decaer como la corrección.
 func smooth_from(seen: Vector3) -> void:
 	visual_offset = seen - global_position
+	grab_offset = Vector3.ZERO
 	if visual_offset.length() > MAX_SMOOTHED_JUMP:
 		teleported()
 		return
@@ -201,24 +245,32 @@ func smooth_from(seen: Vector3) -> void:
 ## lo pide. Va en el tick, como decay_visual_offset().
 func set_visual_offset(offset: Vector3) -> void:
 	visual_offset = offset
-	_visual.position = offset
+	_visual.position = offset + grab_offset
 
 
 ## Una vez por tick, en el tick: el desvío decae hacia cero. Va en el tick
-## para que la interpolación de física lo suavice entre ticks.
+## para que la interpolación de física lo suavice entre ticks. El del agarre
+## decae igual, pero sin pasar de GRAB_MAX_SPEED.
 func decay_visual_offset(dt: float) -> void:
-	if visual_offset == Vector3.ZERO:
+	if visual_offset == Vector3.ZERO and grab_offset == Vector3.ZERO:
 		return
-	visual_offset *= pow(0.5, dt / CORRECTION_HALF_LIFE)
+	var factor := pow(0.5, dt / CORRECTION_HALF_LIFE)
+	visual_offset *= factor
 	if visual_offset.length_squared() < 1e-8:
 		visual_offset = Vector3.ZERO
-	_visual.position = visual_offset
+	var grab_length := grab_offset.length()
+	var step := minf(grab_length * (1.0 - factor), GRAB_MAX_SPEED * dt)
+	grab_offset = grab_offset.move_toward(Vector3.ZERO, step)
+	if grab_offset.length_squared() < 1e-8:
+		grab_offset = Vector3.ZERO
+	_visual.position = visual_offset + grab_offset
 
 
 ## El actor apareció en otro lugar (reaparición, teleport): sin desvío y sin
 ## interpolar desde la posición vieja.
 func teleported() -> void:
 	visual_offset = Vector3.ZERO
+	grab_offset = Vector3.ZERO
 	_visual.position = Vector3.ZERO
 	reset_physics_interpolation()
 

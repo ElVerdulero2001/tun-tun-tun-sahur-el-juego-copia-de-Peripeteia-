@@ -47,10 +47,34 @@ extends Resource
 ## Al salir por arriba: cuánto avanza sobre el borde, en metros.
 @export var ladder_top_step := 0.7
 
+@export_group("Borde")
+## Colgado: altura del filo sobre los pies, que es también la altura de las
+## manos al buscar un borde, y distancia del centro del cuerpo a la pared.
+@export var hang_height := 1.95
+@export var hang_distance := 0.4
+## Distancia máxima del snap al agarrarse, en metros.
+@export var hang_snap_max := 0.35
+## No agarra si sube más rápido que esto, en m/s.
+@export var hang_max_rise := 1.0
+## Desplazarse colgado, en m/s.
+@export var shimmy_speed := 1.5
+## Saltar colgado: velocidad hacia donde mira y hacia arriba, en m/s.
+@export var hang_jump_out := 4.0
+@export var hang_jump_up := 4.0
+## Bloqueo de reagarre de bordes al soltarse o saltar, en segundos.
+@export var hang_regrab_time := 0.3
+## Espacio sube al borde si la mirada está a menos de este ángulo de la pared.
+@export var climb_look_angle := deg_to_rad(60.0)
+## Subir al borde: duración del tramo hacia arriba y del tramo hacia adentro,
+## en segundos de tiempo del actor.
+@export var climb_up_time := 0.45
+@export var climb_in_time := 0.25
+
 @export_group("Agarre")
 ## Cuánta fuerza externa resiste cada modo antes de soltarse (escala de 0 a 5).
 ## Los modos libres (Suelo, Aire, Deslizamiento) tienen agarre 0.
 @export var ladder_grip := 3
+@export var hang_grip := 3
 
 @export_group("Aire")
 ## Aceleración hacia la velocidad pedida en el aire, en m/s².

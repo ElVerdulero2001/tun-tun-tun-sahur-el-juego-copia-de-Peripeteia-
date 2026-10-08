@@ -50,6 +50,7 @@ var _ticks_air := 0
 var _ticks_wall := 0
 var _ticks_slide := 0
 var _ticks_ladder := 0
+var _ticks_hanging := 0
 ## Empujones del recorrido, por tick: [impulso, fuerza].
 var _events := {}
 var _ticks_crouched := 0
@@ -114,6 +115,8 @@ func _live_tick() -> void:
 			_ticks_slide += 1
 		ActorState.Mode.LADDER:
 			_ticks_ladder += 1
+		ActorState.Mode.HANGING:
+			_ticks_hanging += 1
 	if _state.stance == ActorState.Stance.CROUCHED:
 		_ticks_crouched += 1
 		if _state.stance_wanted == ActorState.Stance.STANDING:
@@ -169,7 +172,7 @@ func _replay(start: int, stop: int) -> void:
 
 func _finish() -> void:
 	_phase = Phase.DONE
-	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d tocando pared, %d saltos, altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_wall, _jumps, _max_height])
+	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d colgado, %d tocando pared, %d saltos, altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_hanging, _ticks_wall, _jumps, _max_height])
 	print("%s postura: %d ticks agachado, %d de ellos pidiendo pararse sin lugar" % [LOG_PREFIX, _ticks_crouched, _ticks_kept_crouched])
 	print("%s %d repeticiones, %d ticks repetidos" % [LOG_PREFIX, _replays, _replayed_ticks])
 	var hashing := HashingContext.new()
@@ -255,6 +258,35 @@ func _build_inputs() -> void:
 		[82, Vector2(0, 1), PI, [], 0],  # la sube por la rampa
 		[82, Vector2(0, 1), 0.0, [], 0],  # la baja por la rampa, siempre en Suelo
 		[30, Vector2.ZERO, 0.0, [], 0],  # se queda quieto
+		# Hanging, contra el bloque de 2,4 m de la pista de bordes (cara en x 17, z -10):
+		[431, Vector2(0, 1), -PI / 2.0, [], 0],  # a la derecha, por detrás de donde se aparece
+		[10, Vector2.ZERO, 0.0, [], 0],
+		[193, Vector2(0, 1), 0.0, [], 0],  # hacia adelante, hasta 2,2 m de la cara
+		[10, Vector2.ZERO, 0.0, [], 0],
+		[12, Vector2(0, 1), 0.0, [10], 0],  # corre hacia la cara y salta
+		[50, Vector2(0, 1), 0.0, [], 0],  # se agarra al caer
+		[30, Vector2(1, 0), 0.0, [], 0],  # colgado, a la derecha
+		[30, Vector2(-1, 0), 0.0, [], 0],  # colgado, a la izquierda
+		[60, Vector2.ZERO, 0.0, [0], 0],  # Espacio mirando a la pared: sube al borde
+		[40, Vector2(0, 1), PI, [], 0],  # se va por delante y cae
+		[30, Vector2.ZERO, 0.0, [], 0],
+		[15, Vector2(0, 1), PI, [], 0],  # se aleja un poco
+		[10, Vector2.ZERO, 0.0, [], 0],
+		[12, Vector2(0, 1), 0.0, [10], 0],  # corre y salta otra vez
+		[50, Vector2(0, 1), 0.0, [], 0],  # se agarra
+		[5, Vector2.ZERO, 0.0, [], crouch],  # Ctrl: se suelta
+		[40, Vector2.ZERO, 0.0, [], 0],
+		[12, Vector2(0, 1), 0.0, [10], 0],  # salta pegado a la pared
+		[50, Vector2(0, 1), 0.0, [], 0],  # se agarra
+		[20, Vector2.ZERO, PI, [5], 0],  # Espacio mirando hacia atrás: salta lejos
+		[40, Vector2.ZERO, 0.0, [], 0],  # se queda quieto
+		[70, Vector2(0, 1), 0.0, [], 0],  # vuelve hasta la pared
+		[10, Vector2.ZERO, 0.0, [], 0],
+		[60, Vector2.ZERO, 0.0, [0], 0],  # salta sin teclas: se agarra igual al caer
+		[20, Vector2(1, 0), -PI / 2.0, [], 0],  # D con la cámara mirando a la derecha: a la derecha
+		[20, Vector2(-1, 0), -PI / 2.0, [], 0],  # A con la cámara igual: a la izquierda
+		[5, Vector2.ZERO, 0.0, [], crouch],  # Ctrl: se suelta
+		[40, Vector2.ZERO, 0.0, [], 0],  # se queda quieto
 	]
 	var presses := 0
 	var tick := 0

@@ -105,6 +105,10 @@ var test_push_force := PUSH_FORCE_STRONG
 var test_schedule_ticks := 0
 ## Jugando solo: tick en que se pone la pausa sola, para probarla. 0 = nunca.
 var test_pause_tick := 0
+## Prueba de divergencia: el cliente corre su estado predicho este tanto, en
+## milímetros y al azar, en cada tick, como si Jolt calculara distinto.
+var test_perturb_mm := 0.0
+var _perturb_rng := RandomNumberGenerator.new()
 var _ready_msec := 0
 var _sim_preset_name := "sin simulación"
 ## Contador de pulsaciones de salto: se suma en cada evento, no en cada tick,
@@ -157,6 +161,14 @@ var _crouch_jump_start := -1
 ## ya llegó arriba.
 var _ladder_direction := 1.0
 var _ladder_top_done := false
+## Prueba `hang`: tramo del ciclo, ticks en el tramo, vuelta del ciclo,
+## pulsaciones de salto propias y cuántas veces se agarró y subió.
+var _hang_phase := 0
+var _hang_since := 0
+var _hang_cycle := 0
+var _hang_presses := 0
+var hang_grabs := 0
+var hang_climbs := 0
 ## Prueba `steps`: punto del recorrido al que va, ticks desde que lo empezó y
 ## la altura más alta de los pies.
 var _steps_index := 0
@@ -400,6 +412,8 @@ func _local_input(tick: int) -> ActorInput:
 		return _steps_input(tick)
 	if test_input == "crouchjump":
 		return _crouch_jump_input(tick)
+	if test_input == "hang" or test_input.begins_with("hang:"):
+		return _hang_input(tick, test_input.trim_prefix("hang:").to_int() if test_input.begins_with("hang:") else 0)
 	if test_input == "ladder" or test_input == "laddertop":
 		return _ladder_input(tick, test_input == "laddertop")
 	if test_input == "zigzag":
@@ -602,6 +616,86 @@ func _ladder_input(tick: int, to_top: bool) -> ActorInput:
 	return ActorInput.make(tick, Vector2(to.x, -to.y).limit_length(1.0), 0.0, 0, 0)
 
 
+## Prueba de Hanging, en ciclos, contra la cara de un bloque de 2 m de la pista
+## de bordes (o el de una base, si se pide su id): se aleja 2,2 m de la cara,
+## corre hacia ella, salta y se agarra al caer. Colgado se mueve a la derecha y
+## a la izquierda y después, según la vuelta: sube al borde y se baja por
+## delante, se suelta con Ctrl, o salta hacia atrás.
+func _hang_input(tick: int, base_id: int) -> ActorInput:
+	if not is_instance_valid(_local_actor):
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _hang_presses)
+	var face := Vector3(13.5, 0.0, -10.0)
+	if base_id != 0:
+		var base = BaseRegistry.find(base_id)
+		if base == null:
+			return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _hang_presses)
+		face = base.base_origin() + Vector3(0.0, -1.0, 0.5)
+	var s := _local_actor.state
+	var me := BaseRegistry.world_position(s)
+	_hang_since += 1
+	var move := Vector2.ZERO
+	var yaw := 0.0
+	var buttons := 0
+	match _hang_phase:
+		0:  # a 2,2 m de la cara: primero en x y después en z, para rodear el muro
+			var to := Vector2(face.x - me.x, face.z + 2.2 - me.z)
+			if to.length() < 0.3 and s.mode == ActorState.Mode.GROUND:
+				_hang_phase = 1
+			elif absf(to.x) > 0.3:
+				move = Vector2(signf(to.x), 0.0)
+			else:
+				move = Vector2(to.x, -to.y).limit_length(1.0)
+		1:  # corre hacia la cara y salta a 1,3 m
+			move = Vector2(0, 1)
+			if me.z - face.z < 1.3:
+				_hang_presses = (_hang_presses + 1) & 0xFF
+				_hang_phase = 2
+				_hang_since = 0
+		2:  # en el aire, hacia la pared
+			move = Vector2(0, 1)
+			if s.mode == ActorState.Mode.HANGING:
+				hang_grabs += 1
+				_hang_phase = 3
+				_hang_since = 0
+			elif s.mode == ActorState.Mode.GROUND and _hang_since > 20:
+				_hang_phase = 0
+		3:  # colgado
+			if s.mode != ActorState.Mode.HANGING:
+				_hang_phase = 4 if s.anchor_t > 0.0 or me.y > face.y + 1.5 else 0
+			elif _hang_since < 20:
+				pass
+			elif _hang_since < 50:
+				move = Vector2(1, 0)
+			elif _hang_since < 80:
+				move = Vector2(-1, 0)
+			elif _hang_since == 90:
+				match _hang_cycle % 3:
+					0:
+						_hang_presses = (_hang_presses + 1) & 0xFF
+					2:
+						yaw = PI
+						_hang_presses = (_hang_presses + 1) & 0xFF
+			elif _hang_since >= 90 and _hang_since < 95 and _hang_cycle % 3 == 1:
+				buttons = ActorInput.BUTTON_CROUCH
+			elif _hang_since > 200:
+				_hang_phase = 0
+			if s.mode == ActorState.Mode.HANGING and s.anchor_t > 0.0:
+				_hang_phase = 4
+			if _hang_phase != 3:
+				_hang_cycle += 1
+				_hang_since = 0
+		4:  # subiendo, y después se baja por delante
+			if s.mode == ActorState.Mode.GROUND and me.y > face.y + 1.5:
+				if _hang_since < 1000:
+					hang_climbs += 1
+					_hang_since = 1000
+				yaw = PI
+				move = Vector2(0, 1)
+			elif s.mode == ActorState.Mode.GROUND and _hang_since >= 1000:
+				_hang_phase = 0
+	return ActorInput.make(tick, move, yaw, buttons, _hang_presses)
+
+
 static func _horizontal(state: ActorState) -> float:
 	return Vector2(state.velocity.x, state.velocity.z).length()
 
@@ -645,11 +739,13 @@ func _on_tick_finished(tick: int) -> void:
 	if role == Role.HOST:
 		for actor in _clock.sorted_actors():
 			if _is_remote(actor):
-				_adoption.consider(actor, _net_sync.claim_for(actor.owner_peer_id, tick))
+				_adoption.consider(actor, _net_sync.claim_for(actor.owner_peer_id, tick), tuning)
 		var rafts := BaseRegistry.all().filter(func(base) -> bool: return base is HostRaft and base.simulated)
 		_net_sync.send_snapshot(tick, _clock.sorted_actors(), rafts)
 	elif role == Role.CLIENT and is_instance_valid(_local_actor) and _local_actor.simulated \
 			and _current_input != null and _current_input.tick == tick:
+		if test_perturb_mm > 0.0:
+			_perturb(_local_actor)
 		_prediction.record(tick, _current_input, _local_actor.state)
 		_net_sync.send_ticks(_prediction.recent(NetSync.INPUT_REDUNDANCY), _clock.rtt_ms)
 	if role == Role.CLIENT:
@@ -900,6 +996,8 @@ func _read_launch_args() -> void:
 			test_push_force = arg.trim_prefix("--test-push-force=").to_int()
 		elif arg.begins_with("--test-schedule-ticks="):
 			test_schedule_ticks = arg.trim_prefix("--test-schedule-ticks=").to_int()
+		elif arg.begins_with("--test-perturb-mm="):
+			test_perturb_mm = arg.trim_prefix("--test-perturb-mm=").to_float()
 		elif arg.begins_with("--test-pause-at="):
 			test_pause_tick = arg.trim_prefix("--test-pause-at=").to_int()
 		elif arg.begins_with("--test-spawn-at="):
@@ -960,6 +1058,15 @@ func _update_hud() -> void:
 				"   ·   pedida: %s (no hay lugar)" % stance_names[s.stance_wanted] if s.stance_wanted != s.stance else ""])
 		if s.mode == ActorState.Mode.LADDER:
 			lines.append("Escalera %d   ·   pies a %.2f m sobre su base" % [s.anchor_id, s.anchor_t])
+		elif s.mode == ActorState.Mode.HANGING:
+			var climb := tuning.climb_up_time + tuning.climb_in_time
+			if s.anchor_t > 0.0:
+				lines.append("Subiendo al borde: %d %%" % roundi(s.anchor_t / climb * 100.0))
+			else:
+				lines.append("Colgado del borde: filo a %.2f m de altura%s" % [BaseRegistry.origin(s.anchor_id).y + s.anchor_point.y,
+						"   ·   sobre la base %d" % s.anchor_id if s.anchor_id != 0 else ""])
+		elif s.regrab_left > 0.0 and s.regrab_id == ActorState.REGRAB_EDGES:
+			lines.append("Recién soltó un borde: no puede agarrar otro por %.2f s" % s.regrab_left)
 		elif s.regrab_left > 0.0:
 			lines.append("Recién soltó la escalera %d: no la puede volver a agarrar por %.2f s" % [s.regrab_id, s.regrab_left])
 		var world := BaseRegistry.world_position(s)
@@ -970,6 +1077,7 @@ func _update_hud() -> void:
 				"%s (%d)" % [base.name, s.base_id] if base != null else "ninguna"])
 	lines.append("")
 	lines.append("WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse) · mouse mirar · Esc suelta el mouse")
+	lines.append("Colgado: A y D de costado · Espacio mirando a la pared sube, mirando a otro lado salta · Ctrl se suelta")
 	if role == Role.HOST:
 		lines.append("E empuja a los demás ya · R los empuja programado · con Shift, empujón débil · Q prende o apaga la adopción")
 	if role == Role.LOCAL:
@@ -1034,6 +1142,10 @@ func _print_summary_and_quit() -> void:
 		print("[net_lab] túnel: llegó al tramo %d; ticks parado bajo el techo: %d" % [_tunnel_phase, _tunnel_standing_under_roof])
 	if test_input == "steps":
 		print("[net_lab] escalones: punto %d de %d; pies a %.2f m como máximo" % [_steps_index, STEPS_ROUTE.size(), _steps_max_height])
+	if test_input == "hang" or test_input.begins_with("hang:"):
+		print("[net_lab] colgar: %d agarres, %d subidas al borde, %d vueltas del ciclo" % [hang_grabs, hang_climbs, _hang_cycle])
+	if role == Role.CLIENT:
+		print("[net_lab] correcciones: la más grande de %.3f m" % _prediction.max_correction_meters)
 	for peer in _adoption.peers():
 		print("[net_lab] adopción del jugador %d: prendida=%s empujones=%d iguales=%d adoptadas=%d (máx %.3f m) rechazadas: época=%d distancia=%d pose=%d apagada=%d sin_afirmación=%d" % [
 			peer, _adoption.enabled, pushes,
@@ -1046,3 +1158,15 @@ func _print_summary_and_quit() -> void:
 			_adoption.count(peer, ClaimAdoption.Result.NO_CLAIM),
 		])
 	get_tree().quit()
+
+
+## Prueba de divergencia: corre el estado predicho y el cuerpo, al azar pero
+## siempre igual para la misma semilla.
+func _perturb(actor: ActorBody) -> void:
+	if _perturb_rng.seed != sim_seed:
+		_perturb_rng.seed = sim_seed
+	var push := Vector3(_perturb_rng.randf_range(-1.0, 1.0), _perturb_rng.randf_range(-1.0, 1.0),
+			_perturb_rng.randf_range(-1.0, 1.0)).normalized() * test_perturb_mm * 0.001
+	actor.state.position += push
+	actor.state.quantize()
+	actor.global_position = BaseRegistry.world_position(actor.state)

@@ -23,6 +23,8 @@ var corrections := 0
 var waits_late_input := 0
 ## Cuánto se movió el actor en la última corrección, en metros.
 var last_correction_meters := 0.0
+## La corrección más grande, en metros.
+var max_correction_meters := 0.0
 ## Estados del host sin predicción guardada para comparar (al empezar a predecir).
 var alignments := 0
 
@@ -81,6 +83,7 @@ func reconcile(actor: ActorBody, host_tick: int, host_state: PackedByteArray, us
 	actor.smooth_from(seen)
 	if predicted != null:
 		last_correction_meters = before.distance_to(BaseRegistry.world_position(actor.state))
+		max_correction_meters = maxf(max_correction_meters, last_correction_meters)
 	_forget_up_to(host_tick)
 
 

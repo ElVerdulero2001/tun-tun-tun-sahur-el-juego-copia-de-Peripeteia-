@@ -29,9 +29,9 @@ var _stats := {}  # peer -> {Result: veces, "max": diferencia adoptada más gran
 
 ## Considera la afirmación del cliente para el tick que el host acaba de
 ## simular y, si corresponde, la adopta como estado del actor.
-func consider(actor: ActorBody, claim_bytes: PackedByteArray) -> Result:
+func consider(actor: ActorBody, claim_bytes: PackedByteArray, tuning: ActorTuning) -> Result:
 	var stats: Dictionary = _stats.get_or_add(actor.owner_peer_id, {"max": 0.0})
-	var result := _decide(actor, claim_bytes, stats)
+	var result := _decide(actor, claim_bytes, stats, tuning)
 	stats[result] = stats.get(result, 0) + 1
 	return result
 
@@ -50,7 +50,7 @@ func max_difference(peer_id: int) -> float:
 	return _stats.get(peer_id, {}).get("max", 0.0)
 
 
-func _decide(actor: ActorBody, claim_bytes: PackedByteArray, stats: Dictionary) -> Result:
+func _decide(actor: ActorBody, claim_bytes: PackedByteArray, stats: Dictionary, tuning: ActorTuning) -> Result:
 	if claim_bytes.is_empty():
 		return Result.NO_CLAIM
 	if claim_bytes == actor.state.to_bytes():
@@ -64,7 +64,7 @@ func _decide(actor: ActorBody, claim_bytes: PackedByteArray, stats: Dictionary) 
 	var difference := BaseRegistry.world_position(claim).distance_to(BaseRegistry.world_position(actor.state))
 	if difference > MAX_DIFFERENCE:
 		return Result.TOO_FAR
-	if not ActorMotor.anchored_pose_valid(claim):
+	if not ActorMotor.anchored_pose_valid(actor, claim, tuning):
 		return Result.BAD_POSE
 	var seen := actor.seen_position()
 	if not actor.apply_state(claim):

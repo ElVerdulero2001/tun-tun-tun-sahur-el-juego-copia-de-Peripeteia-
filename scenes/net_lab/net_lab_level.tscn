@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scenes/net_lab/measure_wall.gd" id="3_measure"]
 [ext_resource type="Script" path="res://scripts/actor/ladder.gd" id="4_ladder"]
 [ext_resource type="Script" path="res://scenes/net_lab/step_course.gd" id="5_steps"]
+[ext_resource type="Script" path="res://scenes/net_lab/edge_course.gd" id="6_edges"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_lab"]
 
@@ -138,6 +139,17 @@ size = Vector3(3, 0.3, 4)
 [sub_resource type="BoxMesh" id="BoxMesh_raft"]
 material = SubResource("StandardMaterial3D_raft")
 size = Vector3(3, 0.3, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_edge_block"]
+size = Vector3(2.4, 2, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_edge_platform"]
+material = SubResource("StandardMaterial3D_base")
+size = Vector3(2.4, 2, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_edge_raft"]
+material = SubResource("StandardMaterial3D_raft")
+size = Vector3(2.4, 2, 1)
 
 [node name="NetLabLevel" type="Node3D"]
 
@@ -327,3 +339,51 @@ mesh = SubResource("BoxMesh_raft")
 [node name="PistaDeEscalones" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 12)
 script = ExtResource("5_steps")
+
+[node name="PistaDeBordes" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -10)
+script = ExtResource("6_edges")
+
+[node name="BordeMovil" type="AnimatableBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 1, -5)
+script = ExtResource("1_platform")
+base_id = 4
+travel = Vector3(-3, 0, 0)
+period = 10.0
+
+[node name="Shape" type="CollisionShape3D" parent="BordeMovil"]
+shape = SubResource("BoxShape3D_edge_block")
+
+[node name="Mesh" type="MeshInstance3D" parent="BordeMovil"]
+mesh = SubResource("BoxMesh_edge_platform")
+
+[node name="BordeBalsa" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27.5, 1, 2)
+script = ExtResource("2_raft")
+base_id = 5
+zone = Vector2(0.5, 0.5)
+push = 1.0
+
+[node name="Shape" type="CollisionShape3D" parent="BordeBalsa"]
+shape = SubResource("BoxShape3D_edge_block")
+
+[node name="Mesh" type="MeshInstance3D" parent="BordeBalsa"]
+mesh = SubResource("BoxMesh_edge_raft")
+
+[node name="CartelBordeMovil" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20.5, 2.7, -4.2)
+pixel_size = 0.005
+billboard = 1
+outline_modulate = Color(0.1, 0.1, 0.12, 1)
+text = "sobre una plataforma guionada"
+font_size = 48
+outline_size = 12
+
+[node name="CartelBordeBalsa" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27.5, 2.7, 2.8)
+pixel_size = 0.005
+billboard = 1
+outline_modulate = Color(0.1, 0.1, 0.12, 1)
+text = "sobre un cuerpo del host"
+font_size = 48
+outline_size = 12

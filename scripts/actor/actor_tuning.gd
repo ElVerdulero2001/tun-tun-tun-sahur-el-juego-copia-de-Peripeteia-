@@ -54,8 +54,10 @@ extends Resource
 @export var hang_distance := 0.4
 ## Distancia máxima del snap al agarrarse, en metros.
 @export var hang_snap_max := 0.35
-## No agarra si sube más rápido que esto, en m/s.
-@export var hang_max_rise := 1.0
+## Subiendo, agarra recién cuando las manos llegan al filo: la pose de colgado
+## no puede quedar más que esto por encima de los pies, en metros. Así no tira
+## del cuerpo para arriba.
+@export var hang_rise_reach := 0.1
 ## Desplazarse colgado, en m/s.
 @export var shimmy_speed := 1.5
 ## Saltar colgado: velocidad hacia donde mira y hacia arriba, en m/s.

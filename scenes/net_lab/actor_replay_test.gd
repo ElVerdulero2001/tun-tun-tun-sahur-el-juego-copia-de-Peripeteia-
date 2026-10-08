@@ -264,7 +264,7 @@ func _build_inputs() -> void:
 		[193, Vector2(0, 1), 0.0, [], 0],  # hacia adelante, hasta 2,2 m de la cara
 		[10, Vector2.ZERO, 0.0, [], 0],
 		[12, Vector2(0, 1), 0.0, [10], 0],  # corre hacia la cara y salta
-		[50, Vector2(0, 1), 0.0, [], 0],  # se agarra al caer
+		[50, Vector2(0, 1), 0.0, [], 0],  # se agarra subiendo, cuando las manos llegan al filo
 		[30, Vector2(1, 0), 0.0, [], 0],  # colgado, a la derecha
 		[30, Vector2(-1, 0), 0.0, [], 0],  # colgado, a la izquierda
 		[40, Vector2.ZERO, 0.0, [0], 0],  # Espacio mirando a la pared: salta derecho para arriba

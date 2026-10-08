@@ -63,12 +63,13 @@ extends Resource
 @export var hang_jump_up := 4.0
 ## Bloqueo de reagarre de bordes al soltarse o saltar, en segundos.
 @export var hang_regrab_time := 0.3
-## Espacio sube al borde si la mirada está a menos de este ángulo de la pared.
+## Colgado, Espacio salta derecho para arriba (para subir al borde con el
+## control aéreo) si la mirada está a menos de este ángulo de la pared; si no,
+## salta hacia donde mira.
 @export var climb_look_angle := deg_to_rad(60.0)
-## Subir al borde: duración del tramo hacia arriba y del tramo hacia adentro,
-## en segundos de tiempo del actor.
-@export var climb_up_time := 0.45
-@export var climb_in_time := 0.25
+## Ese salto para arriba lleva los pies hasta este tanto por encima del filo,
+## en metros: el margen para pasar arriba del borde con el control aéreo.
+@export var hang_climb_clearance := 0.2
 
 @export_group("Agarre")
 ## Cuánta fuerza externa resiste cada modo antes de soltarse (escala de 0 a 5).

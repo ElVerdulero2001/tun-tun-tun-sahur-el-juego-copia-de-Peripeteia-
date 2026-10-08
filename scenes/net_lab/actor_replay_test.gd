@@ -267,7 +267,8 @@ func _build_inputs() -> void:
 		[50, Vector2(0, 1), 0.0, [], 0],  # se agarra al caer
 		[30, Vector2(1, 0), 0.0, [], 0],  # colgado, a la derecha
 		[30, Vector2(-1, 0), 0.0, [], 0],  # colgado, a la izquierda
-		[60, Vector2.ZERO, 0.0, [0], 0],  # Espacio mirando a la pared: sube al borde
+		[40, Vector2.ZERO, 0.0, [0], 0],  # Espacio mirando a la pared: salta derecho para arriba
+		[18, Vector2(0, 1), 0.0, [], 0],  # en la punta del salto, W: aterriza arriba del borde
 		[40, Vector2(0, 1), PI, [], 0],  # se va por delante y cae
 		[30, Vector2.ZERO, 0.0, [], 0],
 		[15, Vector2(0, 1), PI, [], 0],  # se aleja un poco

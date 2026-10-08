@@ -58,10 +58,11 @@ const LATERAL := [0.0, 0.6]
 ## Segundos de vuelo antes de llegar, para los casos que llegan bajando.
 const LEAD_TIME := 0.4
 const RUN_TICKS := 100
-const EXIT_TICKS := 70
+const EXIT_TICKS := 90
 ## Hasta dónde llegan las manos sin snap (con los brazos), para la variante B.
 const REACH_WITHOUT_SNAP := 0.6
-const EXITS := ["soltarse", "saltar hacia atrás", "desplazarse", "desplazarse con la cámara de costado", "subir"]
+const EXITS := ["soltarse", "saltar hacia atrás", "desplazarse", "desplazarse con la cámara de costado", "subir",
+		"subir con W recién arriba"]
 ## Con las teclas de dirección apretadas o sin tocar ninguna.
 const KEYS := ["empuja", "sin teclas"]
 
@@ -71,6 +72,8 @@ var _index := 0
 var _results: Array = []
 ## Con --detalle=borde,vel,llegada,ángulo,lateral,objetivo,teclas imprime ese caso tick a tick.
 var _detail := ""
+## Subir: la altura más alta de los pies sobre el filo en el último intento.
+var _last_climb_peak := -INF
 
 @onready var _actor: ActorBody = $Actor
 
@@ -175,6 +178,8 @@ func _run(c: Dictionary) -> Dictionary:
 			result["inside"] = _count_inside(hanging, 20)
 			for exit in EXITS:
 				result["exits"][exit] = _try_exit(hanging, exit, height)
+				if exit == "subir con W recién arriba":
+					result["climb_peak"] = _last_climb_peak
 			break
 		if state.mode == ActorState.Mode.GROUND and t > 3:
 			result["landed_on_top"] = _actor.global_position.y > height - 0.2
@@ -255,7 +260,9 @@ func _count_inside(hanging: ActorState, ticks: int) -> int:
 ## Una salida desde el estado colgado: "sí" o "no". Desplazarse prueba los dos
 ## lados (el borde puede terminar de uno), mirando a la pared o con la cámara
 ## mirando 90° a la derecha; saltar hacia atrás se mide contra la
-## pared de la que estaba colgado.
+## pared de la que estaba colgado. Subir es saltar para arriba mirando a la
+## pared y apretar W hacia ella: desde el salto, o recién cuando deja de subir
+## (para ver el margen). Tiene que terminar en Suelo arriba del borde.
 func _try_exit(hanging: ActorState, exit: String, height: float) -> String:
 	if exit == "desplazarse":
 		return "sí" if _shimmy(hanging, 1.0, 0.0) or _shimmy(hanging, -1.0, 0.0) else "no"
@@ -266,10 +273,12 @@ func _try_exit(hanging: ActorState, exit: String, height: float) -> String:
 	var start := _actor.global_position
 	var wall_yaw := state.facing_yaw
 	var away := -Vector3.FORWARD.rotated(Vector3.UP, wall_yaw)
+	_last_climb_peak = -INF
 	for t in EXIT_TICKS:
 		var yaw := wall_yaw
 		var buttons := 0
 		var presses := 0
+		var move := Vector2.ZERO
 		match exit:
 			"soltarse":
 				buttons = ActorInput.BUTTON_CROUCH if t < 3 else 0
@@ -278,9 +287,17 @@ func _try_exit(hanging: ActorState, exit: String, height: float) -> String:
 				presses = 1
 			"subir":
 				presses = 1
-		ActorMotor.step(_actor, state, ActorInput.make(t, Vector2.ZERO, yaw, buttons, presses), _tuning, TICK_DT)
-		if exit == "subir" and state.mode == ActorState.Mode.GROUND and _actor.global_position.y > height - 0.5:
-			return "sí"
+				move = Vector2(0, 1)
+			"subir con W recién arriba":
+				presses = 1
+				if t > 0 and state.velocity.y <= 0.0:
+					move = Vector2(0, 1)
+		ActorMotor.step(_actor, state, ActorInput.make(t, move, yaw, buttons, presses), _tuning, TICK_DT)
+		if exit.begins_with("subir"):
+			if state.mode == ActorState.Mode.AIR:
+				_last_climb_peak = maxf(_last_climb_peak, _actor.global_position.y - height)
+			if state.mode == ActorState.Mode.GROUND and _actor.global_position.y > height - 0.5:
+				return "sí"
 	match exit:
 		"soltarse":
 			return "sí" if state.mode != ActorState.Mode.HANGING and _actor.global_position.y < start.y + 0.01 else "no"
@@ -380,7 +397,7 @@ func _finish() -> void:
 			inside_ticks += r["inside"]
 			for exit in r["exits"]:
 				var verdict: String = r["exits"][exit]
-				if exit == "subir" and not variant[7] and verdict == "no":
+				if exit.begins_with("subir") and not variant[7] and verdict == "no":
 					verdict = "no corresponde"
 				var e: Dictionary = exit_stats.get_or_add(exit, {"sí": 0, "no": 0, "no corresponde": 0})
 				e[verdict] += 1
@@ -405,16 +422,26 @@ func _finish() -> void:
 				k["agarrados_sin_buscar"] += 1
 			elif r["captured"]:
 				other_edges += 1
-		print("[barrido] caso %s vel=%.0f llegada=%.1f ángulo=%.0f lateral=%.1f objetivo=%s teclas=%s banda=%s -> %s tick=%d snap=%.3f metido=%d por_qué=%s sin_snap=%s arriba=%s salidas=%s" % [
+		print("[barrido] caso %s vel=%.0f llegada=%.1f ángulo=%.0f lateral=%.1f objetivo=%s teclas=%s banda=%s -> %s tick=%d snap=%.3f metido=%d por_qué=%s sin_snap=%s arriba=%s pico=%.3f salidas=%s" % [
 				label, c["speed"], c["arrival"], c["angle"], c["lateral"], c["goal"], c["keys"], r["in_band"],
 				"AGARRA" if r["captured"] else "no", r["tick"], r["snap"].length(), r["inside"], r["why"],
-				r["b_would"], r["landed_on_top"], r["exits"]])
+				r["b_would"], r["landed_on_top"], r.get("climb_peak", NAN), r["exits"]])
 	for label in by_variant:
 		var row: Dictionary = by_variant[label]
 		print("[barrido] borde %-20s %3d casos posibles, %3d en la banda buscada, %3d agarres, snap máximo %.3f m" % [
 				label, row["casos"], row["en_banda"], row["agarres"], row["snap_max"]])
 	for exit in exit_stats:
 		print("[barrido] salida %-18s %s" % [exit, exit_stats[exit]])
+	# El salto para arriba, en los bordes donde se puede subir: hasta dónde
+	# llegan los pies sobre el filo, apretando W recién arriba.
+	var peak_min := INF
+	var peak_max := -INF
+	for r in _results:
+		if r["captured"] and r["case"]["variant"][7] and r.has("climb_peak"):
+			peak_min = minf(peak_min, r["climb_peak"])
+			peak_max = maxf(peak_max, r["climb_peak"])
+	print("[barrido] salto para arriba: los pies llegan entre %.3f y %.3f m por encima del filo (buscado: %.2f m)" % [
+			peak_min, peak_max, _tuning.hang_climb_clearance])
 	print("[barrido] casos imposibles (el cuerpo arrancaría metido en algo): %d" % impossible)
 	print("[barrido] en la banda buscada sin agarre, por qué: %s; sin snap se habrían agarrado %d" % [reasons, b_rescues])
 	var wanted_rate := 100.0 * wanted_captured / maxi(wanted, 1)

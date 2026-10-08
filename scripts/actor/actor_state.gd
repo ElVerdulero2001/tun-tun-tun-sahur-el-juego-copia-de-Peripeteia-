@@ -55,8 +55,8 @@ var stance_wanted: int = Stance.STANDING
 var stance: int = Stance.STANDING
 ## Modos anclados: id de red del ancla y el parámetro sobre ella.
 ## - Ladder: la escalera, y la altura de los pies sobre ella, en metros.
-## - Hanging: la base que lleva el borde (0 si es geometría fija), y el avance
-##   de la subida al borde en segundos de tiempo del actor (0 mientras cuelga).
+## - Hanging: la base que lleva el borde (0 si es geometría fija); anchor_t no
+##   se usa y vale 0.
 var anchor_id := 0
 var anchor_t := 0.0
 ## Hanging: el punto del filo, relativo al origen de la base del ancla (en el

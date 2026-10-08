@@ -619,8 +619,10 @@ func _ladder_input(tick: int, to_top: bool) -> ActorInput:
 ## Prueba de Hanging, en ciclos, contra la cara de un bloque de 2 m de la pista
 ## de bordes (o el de una base, si se pide su id): se aleja 2,2 m de la cara,
 ## corre hacia ella, salta y se agarra al caer. Colgado se mueve a la derecha y
-## a la izquierda y después, según la vuelta: sube al borde y se baja por
-## delante, se suelta con Ctrl, o salta hacia atrás.
+## a la izquierda y después, según la vuelta: salta para arriba mirando a la
+## pared, aprieta W en la punta del salto para quedar arriba del borde (el
+## bloque tiene 1 m de fondo) y se baja por delante; se suelta con Ctrl; o salta
+## hacia atrás.
 func _hang_input(tick: int, base_id: int) -> ActorInput:
 	if not is_instance_valid(_local_actor):
 		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _hang_presses)
@@ -661,7 +663,7 @@ func _hang_input(tick: int, base_id: int) -> ActorInput:
 				_hang_phase = 0
 		3:  # colgado
 			if s.mode != ActorState.Mode.HANGING:
-				_hang_phase = 4 if s.anchor_t > 0.0 or me.y > face.y + 1.5 else 0
+				_hang_phase = 4 if _hang_cycle % 3 == 0 and _hang_since > 90 else 0
 			elif _hang_since < 20:
 				pass
 			elif _hang_since < 50:
@@ -679,20 +681,26 @@ func _hang_input(tick: int, base_id: int) -> ActorInput:
 				buttons = ActorInput.BUTTON_CROUCH
 			elif _hang_since > 200:
 				_hang_phase = 0
-			if s.mode == ActorState.Mode.HANGING and s.anchor_t > 0.0:
-				_hang_phase = 4
 			if _hang_phase != 3:
 				_hang_cycle += 1
 				_hang_since = 0
-		4:  # subiendo, y después se baja por delante
+		4:  # saltó para arriba: W hacia la pared recién cuando deja de subir, y arriba se baja por delante
 			if s.mode == ActorState.Mode.GROUND and me.y > face.y + 1.5:
 				if _hang_since < 1000:
 					hang_climbs += 1
 					_hang_since = 1000
 				yaw = PI
 				move = Vector2(0, 1)
-			elif s.mode == ActorState.Mode.GROUND and _hang_since >= 1000:
-				_hang_phase = 0
+			elif _hang_since >= 1000:
+				if s.mode == ActorState.Mode.GROUND:
+					_hang_phase = 0
+			elif s.mode == ActorState.Mode.HANGING:
+				_hang_phase = 3  # no llegó arriba y se volvió a agarrar
+				_hang_since = 0
+			elif s.mode == ActorState.Mode.GROUND:
+				_hang_phase = 0  # no llegó arriba y cayó: vuelve a empezar
+			elif s.velocity.y <= 0.0:
+				move = Vector2(0, 1)
 	return ActorInput.make(tick, move, yaw, buttons, _hang_presses)
 
 
@@ -1059,12 +1067,8 @@ func _update_hud() -> void:
 		if s.mode == ActorState.Mode.LADDER:
 			lines.append("Escalera %d   ·   pies a %.2f m sobre su base" % [s.anchor_id, s.anchor_t])
 		elif s.mode == ActorState.Mode.HANGING:
-			var climb := tuning.climb_up_time + tuning.climb_in_time
-			if s.anchor_t > 0.0:
-				lines.append("Subiendo al borde: %d %%" % roundi(s.anchor_t / climb * 100.0))
-			else:
-				lines.append("Colgado del borde: filo a %.2f m de altura%s" % [BaseRegistry.origin(s.anchor_id).y + s.anchor_point.y,
-						"   ·   sobre la base %d" % s.anchor_id if s.anchor_id != 0 else ""])
+			lines.append("Colgado del borde: filo a %.2f m de altura%s" % [BaseRegistry.origin(s.anchor_id).y + s.anchor_point.y,
+					"   ·   sobre la base %d" % s.anchor_id if s.anchor_id != 0 else ""])
 		elif s.regrab_left > 0.0 and s.regrab_id == ActorState.REGRAB_EDGES:
 			lines.append("Recién soltó un borde: no puede agarrar otro por %.2f s" % s.regrab_left)
 		elif s.regrab_left > 0.0:
@@ -1077,7 +1081,7 @@ func _update_hud() -> void:
 				"%s (%d)" % [base.name, s.base_id] if base != null else "ninguna"])
 	lines.append("")
 	lines.append("WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse) · mouse mirar · Esc suelta el mouse")
-	lines.append("Colgado: A y D de costado · Espacio mirando a la pared sube, mirando a otro lado salta · Ctrl se suelta")
+	lines.append("Colgado: A y D de costado · Espacio mirando a la pared salta para arriba (con W pasás arriba), mirando a otro lado salta hacia allá · Ctrl se suelta")
 	if role == Role.HOST:
 		lines.append("E empuja a los demás ya · R los empuja programado · con Shift, empujón débil · Q prende o apaga la adopción")
 	if role == Role.LOCAL:

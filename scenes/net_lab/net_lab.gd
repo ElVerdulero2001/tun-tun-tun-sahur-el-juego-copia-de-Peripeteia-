@@ -618,7 +618,7 @@ func _ladder_input(tick: int, to_top: bool) -> ActorInput:
 
 ## Prueba de Hanging, en ciclos, contra la cara de un bloque de 2 m de la pista
 ## de bordes (o el de una base, si se pide su id): se aleja 2,2 m de la cara,
-## corre hacia ella, salta y se agarra al caer. Colgado se mueve a la derecha y
+## corre hacia ella, salta y se agarra. Colgado se mueve a la derecha y
 ## a la izquierda y después, según la vuelta: salta para arriba mirando a la
 ## pared, aprieta W en la punta del salto para quedar arriba del borde (el
 ## bloque tiene 1 m de fondo) y se baja por delante; se suelta con Ctrl; o salta

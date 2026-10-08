@@ -100,12 +100,15 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				_leave_edge(state, tuning, Vector3.ZERO)
 			elif wants_jump:
 				# Mirando a la pared salta derecho para arriba, y con el control
-				# aéreo pasa arriba del borde; mirando a otro lado, salta hacia allá.
+				# aéreo pasa arriba del borde; mirando a otro lado, salta hacia allá
+				# y se da vuelta hacia donde salta, así las manos buscan para ese
+				# lado y no la pared que deja.
 				var look := Vector3.FORWARD.rotated(Vector3.UP, input.look_yaw)
 				if look.dot(-edge["normal"]) >= cos(tuning.climb_look_angle):
 					_leave_edge(state, tuning, Vector3.UP * _climb_jump_speed(tuning, dt))
 				else:
 					_leave_edge(state, tuning, look * tuning.hang_jump_out + Vector3.UP * tuning.hang_jump_up)
+					state.facing_yaw = _yaw_of(look)
 
 	# 6. Modo: el modo activo decide la velocidad.
 	match state.mode:
@@ -519,6 +522,10 @@ static func _try_grab_edge(body: ActorBody, state: ActorState, direction: Vector
 ## hasta donde van a estar al final de este tick, hacia `direction`: la
 ## intención de movimiento si hay, y si no, hacia donde mira el personaje (ver
 ## grab_direction). La pared tiene que estar en esa dirección.
+## Subiendo también agarra, pero recién cuando las manos llegan al filo: la
+## pose no puede quedar más de hang_rise_reach por encima de los pies. Si en
+## este tick o en el anterior (el del salto, que todavía era Suelo) las manos
+## ya pasaron el filo, lo buscan de arriba hacia abajo.
 ## El filo se toma enfrente del centro del cuerpo (las manos pueden quedar
 ## corridas si llega en diagonal), si el borde sigue ahí. Valida la pose de
 ## colgado: cabe, el camino hasta ella está libre y queda a menos de
@@ -536,8 +543,12 @@ static func grab_check(body: ActorBody, state: ActorState, direction: Vector3, t
 	var from := body.global_position
 	var fall := maxf(state.velocity.y - tuning.gravity * dt, -tuning.max_fall_speed)
 	var motion := Vector3(state.velocity.x, fall, state.velocity.z) * dt
-	var edge := EdgeProbe.find(body, EdgeProbe.hands_at(body, from, toward, tuning),
-			EdgeProbe.hands_at(body, from + motion, toward, tuning), toward)
+	var hands_to := EdgeProbe.hands_at(body, from + motion, toward, tuning)
+	var edge := EdgeProbe.find(body, EdgeProbe.hands_at(body, from, toward, tuning), hands_to, toward)
+	var rising := state.velocity.y > 0.0
+	if edge.is_empty() and rising:
+		var hands_before := EdgeProbe.hands_at(body, from - state.velocity * dt, toward, tuning)
+		edge = EdgeProbe.find(body, hands_to, hands_before, toward)
 	if edge.is_empty():
 		return result
 	var normal: Vector3 = edge["normal"]
@@ -549,8 +560,8 @@ static func grab_check(body: ActorBody, state: ActorState, direction: Vector3, t
 	result["pose"] = _hang_pose(edge, tuning)
 	if toward.dot(-edge["normal"]) < 0.5:
 		result["why"] = "intención de costado"
-	elif state.velocity.y > tuning.hang_max_rise:
-		result["why"] = "sube rápido"
+	elif rising and result["pose"].y > from.y + tuning.hang_rise_reach:
+		result["why"] = "subiendo, las manos todavía no llegan"
 	elif from.y + body.stance_height(state.stance) * 0.5 > edge["point"].y:
 		# Con el cuerpo por encima del filo es un aterrizaje, no un agarre.
 		result["why"] = "por encima del filo"

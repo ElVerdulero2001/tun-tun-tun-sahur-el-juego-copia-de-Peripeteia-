@@ -23,9 +23,9 @@ extends Node3D
 ## Criterios fijados antes de medir:
 ## 1. 95 % o más de capturas en la banda buscada: casos en que las manos
 ##    cruzan la banda del filo (hasta 20 cm por debajo), sobre el filo o hasta
-##    10 cm delante de la cara, con el cuerpo debajo del filo, sin subir rápido
-##    y con intención clara hacia la cara (35° o menos, empujando o mirando),
-##    en un borde donde colgarse es posible;
+##    10 cm delante de la cara, bajando o subiendo, con el cuerpo debajo del
+##    filo y con intención clara hacia la cara (35° o menos, empujando o
+##    mirando), en un borde donde colgarse es posible;
 ## 2. 1 % o menos de agarres no buscados: yendo a aterrizar arriba del borde
 ##    donde se puede aterrizar, o pasando de largo paralelo a la cara;
 ## 3. cero ticks colgado con el cuerpo metido en la geometría;
@@ -215,17 +215,17 @@ func _note_tick(state: ActorState, wish: Vector3, variant: Array, result: Dictio
 
 
 ## La banda buscada de la cara principal de la variante, con su geometría
-## conocida: las manos pasan por la franja de 20 cm bajo el filo, sobre el filo
-## o hasta 10 cm delante de la cara, dentro de su ancho; el cuerpo está debajo
-## del filo y no sube rápido. En el curvo, la intención tiene que apuntar a la
-## superficie donde llegan las manos (45° o menos de su normal).
+## conocida: las manos pasan, bajando o subiendo, por la franja de 20 cm bajo
+## el filo, sobre el filo o hasta 10 cm delante de la cara, dentro de su ancho;
+## el cuerpo está debajo del filo. En el curvo, la intención tiene que apuntar a
+## la superficie donde llegan las manos (45° o menos de su normal).
 func _crosses_band(variant: Array, hands_from: Vector3, hands_to: Vector3, feet: Vector3, state: ActorState, direction: Vector3) -> bool:
 	var height: float = variant[2]
-	if not variant[5] or state.velocity.y > _tuning.hang_max_rise:
+	if not variant[5]:
 		return false
 	if feet.y + _actor.stance_height(state.stance) * 0.5 > height:
 		return false
-	if hands_from.y < height - 0.2 or hands_to.y > height:
+	if maxf(hands_from.y, hands_to.y) < height - 0.2 or minf(hands_from.y, hands_to.y) > height:
 		return false
 	var face := _face(variant)
 	var hands := hands_to

@@ -4,6 +4,7 @@ extends Node3D
 ## arquitectura: altos de 1,6, 2 y 2,4 m; espesores de 5 cm, 20 cm y 1 m; la
 ## superficie de arriba inclinada 10 y 25°; una malla en vez de una caja; uno
 ## curvo; uno bajo un techo bajo; y uno entre dos paredes que salen de la cara.
+## En una tercera fila, un muro alto con un cajón para colgarse de un compañero.
 ## Los bordes que se mueven (sobre una plataforma guionada y sobre un cuerpo
 ## rígido del host) son nodos del nivel, porque son bases con id de red.
 ##
@@ -35,6 +36,8 @@ func _ready() -> void:
 	_curved(Vector2(2, 1), 2.0, "curvo")
 	_under_ceiling(Vector2(3, 1), 2.0, "techo bajo:\nno se puede subir")
 	_between_walls(Vector2(4, 1), 2.0, "paredes al costado")
+	# Fila 3: el muro alto para colgarse de un compañero (punto 6).
+	_teammate_wall(Vector2(1, 2))
 
 
 ## Centro de la cara en el piso para un lugar de la grilla.
@@ -142,6 +145,20 @@ func _between_walls(slot: Vector2, height: float, text: String) -> void:
 		var wall := Vector3(0.3, height + 1.0, 1.2)
 		_add_body(BoxShape3D.new(), wall, _box_mesh(wall), face + Vector3(side * 1.0, (height + 1.0) * 0.5, 0.6 - 0.1))
 	_add_label(text, face + Vector3(0, height + 1.4, 0.3))
+
+
+## Muro de 3,6 m, 6 m de ancho, centrado en el lugar: desde el piso las manos
+## llegan a 3,12 m y no alcanzan el borde. El cajón de 0,6 m delante de su
+## punta izquierda sí deja agarrarlo; colgado, se corre al medio, y desde el
+## piso otro salta y se cuelga de su cintura.
+func _teammate_wall(slot: Vector2) -> void:
+	var face := _slot(slot)
+	var height := 3.6
+	var size := Vector3(6.0, height, DEPTH)
+	_add_body(BoxShape3D.new(), size, _box_mesh(size), face + Vector3(0, height * 0.5, -DEPTH * 0.5))
+	var box := Vector3(1.2, 0.6, 1.0)
+	_add_body(BoxShape3D.new(), box, _box_mesh(box), face + Vector3(-3.0 + box.x * 0.5, box.y * 0.5, box.z * 0.5))
+	_add_label("colgarse de un compañero: 3,6 m\ndesde el cajón, agarrate y correte al medio", face + Vector3(0, height + 0.7, 0.3))
 
 
 func _box_mesh(size: Vector3) -> BoxMesh:

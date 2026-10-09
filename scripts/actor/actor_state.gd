@@ -13,7 +13,8 @@ extends RefCounted
 ## sus bytes. La posición se cuantiza a 0,1 mm: alcanza para niveles de
 ## hasta unos 800 m desde el origen; más lejos, float32 pierde ese detalle.
 
-enum Mode { GROUND, AIR, SLIDE, LADDER, HANGING }
+## HOOKED es el modo Enganchado de la arquitectura: colgado de un compañero.
+enum Mode { GROUND, AIR, SLIDE, LADDER, HANGING, HOOKED }
 ## Postura: parado o agachado. Cada una tiene su forma de colisión preparada.
 enum Stance { STANDING, CROUCHED }
 
@@ -23,9 +24,12 @@ const NORMAL_STEP := 0.0001
 const TIME_STEP := 0.0001
 const YAW_STEPS := 65536
 ## Largo de to_bytes(). Lo que llega por red con otro largo se descarta.
-const BYTE_SIZE := 79
+const BYTE_SIZE := 85
 ## regrab_id de un bloqueo de bordes (Hanging), distinto de cualquier escalera.
 const REGRAB_EDGES := 0xFFFF
+## regrab_id de un bloqueo de compañeros (Enganchado): no se puede volver a
+## colgar de ninguno por un rato.
+const REGRAB_TEAMMATES := 0xFFFE
 
 ## Con base, relativa a ella; sin base, en el mundo. Ver BaseRegistry.world_position().
 var position := Vector3.ZERO
@@ -57,12 +61,19 @@ var stance: int = Stance.STANDING
 ## - Ladder: la escalera, y la altura de los pies sobre ella, en metros.
 ## - Hanging: la base que lleva el borde (0 si es geometría fija); anchor_t no
 ##   se usa y vale 0.
+## - Hooked: el id de red (peer) del compañero del que cuelga; anchor_t no se usa.
 var anchor_id := 0
 var anchor_t := 0.0
 ## Hanging: el punto del filo, relativo al origen de la base del ancla (en el
 ## mundo si es geometría fija). La normal del borde no se guarda: es la
 ## contraria a facing_yaw, que mira a la pared.
+## Hooked: dónde están las manos sobre el compañero, en el mundo. Lo usa la
+## presentación; la simulación lo vuelve a calcular cada tick.
 var anchor_point := Vector3.ZERO
+## Id de red (peer) del compañero que cuelga de este actor, o 0. Lo escribe solo
+## el host, como un evento que sube la época; el motor lo borra cuando este
+## actor deja de estar agarrado.
+var hooked_by := 0
 ## Bloqueo de reagarre: al soltar un ancla por un salto o un empujón, no se la
 ## puede volver a agarrar por este tiempo. Para Hanging, regrab_id vale
 ## REGRAB_EDGES y bloquea todos los bordes: un borde no tiene id propio.
@@ -80,11 +91,12 @@ func quantize() -> void:
 	jump_presses_seen &= 0xFF
 	epoch &= 0xFFFF
 	base_id &= 0xFFFF
-	anchor_id &= 0xFFFF
+	anchor_id &= 0xFFFFFFFF
 	anchor_t = _q(anchor_t, POSITION_STEP)
 	anchor_point = _q3(anchor_point, POSITION_STEP)
 	regrab_id &= 0xFFFF
 	regrab_left = _q(regrab_left, TIME_STEP)
+	hooked_by &= 0xFFFFFFFF
 
 
 func copy() -> ActorState:
@@ -106,11 +118,12 @@ func to_bytes() -> PackedByteArray:
 	b.put_u16(base_id & 0xFFFF)
 	b.put_u8(stance_wanted)
 	b.put_u8(stance)
-	b.put_u16(anchor_id & 0xFFFF)
+	b.put_u32(anchor_id & 0xFFFFFFFF)
 	b.put_32(roundi(anchor_t / POSITION_STEP))
 	b.put_u16(regrab_id & 0xFFFF)
 	b.put_32(roundi(regrab_left / TIME_STEP))
 	_put3(b, anchor_point, POSITION_STEP)
+	b.put_u32(hooked_by & 0xFFFFFFFF)
 	return b.data_array
 
 
@@ -131,18 +144,19 @@ static func from_bytes(bytes: PackedByteArray) -> ActorState:
 	s.base_id = b.get_u16()
 	s.stance_wanted = b.get_u8()
 	s.stance = b.get_u8()
-	s.anchor_id = b.get_u16()
+	s.anchor_id = b.get_u32()
 	s.anchor_t = b.get_32() * POSITION_STEP
 	s.regrab_id = b.get_u16()
 	s.regrab_left = b.get_32() * TIME_STEP
 	s.anchor_point = _get3(b, POSITION_STEP)
+	s.hooked_by = b.get_u32()
 	return s
 
 
 func describe() -> String:
-	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s reagarre=%d/%.4f pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
+	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
 		Mode.keys()[mode], Stance.keys()[stance], Stance.keys()[stance_wanted], on_floor, base_id,
-		anchor_id, anchor_t, anchor_point, regrab_id, regrab_left,
+		anchor_id, anchor_t, anchor_point, hooked_by, regrab_id, regrab_left,
 		position, velocity, facing_yaw, coyote_left, jump_buffer_left, jump_presses_seen, epoch,
 	]
 

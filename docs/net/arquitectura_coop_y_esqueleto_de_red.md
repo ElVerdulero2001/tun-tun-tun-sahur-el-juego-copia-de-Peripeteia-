@@ -1,7 +1,7 @@
 # Arquitectura de movimiento co-op y esqueleto de red: todo lo hecho hasta ahora
 
 **Proyecto:** tun-tun-tun-sahur · **Motor:** Godot 4.7.2 estable con Jolt Physics (`3d/physics_engine="Jolt Physics"` en `project.godot`).
-**Período:** del 2026-10-01 a las 20:41 al 2026-10-08 a las 19:32. Todas las horas están en hora de Argentina (UTC−3).
+**Período:** del 2026-10-01 a las 20:41 al 2026-10-09 a las 11:41. Todas las horas están en hora de Argentina (UTC−3).
 **Documento de arquitectura original:** [Arquitectura de movimiento co-op (Godot 4.7 + Jolt)](https://claude.ai/code/artifact/6760c3bf-39ed-4f2f-8d9d-23642c7ac797), en Claude Docs. Está copiado completo en el Apéndice A.
 
 **Historial de este documento:**
@@ -17,6 +17,7 @@
   La nota pedida está en la sección 8.5, "El cambio después de la primera prueba": explica cómo estaba armado y por qué cambió. Donde el documento de arquitectura decía otra cosa, el Apéndice A quedó corregido, con una nota en cada lugar. A pedido ("tambien correji tu md"), el documento original en Claude Docs se corrigió igual, con sus notas (revisión 55).
 - **Cuarta versión:** pedida el 2026-10-08 a las 16:32, commit `048dc4d` (16:41): "Con respecto a los md, actualízalos a los dos, y despues haces commit". Sumó la sección 8.6: la subida al borde se reemplazó por un salto para arriba con control aéreo. Ahí está cómo era la subida, por qué cambió, la demostración paso a paso y las pruebas. El Apéndice A y el documento de Claude Docs (revisión 60) quedaron corregidos con notas en los mismos lugares.
 - **Esta actualización:** pedida el 2026-10-08 a las 19:31: "dale, actualizá los dos md y después hacé commit". Suma la sección 8.7: agarrarse subiendo, sin tener que caer, y que al saltar hacia otro lado desde el colgado el personaje se dé vuelta hacia donde salta. El Apéndice A y el documento de Claude Docs (revisión 65) quedaron corregidos con notas. Como en las versiones anteriores, no se borró nada; donde algo cambió, se aclara qué era antes.
+- **Corrección del 2026-10-09:** el usuario subió la rama a GitHub, y se corrigió "sin remota configurada" (secciones 1, 2, 7, 14 y 15).
 
 Este documento junta todo lo que se hizo, sin recortes:
 
@@ -80,7 +81,7 @@ Este documento junta todo lo que se hizo, sin recortes:
     - las cuatro primeras versiones de este documento: `9caaec3`, `375d419`, `fa26986` y `048dc4d`;
     - la validación: `600002a`, `25f7806`, `cb71b16`, `91a4433`, `b907dae` (escalón), `3cdcc91` (Hanging), `3825c2b` (salto para arriba) y `bd2157b` (agarre subiendo).
 
-  Esta quinta versión del documento va en un commit propio, el número 17. No se subió nada a ningún remoto.
+  Esta quinta versión del documento va en un commit propio, el número 17. El 2026-10-09 el usuario subió la rama a GitHub, hasta ese commit (`2314f18`); ver sección 15.
 - **Cambios pendientes:** los cambios previos sin commitear de esa rama quedaron intactos.
     - La primera versión de este documento contaba 137: los 136 del parkour más un archivo temporal del editor de Godot.
     - La segunda versión contaba 138; la tercera y esta, 137. No se averiguó cuáles cambiaron; ninguna es del laboratorio.
@@ -212,6 +213,8 @@ Este documento junta todo lo que se hizo, sin recortes:
 | 2026-10-08 17:45–18:20 | El giro al saltar hacia otro lado, el barrido, la repetición y las pruebas de red. Pregunta (18:10): "¿por que tiene dos timeout de 590 segundos?". A las 18:20, listo para probar. |
 | 2026-10-08 19:17–19:24 | Prueba en las dos PC, con cinco capturas: "funciona correctamente, aunque es posible agarrarse con el timing correcto [...] medio que se siente como un logro mas que otra cosa". Commit `bd2157b`. |
 | 2026-10-08 19:30–19:32 | "¿Cómo es eso de subiendo rápido?", explicado. "dale, actualizá los dos md y después hacé commit": documento de Claude Docs corregido (revisión 65), esta actualización y su commit. |
+| 2026-10-08 19:45–19:46 | "¿tenes acceso al git del proyecto en github?": el proyecto tiene GitHub configurado, pero esta rama nunca se subió. "dale, subí la rama a github": el sistema de permisos de la sesión bloqueó el `git push`, y quedó el comando para que lo corra el usuario. |
+| 2026-10-09 11:39 | "listo el push". La rama quedó en GitHub, igual a la de esta PC (`2314f18`). Corrección de este documento. |
 
 ---
 
@@ -769,7 +772,7 @@ En las tres redes, host y cliente terminan exactamente en el mismo lugar, el mis
 - **Antes de commitear se verificó:** que no hubiera nada ya preparado para commit, qué archivos eran del laboratorio y el estilo de los mensajes del repo (convencional y en inglés).
 - **Qué entró:** solo las cuatro carpetas del laboratorio (`scripts/actor`, `scripts/net`, `scenes/actor` y `scenes/net_lab`). Se commiteó solo después de confirmar que eran exactamente 30 archivos.
 - **El commit:** `feat(net): add co-op network skeleton lab (steps 1-6)`, con 30 archivos y 1.994 líneas, en la rama actual, sin subir a ningún remoto.
-- **Después:** 0 archivos preparados, los 136 cambios de parkour intactos y la rama sin remota configurada.
+- **Después:** 0 archivos preparados, los 136 cambios de parkour intactos y la rama sin remota configurada. Corrección del 2026-10-09: el proyecto sí tenía GitHub configurado (`origin`); lo que pasaba es que esta rama nunca se había subido.
 
 ### Retoque 6b: el adelanto se ajusta cambiando el ritmo de ticks
 
@@ -3085,7 +3088,7 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 
 - **Instrucciones clic por clic:** nada de argumentos ni jerga para probar. El laboratorio tiene un menú dentro del juego, y las instrucciones nombran los botones exactos ("literal no entendí una absoluta mierda", 13:45).
 - **No afirmar sin probar:** primero la explicación simple o una prueba ("lo del mantle creo que es una alucinación tuya", 18:57).
-- **Commits locales solo cuando se piden, y sin subir nada.** Cada commit lleva solo los archivos del laboratorio, verificados antes; los cambios de parkour sin commitear no se tocan.
+- **Commits locales solo cuando se piden, y sin subir nada.** Cada commit lleva solo los archivos del laboratorio, verificados antes; los cambios de parkour sin commitear no se tocan. El 2026-10-08 el usuario pidió subir la rama: el sistema de permisos de la sesión no dejó hacer el `git push` desde acá, y el 2026-10-09 lo hizo el usuario.
 - **Cada paso se prueba en las dos PC** con un zip nuevo, y se analizan las capturas del panel.
 - **Antes y después medidos:** antes de cambiar algo, se mide el comportamiento actual en el mismo escenario.
 - **Desde la validación, el commit va después de la prueba en dos PC,** con lo que se probó. Antes de cada commit se comprueba que los archivos son idénticos a los del zip probado. Si el zip ya no está, se comprueba que nada cambió después de armarlo. Si un arreglo nuevo ya está encima, se commitea la versión probada sin tocar el árbol de trabajo.
@@ -3100,7 +3103,7 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 
 ## 15. Commits y entregas
 
-**Commits** (todos locales, en la rama `codex/parkour-v3-h0-lab`, sin remota configurada):
+**Commits**, en la rama `codex/parkour-v3-h0-lab`. Hasta el 2026-10-09 eran todos locales. Las versiones anteriores de este documento decían "sin remota configurada", y no era exacto: el proyecto tiene GitHub configurado (`origin`, `ElVerdulero2001/tun-tun-tun-sahur-el-juego-copia-de-Peripeteia-`), pero esta rama nunca se había subido. El 2026-10-09 el usuario la subió, hasta `2314f18`: subieron 26 commits (356 archivos, 4,3 MB), los del laboratorio y sus commits de parkour de septiembre que ya estaban en la rama. Los cambios sin commitear no se subieron.
 
 | Commit | Fecha | Mensaje | Archivos | Líneas |
 | --- | --- | --- | --- | --- |

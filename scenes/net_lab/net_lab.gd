@@ -17,9 +17,10 @@ extends Node3D
 ## las correcciones del propio se suavizan y el host manda 30 snapshots por
 ## segundo. Quien cae del mapa reaparece en su lugar.
 ## Punto 6 de la validación: colgarse de la cintura de un compañero agarrado de
-## un borde o de una escalera. Colgado así, el cliente no predice su actor
-## (cambio de línea): lo muestra relativo al compañero tal como lo ve y sigue
-## mandando su input; cuando el host dice que se soltó, vuelve a predecir.
+## un borde o de una escalera. El cliente predice su actor colgado, con la pose
+## que da el compañero tal como lo ve: como el compañero queda quieto, da lo
+## mismo que en el host, y soltarse o saltar responden al instante. Lo que haga
+## el compañero (soltarse, que lo empujen, irse) llega como corrección.
 ##
 ## El rol se elige con el menú. Para pruebas automáticas también se puede pasar
 ## por argumentos: --local, --host o --client, --address=IP, --port=N,
@@ -43,10 +44,12 @@ extends Node3D
 ## (el programado se fija N ticks adelante, para probar uno que llega tarde),
 ## --test-input=ladderhold (sube la escalera de la torre a 1,5 m y se queda),
 ## --test-input=hookwall (se agarra del muro alto desde el cajón y se corre al
-## medio; con hookwall:drop, se suelta 2 s después de que alguien se cuelga de
-## él), --test-input=hook:wall o hook:ladder (se cuelga del compañero que está
-## en el muro alto o en la escalera, y después se suelta, salta para arriba o
-## salta hacia atrás, por turnos) y,
+## medio; con hookwall:drop, se suelta medio segundo después de que alguien se
+## cuelga de él), --test-input=hook:wall o hook:ladder (se cuelga del
+## compañero que está en el muro alto o en la escalera, y después se suelta,
+## salta para arriba o salta hacia atrás, por turnos),
+## --test-quit-hooked=TICKS (con alguien colgado de él, o colgado de alguien,
+## cierra el juego a los tantos ticks, como si se cortara) y,
 ## para simular red,
 ## --sim-rtt=MS, --sim-jitter=MS, --sim-loss=PORCENTAJE, --sim-seed=N, los
 ## tirones con --sim-stall-every=MS y --sim-stall=MS y, si la red simulada
@@ -184,19 +187,6 @@ var hang_climbs := 0
 var _steps_index := 0
 var _steps_since := 0
 var _steps_max_height := 0.0
-## Cliente, cambio de línea: si el actor propio cuelga de un compañero (no se
-## predice) y desde qué tick; los estados del host anteriores a ese tick no
-## cuentan para salir. Cambios de línea, de ida y de vuelta.
-var _hooked_line := false
-var _hooked_since := -1
-var line_changes := 0
-## Cliente: lo que se veía al entrar a la línea del host por un snapshot, para
-## mezclarlo cuando el cuerpo ya esté en su pose nueva.
-var _line_blend_from: Variant = null
-## Cliente: cuánto saltó el cuerpo en el cambio de línea más grande, al entrar
-## y al salir (lo reparte la mezcla de 0,2 s).
-var line_jump_in_max := 0.0
-var line_jump_out_max := 0.0
 ## Cuánto se separa en pantalla quien cuelga de este jugador de la pose que le
 ## daría el cuerpo de este jugador, como máximo.
 var hooked_gap_max := 0.0
@@ -771,7 +761,7 @@ const HOOK_CORRIDOR_X := 11.75
 ## Cuántos ticks se queda colgado del compañero antes de soltarse o saltar, y
 ## cuántos sostiene el de arriba antes de soltarse con `hookwall:drop`.
 const HOOK_HOLD_TICKS := 60
-const HOOK_DROP_TICKS := 120
+const HOOK_DROP_TICKS := 30
 var _hook_loaded_ticks := 0
 
 
@@ -1037,20 +1027,9 @@ func _on_tick_started(tick: int) -> void:
 		if _is_remote(actor):
 			_interpolation.place(actor)
 	if is_instance_valid(_local_actor) and _clock.synced:
+		_local_actor.simulated = true
 		_current_input = _local_input(tick)
-		# Cambio de línea: colgado de un compañero, el actor propio no se
-		# predice. Entra cuando su propio paso lo colgó (o una repetición); sale
-		# cuando el host dice que ya no cuelga (_on_own_state).
-		var hooked := _local_actor.state.mode == ActorState.Mode.HOOKED
-		if hooked and not _hooked_line:
-			_hooked_line = true
-			_hooked_since = tick - 1
-			line_changes += 1
-		_local_actor.simulated = not _hooked_line
-		if _hooked_line:
-			_show_hooked_local()
-		else:
-			_apply_client_events(_local_actor.state, tick)
+		_apply_client_events(_local_actor.state, tick)
 
 
 ## Al terminar cada tick. Host: decide qué afirmaciones adopta y después manda
@@ -1065,12 +1044,11 @@ func _on_tick_finished(tick: int) -> void:
 				_adoption.consider(actor, _net_sync.claim_for(actor.owner_peer_id, tick), tuning)
 		var rafts := BaseRegistry.all().filter(func(base) -> bool: return base is HostRaft and base.simulated)
 		_net_sync.send_snapshot(tick, _clock.sorted_actors(), rafts)
-	elif role == Role.CLIENT and is_instance_valid(_local_actor) and (_local_actor.simulated or _hooked_line) \
+	elif role == Role.CLIENT and is_instance_valid(_local_actor) and _local_actor.simulated \
 			and _current_input != null and _current_input.tick == tick:
-		if test_perturb_mm > 0.0 and _local_actor.simulated:
+		if test_perturb_mm > 0.0:
 			_perturb(_local_actor)
-		# Colgado de un compañero, el tick no se predijo: viaja el input sin afirmación.
-		_prediction.record(tick, _current_input, _local_actor.state if _local_actor.simulated else null)
+		_prediction.record(tick, _current_input, _local_actor.state)
 		_net_sync.send_ticks(_prediction.recent(NetSync.INPUT_REDUNDANCY), _clock.rtt_ms)
 	if role == Role.CLIENT:
 		# La balsa del host se coloca para el tick que viene, en la pose que se
@@ -1261,75 +1239,18 @@ func _on_own_state(host_tick: int, state_bytes: PackedByteArray, used_input_tick
 		_clock.report_input_margin(host_tick, margin)
 	if not is_instance_valid(_local_actor):
 		return
-	if not _local_actor.simulated and not _hooked_line:
+	if not _local_actor.simulated:
 		# Todavía sin predicción: se muestra tal cual lo manda el host.
 		_local_actor.state = ActorState.from_bytes(state_bytes)
 		_local_actor.global_position = BaseRegistry.world_position(_local_actor.state)
 		_local_actor.present(_local_actor.state)
 		return
-	var host_state := ActorState.from_bytes(state_bytes)
-	if _hooked_line:
-		# Colgado de un compañero: lo de antes de colgarse ya no importa.
-		if host_tick < _hooked_since:
-			return
-		_prediction.forget_up_to(host_tick)
-		if host_state.mode == ActorState.Mode.HOOKED:
-			_local_actor.state = host_state
-			return
-		# El host dice que ya no cuelga: se vuelve a predecir desde su estado,
-		# repitiendo los inputs guardados, y lo que se ve pasa a la pose
-		# predicha en 0,2 s.
-		var seen := _local_actor.seen_position()
-		_prediction.resume(_local_actor, host_tick, state_bytes, current_tick, _step_local)
-		_hooked_line = false
-		_local_actor.simulated = true
-		line_jump_out_max = maxf(line_jump_out_max, seen.distance_to(_local_actor.global_position))
-		_local_actor.blend_line_from(seen)
-		line_changes += 1
-		return
-	if host_state.mode == ActorState.Mode.HOOKED:
-		# El host lo colgó de un compañero y acá no se había predicho: pasa a la
-		# línea del host. La mezcla se hace cuando el cuerpo ya está en la pose.
-		_line_blend_from = _local_actor.seen_position()
-		_local_actor.state = host_state
-		_hooked_line = true
-		_hooked_since = host_tick
-		_local_actor.simulated = false
-		_prediction.forget_up_to(host_tick)
-		line_changes += 1
-		return
 	_prediction.reconcile(_local_actor, host_tick, state_bytes, used_input_tick, current_tick, _step_local)
 
 
-## Repite o predice un tick del actor propio. Colgado de un compañero no se
-## predice (cambio de línea): devuelve falso y no lo simula.
-func _step_local(input: ActorInput) -> bool:
-	if _local_actor.state.mode == ActorState.Mode.HOOKED:
-		return false
+func _step_local(input: ActorInput) -> void:
 	_apply_client_events(_local_actor.state, input.tick)
 	ActorMotor.step(_local_actor, _local_actor.state, input, tuning, SimClock.TICK_DT)
-	return true
-
-
-## Cliente, colgado de un compañero: el cuerpo va a la pose que da el
-## compañero tal como se lo ve acá (en el pasado, interpolado), así los dos se
-## ven juntos. El estado es el último que mandó el host.
-func _show_hooked_local() -> void:
-	var mate := _local_actor.teammate(_local_actor.state.anchor_id)
-	# Al entrar a la línea, cuánto salta el cuerpo: si se colgó en su propio
-	# paso, de la pose que predijo a la que da el compañero visto acá; si lo
-	# colgó el host, de lo que se veía a esa pose.
-	var entering := _line_blend_from != null or _hooked_since == _clock.tick - 1
-	var before: Vector3 = _line_blend_from if _line_blend_from != null else _local_actor.global_position
-	if mate != null:
-		_local_actor.global_position = ActorMotor.hook_pose(mate, tuning)
-	if entering:
-		line_jump_in_max = maxf(line_jump_in_max, before.distance_to(_local_actor.global_position))
-	_local_actor.present(_local_actor.state)
-	if _line_blend_from != null:
-		_local_actor.blend_line_from(_line_blend_from)
-		_line_blend_from = null
-	_local_actor.decay_visual_offset(SimClock.TICK_DT)
 
 
 ## Host: quién cuelga de quién (ActorMotor.assign_hooks). Corre al empezar el
@@ -1448,8 +1369,6 @@ func _update_hud() -> void:
 		lines.append("reloj: ida y vuelta %.0f ms   ·   vas %.1f ticks adelante del host   ·   saltos de reloj %d" % [_clock.rtt_ms, _clock.lead_ticks, _clock.resyncs])
 		lines.append("tu input le llega al host con %.1f ticks de anticipación, en el peor caso   ·   ritmo: %d ticks por segundo (ganados +%.1f / perdidos -%.1f)" % [_clock.worst_margin, _clock.rate_hz, _clock.ticks_gained, _clock.ticks_shed])
 		lines.append("predicción: %d coincidencias, %d correcciones (la última de %.2f m), %d esperas por input tardío" % [_prediction.matches, _prediction.corrections, _prediction.last_correction_meters, _prediction.waits_late_input])
-		lines.append("línea: %s   ·   cambios de línea: %d" % [
-				"la del host (colgado de un compañero, no se predice)" if _hooked_line else "predicha", line_changes])
 		lines.append("snapshots que no llegaron a tiempo: %.1f %%" % _snapshot_loss_percent())
 		lines.append("empujones programados: %d llegaron a tiempo, %d tarde (se repitió desde su tick), %d demasiado tarde" % [
 				events_on_time, events_late, events_too_late])
@@ -1464,10 +1383,10 @@ func _update_hud() -> void:
 			if actor != _local_actor:
 				var peer := actor.owner_peer_id
 				lines.append("jugador %d: su input llega con %d ticks de anticipación   ·   época %d" % [peer, _net_sync.input_margin_ticks(peer, _clock.tick), actor.state.epoch])
-				lines.append("      afirmaciones: %d adoptadas (la más lejana a %.2f m), rechazadas %d por época, %d por distancia, %d por pose   ·   %d sin adoptar porque colgaba de un compañero" % [
+				lines.append("      afirmaciones: %d adoptadas (la más lejana a %.2f m), rechazadas %d por época, %d por distancia, %d por pose" % [
 					_adoption.count(peer, ClaimAdoption.Result.ADOPTED), _adoption.max_difference(peer),
 					_adoption.count(peer, ClaimAdoption.Result.WRONG_EPOCH), _adoption.count(peer, ClaimAdoption.Result.TOO_FAR),
-					_adoption.count(peer, ClaimAdoption.Result.BAD_POSE), _adoption.count(peer, ClaimAdoption.Result.NOT_PREDICTED),
+					_adoption.count(peer, ClaimAdoption.Result.BAD_POSE),
 				])
 	if is_instance_valid(_local_actor):
 		var s := _local_actor.state
@@ -1578,11 +1497,9 @@ func _print_summary_and_quit() -> void:
 	if hooked_gap_max > 0.0 or test_input.begins_with("hookwall") or test_input == "ladderhold":
 		print("[net_lab] el que cuelga de este jugador se dibujó a %.3f m como máximo de la pose que le da el cuerpo de este jugador" % hooked_gap_max)
 	if role == Role.CLIENT:
-		print("[net_lab] cambio de línea: %d cambios, %d veces volvió a predecir; el cuerpo saltó %.3f m como máximo al entrar y %.3f m al salir (los reparte la mezcla de 0,2 s)" % [
-			line_changes, _prediction.resumes, line_jump_in_max, line_jump_out_max])
 		print("[net_lab] correcciones: la más grande de %.3f m" % _prediction.max_correction_meters)
 	for peer in _adoption.peers():
-		print("[net_lab] adopción del jugador %d: prendida=%s empujones=%d iguales=%d adoptadas=%d (máx %.3f m) rechazadas: época=%d distancia=%d pose=%d apagada=%d sin_afirmación=%d colgado_no_predicho=%d" % [
+		print("[net_lab] adopción del jugador %d: prendida=%s empujones=%d iguales=%d adoptadas=%d (máx %.3f m) rechazadas: época=%d distancia=%d pose=%d apagada=%d sin_afirmación=%d" % [
 			peer, _adoption.enabled, pushes,
 			_adoption.count(peer, ClaimAdoption.Result.SAME),
 			_adoption.count(peer, ClaimAdoption.Result.ADOPTED), _adoption.max_difference(peer),
@@ -1591,7 +1508,6 @@ func _print_summary_and_quit() -> void:
 			_adoption.count(peer, ClaimAdoption.Result.BAD_POSE),
 			_adoption.count(peer, ClaimAdoption.Result.OFF),
 			_adoption.count(peer, ClaimAdoption.Result.NO_CLAIM),
-			_adoption.count(peer, ClaimAdoption.Result.NOT_PREDICTED),
 		])
 	get_tree().quit()
 

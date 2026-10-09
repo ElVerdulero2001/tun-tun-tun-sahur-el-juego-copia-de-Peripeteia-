@@ -17,12 +17,11 @@ extends RefCounted
 ## Riesgo: adoptar puede tapar una desincronización real. Por eso se registra
 ## cuánto difería cada afirmación adoptada, y la adopción se puede apagar.
 ##
-## Colgado de un compañero (Enganchado) no se predice: lo conduce el host, y lo
-## que mande el cliente para esos ticks no se adopta (NOT_PREDICTED). Sí se
-## adopta la afirmación del tick en que se colgó, si el compañero existe, lo
-## sostiene y la pose está cerca de la que da el compañero acá.
+## Colgado de un compañero (Enganchado), el ancla es otro actor: el compañero
+## existe, lo sostiene y la pose está cerca de la que da el compañero acá (el
+## cliente lo vio en el pasado, quieto).
 
-enum Result { NO_CLAIM, SAME, ADOPTED, OFF, WRONG_EPOCH, TOO_FAR, BAD_POSE, NOT_PREDICTED }
+enum Result { NO_CLAIM, SAME, ADOPTED, OFF, WRONG_EPOCH, TOO_FAR, BAD_POSE }
 
 ## Diferencia máxima de posición para adoptar, en metros. Valor de partida, a
 ## calibrar: caminando, cubre un input que llegó unos 10 ticks tarde.
@@ -60,8 +59,6 @@ func _decide(actor: ActorBody, claim_bytes: PackedByteArray, stats: Dictionary, 
 		return Result.NO_CLAIM
 	if claim_bytes == actor.state.to_bytes():
 		return Result.SAME
-	if actor.state.mode == ActorState.Mode.HOOKED:
-		return Result.NOT_PREDICTED
 	if not enabled:
 		return Result.OFF
 	var claim := ActorState.from_bytes(claim_bytes)

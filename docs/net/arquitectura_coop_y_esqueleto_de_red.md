@@ -1,7 +1,7 @@
 # Arquitectura de movimiento co-op y esqueleto de red: todo lo hecho hasta ahora
 
 **Proyecto:** tun-tun-tun-sahur · **Motor:** Godot 4.7.2 estable con Jolt Physics (`3d/physics_engine="Jolt Physics"` en `project.godot`).
-**Período:** del 2026-10-01 a las 20:41 al 2026-10-09 a las 11:41. Todas las horas están en hora de Argentina (UTC−3).
+**Período:** del 2026-10-01 a las 20:41 al 2026-10-09 a las 18:46. Todas las horas están en hora de Argentina (UTC−3).
 **Documento de arquitectura original:** [Arquitectura de movimiento co-op (Godot 4.7 + Jolt)](https://claude.ai/code/artifact/6760c3bf-39ed-4f2f-8d9d-23642c7ac797), en Claude Docs. Está copiado completo en el Apéndice A.
 
 **Historial de este documento:**
@@ -16,8 +16,9 @@
 
   La nota pedida está en la sección 8.5, "El cambio después de la primera prueba": explica cómo estaba armado y por qué cambió. Donde el documento de arquitectura decía otra cosa, el Apéndice A quedó corregido, con una nota en cada lugar. A pedido ("tambien correji tu md"), el documento original en Claude Docs se corrigió igual, con sus notas (revisión 55).
 - **Cuarta versión:** pedida el 2026-10-08 a las 16:32, commit `048dc4d` (16:41): "Con respecto a los md, actualízalos a los dos, y despues haces commit". Sumó la sección 8.6: la subida al borde se reemplazó por un salto para arriba con control aéreo. Ahí está cómo era la subida, por qué cambió, la demostración paso a paso y las pruebas. El Apéndice A y el documento de Claude Docs (revisión 60) quedaron corregidos con notas en los mismos lugares.
-- **Esta actualización:** pedida el 2026-10-08 a las 19:31: "dale, actualizá los dos md y después hacé commit". Suma la sección 8.7: agarrarse subiendo, sin tener que caer, y que al saltar hacia otro lado desde el colgado el personaje se dé vuelta hacia donde salta. El Apéndice A y el documento de Claude Docs (revisión 65) quedaron corregidos con notas. Como en las versiones anteriores, no se borró nada; donde algo cambió, se aclara qué era antes.
-- **Corrección del 2026-10-09:** el usuario subió la rama a GitHub, y se corrigió "sin remota configurada" (secciones 1, 2, 7, 14 y 15).
+- **Quinta versión:** pedida el 2026-10-08 a las 19:31, commit `2314f18` (19:35): "dale, actualizá los dos md y después hacé commit". Sumó la sección 8.7: agarrarse subiendo, sin tener que caer, y que al saltar hacia otro lado desde el colgado el personaje se dé vuelta hacia donde salta. El Apéndice A y el documento de Claude Docs (revisión 65) quedaron corregidos con notas.
+- **Corrección del 2026-10-09:** commit `9e4753e` (12:39). El usuario subió la rama a GitHub, y se corrigió "sin remota configurada" (secciones 1, 2, 7, 14 y 15).
+- **Esta actualización:** pedida el 2026-10-09 a las 18:46: "listo el push, actualizá los dos md y después hacé commit". Suma la sección 8.8: el punto 6 de la validación, colgarse de un compañero. Ahí están las decisiones del usuario, que dieron vuelta los roles del documento; la primera versión, con el cambio de línea que pide el documento; por qué se cambió después a predecir; y las pruebas. El Apéndice A y el documento de Claude Docs quedaron corregidos con notas. Como en las versiones anteriores, no se borró nada; donde algo cambió, se aclara qué era antes.
 
 Este documento junta todo lo que se hizo, sin recortes:
 
@@ -25,7 +26,7 @@ Este documento junta todo lo que se hizo, sin recortes:
 - la arquitectura y las decisiones que se tomaron después;
 - el plan de 8 pasos del esqueleto de red y en qué se apartó la implementación;
 - cada paso implementado, con sus archivos, decisiones, problemas, pruebas automáticas, mediciones y pruebas en dos PC reales;
-- la validación de la arquitectura, punto por punto: base propia, postura y espacio libre, escalera con empujones programados e inmediatos, el escalón y Hanging con snap;
+- la validación de la arquitectura, punto por punto: base propia, postura y espacio libre, escalera con empujones programados e inmediatos, el escalón, Hanging con snap y colgarse de un compañero;
 - el estado actual del código, los formatos de red y las constantes;
 - cómo usar el laboratorio;
 - los hechos de Godot y Jolt que se comprobaron en el camino, los errores (incluidos los míos) y cómo se arreglaron;
@@ -75,13 +76,16 @@ Este documento junta todo lo que se hizo, sin recortes:
   Después de la primera prueba en dos PC se cambiaron dos cosas a pedido: agarrarse ya no exige apretar W, y A y D colgado ya no dependen de la cámara. Cómo estaba armado y por qué cambió está en la sección 8.5.
 
   Después, también a pedido, la subida al borde, que era un recorrido de dos tramos, se reemplazó "temporalmente" por un salto para arriba con control aéreo (sección 8.6). Y ya no hace falta estar cayendo para agarrarse: pegado al muro, al saltar se agarra cuando las manos llegan al borde (sección 8.7).
-- **La notebook se actualiza con un doble clic** desde una carpeta compartida de esta PC. Reemplazó a los zips desde el escalón (sección 6.2).
-- **Dieciséis commits locales** en la rama `codex/parkour-v3-h0-lab`:
-    - el esqueleto de red: `d75ef67`, `9cd1936`, `7547de1` y `c0e0421`;
-    - las cuatro primeras versiones de este documento: `9caaec3`, `375d419`, `fa26986` y `048dc4d`;
-    - la validación: `600002a`, `25f7806`, `cb71b16`, `91a4433`, `b907dae` (escalón), `3cdcc91` (Hanging), `3825c2b` (salto para arriba) y `bd2157b` (agarre subiendo).
+- **Colgarse de un compañero (punto 6)**, probado en las dos PC y commiteado. El usuario dio vuelta los roles del documento: no es el de arriba el que agarra al que cae, sino que el que salta se cuelga de la cintura de un compañero que ya está agarrado de un borde o de una escalera (modo Enganchado). No tiene tecla, el alcance es de 1 m, y el de arriba se queda quieto. Hay un muro alto nuevo para probarlo.
 
-  Esta quinta versión del documento va en un commit propio, el número 17. El 2026-10-09 el usuario subió la rama a GitHub, hasta ese commit (`2314f18`); ver sección 15.
+  La primera versión hacía el cambio de línea que pide el documento: colgado, el cliente no se predecía y el host decidía todo. En la prueba en dos PC, con 200 ms, el salto recién salía cuando el host respondía. A pedido, ahora el cliente se predice colgado, porque el compañero está quieto: el salto y Ctrl responden al instante, y lo que haga el compañero llega como corrección (sección 8.8).
+- **La notebook se actualiza con un doble clic** desde una carpeta compartida de esta PC. Reemplazó a los zips desde el escalón (sección 6.2).
+- **Veinte commits** en la rama `codex/parkour-v3-h0-lab`:
+    - el esqueleto de red: `d75ef67`, `9cd1936`, `7547de1` y `c0e0421`;
+    - las cinco primeras versiones de este documento y una corrección: `9caaec3`, `375d419`, `fa26986`, `048dc4d`, `2314f18` y `9e4753e`;
+    - la validación: `600002a`, `25f7806`, `cb71b16`, `91a4433`, `b907dae` (escalón), `3cdcc91` (Hanging), `3825c2b` (salto para arriba), `bd2157b` (agarre subiendo), `f39ba70` (colgarse de un compañero, con cambio de línea) y `e21d6c6` (colgado, predicho).
+
+  Esta sexta versión del documento va en un commit propio, el número 21. El 2026-10-09 el usuario subió la rama a GitHub dos veces: hasta `2314f18` a las 11:39 y hasta `e21d6c6` a las 18:46 (sección 15).
 - **Cambios pendientes:** los cambios previos sin commitear de esa rama quedaron intactos.
     - La primera versión de este documento contaba 137: los 136 del parkour más un archivo temporal del editor de Godot.
     - La segunda versión contaba 138; la tercera y esta, 137. No se averiguó cuáles cambiaron; ninguna es del laboratorio.
@@ -115,6 +119,10 @@ Este documento junta todo lo que se hizo, sin recortes:
 | Salto para arriba en red | 0 correcciones en las 12 combinaciones de red, en la plataforma guionada y con el otro jugador mirando. Sobre el borde del cuerpo del host, con internet mala, correcciones de 1,4 a 2,7 m al aterrizar arriba |
 | Salto para arriba en dos PC | "todo funciona como debería" |
 | Agarrarse subiendo, pegado al muro | En muros de 2,0 a 3,1 m se agarra en la subida del salto, con un tirón de 11 cm como máximo. En la pista, 1.545 de 1.547 capturas buscadas (ahora también subiendo) y 0 agarres no buscados de 330. Probado en las dos PC: "funciona correctamente" |
+| Colgarse de un compañero, con cambio de línea, en red (16 pares) | El que se cuelga, 0 correcciones; el de arriba, 2 por vez, de 0,000 m (los avisos del host). Al soltarse o saltar, lo que se ve se pone al día en 0,2 s: 0,78 m sin red simulada y hasta 1,72 m con internet mala |
+| Colgarse de un compañero, cambio de línea, en dos PC | Funciona; con 200 ms el salto sale recién cuando el host responde, ~0,4 s después |
+| Colgarse de un compañero, predicho, en red | El que se cuelga, 0 correcciones al colgarse, soltarse y saltar, también con internet mala. Si el de arriba se suelta, una corrección por caída: 0,10 m sin red simulada y 0,69 m con internet mala |
+| Colgarse de un compañero, predicho, en dos PC con 200 ms en las dos | "funciona muy bien" |
 
 ---
 
@@ -215,6 +223,13 @@ Este documento junta todo lo que se hizo, sin recortes:
 | 2026-10-08 19:30–19:32 | "¿Cómo es eso de subiendo rápido?", explicado. "dale, actualizá los dos md y después hacé commit": documento de Claude Docs corregido (revisión 65), esta actualización y su commit. |
 | 2026-10-08 19:45–19:46 | "¿tenes acceso al git del proyecto en github?": el proyecto tiene GitHub configurado, pero esta rama nunca se subió. "dale, subí la rama a github": el sistema de permisos de la sesión bloqueó el `git push`, y quedó el comando para que lo corra el usuario. |
 | 2026-10-09 11:39 | "listo el push". La rama quedó en GitHub, igual a la de esta PC (`2314f18`). Corrección de este documento. |
+| 2026-10-09 12:39 | "hace el commit local": `9e4753e`, la corrección. |
+| 2026-10-09 12:40–13:03 | "decime que sigue para implementar del parkour": el punto 6, sujetar a un compañero. "dale, empecemos con el punto 6" (12:48). Cuatro preguntas: tecla, qué hace cada uno y alcance. En las respuestas (12:57) el usuario dio vuelta los roles: el que salta se cuelga del compañero que ya está agarrado. Tres dudas más (13:03): Ctrl del de arriba suelta a los dos, se puede colgar de alguien en un borde o en una escalera, y de la cintura. |
+| 2026-10-09 13:05–14:49 | El modo Enganchado con el cambio de línea, el muro alto y las pruebas: 16 pares, un diagnóstico sin red, las regresiones y la balsa comparada con el código del commit anterior. A las 14:49, listo para probar. |
+| 2026-10-09 14:57–15:06 | Prueba en las dos PC, capturas de 14:59 a 15:01. "Por ahora lo único que tengo para remarcar, es el tema de la latencia y como el host la maneja": colgado del host con 200 ms, el salto salía recién cuando el host respondía. Explicado: la teoría del usuario era correcta. |
+| 2026-10-09 15:37–16:03 | "que mi salto y mi Ctrl respondan al instante": el cliente pasa a predecir el actor colgado. Pruebas; un hueco en la prueba del de arriba que se suelta, cerrado. A las 16:03, listo para probar. |
+| 2026-10-09 18:34–18:39 | Prueba en las dos PC, con 200 ms en las dos: "funciona muy bien". El usuario eligió dos commits (18:39): `f39ba70`, con el cambio de línea tal como se probó, y `e21d6c6`, predicho. |
+| 2026-10-09 18:46 | "listo el push, actualizá los dos md y después hacé commit": la rama en GitHub hasta `e21d6c6`. Esta actualización y el documento de Claude Docs. |
 
 ---
 
@@ -357,6 +372,16 @@ El pedido fue "quitar temporalmente la animación de escalar y reemplazarla con 
 - al saltar hacia otro lado desde el colgado, el personaje se da vuelta hacia donde salta (elegido a las 17:45).
 
 El detalle está en la sección 8.7. En el Apéndice A y en el documento de Claude Docs (revisión 65) se corrigieron los dos lugares de la regla, la lista de salidas y el "Estado" de Hanging, que había quedado viejo con el salto para arriba.
+
+**Colgarse de un compañero, con los roles al revés** (2026-10-09, 12:57 y 13:03). El documento describe "sujetar a quien cae o cuelga": el que está arriba agarra al otro, y el sujetado pasa a Enganchado. El usuario lo armó al revés:
+
+- el que salta se cuelga de la cintura de un compañero que ya está agarrado de un borde o de una escalera, sin tecla: es el mismo agarre que el de un borde;
+- el de arriba se queda quieto; con Ctrl se suelta y se caen los dos;
+- el de abajo, colgado, se maneja como colgado de un borde: Ctrl se suelta y Espacio salta.
+
+**Colgado de un compañero, el cliente se predice** (2026-10-09, 15:37, después de probarlo en las dos PC). El documento dice que Enganchado no se predice ("lo conduce el host") y que el cliente cambia de línea. La primera versión lo hizo así, y con 200 ms el salto salía recién cuando el host respondía. El pedido fue "que mi salto y mi Ctrl respondan al instante". Como el compañero del que se cuelga está quieto, el cliente puede calcular la pose desde él tal como lo ve, y da lo mismo que en el host. Lo que haga el compañero llega como corrección.
+
+El detalle está en la sección 8.8. En el Apéndice A y en el documento de Claude Docs (revisión 66) se agregaron notas en siete lugares: el caso "Sujetar", el modo Enganchado, el cambio de línea, la mezcla de 0,2 s de la presentación, la lista de salidas de Aire, el caso de la desconexión y la lista de lo que se valida primero.
 
 ---
 
@@ -1096,8 +1121,8 @@ El documento de arquitectura termina con una lista, "Qué validan las primeras p
 | 4 | Un modo anclado simple, Ladder, con empujones programados e inmediatos | Hecho, probado en dos PC: commit `91a4433` |
 | — | El escalón, pedido aparte antes del punto 5 | Hecho, probado en dos PC: commit `b907dae` (sección 8.4) |
 | 5 | El laboratorio de Hanging con snap y sus pruebas de confirmación | Hecho, probado en dos PC, con dos cambios pedidos después de la primera prueba: commit `3cdcc91` (sección 8.5). La subida al borde se reemplazó después por un salto para arriba (sección 8.6), y el agarre pasó a funcionar también subiendo (sección 8.7) |
-| 6 | Una interacción con cambio de línea: sujetar a un compañero | Pendiente; es el próximo |
-| 7 | Cámara lenta del mundo y personal | Pendiente |
+| 6 | Una interacción con cambio de línea: sujetar a un compañero | Hecho, probado en dos PC, como "colgarse de un compañero": commits `f39ba70` (con el cambio de línea) y `e21d6c6` (predicho, a pedido después de la primera prueba). Sección 8.8 |
+| 7 | Cámara lenta del mundo y personal | Pendiente; es el próximo |
 
 Cada punto siguió la misma rutina:
 
@@ -2333,6 +2358,201 @@ Antes de este cambio, desde el piso, al muro largo de 3 m se llegaba agarrándos
 - **Cambiados:** `actor_motor.gd`, `actor_tuning.gd`, `hang_sweep_test.gd`, y dos comentarios en `net_lab.gd` y `actor_replay_test.gd`.
 - **La verificación:** las huellas SHA-1 de los 5 archivos coincidieron con la versión probada en las dos PC.
 
+### 8.8 Punto 6: colgarse de un compañero (2026-10-09)
+
+#### Lo que pide el documento
+
+El punto 6 de la lista es "una interacción con cambio de línea: sujetar a un compañero". El documento lo arma con varias piezas:
+
+- **El caso "Sujetar a quien cae o cuelga":** el que sujeta sigue en su modo (Suelo o Hanging), con un modificador de carga que baja su agarre. El sujetado pasa a Enganchado, con rol sujetado. Es inmediato para el sujetado: recibe una corrección y cambia de línea. Termina si suelta cualquiera de los dos, por una fuerza, por muerte o si el que sujeta se desconecta.
+- **El modo Enganchado:** la pose sale de un punto de otro actor u objeto, con barrido; el agarre depende del rol; y en la columna "Se predice" dice "No: lo conduce el host".
+- **El cambio de línea temporal:** si el personaje local queda anclado a algo que el cliente no puede predecir, como otro jugador, el cliente deja de predecir su posición. Lo muestra en la línea interpolada, relativo al ancla, y sigue mandando input para soltarse o forcejear. Al soltarse, una reconciliación normal restaura el estado del host y repite los inputs, y la presentación mezcla las dos poses durante unos 0,2 s.
+- **El protocolo común de las interacciones:** inicio, pedido en la afirmación del tick, validación en el host con tolerancia amplia, un registro de la interacción y un fin con su tick.
+- **El orden en el host:** primero los actores que no están anclados a nadie, después los anclados a ellos.
+
+El documento no dice con qué tecla se sujeta, desde qué distancia, cómo se suelta cada uno ni si el sujetado se puede mover. Eso lo decidió el usuario.
+
+#### Las decisiones del usuario (12:48–13:03)
+
+A las 12:40, el usuario preguntó qué seguía: "decime que sigue para implementar del parkour". Era el punto 6. A las 12:48: "dale, empecemos con el punto 6". Se le hicieron cuatro preguntas con opciones: la tecla (E mantenida, E una vez y otra vez, o el clic izquierdo), qué puede hacer el que sujeta (quedarse quieto, caminar despacio o moverse normal), qué puede hacer el sujetado (como colgado, solo soltarse o nada) y el alcance (1 m, 0,6 m o 1,5 m). Las respuestas (12:57), tal cual:
+
+> **Tecla:** sin teclas especiales, usemos lo mismo que tiene el sistema actual, saltar directo al compañero mientras este se encuentra agarrado de alguna lado. Ojo, yo se que bien se puede hacer medio un "copie y pegue" de lo que se tiene, pero no se si tendria sentido agregar un requisito para que te agarres del compañero y no de otro lado, tipo que un rayo que salga de la camara tenga contacto con la hitbox del compañero, algo asi. Pero como sabras, cualquier duda que tengas, me la haces saber
+>
+> **El que sujeta:** quedarse quieto por ahora, pero no se colgaria de la mano, mas bien de las piernas o la cintura.
+>
+> **El sujetado:** Como colgado
+>
+> **Alcance:** por ahora ponelo a 1 metro, esto vamos a tener que ir probando de a poco hasta encontrar el numero que mejor funcione
+
+Eso da vuelta los roles del documento. No es el de arriba el que agarra al que cae: **el que salta se cuelga del compañero que ya está agarrado de algo.** El de abajo pasa a Enganchado, y el de arriba sigue en su modo, cargado.
+
+Sobre el rayo de la cámara, la respuesta fue dejarlo para después, y agregarlo si al probar aparecían agarres no buscados:
+
+- el agarre funciona como el de los bordes: gana lo que las manos tocan primero, y el borde y el compañero quedan al alcance a la vez solo en muros de unos 3 m;
+- el host no recibe hacia dónde se mira de arriba a abajo, y habría que mandárselo;
+- el documento avisa que un agarre que depende de la cámara se comporta distinto en primera y en tercera persona.
+
+En la misma respuesta se avisó lo que iba a costar el cambio de línea: colgado del compañero, Ctrl y Espacio tardarían lo que tarda la red. También se avisó que en los bloques de 2 m no hay lugar debajo del compañero colgado, así que hacía falta un muro alto.
+
+Tres dudas más, con opciones (13:03):
+
+| Pregunta | Respuesta |
+| --- | --- |
+| Con alguien colgado, ¿el de arriba puede soltarse con Ctrl? Se caen los dos | "Sí, se sueltan los dos" |
+| ¿Se puede colgar solo de alguien en un borde, o también en una escalera? | "se puede colgar de ambos, aunque en el escenario de la escalera no tendría mucho sentido, pero eso no implica que no sea posible" |
+| ¿De la cintura o de las piernas? Cambia la altura de los muros donde sirve | "Cintura" |
+
+#### Qué se implementó: la primera versión, con cambio de línea (`f39ba70`)
+
+**El estado** (`actor_state.gd`, 85 bytes; eran 79):
+
+- un modo nuevo, `HOOKED` (Enganchado), que vale 5;
+- `anchor_id` pasó de 16 a 32 bits: en Enganchado es el id de red del compañero, que puede ser un número grande;
+- `hooked_by`, 32 bits al final: el id del compañero que cuelga de este actor, o 0. Lo escribe solo el host, y el motor lo borra cuando este actor deja de estar agarrado;
+- en Enganchado, `anchor_point` guarda dónde están las manos, para dibujarlas;
+- `REGRAB_TEAMMATES` (0xFFFE): un bloqueo de reagarre de compañeros, aparte del de bordes.
+
+**El agarre** (`ActorMotor.hook_check`), el mismo de un borde y sin tecla. En Aire, si no se agarró de un borde, se prueba un compañero, y después la escalera. Hace falta todo esto:
+
+- el compañero está colgado de un borde o en una escalera, y no cuelga otro de él;
+- las manos buscan hacia las teclas de dirección o, sin teclas, hacia donde mira el personaje, y esa dirección apunta a la pared del compañero (a menos de 60°, como en un borde);
+- en este tick, las manos pasan por la altura de su cintura: bajando, o subiendo recién cuando llegan. En el tick del salto, que todavía era Suelo, cuenta también el anterior, como en los bordes;
+- la pose queda a no más de 1 m (`hook_reach`), cabe y el camino hasta ella está libre;
+- sin Ctrl, sin el bloqueo de compañeros y parado.
+
+Con varios compañeros gana el de id más chico. Del compañero se usa lo que esta máquina tiene de él: en el host, su estado de este tick; en un cliente, el que se está mostrando, que es del pasado. Como el compañero está quieto, da lo mismo.
+
+**La pose** (`ActorMotor.hook_pose`) sale solo del compañero. Las manos van a su cintura, 1 m por encima de sus pies (`hook_height`), y el cuerpo va 0,7 m más afuera que él, de espaldas a la pared (`hook_distance`): las dos cápsulas se tocan. El cuerpo cuelga 1,95 m por debajo de las manos, igual que de un borde:
+
+```gdscript
+static func hook_pose(mate: ActorBody, tuning: ActorTuning) -> Vector3:
+	return mate.global_position + _out_of(mate.state) * tuning.hook_distance \
+			+ Vector3.UP * (tuning.hook_height - tuning.hang_height)
+```
+
+En un muro de altura h, el compañero cuelga con los pies a h − 1,95 m y su cintura queda a h − 0,95 m. Para que los pies del de abajo queden sobre el piso, h tiene que ser de 2,9 m o más; para que desde el piso las manos (hasta 3,12 m) lleguen a la cintura, de 4 m o menos.
+
+**Colgado de un compañero:** queda quieto, mirando hacia donde mira él, y cada tick un barrido lo lleva a la pose; si algo la tapa, sale a Aire. El snap del agarre se dibuja como el de un borde, a 1,8 m/s como máximo: un snap de 1 m tarda unos 0,55 s en cerrarse en pantalla. Las salidas:
+
+- **el compañero dejó de sostenerlo** (se soltó, lo empujaron, se fue, o cuelga otro de él): sale a Aire con la velocidad de él;
+- **Ctrl:** se suelta, con el bloqueo de compañeros por 0,3 s;
+- **Espacio mirando hacia el compañero** (a menos de 60°): salta para arriba como desde un borde, con los pies hasta 20 cm por encima de sus manos;
+- **Espacio mirando a otro lado:** salta hacia allá y se da vuelta hacia donde salta.
+
+**El de arriba, con alguien colgado** (`hooked_by` distinto de 0):
+
+- colgado de un borde, no se desplaza ni salta; Ctrl lo suelta, y al de abajo se le rompe el invariante en ese mismo tick: se caen los dos;
+- en una escalera, no trepa, no salta ni sale por arriba o por abajo;
+- su agarre baja 1 (`hook_load_grip_drop`): de 3 a 2, así que el empujón débil (2) lo suelta. Es el modificador de carga del documento. El de abajo tiene agarre 3 (`hook_grip`).
+
+**El host** (`ActorMotor.assign_hooks`, al empezar cada tick, antes de mover a nadie): anota en cada actor agarrado quién cuelga de él. Como eso lo deja quieto, es un evento del host para ese actor y sube su época. Si dos se cuelgan del mismo en el mismo tick, se queda el de id más chico y el otro se suelta, con otro evento. Cuando el de arriba se suelta solo, su propio motor borra `hooked_by` en el mismo tick que el host, y no hace falta un evento. **El registro del protocolo son esos dos campos del estado**, que viajan en cada snapshot; no hay un mensaje confiable aparte.
+
+**El orden del reloj:** primero los actores que no cuelgan de nadie y después los colgados, por id, así la pose de cada colgado sale de la del compañero en el mismo tick. El orden se fija antes de mover: quien se cuelga en este tick ya se movió.
+
+**La adopción** valida una afirmación de Enganchado como las de los otros modos anclados: el compañero existe, lo sostiene y la pose está a no más de 0,5 m (`HOOK_TOLERANCE`) de la que da el compañero en el host. Es amplia porque el cliente lo vio en el pasado.
+
+**El cambio de línea, en el cliente:**
+
+- **Al colgarse:** el propio paso predice el agarre con el compañero tal como se lo ve. Desde el tick siguiente, el actor propio no se predice más: el cuerpo va a la pose que da el compañero visto acá, el estado es el último que mandó el host y el input se manda sin afirmación.
+- **Al soltarse:** cuando el host dice que ya no cuelga, se restaura ese estado, se repiten los inputs guardados hasta el presente (`ClientPrediction.resume`) y lo que se ve pasa a la pose predicha en 0,2 s (`ActorBody.blend_line_from`, que arranca y frena suave).
+- **Si el host lo colgaba sin que el cliente lo hubiera predicho,** entraba a la línea del host con la misma mezcla.
+- **En el host,** mientras el actor colgaba no se adoptaba nada de lo que mandaba el cliente (`NOT_PREDICTED`).
+
+**El dibujo:** las manos van sobre la cintura del compañero.
+
+**El laboratorio:**
+
+- **un muro alto** en una tercera fila de la pista de bordes: 3,6 m de alto y 6 m de ancho, con un cajón de 0,6 m delante de su punta izquierda. Desde el piso las manos no llegan al borde; desde el cajón, sí;
+- en el panel, "Colgado de la cintura del jugador N" y, al de arriba, "El jugador N cuelga de tu cintura: quedás quieto · Ctrl te suelta y se caen los dos"; en el cliente, la línea y los cambios de línea;
+- las pruebas guionadas `ladderhold`, `hookwall`, `hookwall:drop`, `hook:wall` y `hook:ladder`, y `--test-quit-hooked`, que cierra el juego con alguien colgado.
+
+#### Pruebas automáticas de la primera versión
+
+Los pares corrieron 60 s, con host y cliente en las dos combinaciones: uno agarrado del muro alto o de la escalera de la torre, y el otro colgándose de él por turnos. Después de cada agarre, soltarse, saltar para arriba (con W al caer se agarra del borde y desde ahí sube) o saltar hacia atrás.
+
+| Prueba | Resultado |
+| --- | --- |
+| El cliente se cuelga, en la escalera y en el muro, sin red simulada y con internet mala | 0 correcciones. 14 a 17 agarres por par, con todas sus salidas. Al salir de la línea, lo que se ve se pone al día en 0,2 s: el cuerpo salta 0,78 m sin red simulada y hasta 1,72 m con internet mala |
+| El host se cuelga del cliente | El cliente de arriba recibe 2 correcciones por agarre, las dos de 0,000 m: el aviso de quedarse quieto y el de que ya puede moverse. En su pantalla, al de abajo se lo dibuja hasta 0,28 m (sin red simulada) y 0,40 m (internet mala) fuera de la pose, en los ticks en que la interpolación mezcla un snapshot colgado con uno en el aire |
+| Diagnóstico sin red (`diag_colgar_companero.gd`), con el motor real | Dos se cuelgan en el mismo tick: se queda el de id más chico y el otro se suelta. El de arriba cargado, con D y Espacio, no se mueve (0,0000 m). Empujón débil al de arriba cargado: se caen los dos en el mismo tick. Débil al de abajo: sigue colgado; fuerte: se suelta. Débil al de arriba sin carga: aguanta. Ctrl del de arriba: se caen los dos en el mismo tick |
+| Desconexión | Si se va el de arriba, el de abajo se cae 23 ticks después de colgarse, cuando el host quita al actor. Si se va el de abajo, al de arriba se le borra `hooked_by` y queda colgado, libre |
+| Empujones del host cada 1,5 s | El fuerte suelta al que cuelga, inmediato y programado. El débil tira al de arriba con alguien colgado, y el de abajo se cae con él |
+| Repetición, a 60, a 72 y con el ritmo variando | 4.788 repeticiones y 212.823 ticks idénticos; huella `ee3177271bbce54e`. Cambió porque el estado tiene 6 bytes más; el recorrido es el mismo |
+| Barrido de Hanging | El resumen, idéntico al de la versión anterior |
+| Regresiones: bases, postura, escalera, escalones y Hanging en red | Igual que antes, salvo la balsa, que varía de corrida en corrida |
+| La balsa del host (`hang:5`), 7 corridas del código anterior y 7 del nuevo | Anterior: 37 a 101 correcciones, la más grande de 0,04 a 0,29 m. Nuevo: 57 a 137, la más grande de 0,02 a 0,50 m. Los rangos se pisan: es el camino al azar de la balsa. Para la comparación se armó una copia mínima del laboratorio del commit anterior |
+
+#### Prueba en dos PC y la latencia (14:57–15:06)
+
+Seis capturas, de las 14:59 a las 15:01, con los dos roles:
+
+- **La notebook colgada del host, sin red simulada:** 353 coincidencias, 0 correcciones, "línea: la del host" y 5 cambios de línea. En el host, 0 afirmaciones adoptadas.
+- **Con internet mala en la notebook:** 167 a 234 ms de ida y vuelta, 13 a 16 ticks de adelanto, 6 y después 7 correcciones en la sesión (en las dos capturas, la última de 0,00 m, como los avisos de quedarse quieto) y 7 cambios de línea. El host la empujó una vez.
+
+El comentario, a las 15:06:
+
+> listo, ya lo probé con las dos notebooks, las capturas están en la carpeta. Por ahora lo único que tengo para remarcar, es el tema de la latencia y como el host la maneja. La cosa va asi, si estoy agarrado del player que hace de host, tengo la latencia colocada en 200+ y salto, lo primero que ocurre, que es mi teoria, es la peticion de liberacion del player se envia al host y cuando este procesa la solicitud y despues envia la aceptacion al player de la otra notebook, ahi recien se ejecuta el salto. Tipo existe esa latencia desde que se presiona la tecla, llega al host, se procesa, el host envia la respuesta y despues se ejecuta el salto.
+
+La teoría era correcta, y es lo que pide el cambio de línea:
+
+1. colgado, la notebook no se predice: solo manda las teclas;
+2. Espacio viaja al host, que procesa ese tick unos 270 ms después de apretarlo, porque la notebook va adelantada;
+3. el host salta y manda el resultado, que tarda otros ~120 ms en volver;
+4. recién ahí la notebook retoma la predicción, ya con el salto empezado, y el dibujo se pone al día en 0,2 s.
+
+En total, unos 0,4 s con internet mala y unos 0,13 s en la red de la casa. Cuando el salto aparece, ya va casi 1,8 m arriba.
+
+Se le explicó también qué cambiaba en este diseño: el compañero del que se cuelga está quieto, así que el cliente podría predecir su propio salto y su Ctrl; lo que nunca puede predecir es lo que haga el otro.
+
+#### El cambio: predecir colgado (`e21d6c6`)
+
+La respuesta, a las 15:37: "que mi salto y mi Ctrl respondan al instante".
+
+- **El cliente predice Enganchado,** con la pose que da el compañero tal como lo ve. Como el compañero no se puede mover, da lo mismo que en el host, y las afirmaciones coinciden byte a byte.
+- **La adopción** considera las afirmaciones de Enganchado como las de cualquier modo anclado.
+- **Lo que haga el compañero** (soltarse, que lo empujen, irse) llega al cliente como una corrección: su predicción sigue colgada hasta que el snapshot dice otra cosa.
+- **Se sacó el código del cambio de línea:** la línea del cliente, `ClientPrediction.resume`, la mezcla de 0,2 s y `NOT_PREDICTED`. `client_prediction.gd` quedó igual que antes del punto 6. El cambio de línea quedó guardado en `f39ba70`, a pedido ("Dos commits"), por si lo necesita otra interacción.
+
+#### Pruebas automáticas del cambio
+
+| Prueba | Resultado |
+| --- | --- |
+| El cliente se cuelga, en la escalera y en el muro, sin red simulada y con internet mala | 0 correcciones al colgarse, soltarse y saltar. Las afirmaciones mientras cuelga coinciden con el host |
+| El de arriba (el host) se suelta con el cliente colgado, 11 veces por par | Una corrección por caída: la más grande de 0,095 m sin red simulada y de 0,685 m con internet mala, suavizada. El host rechaza por pose las afirmaciones colgadas que siguen llegando (26 y 171) |
+| El de arriba (el cliente) se suelta con el host colgado, con internet mala | Una corrección por vez, de 0,000 m: el fin no necesita evento, porque lo borra el propio motor. En la pantalla del de arriba, al de abajo se lo ve colgado en el aire un instante, hasta 1,26 m de la pose |
+| El host se cuelga del cliente | Igual que antes: 2 correcciones de 0,000 m por agarre |
+| Desconexiones y empujones | Igual que antes |
+
+En la primera tanda, la prueba "el de arriba se suelta" no llegaba a soltarse: esperaba 2 s con alguien colgado, y el de abajo se iba al segundo. Así que el caso solo estaba probado en el diagnóstico sin red. Se bajó la espera a medio segundo y se corrió de nuevo; son las dos filas de arriba.
+
+#### Prueba en dos PC (18:34–18:37)
+
+> listo, ya lo probé, las capturas están en la carpeta, funciona muy bien, inclusive con ambos con la opcion  activada de +200 ms
+
+Dos capturas, a las 18:34:
+
+- **Notebook, la de arriba, con internet mala:** 200 ms de ida y vuelta, 12 ticks de adelanto, 2.938 coincidencias y 9 correcciones en la sesión, la última de 0,00 m, como los avisos de quedarse quieto. El host la empujó 5 veces, así que no todas son avisos. 18,3 % de snapshots tarde.
+- **Host, colgado de la notebook:** 5 empujones inmediatos; la adopción estaba apagada en ese momento (tecla Q). Afirmaciones: 2 adoptadas (la más lejana a 0,63 m), 81 rechazadas por época y 19 por pose.
+
+#### Lo que falta del documento y las simplificaciones
+
+- **Los roles están al revés** del caso "Sujetar", a pedido.
+- **Enganchado se predice,** a pedido, porque el compañero está quieto. El cambio de línea quedó validado en dos PC y guardado en `f39ba70`, pero hoy no lo usa ninguna interacción del laboratorio.
+- **No hay sistema de modificadores:** la carga es `hooked_by`, que deja quieto al de arriba y le baja el agarre.
+- **El registro de la interacción** son los dos campos del estado, no un registro con id, roles, fase y mensajes confiables de inicio y fin.
+- **No hay muerte**, así que no se probó el fin por muerte.
+- **Uno solo por compañero,** y no hay cadenas: solo se cuelga de alguien agarrado de un borde o de una escalera.
+- **Colgado de un compañero que cuelga de un borde que se mueve:** no se probó.
+- **El rayo de la cámara** no se agregó; queda para si aparecen agarres no buscados.
+- **En la escalera,** si se llega a 0,9 m de ella antes de que las manos alcancen la cintura del compañero, se agarra de la escalera: la regla de siempre de la escalera.
+
+### Commits `f39ba70` y `e21d6c6`
+
+**Fecha:** 2026-10-09, 18:39, los dos, a pedido: "Dos commits".
+
+- **`f39ba70`**, `feat(net): hang from a teammate with a line change (validation item 6)`: 9 archivos, +906 / −88 líneas. Es la versión probada a las 14:57. El árbol de trabajo ya tenía el cambio encima, así que se commiteó desde una copia exacta guardada antes de tocarlo, sin pasar por los archivos de trabajo. Las huellas SHA-1 de los 9 archivos coincidieron con las de esa versión.
+- **`e21d6c6`**, `feat(net): predict hanging from a teammate so jump and Ctrl respond at once`: 4 archivos, +57 / −208 líneas. Las huellas de los 8 archivos del laboratorio coincidieron con la versión probada a las 18:34.
+
 ---
 
 ## 9. Estado actual del código
@@ -2345,37 +2565,37 @@ Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (p
 
 | Archivo | Líneas | Qué hace |
 | --- | --- | --- |
-| `scripts/actor/actor_state.gd` (`ActorState`) | 181 (130) | Estado completo del actor al final de un tick: modos Suelo, Aire, Deslizamiento, Escalera y Colgado, postura, base, ancla (con el punto del filo) y reagarre. Cuantización, bytes (79; eran 51), copia y descripción |
+| `scripts/actor/actor_state.gd` (`ActorState`) | 195 (130) | Estado completo del actor al final de un tick: modos Suelo, Aire, Deslizamiento, Escalera, Colgado y Enganchado (colgado de un compañero), postura, base, ancla (con el punto del filo o las manos), quién cuelga de él y reagarre. Cuantización, bytes (85; eran 51), copia y descripción |
 | `scripts/actor/actor_input.gd` (`ActorInput`) | 61 (59) | Input de un tick, cuantizado al crearlo; 10 bytes. Botones: saltar, agacharse y correr |
-| `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 93 (29) | Parámetros de movimiento, un recurso |
-| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 670 (100) | Paso por tick en orden fijo con los cinco modos, la base, la postura, la escalera, el escalón, el borde y el salto para arriba desde el colgado, los impulsos con fuerza y la validación de poses ancladas |
-| `scripts/actor/actor_body.gd` (`ActorBody`) | 280 (130) | Cuerpo (`CharacterBody3D`): deslizar, restaurar y validar poses, las dos formas y el espacio libre, asentarse en el piso después de un escalón, presentación, desvío visual (con el del agarre aparte) y las manos sobre el filo |
+| `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 108 (29) | Parámetros de movimiento, un recurso |
+| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 903 (100) | Paso por tick en orden fijo con los seis modos, la base, la postura, la escalera, el escalón, el borde y el salto para arriba desde el colgado, colgarse de un compañero y quién cuelga de quién, los impulsos con fuerza y la validación de poses ancladas |
+| `scripts/actor/actor_body.gd` (`ActorBody`) | 309 (130) | Cuerpo (`CharacterBody3D`): deslizar, restaurar y validar poses, las dos formas y el espacio libre, asentarse en el piso después de un escalón, presentación, desvío visual (con el del agarre aparte), las manos sobre el filo o sobre la cintura del compañero, y encontrar a los demás actores |
 | `scripts/actor/edge_probe.gd` (`EdgeProbe`) | 108 (nuevo, punto 5) | Sonda de borde: barrido de las manos, cara, superficie de arriba y filo; revalidación de un borde agarrado |
 | `scripts/actor/base_registry.gd` (`BaseRegistry`) | 73 (nuevo) | Registro de bases por id; origen, velocidad y posición en el mundo, real y dibujada |
 | `scripts/actor/scripted_platform.gd` (`ScriptedPlatform`) | 85 (nuevo) | Plataforma guionada: su pose sale del tick; se dibuja en el pasado cuando conviene |
 | `scripts/actor/host_raft.gd` (`HostRaft`) | 95 (nuevo) | Balsa que simula solo el host; en los clientes, una copia interpolada |
 | `scripts/actor/ladder.gd` (`Ladder`) | 94 (nuevo) | Escalera autorada: eje, alto, volumen de entrada y dibujo |
 | `scenes/actor/actor.tscn` | 60 (41) | El actor: las dos formas (parada y agachada), sus mallas y la "nariz" |
-| `scripts/net/sim_clock.gd` (`SimClock`) | 288 (267) | Reloj único: ticks, orden fijo, sincronización, adelanto del cliente por ritmo variable, plataformas colocadas para el tick siguiente y pausa |
+| `scripts/net/sim_clock.gd` (`SimClock`) | 295 (267) | Reloj único: ticks, orden fijo (los colgados de un compañero al final), sincronización, adelanto del cliente por ritmo variable, plataformas colocadas para el tick siguiente y pausa |
 | `scripts/net/net_session.gd` (`NetSession`) | 137 (132) | Conexión ENet, aparición con `MultiplayerSpawner`, salidas y lugares de aparición |
 | `scripts/net/net_sync.gd` (`NetSync`) | 322 (222) | Transporte: inputs, afirmaciones e ida y vuelta del cliente; snapshots del host con las balsas; márgenes; eventos programados por canal confiable |
 | `scripts/net/link_simulator.gd` (`LinkSimulator`) | 97 (84) | Simulador de red: demora, variación, pérdida y tirones; los mensajes confiables se demoran pero no se pierden |
 | `scripts/net/client_prediction.gd` (`ClientPrediction`) | 115 (91) | Predicción del cliente: historial, reconciliación, esperas, suavizado, repetición desde un tick para los eventos tardíos y la corrección más grande |
-| `scripts/net/claim_adoption.gd` (`ClaimAdoption`) | 77 (74) | Adopción de afirmaciones en el host, con su registro; valida también las poses ancladas, de la escalera y del borde |
+| `scripts/net/claim_adoption.gd` (`ClaimAdoption`) | 81 (74) | Adopción de afirmaciones en el host, con su registro; valida también las poses ancladas: de la escalera, del borde y colgado de un compañero |
 | `scripts/net/remote_interpolation.gd` (`RemoteInterpolation`) | 267 (90) | Interpolación de los demás jugadores y de las balsas en el cliente, con marcos de dibujo |
 | `scenes/net_lab/net_lab.tscn` | 125 | Escena del laboratorio, con menú y panel |
 | `scenes/net_lab/net_lab_level.tscn` | 389 (169) | Nivel del laboratorio: suma el vagón, el ascensor, la balsa, el túnel largo, la pared de medidas, la torre, las dos escaleras, la pista de escalones, la pista de bordes y los dos bordes que se mueven |
-| `scenes/net_lab/net_lab.gd` | 1.176 (585) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, cableado de red, panel, pausa, capturas, mediciones, pruebas guionadas y la divergencia inyectada |
+| `scenes/net_lab/net_lab.gd` | 1.524 (585) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, quién cuelga de quién en el host, cableado de red, panel, pausa, capturas, mediciones, pruebas guionadas y la divergencia inyectada |
 | `scenes/net_lab/lab_camera.gd` (`LabCamera`) | 65 (46) | Cámara de tercera persona; la altura de la cabeza sigue la postura |
 | `scenes/net_lab/measure_wall.gd` | 46 (nuevo) | Pared de medidas: rayas cada 10 cm y números cada 50 cm |
 | `scenes/net_lab/step_course.gd` | 96 (nuevo, escalón) | Pista de escalones: sueltos de 10 a 40 cm y dos escaleras, una con rampa invisible |
-| `scenes/net_lab/edge_course.gd` | 178 (nuevo, punto 5) | Pista de bordes: las 11 variantes fijas, con sus carteles |
+| `scenes/net_lab/edge_course.gd` | 195 (nuevo, punto 5) | Pista de bordes: las 11 variantes fijas, con sus carteles, y el muro alto para colgarse de un compañero (punto 6) |
 | `scenes/net_lab/actor_replay_test.gd` y `.tscn` | 314 + 13 (202 + 13) | Prueba de repetición determinista, a cualquier ritmo, con bases, postura, escalera, empujones, escalones y Hanging |
 | `scenes/net_lab/hang_sweep_test.gd` y `.tscn` | 464 + 13 (nuevo, punto 5) | Barrido de aproximaciones a los bordes, con los cuatro criterios y la altura del salto para arriba |
 | `tools/net_lab/actualizar_lab.bat` y `.ps1` | 14 + 71 (nuevo, escalón) | El doble clic que trae el laboratorio a la notebook y lo abre (sección 6.2) |
 | Archivos `.uid` | — | Uno por script, generados por Godot |
 
-**Total:** 5.982 líneas entre scripts y escenas, sin contar `tools/` (eran 2.589 al final del esqueleto, 4.431 en la segunda versión de este documento, 5.998 en la tercera y 5.969 en la cuarta).
+**Total:** 6.649 líneas entre scripts y escenas, sin contar `tools/` (eran 2.589 al final del esqueleto, 4.431 en la segunda versión de este documento, 5.998 en la tercera, 5.969 en la cuarta y 5.982 en la quinta; con el cambio de línea, en `f39ba70`, fueron 6.800).
 
 ### 9.2 Funciones públicas
 
@@ -2389,13 +2609,17 @@ Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (p
     - `apply_impulse(state, impulse, force, tuning)`, que reemplazó a `push(state, impulse)`;
     - `anchored_pose_valid(body, state, tuning)`; hasta el punto 4 recibía solo `state`;
     - `grab_check(body, state, direction, tuning, dt)` (punto 5): la decisión del agarre sin cambiar nada, con el motivo si no se agarra; la usan el motor y el barrido;
-    - `grab_direction(state, direction)` (punto 5, cambio después de la primera prueba): hacia dónde buscan las manos.
+    - `grab_direction(state, direction)` (punto 5, cambio después de la primera prueba): hacia dónde buscan las manos;
+    - `hook_check(body, state, direction, tuning, dt)` (punto 6): la decisión de colgarse de un compañero, sin cambiar nada, con el motivo si no se cuelga;
+    - `hook_pose(mate, tuning)` (punto 6): la pose colgado de ese compañero;
+    - `assign_hooks(actors, tuning)` (punto 6): lo que hace el host al empezar cada tick, anotar quién cuelga de quién; devuelve los cambios y los soltados.
 - **`ActorBody`:**
     - `slide()` y `apply_state()`, que devuelve si la pose entra en el mundo;
     - postura: `use_stance()`, `active_stance()`, `stance_height()` y `stance_fits()`;
     - `capsule_radius()` y `settle_on_floor(snap_length)` (escalón);
     - `present()`, `seen_position()`, `smooth_from()`, `set_visual_offset()`, `decay_visual_offset()`, `teleported()` y `visual_root()`;
-    - las variables `snap_jump` y `grab_jump`, por donde el motor le avisa a la presentación un snap lógico (escalón y agarre).
+    - las variables `snap_jump` y `grab_jump`, por donde el motor le avisa a la presentación un snap lógico (escalón y agarre);
+    - `teammates()` y `teammate(peer)` (punto 6): los demás actores, por id de dueño, y el de un jugador. Los actores se anotan en el grupo `actores` al nacer.
 - **`EdgeProbe`, todas estáticas** (punto 5): `hands_at(body, feet, toward, tuning)`, `find(body, from, to, toward)` y `hold(body, point, normal)`.
 - **`BaseRegistry`, todas estáticas:**
     - `add()`, `remove()`, `find(id)`, `all()` e `id_of(collider)`;
@@ -2416,7 +2640,7 @@ Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (p
     - del host: `input_for(peer, tick)`, `claim_for(peer, tick)`, `input_margin_ticks(peer, tick)`, `peer_rtt_ms(peer)`, `send_snapshot(tick, actors, host_bases)` y `send_scheduled_event(peer, tick, impulse, force)`;
     - `quantize_impulse(impulse)` (estática) y `forget_peer(peer)`.
 - **`LinkSimulator`:** `configure(rtt, jitter, loss, seed, stall_every, stall)`, `is_active()`, `deliver(packet)`, `deliver_reliable(packet)` y `clear()`.
-- **`ClientPrediction`:** `record()`, `clear()`, `recent(count)`, `reconcile(actor, host_tick, host_state, used_input_tick, current_tick, step)` y `replay_from(actor, tick, current_tick, step)`; desde el punto 5, la variable `max_correction_meters`.
+- **`ClientPrediction`:** `record()`, `clear()`, `recent(count)`, `reconcile(actor, host_tick, host_state, used_input_tick, current_tick, step)` y `replay_from(actor, tick, current_tick, step)`; desde el punto 5, la variable `max_correction_meters`. En `f39ba70` tuvo además `resume()`, para salir del cambio de línea; se sacó en `e21d6c6`.
 - **`ClaimAdoption`:** `consider(actor, claim_bytes, tuning)` (hasta el punto 4, sin `tuning`), `peers()`, `count(peer, result)` y `max_difference(peer)`.
 - **`RemoteInterpolation`:** `add(peer, host_tick, state)`, `add_base(id, tick, position, velocity)`, `advance()`, `shown_tick()`, `place(actor)`, `place_bases(ahead)` y `forget(peer)`.
 
@@ -2433,7 +2657,7 @@ Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (p
 | buttons | entero sin signo de 8 bits | botones mantenidos, en bits: saltar (bit 0), agacharse (bit 1, desde el punto 3) y correr (bit 2, desde el punto 3) |
 | jump_presses | entero sin signo de 8 bits | contador de pulsaciones de salto (0 a 255, da la vuelta) |
 
-**`ActorState`, hoy 79 bytes.** Los primeros 51 son los del esqueleto, en el mismo orden, y después vienen los campos que agregó la validación:
+**`ActorState`, hoy 85 bytes.** Los primeros 51 son los del esqueleto, en el mismo orden, y después vienen los campos que agregó la validación:
 
 | Campo | Tipo | Paso de cuantización | Desde |
 | --- | --- | --- | --- |
@@ -2441,13 +2665,14 @@ Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (p
 | base_id | entero sin signo de 16 bits | id de red de la base, 0 sin base | punto 2 (53 bytes) |
 | stance_wanted | entero sin signo de 8 bits | postura pedida: parado = 0, agachado = 1 | punto 3 |
 | stance | entero sin signo de 8 bits | postura concedida | punto 3 |
-| anchor_id | entero sin signo de 16 bits | id del ancla. En Ladder, la escalera; en Hanging, la base que lleva el borde, 0 si es geometría fija | punto 4 |
+| anchor_id | entero sin signo de 32 bits (16 hasta el punto 6) | id del ancla. En Ladder, la escalera; en Hanging, la base que lleva el borde, 0 si es geometría fija; en Enganchado, el id de red del compañero | punto 4 |
 | anchor_t | entero de 32 bits | 0,1 mm. En Ladder, la altura de los pies sobre la escalera; en Hanging, el avance de la subida en segundos (con el mismo paso), 0 mientras cuelga | punto 4 |
-| regrab_id | entero sin signo de 16 bits | ancla bloqueada para reagarrar; 0xFFFF bloquea todos los bordes | punto 4 |
+| regrab_id | entero sin signo de 16 bits | ancla bloqueada para reagarrar; 0xFFFF bloquea todos los bordes y 0xFFFE, desde el punto 6, todos los compañeros | punto 4 |
 | regrab_left | entero de 32 bits | 0,1 ms | punto 4 |
-| anchor_point | 3 enteros de 32 bits | 0,1 mm. En Hanging, el punto del filo relativo al origen de su base (en el mundo si es geometría fija) | punto 5 (79 bytes) |
+| anchor_point | 3 enteros de 32 bits | 0,1 mm. En Hanging, el punto del filo relativo al origen de su base (en el mundo si es geometría fija); en Enganchado, dónde están las manos, en el mundo | punto 5 (79 bytes) |
+| hooked_by | entero sin signo de 32 bits | id de red del compañero que cuelga de este actor, o 0 | punto 6 (85 bytes) |
 
-Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, Aire = 1, Deslizamiento = 2, Escalera = 3 y Colgado = 4. En Hanging la normal del borde no viaja: es la contraria a `facing_yaw`.
+Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, Aire = 1, Deslizamiento = 2, Escalera = 3, Colgado = 4 y, desde el punto 6, Enganchado = 5. En Hanging la normal del borde no viaja: es la contraria a `facing_yaw`.
 
 **`ActorState` del esqueleto, 51 bytes:**
 
@@ -2468,8 +2693,8 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 
 | Mensaje | Sentido | Contenido |
 | --- | --- | --- |
-| `_submit_inputs` | cliente → host, un paquete por tick | ida y vuelta que mide el cliente, en ms (16 bits, desde el punto 4); cantidad (8 bits); y, por cada tick sin confirmar (hasta 6): el input (10 bytes), el largo de la afirmación (8 bits) y la afirmación (79 bytes) |
-| `_receive_snapshot` | host → todos, cada 2 ticks | tick del host (32 bits); cantidad de actores (8 bits); y, por actor: dueño (32 bits), tick del input usado (32 bits), margen del input (16 bits), largo del estado (8 bits) y estado (79 bytes). Al final, desde el punto 2, las bases que simula el host: cantidad (8 bits) y, por base, id (16 bits), posición (3 enteros de 32 bits, en 0,1 mm) y velocidad (3 enteros de 32 bits, en 1 mm/s). Las plataformas guionadas no viajan: cada máquina las calcula desde el tick |
+| `_submit_inputs` | cliente → host, un paquete por tick | ida y vuelta que mide el cliente, en ms (16 bits, desde el punto 4); cantidad (8 bits); y, por cada tick sin confirmar (hasta 6): el input (10 bytes), el largo de la afirmación (8 bits) y la afirmación (85 bytes; 79 hasta el punto 6). Colgado de un compañero, en `f39ba70`, el input viajaba sin afirmación |
+| `_receive_snapshot` | host → todos, cada 2 ticks | tick del host (32 bits); cantidad de actores (8 bits); y, por actor: dueño (32 bits), tick del input usado (32 bits), margen del input (16 bits), largo del estado (8 bits) y estado (85 bytes). Al final, desde el punto 2, las bases que simula el host: cantidad (8 bits) y, por base, id (16 bits), posición (3 enteros de 32 bits, en 0,1 mm) y velocidad (3 enteros de 32 bits, en 1 mm/s). Las plataformas guionadas no viajan: cada máquina las calcula desde el tick |
 | `_receive_scheduled_event` | host → un cliente, **confiable** (desde el punto 4) | tick en que se aplica (32 bits), impulso (3 enteros de 32 bits, en 1 mm/s) y fuerza (8 bits) |
 | `_ping` / `_pong` | cliente → host → cliente, cada 30 ticks | microsegundos del cliente al mandar; el host responde con eso y su tick |
 
@@ -2480,16 +2705,17 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 1. **Tiempo:** se descuentan coyote, memoria del salto y bloqueo de reagarre.
 2. **Base:** si está sobre una base, la base lo lleva hasta donde quedó en este tick.
 3. **Eventos:** una pulsación nueva de salto se detecta porque cambió el contador. Los empujones, en cambio, no se aplican acá (ver abajo).
-4. **Sondas:** colgado, la sonda de borde revalida el borde agarrado (desde el punto 5). Las demás lecturas del entorno se hacen donde se usan: el volumen de la escalera y el agarre de un borde, en la transición; el escalón, en el movimiento, porque necesita saber si el movimiento chocó.
+4. **Sondas:** colgado, la sonda de borde revalida el borde agarrado (desde el punto 5); colgado de un compañero, se lo busca por su id (desde el punto 6). Las demás lecturas del entorno se hacen donde se usan: el volumen de la escalera, el agarre de un borde y el de un compañero, en la transición; el escalón, en el movimiento, porque necesita saber si el movimiento chocó.
 5. **Transición:** como máximo una por tick.
     - **Suelo:** salto, caída, agarrar una escalera o deslizamiento.
-    - **Aire:** aterrizaje, salto con coyote, agarrar un borde (sin Ctrl; desde el punto 5; bajando o, desde el 2026-10-08, también subiendo) o agarrar una escalera.
+    - **Aire:** aterrizaje, salto con coyote, agarrar un borde (sin Ctrl; desde el punto 5; bajando o, desde el 2026-10-08, también subiendo), colgarse de un compañero (sin Ctrl; desde el punto 6) o agarrar una escalera.
     - **Deslizamiento:** salto, caída o fin por velocidad.
-    - **Escalera:** respaldo, salto, salida abajo o salida arriba.
-    - **Colgado** (desde el punto 5): respaldo si el borde ya no está; Ctrl se suelta; Espacio salta para arriba mirando a la pared, o hacia donde mira si no, y en ese caso se da vuelta hacia allá (desde el 2026-10-08, sección 8.7). Hasta el 2026-10-08, Espacio mirando a la pared empezaba la subida, y mientras subía no había otra transición (sección 8.6).
-6. **Modo:** el modo activo decide la velocidad. Colgado, la velocidad va a lo largo del filo.
-7. **Postura y movimiento:** se resuelve la postura. Después, los modos libres se mueven con `move_and_slide()`, y la escalera y el colgado con un barrido. En Suelo, si el movimiento chocó, la sonda de escalón prueba subirlo (desde el escalón).
-8. **Contactos:** los indicadores de Godot pasan al estado. La sonda de suelo dice sobre qué base quedó parado, y al cambiar de base la velocidad cambia de marco; colgado, la base es la del borde. Todo se cuantiza.
+    - **Escalera:** respaldo, salto, salida abajo o salida arriba. Con un compañero colgado, solo el respaldo (desde el punto 6).
+    - **Colgado** (desde el punto 5): respaldo si el borde ya no está; Ctrl se suelta; Espacio salta para arriba mirando a la pared, o hacia donde mira si no, y en ese caso se da vuelta hacia allá (desde el 2026-10-08, sección 8.7). Hasta el 2026-10-08, Espacio mirando a la pared empezaba la subida, y mientras subía no había otra transición (sección 8.6). Con un compañero colgado, Espacio no hace nada; Ctrl lo suelta igual (desde el punto 6).
+    - **Enganchado** (desde el punto 6): respaldo si el compañero ya no lo sostiene, con la velocidad de él; Ctrl se suelta; Espacio salta para arriba mirando hacia el compañero, o hacia donde mira si no, y se da vuelta.
+6. **Modo:** el modo activo decide la velocidad. Colgado, la velocidad va a lo largo del filo; con un compañero colgado, en el borde y en la escalera, es cero. Enganchado, es cero y mira hacia donde mira el compañero.
+7. **Postura y movimiento:** se resuelve la postura. Después, los modos libres se mueven con `move_and_slide()`, y los anclados (la escalera, el colgado y el colgado de un compañero) con un barrido. En Suelo, si el movimiento chocó, la sonda de escalón prueba subirlo (desde el escalón).
+8. **Contactos:** los indicadores de Godot pasan al estado. La sonda de suelo dice sobre qué base quedó parado, y al cambiar de base la velocidad cambia de marco; colgado, la base es la del borde; colgado de un compañero, no hay base. Si el actor ya no está agarrado de un borde ni de una escalera, se borra quién cuelga de él (desde el punto 6). Todo se cuantiza.
 
 **Los empujones no entran al paso.** Los aplica con `apply_impulse` quien maneja el actor (el host, o el cliente en su predicción) al empezar el tick, antes del paso, y suben la época. El documento los pone en la etapa 3. Una diferencia que sale de leer el código: el bloqueo de reagarre que pone un empujón empieza a descontarse en el mismo tick, en la etapa 1. Host y cliente lo hacen igual, así que no causa correcciones.
 
@@ -2498,10 +2724,11 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 1. **Al empezar el tick:**
     - reaparece quien cayó por debajo de −30 m;
     - se atienden los empujones pedidos con E y R: los inmediatos se aplican ya, y los programados se anotan para su tick y se anuncian;
-    - se aplican los programados que tocan en este tick.
+    - se aplican los programados que tocan en este tick;
+    - se anota quién cuelga de quién (desde el punto 6, `assign_hooks`).
 
-    Los dos tipos suben la época del empujado.
-2. **Los actores, en orden de dueño:** cada uno toma su input (el propio del teclado; el de cada cliente, el que llegó, o el último repetido si falta), corre el paso por tick, se orienta y su desvío visual decae.
+    Los empujones suben la época del empujado, y anotar o borrar quién cuelga de un actor sube la de ese actor.
+2. **Los actores, en orden de dueño:** primero los que no cuelgan de un compañero y después los colgados (desde el punto 6). Cada uno toma su input (el propio del teclado; el de cada cliente, el que llegó, o el último repetido si falta), corre el paso por tick, se orienta y su desvío visual decae.
 3. **Al terminar el tick:** para cada actor de otro jugador, la adopción considera su afirmación de ese tick.
 4. **Snapshot:** se manda si el tick es par, con las balsas.
 5. **Plataformas:** se colocan en su pose del tick siguiente.
@@ -2517,7 +2744,7 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
     5. decide cuánto en el pasado se dibuja cada plataforma, según lo cerca que esté el propio jugador;
     6. ubica a los demás en su pose interpolada, cada uno en su marco de dibujo;
     7. arma el input del tick y aplica los eventos programados de este tick al propio actor.
-2. **El propio actor:** corre el paso por tick con ese input.
+2. **El propio actor:** corre el paso por tick con ese input. Colgado de un compañero también: la pose sale del compañero tal como se lo muestra (desde `e21d6c6`; en `f39ba70` no se predecía, ver sección 8.8).
 3. **Al terminar el tick:**
     - se guarda lo predicho;
     - se manda al host el input con la afirmación de los ticks sin confirmar y la ida y vuelta medida;
@@ -2585,8 +2812,14 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | `HOLD_TOLERANCE` | 0,1 m | `EdgeProbe` | Cuánto puede moverse el filo de un borde agarrado al revalidarlo |
 | ~~`CLIMB_CLEARANCE` / `CLIMB_INSET`~~ | 0,02 m / 0,1 m | `ActorMotor` | Se sacaron con el salto para arriba (sección 8.6). Al subir al borde, los pies terminaban 2 cm por encima de la superficie, y el centro el radio más 10 cm adentro del filo |
 | ~~`CLIMB_FLOOR_SEARCH`~~ | 0,6 m | `ActorMotor` | Se sacó con el salto para arriba. Era hasta dónde se buscaba piso caminable debajo del final de la subida |
-| `GRAB_MAX_SPEED` | 1,8 m/s | `ActorBody` | Velocidad máxima con que el dibujo alcanza al cuerpo después de un agarre |
+| `GRAB_MAX_SPEED` | 1,8 m/s | `ActorBody` | Velocidad máxima con que el dibujo alcanza al cuerpo después de un agarre; también al colgarse de un compañero |
 | `VARIANT_SPACING` / `ROW_SPACING` / `WIDTH` / `DEPTH` | 3,5 m / 8 m / 2,4 m / 1 m | pista de bordes | Separación de las variantes y de las filas, y tamaño de los bloques |
+| `REGRAB_TEAMMATES` | 0xFFFE | `ActorState` | `regrab_id` que bloquea colgarse de cualquier compañero (punto 6) |
+| `HOOK_TOLERANCE` | 0,5 m | `ActorMotor` | Para adoptar una afirmación colgada de un compañero: cuánto puede diferir de la pose que da el compañero en el host (punto 6) |
+| `GROUP` | `"actores"` | `ActorBody` | Grupo de nodos donde se anotan los actores, para encontrar a un compañero por su id (punto 6) |
+| ~~`LINE_BLEND_TIME` / `MAX_LINE_BLEND`~~ | 0,2 s / 4 m | `ActorBody` | Solo en `f39ba70`: la mezcla del cambio de línea y el salto más grande que mezclaba. Se sacaron al predecir colgado (sección 8.8) |
+| `HOOK_WALL_FACE_Z`, `HOOK_WALL_RIGHT_X`, `HOOK_WALL_TOP`, `HOOK_BOX_X`, `HOOK_MIDDLE_X`, `HOOK_CORRIDOR_X` | −26; 16,5; 3,6; 11,1; 13,5; 11,75 m | laboratorio | Dónde está el muro alto y por dónde llegan las pruebas guionadas (punto 6) |
+| `HOOK_HOLD_TICKS` / `HOOK_DROP_TICKS` | 60 / 30 | laboratorio | Cuánto cuelga la prueba antes de su salida, y cuánto sostiene el de arriba con `hookwall:drop` antes de soltarse (eran 120 en la primera tanda: no llegaba a soltarse) |
 
 **El actor** (`actor.tscn`): cápsula parada de 1,8 m de alto y cápsula agachada de 1,0 m, las dos de 0,35 m de radio.
 
@@ -2623,6 +2856,11 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | ~~Subir al borde*~~ | Se sacó el 2026-10-08 (sección 8.6). Eran 0,45 s hacia arriba y 0,25 s hacia adentro, agachado |
 | Salto para arriba desde el colgado* | Los pies suben hasta 0,2 m por encima del filo (`hang_climb_clearance`): unos 6,57 m/s hacia arriba |
 | Agarre del borde* | 3 |
+| Colgarse de un compañero: altura de las manos sobre sus pies* | 1,0 m, la cintura (`hook_height`, punto 6) |
+| Colgarse de un compañero: distancia de centro a centro* | 0,7 m, de espaldas a la pared: las cápsulas se tocan (`hook_distance`) |
+| Colgarse de un compañero: alcance* | 1 m, como snap máximo (`hook_reach`); "esto vamos a tener que ir probando de a poco" |
+| Agarre colgado de un compañero* | 3 (`hook_grip`) |
+| Cuánto baja el agarre del de arriba con un compañero colgado* | 1 (`hook_load_grip_drop`): el borde y la escalera pasan de 3 a 2 |
 | Aceleración en el aire | 12 m/s²; desde el punto 3 no frena a quien viene más rápido que caminando |
 | Gravedad | 9,8 m/s² |
 | Caída máxima | 40 m/s |
@@ -2662,9 +2900,9 @@ Al correr `scenes/net_lab/net_lab.tscn` con **F6** aparece un menú con:
 | Tecla | Quién | Qué hace |
 | --- | --- | --- |
 | WASD | todos | Mover. En la escalera, hacia ella sube y alejarse baja. Colgado, A y D van a la izquierda y a la derecha del personaje frente a la pared, mire donde mire la cámara (punto 5) |
-| Espacio | todos | Saltar; en la escalera, salta hacia atrás. Colgado, mirando a la pared salta para arriba y con W se pasa arriba del borde, y mirando a otro lado salta hacia allá y se da vuelta (punto 5; el salto para arriba y el giro, desde el 2026-10-08) |
+| Espacio | todos | Saltar; en la escalera, salta hacia atrás. Colgado, mirando a la pared salta para arriba y con W se pasa arriba del borde, y mirando a otro lado salta hacia allá y se da vuelta (punto 5; el salto para arriba y el giro, desde el 2026-10-08). Colgado de un compañero, lo mismo, mirando hacia él (punto 6). Con un compañero colgado de vos, no hace nada |
 | Shift | todos | Correr (desde el punto 3) |
-| Ctrl | todos | Agacharse; corriendo, deslizarse (desde el punto 3). Colgado, se suelta; mantenido en el aire, no se agarra de ningún borde (punto 5) |
+| Ctrl | todos | Agacharse; corriendo, deslizarse (desde el punto 3). Colgado, se suelta; mantenido en el aire, no se agarra de ningún borde (punto 5) ni de ningún compañero (punto 6). Colgado de un compañero, se suelta. Colgado de un borde con un compañero colgado de vos, se sueltan los dos |
 | Mouse | todos | Mirar; un clic vuelve a tomar el mouse |
 | Esc | todos | Suelta el mouse |
 | 1 a 5 | todos | Nivel de red simulada de esta máquina: sin simulación, internet buena, normal, mala y Wi-Fi con tirones |
@@ -2677,6 +2915,8 @@ Al correr `scenes/net_lab/net_lab.tscn` con **F6** aparece un menú con:
 | F12 | todos | Guarda una captura en el Escritorio, aunque haya otras teclas apretadas (acción `captura`, desde el punto 3) |
 
 **Agarrarse de un borde no tiene tecla** (punto 5): en el aire, se agarra solo cuando las manos llegan al filo, bajando o subiendo (subiendo, desde el 2026-10-08). Las manos buscan hacia las teclas de dirección apretadas, y sin teclas, hacia donde mira el personaje. Hasta el cambio del 2026-10-07 hacía falta apretar una tecla hacia la pared (sección 8.5).
+
+**Colgarse de un compañero tampoco tiene tecla** (punto 6): saltando hacia un compañero que está colgado de un borde o en una escalera, se cuelga de su cintura cuando las manos pasan por esa altura, a no más de 1 m. Mientras alguien cuelga de él, el de arriba no se mueve ni salta.
 
 1 a 5, E, R y Q se leen directo del teclado. G, F y F12 son acciones del Mapa de entrada, y se pueden cambiar en **Proyecto > Configuración del proyecto > Mapa de entrada**. La F comparte tecla con `toggle_free_cam` del parkour, y la E con `interactuar`; el laboratorio no usa esas acciones, así que no chocan. En una partida en red, la G no hace nada y no avisa.
 
@@ -2701,17 +2941,18 @@ Los niveles de red afectan solo a la máquina donde se eligen:
 - la postura: "Postura: agachado · pedida: parado (no hay lugar)" cuando el techo no deja pararse (desde el punto 3);
 - en la escalera, "Escalera N · pies a X m sobre su base", y después de soltarla, cuánto falta para poder volver a agarrarla (desde el punto 4);
 - colgado, "Colgado del borde: filo a X m de altura" y, si el borde va sobre una base, "· sobre la base N"; y después de soltar un borde, "Recién soltó un borde: no puede agarrar otro por X s" (desde el punto 5);
+- colgado de un compañero, "Colgado de la cintura del jugador N"; con alguien colgado, "El jugador N cuelga de tu cintura: quedás quieto · Ctrl te suelta y se caen los dos"; y después de soltarse de un compañero, "Recién se soltó de un compañero: no se puede colgar de otro por X s" (desde el punto 6);
 - la velocidad, aclarando "(sobre la base)" si es relativa a una base;
 - "Pies en (x, y, z) · cabeza a … m de altura · base: …", con milímetros (desde el punto 3);
 - en pausa, "EN PAUSA (tick N) · G sigue · F avanza un tick";
 - arriba de todo, durante 3 s, el aviso de captura guardada;
-- la ayuda de teclas; desde el punto 5, con la línea "Colgado: A y D de costado · Espacio mirando a la pared sube, mirando a otro lado salta · Ctrl se suelta".
+- la ayuda de teclas; desde el punto 5, con la línea "Colgado: A y D de costado · Espacio mirando a la pared sube, mirando a otro lado salta · Ctrl se suelta"; desde el punto 6, con "Saltando hacia un compañero colgado de un borde o en una escalera, te colgás de su cintura: ahí Espacio y Ctrl andan igual que colgado".
 
 **En el cliente:**
 
 - **Reloj:** ida y vuelta (el ping más rápido de los últimos 8), cuántos ticks va adelante del host y los saltos de reloj después de la primera sincronización.
 - **Input y ritmo:** el peor margen reciente con que le llega el input al host, corregido por lo que el cliente ya ajustó; el ritmo actual en ticks por segundo; y los ticks de adelanto ganados y perdidos.
-- **Predicción:** coincidencias, correcciones (y el tamaño de la última) y esperas por input tardío.
+- **Predicción:** coincidencias, correcciones (y el tamaño de la última) y esperas por input tardío. En `f39ba70`, además, "línea: predicha" o "línea: la del host (colgado de un compañero, no se predice)" y los cambios de línea.
 - **Snapshots** que no llegaron a tiempo.
 - **Empujones programados** (desde el punto 4): cuántos llegaron a tiempo, cuántos tarde (se repitió desde su tick) y cuántos demasiado tarde.
 - **Los demás:** se ven 100 ms en el pasado; ticks esperando un snapshot y porcentaje de tirones medidos. Desde el punto 2, los tirones se miden con la velocidad en el mundo y la posición dibujada.
@@ -2719,7 +2960,7 @@ Los niveles de red afectan solo a la máquina donde se eligen:
 **En el host:**
 
 - adopción prendida o apagada, empujones inmediatos y programados, y reapariciones;
-- por cada jugador: con cuántos ticks de anticipación le llega su input, su época, y sus afirmaciones adoptadas (con la diferencia más grande) y rechazadas por época, distancia y pose.
+- por cada jugador: con cuántos ticks de anticipación le llega su input, su época, y sus afirmaciones adoptadas (con la diferencia más grande) y rechazadas por época, distancia y pose. En `f39ba70`, además, las que no se adoptaban porque colgaba de un compañero.
 
 ### 10.4 Argumentos para pruebas automáticas
 
@@ -2745,6 +2986,11 @@ Van después de `--` en la línea de comandos. Los temporizadores cuentan segund
 | `--test-input=steps` | Recorre la pista de escalones en 15 puntos: cruza los sueltos de 10, 20 y 30 cm, choca contra el de 40 hasta que se le acaba el tiempo, y sube y baja las dos escaleras (escalón) |
 | `--test-input=hang` | Ciclos contra la cara de un bloque de 2 m de la pista de bordes: se aleja 2,2 m, corre, salta y se agarra al caer; colgado va a la derecha y a la izquierda; después, según la vuelta, salta para arriba y aprieta W recién cuando deja de subir, queda arriba y se baja por delante; se suelta con Ctrl; o salta hacia atrás (punto 5) |
 | `--test-input=hang:<id>` | Lo mismo contra el borde de esa base: 4, la plataforma guionada; 5, el cuerpo del host (punto 5) |
+| `--test-input=ladderhold` | Sube la escalera de la torre hasta 1,5 m y se queda (punto 6) |
+| `--test-input=hookwall` | Llega delante del cajón del muro alto, se sube saltando, salta desde el cajón, se agarra del borde subiendo y se corre colgado hasta el medio, donde se queda (punto 6) |
+| `--test-input=hookwall:drop` | Igual, pero se suelta con Ctrl medio segundo después de que alguien se cuelga de él, y vuelve a empezar (punto 6; 2 s en la primera tanda) |
+| `--test-input=hook:wall`, `--test-input=hook:ladder` | Ciclos: espera delante del muro alto (o de la escalera de la torre) a que haya un compañero agarrado ahí, corre hacia él, salta y se cuelga de su cintura. Colgado 1 s, por turnos: se suelta con Ctrl; salta para arriba mirando a la pared (aprieta W al caer, se agarra del borde y desde ahí sube); o salta hacia atrás. Después vuelve (punto 6) |
+| `--test-quit-hooked=TICKS` | Con alguien colgado de él, o colgado de alguien, cierra el juego a los tantos ticks, como si se cortara (punto 6) |
 | `--test-perturb-mm=N` | El cliente corre su estado predicho y su cuerpo N milímetros al azar en cada tick, siempre igual para la misma semilla: la divergencia inyectada (punto 5) |
 | `--test-spawn-at=x,z` | El host aparece en ese lugar (punto 2) |
 | `--test-pause-at=TICK` | Jugando solo, pone la pausa en ese tick (punto 3) |
@@ -2765,6 +3011,16 @@ Van después de `--` en la línea de comandos. Los temporizadores cuentan segund
 - snapshots perdidos, red y paquetes descartados por el simulador.
 
 En el cliente agrega los tirones de los demás y, desde el punto 4, los empujones programados a tiempo, tarde y demasiado tarde. En el host agrega las reapariciones y, por jugador, las afirmaciones por resultado (iguales, adoptadas, rechazadas por época, distancia y pose, con la adopción apagada y sin afirmación) y la diferencia más grande adoptada. Con `tunnel`, imprime hasta qué tramo llegó y los ticks que estuvo parado bajo el techo. Con `steps`, "escalones: punto N de 15; pies a X m como máximo". Con `hang`, "colgar: N agarres, N subidas al borde, N vueltas del ciclo" y, en el cliente, "correcciones: la más grande de X m".
+
+Desde el punto 6:
+
+- con `hook:…`, "compañero: N se colgó, N se soltó con Ctrl, N saltó para arriba (N se agarró del borde después, N llegó arriba), N saltó hacia atrás, N se cayó con el compañero, N se agarró de otra cosa", y una línea por cada vez que se cayó con el compañero;
+- con `hookwall`, "compañero de arriba: tramo N, se soltó N veces con alguien colgado";
+- en el host, "N cambios de quién cuelga de quién, N soltados por colgarse dos del mismo";
+- "el que cuelga de este jugador se dibujó a X m como máximo de la pose que le da el cuerpo de este jugador";
+- cada empujón que agarra a alguien colgado de un compañero, o con un compañero colgado de él.
+
+En `f39ba70` el cliente imprimía también los cambios de línea, las veces que volvió a predecir y cuánto saltó el cuerpo al entrar y al salir de la línea.
 
 **Prueba de repetición:** `--scene res://scenes/net_lab/actor_replay_test.tscn -- --rate=N` (o `--rate=varying`). Sale con 0 si todas las repeticiones coinciden e imprime la huella de la pasada en vivo. Desde el punto 3 también imprime cuántos ticks pasó agachado y cuántos de ellos pidiendo pararse sin lugar; desde el punto 5, los ticks colgado.
 
@@ -2790,12 +3046,13 @@ Las direcciones son desde donde se aparece (z = 8), mirando como la cámara inic
 | Pista de bordes (punto 5) | Adelante a la derecha, pasando el muro largo. Fila 1: 1,6 m, 2,0 m, 2,4 m, 5 cm de espesor, 20 cm de espesor y malla. Fila 2, 8 m más adelante: inclinado 10°, inclinado 25°, curvo, techo bajo y paredes al costado. Las caras miran hacia donde se aparece | caras de la fila 1 en z = −10, desde x = 10 cada 3,5 m; fila 2 en z = −18 |
 | Borde sobre una plataforma guionada (base 4, naranja) | Al este del vagón | (22; 1; −5), va 3 m hacia −x |
 | Borde sobre un cuerpo del host (base 5, marrón) | Al este del vagón, más lejos | (27,5; 1; 2) |
+| Muro alto para colgarse de un compañero (punto 6) | Fila 3 de la pista de bordes, al fondo. Se llega pasando entre el bloque de 1,6 m y el de 2,0 m, y siguiendo derecho más allá de la segunda fila. Cartel "colgarse de un compañero: 3,6 m". Con un cajón de 0,6 m delante de su punta izquierda | cara en z = −26, de x = 10,5 a 16,5; 3,6 m de alto; cajón de x = 10,5 a 11,7 |
 
 ---
 
 ## 11. Todas las pruebas y sus resultados
 
-Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente como dos procesos por localhost. Las de dos PC corrieron entre esta PC y la notebook, por Wi-Fi. En la columna "Paso", P2 a P5 son los puntos de la validación (sección 8), y "Esc" es el escalón.
+Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente como dos procesos por localhost. Las de dos PC corrieron entre esta PC y la notebook, por Wi-Fi. En la columna "Paso", P2 a P6 son los puntos de la validación (sección 8), y "Esc" es el escalón.
 
 | Paso | Prueba | Resultado |
 | --- | --- | --- |
@@ -2889,6 +3146,18 @@ Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente c
 | P5 | Repetición con el agarre subiendo | 4.788 repeticiones y 212.823 ticks idénticos, a 60 y con ritmo variable; huella `882cee955f9e6e12` |
 | P5 | Red con el agarre subiendo | 0 correcciones en las 12 combinaciones, con el observador, en la plataforma guionada y en la divergencia con adopción |
 | P5 | Dos PC con el agarre subiendo | Colgada y parada arriba del muro largo de 3 m; 24 correcciones en la sesión con internet mala (la última de 0,46 m), 0 saltos de reloj; 27 afirmaciones adoptadas y 7 rechazadas por pose en el host |
+| P6 | Colgarse de un compañero con cambio de línea: el cliente se cuelga, en la escalera y en el muro alto, sin red simulada y con internet mala | 0 correcciones; 14 a 17 agarres por par con todas sus salidas. Al salir de la línea, el cuerpo salta 0,78 m sin red simulada y hasta 1,72 m con internet mala, repartido en 0,2 s |
+| P6 | El host se cuelga del cliente | El de arriba recibe 2 correcciones de 0,000 m por agarre. En su pantalla, al de abajo se lo dibuja hasta 0,28 m (limpia) y 0,40 m (mala) fuera de la pose, en los ticks en que se mezcla un snapshot colgado con uno en el aire |
+| P6 | Diagnóstico sin red con el motor real | Los seis casos como se esperaba: dos en el mismo tick (gana el id más chico), el de arriba quieto, empujones débil y fuerte, y Ctrl del de arriba |
+| P6 | Desconexión del de arriba y del de abajo | El de abajo se cae; al de arriba se le borra quién cuelga de él |
+| P6 | Empujones cada 1,5 s | El fuerte suelta al que cuelga (inmediato y programado); el débil tira al de arriba cargado, y el de abajo se cae con él |
+| P6 | Repetición, a 60, 72 y con el ritmo variando | 4.788 repeticiones y 212.823 ticks idénticos; huella `ee3177271bbce54e` (el estado creció 6 bytes) |
+| P6 | Barrido de Hanging y regresiones | El barrido, idéntico. Bases, postura, escalera, escalones y Hanging en red, igual que antes |
+| P6 | Balsa del host, 7 corridas del código anterior y 7 del nuevo | 37 a 101 contra 57 a 137 correcciones; la más grande, 0,04–0,29 m contra 0,02–0,50 m. Se pisan: es el azar de la balsa |
+| P6 | Dos PC con cambio de línea, red limpia e internet mala | 353 coincidencias y 0 correcciones colgado sin red simulada; con internet mala, 7 correcciones en la sesión (la última de 0,00 m, como los avisos de quedarse quieto) y un empujón. El salto colgado del host sale ~0,4 s tarde con 200 ms |
+| P6 | Colgado predicho: el cliente se cuelga, sin red simulada y con internet mala | 0 correcciones al colgarse, soltarse y saltar |
+| P6 | Colgado predicho: el de arriba se suelta con alguien colgado | Del lado del de abajo, una corrección por caída (hasta 0,095 m limpia y 0,685 m mala). Del lado del de arriba, una de 0,000 m; al de abajo se lo ve colgado en el aire hasta 1,26 m (mala) |
+| P6 | Dos PC con el colgado predicho, 200 ms en las dos | "funciona muy bien"; la notebook arriba: 2.938 coincidencias y 9 correcciones (la última de 0,00 m), con 5 empujones del host |
 
 ---
 
@@ -3021,6 +3290,16 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 | P5, subiendo | En el muro de 2 m no se agarraba subiendo | Las manos pasan el borde en el tick del salto, que todavía es Suelo, y la sonda mira dónde van a estar al final del tick | Subiendo, si no encuentra nada, barre las manos de arriba hacia abajo hasta donde estaban en el tick anterior |
 | P5, subiendo | Debajo del techo bajo, saltar hacia atrás agarraba el techo (132 casos del barrido) | El personaje seguía mirando a la pared y las manos buscaban para ese lado; antes lo frenaba el límite de subida | Se le preguntó al usuario: al saltar hacia otro lado, el personaje se da vuelta hacia donde salta |
 | P5, subiendo (error mío) | Con el salto para arriba quedó viejo el "Estado" de Hanging en el documento de arquitectura ("y, mientras sube, el avance de la subida") | No lo vi al corregir la subida | Corregido con nota junto con este cambio |
+| P6 | En los bloques de 2 m no había lugar debajo del compañero colgado | Colgado, sus pies quedan a 5 cm del piso; colgado de su cintura, los pies del otro quedarían 95 cm bajo el piso | Un muro alto de 3,6 m con un cajón |
+| P6 | En la escalera, la prueba con el host se agarraba de la escalera y nunca del compañero | La escalera agarra a 0,9 m de su eje, y el que saltaba llegaba ahí antes de que sus manos alcanzaran la cintura | Es la regla de la escalera; la prueba salta antes. Anotado como límite |
+| P6 (error mío) | La prueba guionada quedaba quieta detrás de la torre | Un punto del camino estaba a 15 cm de donde se dejaba de caminar | Los puntos del camino van un poco más allá |
+| P6 | "Se cayó con el compañero" en los pares donde el host se colgaba | El cliente, el de arriba, se cerraba antes que el host: era la desconexión | Con un aviso provisorio se vio que el compañero ya no estaba; después se probó la desconexión a propósito |
+| P6 | Unas pocas afirmaciones adoptadas con diferencia 0,000 m | Diferencias de 0,1 mm de Jolt en el camino de vuelta, sin nada colgado | Visto con un aviso provisorio, ya sacado; es lo que la adopción tiene que absorber |
+| P6 | La balsa del host daba correcciones más grandes que antes (hasta 0,50 m) | Su camino es al azar | 7 corridas del código anterior contra 7 del nuevo: los rangos se pisan |
+| P6 | No se pudo armar una copia del commit anterior con `git worktree` | "Filename too long": el nombre de un asset pasaba el límite de rutas de Windows | Una copia mínima con `git archive` de las carpetas del laboratorio, sin los autoload del parkour; se borró después |
+| P6 (dos PC) | "si estoy agarrado del player que hace de host [...] ahi recien se ejecuta el salto" | El cambio de línea: colgado, el cliente no se predecía y el salto llegaba con la respuesta del host, ~0,4 s después con 200 ms | A pedido, el cliente se predice colgado (sección 8.8) |
+| P6 (error mío) | La prueba "el de arriba se suelta" nunca se soltaba | El de arriba esperaba 2 s con alguien colgado, y el de abajo se iba al segundo | Medio segundo; recién ahí se probó por red el caso de que el de arriba se suelte |
+| P6 | No había Python para editar archivos desde la terminal | No está instalado en esta PC | Se usaron las herramientas de la terminal (`head`, `tail`, `git show`) |
 
 ---
 
@@ -3063,6 +3342,12 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - **Agarrarse también subiendo** (2026-10-08, 17:37), pedido con un dibujo: "con que estes pegado al muro y saltando, ya es suficiente para que te agarres".
 - **Al saltar hacia otro lado desde el colgado, el personaje se da vuelta hacia donde salta** (17:45): "Que mire hacia donde salta".
 - **Agarrarse igual del techo bajo girando la cámara a tiempo queda así** (19:24): "medio que se siente como un logro mas que otra cosa".
+- **Seguir con el punto 6** (2026-10-09, 12:48): "dale, empecemos con el punto 6".
+- **Colgarse de un compañero, sin tecla y con los roles al revés** (12:57): "saltar directo al compañero mientras este se encuentra agarrado de alguna lado". El de arriba se queda quieto; el de abajo cuelga de "las piernas o la cintura" y se maneja "Como colgado"; el alcance, "por ahora ponelo a 1 metro".
+- **El rayo de la cámara quedó para después** (12:57): el usuario lo planteó como duda; la respuesta fue esperar a ver si al probar aparecen agarres no buscados, y no lo volvió a pedir.
+- **Ctrl del de arriba suelta a los dos, se puede colgar de alguien en un borde o en una escalera, y de la cintura** (13:03).
+- **Colgado de un compañero, el cliente se predice** (15:37): "que mi salto y mi Ctrl respondan al instante". Se aparta del documento, que decía que Enganchado no se predice (sección 4.4).
+- **Dos commits para el punto 6** (18:39): primero la versión con el cambio de línea, tal como se probó, para que su código quede en git.
 
 **¿Cuánto cuesta cambiar una mecánica después?** (pregunta del 2026-10-07, 13:06). La respuesta, resumida:
 
@@ -3084,11 +3369,13 @@ En contra: cuantas más mecánicas usen una regla compartida, más cuesta cambia
 
 Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera fila. Tocaron solo `actor_motor.gd` y sus pruebas.
 
+El punto 6 fue de la última fila: un modo nuevo, con dos campos nuevos en el estado (6 bytes más), y las dos PC tuvieron que actualizarse juntas. El cambio a predecir colgado, en cambio, no tocó el motor: sacó código del cliente y de la adopción.
+
 **Forma de trabajo acordada:**
 
 - **Instrucciones clic por clic:** nada de argumentos ni jerga para probar. El laboratorio tiene un menú dentro del juego, y las instrucciones nombran los botones exactos ("literal no entendí una absoluta mierda", 13:45).
 - **No afirmar sin probar:** primero la explicación simple o una prueba ("lo del mantle creo que es una alucinación tuya", 18:57).
-- **Commits locales solo cuando se piden, y sin subir nada.** Cada commit lleva solo los archivos del laboratorio, verificados antes; los cambios de parkour sin commitear no se tocan. El 2026-10-08 el usuario pidió subir la rama: el sistema de permisos de la sesión no dejó hacer el `git push` desde acá, y el 2026-10-09 lo hizo el usuario.
+- **Commits locales solo cuando se piden, y sin subir nada.** Cada commit lleva solo los archivos del laboratorio, verificados antes; los cambios de parkour sin commitear no se tocan. El 2026-10-08 el usuario pidió subir la rama: el sistema de permisos de la sesión no dejó hacer el `git push` desde acá, y el 2026-10-09 lo hizo el usuario. Desde entonces, el push lo corre el usuario cuando quiere.
 - **Cada paso se prueba en las dos PC** con un zip nuevo, y se analizan las capturas del panel.
 - **Antes y después medidos:** antes de cambiar algo, se mide el comportamiento actual en el mismo escenario.
 - **Desde la validación, el commit va después de la prueba en dos PC,** con lo que se probó. Antes de cada commit se comprueba que los archivos son idénticos a los del zip probado. Si el zip ya no está, se comprueba que nada cambió después de armarlo. Si un arreglo nuevo ya está encima, se commitea la versión probada sin tocar el árbol de trabajo.
@@ -3103,7 +3390,7 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 
 ## 15. Commits y entregas
 
-**Commits**, en la rama `codex/parkour-v3-h0-lab`. Hasta el 2026-10-09 eran todos locales. Las versiones anteriores de este documento decían "sin remota configurada", y no era exacto: el proyecto tiene GitHub configurado (`origin`, `ElVerdulero2001/tun-tun-tun-sahur-el-juego-copia-de-Peripeteia-`), pero esta rama nunca se había subido. El 2026-10-09 el usuario la subió, hasta `2314f18`: subieron 26 commits (356 archivos, 4,3 MB), los del laboratorio y sus commits de parkour de septiembre que ya estaban en la rama. Los cambios sin commitear no se subieron.
+**Commits**, en la rama `codex/parkour-v3-h0-lab`. Hasta el 2026-10-09 eran todos locales. Las versiones anteriores de este documento decían "sin remota configurada", y no era exacto: el proyecto tiene GitHub configurado (`origin`, `ElVerdulero2001/tun-tun-tun-sahur-el-juego-copia-de-Peripeteia-`), pero esta rama nunca se había subido. El 2026-10-09 el usuario la subió, hasta `2314f18`: subieron 26 commits (356 archivos, 4,3 MB), los del laboratorio y sus commits de parkour de septiembre que ya estaban en la rama. Los cambios sin commitear no se subieron. A las 18:46 la volvió a subir, hasta `e21d6c6`.
 
 | Commit | Fecha | Mensaje | Archivos | Líneas |
 | --- | --- | --- | --- | --- |
@@ -3123,6 +3410,10 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 | `3825c2b` | 2026-10-08 16:40 | feat(net): replace the Hanging climb with an upward jump | 6 | +99 / −128 |
 | `048dc4d` | 2026-10-08 16:41 | docs(net): record the Hanging climb jump in the history | 1 | +645 / −44 |
 | `bd2157b` | 2026-10-08 19:24 | feat(net): grab edges while rising and turn toward the jump away | 5 | +31 / −18 |
+| `2314f18` | 2026-10-08 19:35 | docs(net): record grabbing while rising in the history | 1 | +352 / −22 |
+| `9e4753e` | 2026-10-09 12:39 | docs(net): note the branch is on GitHub in the history | 1 | +8 / −5 |
+| `f39ba70` | 2026-10-09 18:39 | feat(net): hang from a teammate with a line change (validation item 6) | 9 | +906 / −88 |
+| `e21d6c6` | 2026-10-09 18:39 | feat(net): predict hanging from a teammate so jump and Ctrl respond at once | 4 | +57 / −208 |
 
 **Zips en el escritorio** para copiar el proyecto a la otra PC, hasta el escalón. Los del esqueleto pesaban 18 MB cada uno; el tamaño de los de la validación no se anotó. Hoy quedan en el Escritorio el de la escalera y el del escalón; los demás se movieron o se borraron. Desde el escalón, la notebook se actualiza con el doble clic de la sección 6.2.
 
@@ -3157,6 +3448,8 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 | 2026-10-07 23:05 | Hanging con los dos cambios | `3cdcc91` |
 | 2026-10-08 13:25 | El salto para arriba en vez de la subida, con las pruebas que aprietan W en la punta. Probado en las dos PC a las 16:28 | `3825c2b` |
 | 2026-10-08 18:20 | El agarre subiendo y el giro al saltar hacia otro lado. Probado en las dos PC a las 19:17 | `bd2157b` |
+| 2026-10-09 14:49 | Colgarse de un compañero, con el cambio de línea, y el muro alto. Probado en las dos PC a las 14:57 | `f39ba70` |
+| 2026-10-09 16:03 | Colgado de un compañero, predicho. Probado en las dos PC a las 18:34 | `e21d6c6` |
 
 **Lo que no se tocó:** los cambios previos sin commitear de la rama siguen igual. Incluyen `project.godot` (solo con el cambio de versión 4.6 → 4.7 del editor), `docs/parkour/*`, `scenes/test/*`, `scripts/player_v2/*` y `assets/models/*`.
 
@@ -3171,8 +3464,8 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 **Lo que sigue en la validación** (sección 8):
 
 - ~~**Punto 5:** el laboratorio de Hanging con snap.~~ Hecho (sección 8.5).
-- **Punto 6, el próximo:** una interacción con cambio de línea, sujetar a un compañero.
-- **Punto 7:** cámara lenta del mundo y personal.
+- ~~**Punto 6:** una interacción con cambio de línea, sujetar a un compañero.~~ Hecho como colgarse de un compañero (sección 8.8).
+- **Punto 7, el próximo:** cámara lenta del mundo y personal.
 - **Hanging, prueba 7:** con 5 a 10 personas, cuando haya gente.
 
 **Pedido para más adelante:** la subida al borde con "un saltito". La tercera versión de este documento decía: "Hoy es un recorrido de dos tramos, 0,45 s hacia arriba y 0,25 s hacia adentro". El 2026-10-08 esa subida se reemplazó "temporalmente" por un salto para arriba con control aéreo, y el usuario dijo "por ahora lo dejamos asi" (sección 8.6). Si vuelve una animación de subida, el código viejo está en `3cdcc91`.
@@ -3219,7 +3512,16 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
     - en el borde curvo, agarrado de costado, a veces el salto para arriba no deja arriba (21 de 1.955 casos en el primer barrido, 20 de 2.071 en el último);
     - subiendo, se agarra de cualquier borde que las manos tengan adelante. Debajo del techo bajo, saltando hacia atrás y girando la cámara a tiempo hacia la pared con una tecla apretada, se agarra del techo; quedó así a pedido;
     - si en el aire se aprieta A o D mirando a la pared, las manos buscan hacia ese costado y no se agarra (la tecla manda).
-- **Agarrarse sin teclas usa la orientación del personaje,** que la regla general del documento quería evitar para que primera y tercera persona simulen igual. Hoy da lo mismo, porque la orientación sigue al movimiento y no hay primera persona. Hay que revisarlo cuando llegue la primera persona (sección 8.5).
+- **Agarrarse sin teclas usa la orientación del personaje,** que la regla general del documento quería evitar para que primera y tercera persona simulen igual. Hoy da lo mismo, porque la orientación sigue al movimiento y no hay primera persona. Hay que revisarlo cuando llegue la primera persona (sección 8.5). Colgarse de un compañero usa la misma regla.
+- **Colgarse de un compañero** (sección 8.8):
+    - lo que haga el de arriba (soltarse, que lo empujen, irse) le llega al de abajo como una corrección: hasta 0,69 m con internet mala, suavizada; en su pantalla empieza a caer un instante antes de ver al de arriba soltarse;
+    - en la pantalla del de arriba, cuando se suelta, al de abajo se lo ve colgado en el aire un instante: hasta 1,26 m con internet mala;
+    - el de arriba recibe 2 correcciones de 0,000 m por cada vez que alguien se cuelga de él;
+    - un snap de 1 m tarda unos 0,55 s en cerrarse en pantalla, por el tope de 1,8 m/s del agarre;
+    - uno solo por compañero, y sin cadenas;
+    - en la escalera, si se llega a 0,9 m de ella antes que a la cintura, se agarra de la escalera;
+    - colgado de un compañero que cuelga de un borde que se mueve: no se probó;
+    - sin rayo de la cámara: si el borde y el compañero quedan al alcance a la vez (muros de unos 3 m), gana lo que las manos tocan primero.
 - **Las 62 correcciones y las 108 afirmaciones rechazadas** de la primera prueba de Hanging en dos PC pasaron antes de la primera captura y no se ubicaron. La sospecha es el borde sobre el cuerpo del host.
 - **El "tp" de la prueba de la base propia** no se pudo ubicar en las capturas. La sospecha es que se vio en el host, al volver la conexión.
 
@@ -3229,10 +3531,11 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 - El control del adelanto con tirones periódicos: con tirones cada 3 s, el ritmo pasa casi todo el tiempo en 57. Ahora que la adopción absorbe los inputs tardíos, podría reaccionar menos.
 - El colchón de interpolación (100 ms): con tirones de 150 ms se vacía a veces (14 ticks en la prueba automática; 70 a 96 en las dos PC).
 - El umbral de suavizado (1,5 m) y la vida media del desvío (25 ms).
-- **El ancho de banda.** En la primera versión de este documento: hasta ~373 bytes por paquete del cliente y 62 bytes por actor en el snapshot. En la segunda, con el estado de 67 bytes: 471 y 78. Hoy, con el estado de 79 bytes, la cuenta da:
-    - **cada paquete del cliente:** 2 + 1 + 6 × (10 + 1 + 79) = 543 bytes como máximo, 60 veces por segundo;
-    - **el snapshot:** 90 bytes por actor y 26 por balsa (más 1 byte con la cantidad de balsas), 30 veces por segundo.
+- **El ancho de banda.** En la primera versión de este documento: hasta ~373 bytes por paquete del cliente y 62 bytes por actor en el snapshot. En la segunda, con el estado de 67 bytes: 471 y 78. En la quinta, con el de 79 bytes: 543 y 90. Hoy, con el estado de 85 bytes, la cuenta da:
+    - **cada paquete del cliente:** 2 + 1 + 6 × (10 + 1 + 85) = 579 bytes como máximo, 60 veces por segundo;
+    - **el snapshot:** 96 bytes por actor y 26 por balsa (más 1 byte con la cantidad de balsas), 30 veces por segundo.
 - **Hanging:** la distancia máxima de snap (35 cm), el tope de velocidad del dibujo al agarrarse (1,8 m/s), la altura del colgado (1,95 m) y el margen del salto para arriba (20 cm).
+- **Colgarse de un compañero:** el alcance (1 m), la altura de las manos sobre sus pies (1 m), la distancia entre los dos (0,7 m), cuánto baja el agarre del de arriba (1) y la tolerancia para adoptar (0,5 m).
 - **El colchón de los eventos programados** (4 ticks): en la prueba de dos PC llegaron tarde 11 de 29, pero todos se repitieron sin corrección.
 
 **Observaciones de las pruebas reales:**
@@ -3240,6 +3543,7 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 - La adopción quedó apagada en la prueba del paso 8 (Q). Para jugar normal conviene tenerla prendida; vuelve a estarlo al abrir la escena de nuevo con F6.
 - Hubo 1 salto de reloj de causa desconocida en una sesión del paso 7. En la prueba de postura hubo otro, junto con un corte del Wi-Fi.
 - El empujón suma velocidad sin límite; con decenas seguidos saca al jugador del mapa. Hoy eso termina en una reaparición.
+- En la captura del host de la última prueba del punto 6 (2026-10-09, 18:34), la adopción también estaba apagada.
 
 **Del documento de arquitectura:**
 
@@ -3248,8 +3552,9 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 - ~~**Agarrarse sin intención hacia la pared.**~~ Corregido, con notas, en la copia del Apéndice A y en el documento de Claude Docs (revisión 55).
 - ~~**Subir al borde como salto para arriba.**~~ Corregido, con la subida vieja copiada en una nota, en la copia del Apéndice A y en el documento de Claude Docs (revisión 60).
 - ~~**Agarrarse subiendo y el giro al saltar.**~~ Corregido, con notas, en la copia del Apéndice A y en el documento de Claude Docs (revisión 65). También el "Estado" de Hanging, que había quedado viejo con el salto para arriba.
+- ~~**Colgarse de un compañero, con los roles al revés y predicho.**~~ Anotado, con notas en siete lugares, en la copia del Apéndice A y en el documento de Claude Docs (revisión 66). El cambio de línea sigue en el documento como regla; hoy ninguna interacción del laboratorio la usa.
 - **Cuando el esqueleto pase a ser el juego,** los ajustes que hoy aplica el laboratorio al arrancar (60 ticks, `physics_jitter_fix` en 0 e interpolación de física) van a `project.godot`.
-- **Fuera del laboratorio** quedan los demás modos anclados, los cuerpos rígidos, las interacciones, Steam y NAT.
+- **Fuera del laboratorio** quedan los demás modos anclados, los cuerpos rígidos, las demás interacciones (empujar juntos, subirse a los hombros, arrastrar y revivir), la muerte, el sistema de modificadores, Steam y NAT.
 
 ---
 
@@ -3285,6 +3590,16 @@ La nota de "Subir al borde" cuenta los cuatro cambios.
 - la fila 2 de la transición de Aire, que decía "no sube rápido";
 - la captura, en "Lo común", que decía "velocidad vertical por debajo de un máximo de subida";
 - en la misma lista, las salidas (el personaje se da vuelta al saltar hacia otro lado) y el "Estado", que había quedado viejo con el salto para arriba.
+
+**Correcciones del 2026-10-09, con el punto 6** (sección 8.8). La copia y el documento de Claude Docs (revisión 66) suman notas en siete lugares. En estos no se cambió el texto original, porque sigue valiendo como regla general; las notas cuentan qué se hizo en el laboratorio:
+
+- "Cambio de línea temporal": la primera versión lo hizo así, y después se pasó a predecir colgado;
+- la fila Enganchado de la tabla de modos: en el laboratorio se predice;
+- la lista de salidas de Aire: colgarse de un compañero, entre el borde y la escalera;
+- la fila "Sujetar a quien cae o cuelga": los roles al revés;
+- la mezcla de 0,2 s del cambio de línea, en "Presentación";
+- el recorrido 5, la desconexión mientras sostiene a un compañero;
+- el punto 6 de "Qué validaría primero".
 
 ### Arquitectura de movimiento co-op (Godot 4.7 + Jolt)
 
@@ -3446,6 +3761,8 @@ Al soltarse, una reconciliación normal restaura el estado del host y repite los
 
 Excepción deliberada: pararse sobre una base del host, como una balsa, no cambia de línea. El cliente predice su movimiento relativo a la base, para que caminar sobre ella no tenga la latencia del RTT.
 
+> **Nota (2026-10-09), punto 6.** La primera versión de colgarse de un compañero hizo exactamente esto: colgado, el cliente dejaba de predecir y se mostraba relativo al compañero tal como lo veía. Al soltarse, restauraba el estado del host, repetía los inputs y mezclaba las poses en 0,2 s. Anduvo en las dos PC, pero con 200 ms el salto y Ctrl salían recién cuando respondía el host, unos 0,4 s después. En ese diseño el compañero del que se cuelga está quieto, y el usuario pidió "que mi salto y mi Ctrl respondan al instante". Ahora el cliente se predice colgado, con la pose del compañero tal como lo ve, y lo que haga el compañero le llega como corrección. La regla sigue valiendo para anclas que se mueven; el código del cambio de línea quedó en el commit `f39ba70`. Detalle en la sección 8.8.
+
 ##### Lo que no se predice
 
 - **Otros jugadores:** se interpolan con un colchón de 2 o 3 snapshots, unos 100 ms.
@@ -3529,6 +3846,8 @@ Un solo modo activo, como en Mover de Unreal. El **agarre** es cuánta fuerza ex
 | Enganchado | Pose desde un punto de otro actor u objeto, con barrido | Según el rol | Actor u objeto del host | No: lo conduce el host |
 | Muerto | Ninguno; ragdoll solo visual | Máximo | No | No |
 
+> **Nota (2026-10-09), fila Enganchado.** En el laboratorio, Enganchado es colgarse de la cintura de un compañero que está agarrado de un borde o de una escalera, y sí se predice. El compañero queda quieto mientras alguien cuelga de él, así que el cliente calcula la pose desde él tal como lo ve, y da lo mismo que en el host. El agarre colgado es 3; el del compañero que sostiene baja de 3 a 2. Detalle en la sección 8.8.
+
 Los valores de agarre son una escala de partida, de 0 a 5, a calibrar.
 
 ##### Lo que no es un modo
@@ -3571,6 +3890,8 @@ Cada modo declara una lista corta de salidas con prioridad. Cada salida es un de
 > **Nota (2026-10-08), fila 2.** El original decía: "Borde válido, sin bloqueo de reagarre, no sube rápido, intención hacia la pared". La primera versión de Hanging lo cumplía así: sin ninguna tecla de dirección apretada no había agarre. En la prueba en dos PC, el usuario no entendía por qué no se agarraba hasta descubrir que tenía que apretar W, y pidió sacarlo: "no siempre queres darle a la W para llegar a X lado". Ahora, sin teclas, las manos buscan hacia donde mira el personaje, que en el aire es hacia donde se venía moviendo. La pared tiene que seguir estando en esa dirección. Detalle completo en la sección 8.5.
 
 > **Nota (2026-10-08, más tarde), fila 2.** También decía "no sube rápido": no se agarraba subiendo a más de un máximo (en el laboratorio, 1 m/s). Como un salto arranca a 4,8 m/s, para agarrarse había que llegar a la punta del salto o estar cayendo. El usuario pidió, con un dibujo, que alcance con estar pegado al muro y saltar. Ahora, subiendo, se agarra cuando las manos llegan al filo: la pose de colgado no puede quedar más de 10 cm por encima de los pies, así el cuerpo no pega un tirón. Desde el piso, un salto sube los pies 1,17 m y las manos van 1,95 m por encima de ellos: los muros donde se agarra subiendo son más altos que los que se pueden subir saltando, así que no aparecen agarres no buscados. Detalle completo en la sección 8.7.
+
+> **Nota (2026-10-09), entre las filas 2 y 3.** En el laboratorio hay una salida más: Enganchado, colgarse de la cintura de un compañero que está agarrado de un borde o de una escalera. Es el mismo agarre que el de un borde, sin tecla: las manos buscan hacia las teclas o hacia donde mira el personaje, y tienen que pasar por la altura de su cintura a no más de 1 m. Se prueba después del borde y antes de la escalera. Capacidad: agarrar. Detalle en la sección 8.8.
 
 Hay condiciones, pero son listas planas por modo, no un árbol global. Un modo nuevo agrega su entrada en las listas de los modos desde donde se llega, y nada más. Las condiciones usan la intención de movimiento y la velocidad, no la orientación del modelo, para que primera y tercera persona simulen igual.
 
@@ -3695,6 +4016,15 @@ Dos reglas reducen las correcciones:
 | Arrastrar a un caído | El que arrastra recibe un modificador: mitad de velocidad, sin saltar ni agarrar. El caído pasa a Enganchado con rol arrastrado y sigue a la mano con barrido, después de que el otro se mueve. | En el cliente del que arrastra, el caído se dibuja pegado a su mano predicha. El caído ve todo en la línea del host. | Soltar, cuerpo trabado más allá del estiramiento máximo |
 | Revivir | El que revive queda fijo en el lugar por un modificador. El progreso es un temporizador del registro, en el host. | Si nada interrumpe, el fin es predecible: el host programa el "levantarse" para el tick de fin y lo cancela si hace falta. | Moverse, fuerza mayor al agarre, distancia, muerte o desconexión |
 
+> **Nota (2026-10-09), fila "Sujetar a quien cae o cuelga".** El punto 6 de la validación la armó con los roles al revés, a pedido del usuario. No es el de arriba el que agarra al que cae: el que salta se cuelga de la cintura de un compañero que ya está agarrado de un borde o de una escalera, sin tecla ("saltar directo al compañero mientras este se encuentra agarrado de alguna lado").
+>
+> - **El que sostiene** se queda quieto, con el agarre 1 más bajo; con Ctrl se suelta y se caen los dos.
+> - **El de abajo** se maneja como colgado de un borde: Ctrl se suelta y Espacio salta.
+> - **El registro** son dos campos del estado, de quién cuelga y quién cuelga de él. El host los anota al empezar cada tick, como un evento para el que sostiene.
+> - **La red:** el que se cuelga lo predice, también mientras cuelga (ver la nota del cambio de línea).
+>
+> Detalle en la sección 8.8.
+
 ##### Reglas de convivencia
 
 - **Ocupación.** Por defecto dos jugadores pueden compartir escalera, borde o cable sin bloquearse, porque no chocan entre sí. Donde el diseño pida un solo lugar, decide el host por tick y después por id; el perdedor recibe una corrección.
@@ -3718,6 +4048,8 @@ La presentación lee la simulación y nunca escribe en ella. Su trabajo es absor
 - **Orientación.** El giro del cuerpo se suaviza igual. La rotación de la cámara nunca se corrige: es input local.
 - **Teleport.** Respawn y teleports del host llaman a `reset_physics_interpolation()` y ponen el desvío en cero.
 - **Cambio de línea.** Se mezclan la pose predicha y la interpolada durante unos 0,2 s.
+
+> **Nota (2026-10-09).** La mezcla de 0,2 s se implementó con el cambio de línea de colgarse de un compañero (`f39ba70`) y se sacó con él, cuando el cliente pasó a predecir colgado (sección 8.8).
 
 ##### Animación
 
@@ -3924,6 +4256,12 @@ A cuelga de un borde y sostiene a B de la mano. B está en la línea interpolada
 4. Si B venía apretando agarrar y hay un borde al alcance, los ticks repetidos pueden capturarlo.
 5. El camino es el mismo si A muere, si una explosión rompe su agarre o si se destruye el objeto del que cuelga.
 
+> **Nota (2026-10-09).** En el laboratorio, con los roles del punto 6, B cuelga de la cintura de A, que está colgado de un borde.
+>
+> - **Si se va A:** el host quita su actor, a B se le rompe el invariante en su propio paso y sale a Aire con la velocidad que traía A. Está probado en red. No sube la época de B, porque la salida la calcula su propio paso.
+> - **Del lado de B:** su cliente se predice colgado, así que se entera con el snapshot y lo arregla como cualquier corrección, en vez de salir de la línea interpolada.
+> - **Si se va B:** a A se le borra quién cuelga de él y queda libre.
+
 ##### 6. Corrección a mitad de un dash
 
 F hace un dash en el tick 6000. En 6005 lo alcanza una explosión sin aviso, con política inmediata.
@@ -4090,6 +4428,8 @@ Cada pieza responde a un problema concreto: si se saca, algo identificable se ro
 6. **Una interacción con cambio de línea**: sujetar a un compañero.
 7. **Cámara lenta** del mundo y personal.
 
+> **Nota (2026-10-09), punto 6.** Hecho como "colgarse de un compañero" (sección 8.8). La primera versión hizo el cambio de línea y se probó en las dos PC. Después, a pedido, se cambió a predecir colgado, porque el compañero del que se cuelga está quieto.
+
 #### Fuentes
 
 Páginas abiertas el 2026-10-01.
@@ -4144,6 +4484,10 @@ Estos scripts no están en el repositorio: vivieron en una carpeta temporal de l
 | `demo_salto_arriba.gd` | 5, salto | La demostración: el laboratorio en una ventana, en cámara lenta y de costado, apretando W y Espacio como un jugador, con un cartel por paso y una hoja de capturas por forma. Se corre con ventana: `-s <script> --resolution 1280x720 -- --local` |
 | `diag_agarre_subiendo.gd` | 5, subiendo | Pegado a muros de 1,9 a 3,2 m, salta en el lugar sin teclas y con W, e imprime en qué tick del salto se agarra, a qué velocidad subía y el tirón |
 | `diag_techo_bajo.gd` | 5, subiendo | El borde «techo bajo» armado aparte: se agarra, salta mirando hacia atrás e imprime cada cambio de modo. Mostró que saltando hacia atrás se agarraba del techo |
+| `hook_pares.ps1` | 6 | Colgarse de un compañero en red: escalera y muro alto, con el host o el cliente colgándose, sin red simulada y con internet mala; el de arriba que se suelta; las dos desconexiones; y los empujones al que cuelga y al de arriba |
+| `diag_colgar_companero.gd` | 6 | Sin red, con el motor real y tres actores: dos que se cuelgan en el mismo tick, el de arriba quieto, los empujones débil y fuerte, y Ctrl del de arriba. Llama a `ActorMotor.assign_hooks()` al empezar cada tick, como el host |
+| `regresiones_p6.ps1` | 6 | Corre en orden las tandas de regresión anteriores (bases, postura, escalera, escalones y Hanging en red) y la repetición a 72 y con el ritmo variando |
+| `balsa_comparar.ps1` | 6 | Colgarse del borde sobre la balsa del host (`hang:5`), alternando el código del commit anterior (una copia mínima) y el actual, para ver si las correcciones cambiaron o son el azar de la balsa |
 
 El barrido de Hanging no está acá: es parte del repositorio (`scenes/net_lab/hang_sweep_test.gd`).
 
@@ -6205,4 +6549,274 @@ class Runner extends Node:
 
 func _initialize() -> void:
 	root.add_child(Runner.new())
+```
+
+#### hook_pares.ps1
+
+```powershell
+param([string[]]$Only = @(), [int]$HostQuit = 47, [int]$ClientQuit = 45)
+# Punto 6: colgarse de un compañero, con host y cliente por localhost.
+# Cada par: quién está agarrado (escalera o muro alto) y quién se cuelga, en
+# las dos combinaciones de host y cliente, con y sin red simulada.
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$proj = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+$common = @('--headless','--path',$proj,'-d','--scene','res://scenes/net_lab/net_lab.tscn','--')
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5','--sim-seed=22')
+
+function Show($file) {
+  Get-Content $file | Select-String -Pattern '^==== |resumen: rol=|adopci.n del jugador|compa.ero|cambio de l.nea|host: \d|correcciones: la|empujones programados:|reapareci|se dibuj|desconexi|se fue el jugador|empuj.n .* al jugador|estado del actor|SCRIPT|ERROR|WARNING: [A-Z]|TIMEOUT' | ForEach-Object {
+    $_.Line -replace 'ida_y_vuelta.*?saltos_de_reloj','saltos_de_reloj' -replace ' snapshots_perdidos.*$','' -replace '^\[net_lab\] ','' -replace 'm.ximo=\d+ ','' -replace 'actores=\[[^\]]*\] ','' -replace 'tick=\d+ ','' -replace 'prendida=true ','' }
+}
+
+function Pair($name, $hostExtra, $clientExtra) {
+  if ($Only.Count -gt 0 -and -not ($Only -contains $name)) { return }
+  $hostArgs = $common + @('--host','--port=7799','--bind=127.0.0.1',"--autoquit=$HostQuit") + $hostExtra
+  $clientArgs = $common + @('--client','--address=127.0.0.1','--port=7799',"--autoquit=$ClientQuit") + $clientExtra
+  $file = "$sp\comp_$name.txt"
+  & "$sp\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds ($HostQuit + 35) | Out-File -Encoding utf8 $file
+  "######## $name"
+  Show $file
+}
+
+Pair 'escalera_cliente_se_cuelga_sin' @('--test-input=ladderhold') @('--test-input=hook:ladder')
+Pair 'escalera_host_se_cuelga_sin' @('--test-input=hook:ladder') @('--test-input=ladderhold')
+Pair 'muro_cliente_se_cuelga_sin' @('--test-input=hookwall') @('--test-input=hook:wall')
+Pair 'muro_host_se_cuelga_sin' @('--test-input=hook:wall') @('--test-input=hookwall')
+Pair 'muro_cliente_se_cuelga_mala' @('--test-input=hookwall') (@('--test-input=hook:wall') + $mala)
+Pair 'muro_host_se_cuelga_mala' @('--test-input=hook:wall') (@('--test-input=hookwall') + $mala)
+Pair 'muro_suelta_arriba_cliente_se_cuelga_sin' @('--test-input=hookwall:drop') @('--test-input=hook:wall')
+Pair 'muro_suelta_arriba_cliente_se_cuelga_mala' @('--test-input=hookwall:drop') (@('--test-input=hook:wall') + $mala)
+Pair 'muro_suelta_arriba_host_se_cuelga_mala' @('--test-input=hook:wall') (@('--test-input=hookwall:drop') + $mala)
+# Desconexiones: se va el de arriba (cliente) con el host colgado de él; se va
+# el de abajo (cliente) mientras cuelga del host.
+Pair 'desconexion_se_va_el_de_arriba' @('--test-input=hook:wall') @('--test-input=hookwall','--test-quit-hooked=20')
+Pair 'desconexion_se_va_el_de_abajo' @('--test-input=hookwall','--report-after=40') @('--test-input=hook:wall','--test-quit-hooked=30')
+# Empujones del host cada 1,5 s: al que cuelga (cliente) y al de arriba (cliente).
+$times = (0..36 | ForEach-Object { 4 + $_ * 1.5 }) -join ','
+Pair 'empujon_fuerte_al_colgado' @('--test-input=hookwall',"--test-push-at=$times",'--test-push-force=4') @('--test-input=hook:wall')
+Pair 'empujon_debil_al_colgado' @('--test-input=hookwall',"--test-push-at=$times",'--test-push-force=2') @('--test-input=hook:wall')
+Pair 'empujon_programado_al_colgado_mala' @('--test-input=hookwall',"--test-scheduled-push-at=$times",'--test-push-force=4') (@('--test-input=hook:wall') + $mala)
+Pair 'empujon_debil_al_de_arriba' @('--test-input=hook:wall',"--test-push-at=$times",'--test-push-force=2') @('--test-input=hookwall')
+Pair 'empujon_programado_debil_al_de_arriba_mala' @('--test-input=hook:wall',"--test-scheduled-push-at=$times",'--test-push-force=2') (@('--test-input=hookwall') + $mala)
+```
+
+#### diag_colgar_companero.gd
+
+```gdscript
+extends SceneTree
+
+# Diagnóstico del punto 6 sin red: un muro de 3,6 m, B colgado del borde y dos
+# que saltan desde el mismo lugar hacia su cintura (los jugadores no chocan
+# entre sí). Pasos en el orden del reloj: primero los que no cuelgan de nadie,
+# por id; después los colgados. Al empezar cada tick, ActorMotor.assign_hooks()
+# hace lo del host. Casos:
+#  1. los dos se cuelgan en el mismo tick: se queda el de id más chico;
+#  2. el de arriba, cargado, aprieta D y Espacio: no se mueve ni salta;
+#  3. empujón débil (2) al de arriba cargado: se suelta y caen los dos;
+#  4. de nuevo colgados, empujón débil al de abajo (no alcanza) y fuerte (sí);
+#  5. el de arriba sin carga recibe el débil y aguanta;
+#  6. Ctrl del de arriba con uno colgado: caen los dos en el mismo tick.
+
+const FACE_Z := -0.5
+const TOP := 3.6
+
+
+class Runner extends Node:
+	var tuning := ActorTuning.new()
+	var actors: Array[ActorBody] = []
+	var presses := {}
+	var tick := 0
+	var b: ActorBody
+	var a1: ActorBody
+	var a2: ActorBody
+
+	func _ready() -> void:
+		SimClock.apply_tick_rate(SimClock.TICK_RATE)
+		add_child(_box(Vector3(60, 1, 60), Vector3(0, -0.5, 0)))
+		add_child(_box(Vector3(6, TOP, 1), Vector3(0, TOP * 0.5, FACE_Z - 0.5)))
+		for id in [1, 2, 3]:
+			var actor: ActorBody = load("res://scenes/actor/actor.tscn").instantiate()
+			actor.owner_peer_id = id
+			add_child(actor)
+			actors.append(actor)
+			presses[id] = 0
+		b = actors[0]
+		a1 = actors[1]
+		a2 = actors[2]
+		_run.call_deferred()
+
+	func _box(size: Vector3, center: Vector3) -> StaticBody3D:
+		var body := StaticBody3D.new()
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = size
+		shape.shape = box
+		body.add_child(shape)
+		body.position = center
+		return body
+
+	func _place(actor: ActorBody, state: ActorState) -> void:
+		state.quantize()
+		actor.state = state
+		actor.apply_state(state)
+
+	func _hang_b() -> void:
+		var s := ActorState.new()
+		s.mode = ActorState.Mode.HANGING
+		s.anchor_point = Vector3(0, TOP, FACE_Z)
+		s.facing_yaw = 0.0  # mira hacia -z, a la pared
+		s.position = Vector3(0, TOP - tuning.hang_height, FACE_Z + tuning.hang_distance)
+		s.jump_presses_seen = presses[1]
+		_place(b, s)
+
+	func _stand(actor: ActorBody, z: float) -> void:
+		var s := ActorState.new()
+		s.mode = ActorState.Mode.GROUND
+		s.on_floor = true
+		s.position = Vector3(0, 0, z)
+		s.jump_presses_seen = presses[actor.owner_peer_id]
+		_place(actor, s)
+
+	# Un tick: lo del host al empezar, y los pasos en el orden del reloj.
+	func _tick(inputs: Dictionary) -> Array:
+		tick += 1
+		var result := ActorMotor.assign_hooks(actors, tuning)
+		var order := actors.filter(func(x: ActorBody) -> bool: return x.state.mode != ActorState.Mode.HOOKED) \
+				+ actors.filter(func(x: ActorBody) -> bool: return x.state.mode == ActorState.Mode.HOOKED)
+		for actor: ActorBody in order:
+			var id := actor.owner_peer_id
+			var i: Array = inputs.get(id, [Vector2.ZERO, 0.0, 0])
+			ActorMotor.step(actor, actor.state, ActorInput.make(tick, i[0], i[1], i[2], presses[id]), tuning, SimClock.TICK_DT)
+		return result
+
+	func _modes() -> String:
+		var parts := []
+		for actor in actors:
+			var s := actor.state
+			parts.append("%d:%s%s pies=(%.3f, %.3f, %.3f) época=%d" % [actor.owner_peer_id, ActorState.Mode.keys()[s.mode],
+					" cuelga_de_él=%d" % s.hooked_by if s.hooked_by != 0 else "", actor.global_position.x,
+					actor.global_position.y, actor.global_position.z, s.epoch])
+		return "  ".join(parts)
+
+	# Los dos saltan desde z = 1.5 hacia la pared, con W, hasta colgarse o caer.
+	func _jump_both(who: Array) -> void:
+		for actor in who:
+			presses[actor.owner_peer_id] += 1
+		var hooked_at := {}
+		for t in 90:
+			var inputs := {}
+			for actor in who:
+				inputs[actor.owner_peer_id] = [Vector2(0, 1), 0.0, 0]
+			var r := _tick(inputs)
+			if r[0] > 0 or r[1] > 0:
+				print("   tick %d: el host anotó %d cambios y soltó a %d" % [tick, r[0], r[1]])
+			for actor in who:
+				if actor.state.mode == ActorState.Mode.HOOKED and not hooked_at.has(actor.owner_peer_id):
+					hooked_at[actor.owner_peer_id] = tick
+					print("   tick %d: %d se colgó de %d" % [tick, actor.owner_peer_id, actor.state.anchor_id])
+			var done := true
+			for actor in who:
+				if actor.state.mode != ActorState.Mode.HOOKED and not (actor.state.mode == ActorState.Mode.GROUND and t > 20):
+					done = false
+			if done and t > 5:
+				break
+		_tick({})
+		print("   después: %s" % _modes())
+
+	func _run() -> void:
+		print("== 1. los dos saltan juntos hacia la cintura de B")
+		_hang_b()
+		_stand(a1, 1.3)
+		_stand(a2, 1.3)
+		_tick({})
+		_jump_both([a1, a2])
+		print("== 2. B cargado aprieta D 30 ticks y salta")
+		var bx := b.global_position.x
+		for t in 30:
+			_tick({1: [Vector2(1, 0), 0.0, 0]})
+		presses[1] += 1
+		for t in 10:
+			_tick({1: [Vector2(1, 0), 0.0, 0]})
+		print("   B se movió %.4f m en x; modo %s; %s" % [b.global_position.x - bx, ActorState.Mode.keys()[b.state.mode], _modes()])
+		print("   pose válida de 2 para el host (anchored_pose_valid): %s" % ActorMotor.anchored_pose_valid(a1, a1.state, tuning))
+		print("== 3. empujón débil (2) a B cargado")
+		ActorMotor.apply_impulse(b.state, Vector3(0, 2, 2), 2, tuning)
+		b.state.epoch += 1
+		_tick({})
+		print("   %s" % _modes())
+		for t in 120:
+			_tick({})
+		print("== 4. de nuevo: B colgado y 2 se cuelga; empujón débil a 2, después fuerte")
+		_hang_b()
+		_stand(a1, 1.3)
+		_stand(a2, 6.0)
+		_tick({})
+		_jump_both([a1])
+		ActorMotor.apply_impulse(a1.state, Vector3(0, 2, 2), 2, tuning)
+		_tick({})
+		print("   débil (2): %s" % _modes())
+		ActorMotor.apply_impulse(a1.state, Vector3(0, 2, 2), 4, tuning)
+		_tick({})
+		print("   fuerte (4): %s" % _modes())
+		for t in 120:
+			_tick({})
+		print("== 5. B sin carga recibe el débil (2)")
+		_hang_b()
+		_stand(a1, 6.0)
+		_tick({})
+		_tick({})
+		ActorMotor.apply_impulse(b.state, Vector3(0, 2, 2), 2, tuning)
+		_tick({})
+		print("   %s" % _modes())
+		print("== 6. B suelta con Ctrl con 2 colgado")
+		_hang_b()
+		_stand(a1, 1.3)
+		_tick({})
+		_jump_both([a1])
+		_tick({1: [Vector2.ZERO, 0.0, ActorInput.BUTTON_CROUCH]})
+		print("   mismo tick del Ctrl: %s" % _modes())
+		_tick({})
+		print("   uno después: %s" % _modes())
+		get_tree().quit()
+
+
+func _initialize() -> void:
+	root.add_child(Runner.new())
+```
+
+#### regresiones_p6.ps1
+
+```powershell
+# Regresiones del punto 6: las mismas tandas que antes del commit bd2157b, en
+# orden (usan todas el puerto 7799), y la repetición a ritmo fijo y variable.
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$proj = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+& "$sp\regresiones_bases2.ps1" | Out-File -Encoding utf8 "$sp\p6_reg_bases.txt"
+& "$sp\postura_pares.ps1" | Out-File -Encoding utf8 "$sp\p6_reg_postura.txt"
+& "$sp\escalera_pares.ps1" | Out-File -Encoding utf8 "$sp\p6_reg_escalera.txt"
+& "$sp\escalones_pares.ps1" | Out-File -Encoding utf8 "$sp\p6_reg_escalones.txt"
+& "$sp\hang_pares.ps1" | Out-File -Encoding utf8 "$sp\p6_matriz_colgar.txt"
+foreach ($rate in @('72', 'varying')) {
+  & "$sp\run_godot.ps1" -GodotArgs @('--headless','--path',$proj,'-d','--scene','res://scenes/net_lab/actor_replay_test.tscn','--',"--rate=$rate") -TimeoutSeconds 590 | Out-File -Encoding utf8 "$sp\p6_reg_replay_$rate.txt"
+}
+"listo"
+```
+
+#### balsa_comparar.ps1
+
+```powershell
+param([int]$Rounds = 4)
+# Colgarse del borde sobre la balsa del host (hang:5), red limpia: el código
+# del último commit (copia mínima en b) contra el actual, alternando.
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$projects = @{ 'commit' = "$sp\b"; 'actual' = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur" }
+foreach ($round in 1..$Rounds) {
+  foreach ($name in @('commit', 'actual')) {
+    $common = @('--headless','--path',$projects[$name],'--scene','res://scenes/net_lab/net_lab.tscn','--')
+    $out = & "$sp\run_pair.ps1" -HostArgs ($common + @('--host','--port=7799','--bind=127.0.0.1','--autoquit=47')) -ClientArgs ($common + @('--client','--address=127.0.0.1','--port=7799','--autoquit=45','--test-input=hang:5')) -TimeoutSeconds 80
+    $corr = ($out | Select-String -Pattern 'correcciones=(\d+)' | Select-Object -Last 1).Matches[0].Groups[1].Value
+    $max = ($out | Select-String -Pattern 'la m.s grande de ([\d.]+)').Matches[0].Groups[1].Value
+    "$name ronda $round`: correcciones=$corr máxima=$max"
+  }
+}
 ```

@@ -2,8 +2,9 @@ class_name SimClock
 extends Node
 
 ## Reloj único de la simulación. Cuenta los ticks y llama a cada actor simulado
-## en un orden fijo (por id de dueño), así ninguna regla depende del orden de
-## los nodos en la escena. Los actores no tienen _physics_process propio.
+## en un orden fijo (los que cuelgan de un compañero al final, y por id de
+## dueño), así ninguna regla depende del orden de los nodos en la escena. Los
+## actores no tienen _physics_process propio.
 ##
 ## En el cliente, además, mantiene el adelanto sobre el host (paso 6): el
 ## cliente corre unos ticks por delante para que su input llegue antes de que
@@ -157,7 +158,13 @@ func _run_tick() -> void:
 		_adjust_history[slot] = _adjust_total
 		_adjust_history_tick[slot] = tick
 	tick_started.emit(tick)
-	for actor in sorted_actors():
+	# Primero los que no cuelgan de nadie y después los que cuelgan de un
+	# compañero, que sacan su pose de la de él en este mismo tick. El orden se
+	# fija antes de mover: quien se cuelga en este tick ya se movió.
+	var actors := sorted_actors()
+	var order := actors.filter(func(a: ActorBody) -> bool: return a.state.mode != ActorState.Mode.HOOKED) \
+			+ actors.filter(func(a: ActorBody) -> bool: return a.state.mode == ActorState.Mode.HOOKED)
+	for actor: ActorBody in order:
 		if not actor.simulated:
 			continue
 		if not actor.placed:

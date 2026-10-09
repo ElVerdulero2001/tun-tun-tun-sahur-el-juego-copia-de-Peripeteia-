@@ -73,11 +73,26 @@ extends Resource
 ## en metros: el margen para pasar arriba del borde con el control aéreo.
 @export var hang_climb_clearance := 0.2
 
+@export_group("Compañero")
+## Colgarse de un compañero que está agarrado de un borde o de una escalera
+## (modo Enganchado). Las manos van a la cintura: esta altura sobre sus pies,
+## en metros. El cuerpo cuelga hang_height por debajo de las manos.
+@export var hook_height := 1.0
+## Distancia de centro a centro, de espaldas a la pared: los dos cuerpos quedan
+## tocándose.
+@export var hook_distance := 0.7
+## Alcance: hasta dónde llega el agarre, como distancia máxima del snap.
+@export var hook_reach := 1.0
+
 @export_group("Agarre")
 ## Cuánta fuerza externa resiste cada modo antes de soltarse (escala de 0 a 5).
 ## Los modos libres (Suelo, Aire, Deslizamiento) tienen agarre 0.
 @export var ladder_grip := 3
 @export var hang_grip := 3
+@export var hook_grip := 3
+## Con un compañero colgado, el agarre del que lo sostiene baja este tanto
+## (el modificador de carga de la arquitectura).
+@export var hook_load_grip_drop := 1
 
 @export_group("Aire")
 ## Aceleración hacia la velocidad pedida en el aire, en m/s².

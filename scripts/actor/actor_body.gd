@@ -25,11 +25,21 @@ const GRAB_MAX_SPEED := 1.8
 ## Espacio libre: la forma de prueba se achica esto por cada lado, para que
 ## tocar el piso o una pared no cuente como choque.
 const FREE_SPACE_MARGIN := 0.02
+## Cambio de línea (colgado de un compañero): el dibujo pasa de una pose a la
+## otra en este tiempo, en segundos, como pide la arquitectura.
+const LINE_BLEND_TIME := 0.2
+## Un cambio de línea más grande que esto se muestra como un salto.
+const MAX_LINE_BLEND := 4.0
+## Grupo de todos los actores, para encontrar a un compañero por su id.
+const GROUP := "actores"
 
 ## Desvío del visual respecto del cuerpo. Es solo presentación: la simulación
-## no lo lee nunca. El del agarre va aparte porque decae más lento.
+## no lo lee nunca. El del agarre va aparte porque decae más lento, y el del
+## cambio de línea, porque se reparte en un tiempo fijo.
 var visual_offset := Vector3.ZERO
 var grab_offset := Vector3.ZERO
+var line_offset := Vector3.ZERO
+var _line_left := 0.0
 
 ## Estado del actor. Solo lo escriben ActorMotor y la red al restaurar.
 var state := ActorState.new()
@@ -67,6 +77,7 @@ var _hands: Array[MeshInstance3D] = []
 
 
 func _ready() -> void:
+	add_to_group(GROUP)
 	# La base (plataformas) la maneja la arquitectura y no Godot: Godot lee la
 	# velocidad de plataforma del presente, y eso falla al repetir ticks.
 	platform_floor_layers = 0
@@ -89,6 +100,25 @@ func _ready() -> void:
 		hand.visible = false
 		add_child(hand)
 		_hands.append(hand)
+
+
+## Los demás actores, por id de dueño, sin los que se están yendo.
+func teammates() -> Array[ActorBody]:
+	var list: Array[ActorBody] = []
+	for node in get_tree().get_nodes_in_group(GROUP):
+		var actor := node as ActorBody
+		if actor != null and actor != self and not actor.is_queued_for_deletion():
+			list.append(actor)
+	list.sort_custom(func(a: ActorBody, b: ActorBody) -> bool: return a.owner_peer_id < b.owner_peer_id)
+	return list
+
+
+## El actor de otro jugador, o null si no está.
+func teammate(peer_id: int) -> ActorBody:
+	for actor in teammates():
+		if actor.owner_peer_id == peer_id:
+			return actor
+	return null
 
 
 ## Activa la forma de colisión de una postura.
@@ -208,51 +238,74 @@ func present(actor_state: ActorState) -> void:
 	if grab_jump != Vector3.ZERO:
 		grab_offset -= grab_jump
 		grab_jump = Vector3.ZERO
-		_visual.position = visual_offset + grab_offset
-	# Colgado: las manos sobre el filo, a los costados. Cuelgan del cuerpo y no
-	# del dibujo, así quedan en el filo mientras el dibujo se acomoda.
-	var hanging := actor_state.mode == ActorState.Mode.HANGING
+		_update_visual()
+	# Colgado: las manos sobre el filo, a los costados. Colgado de un compañero,
+	# sobre su cintura. Cuelgan del cuerpo y no del dibujo, así quedan donde
+	# agarran mientras el dibujo se acomoda.
+	var holding := actor_state.mode == ActorState.Mode.HANGING or actor_state.mode == ActorState.Mode.HOOKED
 	for i in _hands.size():
-		_hands[i].visible = hanging
-	if hanging:
+		_hands[i].visible = holding
+	if holding:
 		var toward := Vector3.FORWARD.rotated(Vector3.UP, actor_state.facing_yaw)
 		var right := toward.cross(Vector3.UP)
-		var edge := BaseRegistry.origin(actor_state.anchor_id) + actor_state.anchor_point
+		var grip: Vector3
+		if actor_state.mode == ActorState.Mode.HOOKED:
+			# Las manos, donde las dejó el motor respecto del cuerpo en ese estado.
+			grip = actor_state.anchor_point - BaseRegistry.world_position(actor_state)
+		else:
+			grip = BaseRegistry.origin(actor_state.anchor_id) + actor_state.anchor_point - global_position \
+					+ Vector3.UP * 0.03 + toward * 0.05
 		for i in _hands.size():
-			_hands[i].position = edge - global_position + right * (0.2 if i == 0 else -0.2) + Vector3.UP * 0.03 + toward * 0.05
+			_hands[i].position = grip + right * (0.2 if i == 0 else -0.2)
 			_hands[i].rotation.y = actor_state.facing_yaw
 
 
 ## Dónde se ve el actor: el cuerpo más el desvío visual.
 func seen_position() -> Vector3:
-	return global_position + visual_offset + grab_offset
+	return global_position + visual_offset + grab_offset + _line_shown()
 
 
 ## El cuerpo acaba de saltar por una corrección y antes se lo veía en `seen`:
 ## el visual arranca desde ahí y llega solo a la posición nueva. Un salto más
 ## grande que MAX_SMOOTHED_JUMP se muestra tal cual. Lo que faltaba del agarre
-## pasa a decaer como la corrección.
+## o del cambio de línea pasa a decaer como la corrección.
 func smooth_from(seen: Vector3) -> void:
 	visual_offset = seen - global_position
 	grab_offset = Vector3.ZERO
+	_clear_line()
 	if visual_offset.length() > MAX_SMOOTHED_JUMP:
 		teleported()
 		return
-	_visual.position = visual_offset
+	_update_visual()
+
+
+## Cambio de línea: el cuerpo pasó de la pose predicha a la que se muestra
+## relativa al compañero, o al revés, y antes se lo veía en `seen`. El dibujo
+## va de una a la otra en LINE_BLEND_TIME, arrancando y frenando suave.
+func blend_line_from(seen: Vector3) -> void:
+	visual_offset = Vector3.ZERO
+	grab_offset = Vector3.ZERO
+	line_offset = seen - global_position
+	_line_left = LINE_BLEND_TIME
+	if line_offset.length() > MAX_LINE_BLEND:
+		teleported()
+		return
+	_update_visual()
 
 
 ## Fija el desvío visual tal cual, sin que decaiga solo: lo va moviendo quien
 ## lo pide. Va en el tick, como decay_visual_offset().
 func set_visual_offset(offset: Vector3) -> void:
 	visual_offset = offset
-	_visual.position = offset + grab_offset
+	_update_visual()
 
 
 ## Una vez por tick, en el tick: el desvío decae hacia cero. Va en el tick
 ## para que la interpolación de física lo suavice entre ticks. El del agarre
-## decae igual, pero sin pasar de GRAB_MAX_SPEED.
+## decae igual, pero sin pasar de GRAB_MAX_SPEED; el del cambio de línea se
+## reparte en su tiempo fijo.
 func decay_visual_offset(dt: float) -> void:
-	if visual_offset == Vector3.ZERO and grab_offset == Vector3.ZERO:
+	if visual_offset == Vector3.ZERO and grab_offset == Vector3.ZERO and _line_left <= 0.0:
 		return
 	var factor := pow(0.5, dt / CORRECTION_HALF_LIFE)
 	visual_offset *= factor
@@ -263,7 +316,10 @@ func decay_visual_offset(dt: float) -> void:
 	grab_offset = grab_offset.move_toward(Vector3.ZERO, step)
 	if grab_offset.length_squared() < 1e-8:
 		grab_offset = Vector3.ZERO
-	_visual.position = visual_offset + grab_offset
+	_line_left = maxf(_line_left - dt, 0.0)
+	if _line_left <= 0.0:
+		_clear_line()
+	_update_visual()
 
 
 ## El actor apareció en otro lugar (reaparición, teleport): sin desvío y sin
@@ -271,8 +327,25 @@ func decay_visual_offset(dt: float) -> void:
 func teleported() -> void:
 	visual_offset = Vector3.ZERO
 	grab_offset = Vector3.ZERO
+	_clear_line()
 	_visual.position = Vector3.ZERO
 	reset_physics_interpolation()
+
+
+## Lo que queda del desvío del cambio de línea.
+func _line_shown() -> Vector3:
+	if _line_left <= 0.0:
+		return Vector3.ZERO
+	return line_offset * (1.0 - smoothstep(0.0, 1.0, 1.0 - _line_left / LINE_BLEND_TIME))
+
+
+func _clear_line() -> void:
+	line_offset = Vector3.ZERO
+	_line_left = 0.0
+
+
+func _update_visual() -> void:
+	_visual.position = visual_offset + grab_offset + _line_shown()
 
 
 ## Nodo que se ve y que sigue la cámara: incluye el desvío visual.

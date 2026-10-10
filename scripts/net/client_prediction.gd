@@ -27,9 +27,14 @@ var last_correction_meters := 0.0
 var max_correction_meters := 0.0
 ## Estados del host sin predicción guardada para comparar (al empezar a predecir).
 var alignments := 0
+## Estados del host que eran una afirmación vieja de este cliente: lo que mandó
+## para ese tick antes de corregirse, y que el host adoptó. No se corrige con
+## ellos (ver reconcile()).
+var adopted_old_claims := 0
 
 var _inputs := {}  # tick -> ActorInput
 var _states := {}  # tick -> estado después del tick, en bytes
+var _claimed := {}  # tick -> estados en bytes que ya salieron como afirmación de ese tick
 
 
 func record(tick: int, input: ActorInput, state: ActorState) -> void:
@@ -40,15 +45,21 @@ func record(tick: int, input: ActorInput, state: ActorState) -> void:
 func clear() -> void:
 	_inputs.clear()
 	_states.clear()
+	_claimed.clear()
 
 
 ## Los últimos `count` ticks predichos que el host todavía no confirmó, del más
-## viejo al más nuevo: [ActorInput, estado en bytes] por tick.
+## viejo al más nuevo: [ActorInput, estado en bytes] por tick. Lo que sale queda
+## anotado como afirmado para ese tick.
 func recent(count: int) -> Array:
 	var ticks := _inputs.keys()
 	var list := []
 	for i in range(maxi(ticks.size() - count, 0), ticks.size()):
-		list.append([_inputs[ticks[i]], _states[ticks[i]]])
+		var tick: int = ticks[i]
+		var claimed: Array = _claimed.get_or_add(tick, [])
+		if not claimed.has(_states[tick]):
+			claimed.append(_states[tick])
+		list.append([_inputs[tick], _states[tick]])
 	return list
 
 
@@ -59,6 +70,15 @@ func reconcile(actor: ActorBody, host_tick: int, host_state: PackedByteArray, us
 	var predicted: Variant = _states.get(host_tick)
 	if predicted != null and predicted == host_state:
 		matches += 1
+		_forget_up_to(host_tick)
+		return
+	# El host adoptó lo que este cliente le afirmó para ese tick antes de
+	# corregirse. Lo afirmado después de la corrección todavía viaja, y el host
+	# lo va a adoptar cuando llegue. Corregir ahora volvería a lo viejo, y lo
+	# nuevo, al llegar, traería otra corrección de vuelta: un ida y vuelta que
+	# no termina, quieto entre dos lugares (el temblor parado sobre la balsa).
+	if host_state in _claimed.get(host_tick, []):
+		adopted_old_claims += 1
 		_forget_up_to(host_tick)
 		return
 	if used_input_tick != host_tick:
@@ -113,3 +133,6 @@ func _forget_up_to(tick: int) -> void:
 		if t <= tick:
 			_states.erase(t)
 			_inputs.erase(t)
+	for t in _claimed.keys():
+		if t <= tick:
+			_claimed.erase(t)

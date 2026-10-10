@@ -1,10 +1,13 @@
+@tool
 extends Node3D
 
 ## Pista de escalones del laboratorio. Tiene escalones sueltos de 10, 20, 30 y
 ## 40 cm (el de 40 ya no se sube caminando) y dos escaleras iguales, de seis
 ## escalones de 20 cm. Una no tiene nada encima; la otra tiene una rampa de
 ## colisión invisible, que es lo que pide la arquitectura para las escaleras.
-## Todo se arma al cargar, con el mismo código en todas las máquinas.
+## Todo se arma al cargar, con el mismo código en todas las máquinas. Con
+## @tool también se arma en el editor, para verlo; las piezas no se guardan
+## en la escena.
 ##
 ## Los escalones miran hacia -Z local: se suben caminando hacia +Z.
 

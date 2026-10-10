@@ -1,10 +1,12 @@
+@tool
 extends StaticBody3D
 
 ## Pared de medidas del laboratorio, para usar de escala: rayas cada 10 cm
 ## desde el piso, más largas cada 50 cm y de lado a lado cada metro, con la
 ## altura escrita al costado. Las rayas son solo dibujo, sin colisión.
 ##
-## La pared es una caja centrada en el nodo; las rayas van en su cara +Z.
+## La pared es una caja centrada en el nodo; las rayas van en su cara +Z. Con
+## @tool también se dibujan en el editor; no se guardan en la escena.
 
 @export var size := Vector3(4.0, 3.5, 0.2)
 

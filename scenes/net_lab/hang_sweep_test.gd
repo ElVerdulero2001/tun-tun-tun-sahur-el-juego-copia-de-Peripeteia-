@@ -66,7 +66,7 @@ const EXITS := ["soltarse", "saltar hacia atrás", "desplazarse", "desplazarse c
 ## Con las teclas de dirección apretadas o sin tocar ninguna.
 const KEYS := ["empuja", "sin teclas"]
 
-var _tuning := ActorTuning.new()
+var _tuning := ActorTuning.from_scene()
 var _cases: Array = []
 var _index := 0
 var _results: Array = []
@@ -79,6 +79,8 @@ var _last_climb_peak := -INF
 
 
 func _ready() -> void:
+	# Los valores del nodo Tuning de net_lab.tscn, en un nodo propio de la prueba.
+	add_child(_tuning)
 	SimClock.apply_tick_rate(SimClock.TICK_RATE)
 	Engine.physics_jitter_fix = 0.0
 	for keys in KEYS:
@@ -163,7 +165,7 @@ func _run(c: Dictionary) -> Dictionary:
 	var detailed := _detail == "%s,%.0f,%.1f,%.0f,%.1f,%s,%s" % [variant[0], speed, arrival, c["angle"], c["lateral"], c["goal"], c["keys"]]
 	_actor.apply_state(state)
 	for t in RUN_TICKS:
-		_note_tick(state, direction * push, variant, result)
+		_note_tick(state, yaw, variant, result)
 		ActorMotor.step(_actor, state, ActorInput.make(t, Vector2(0, push), yaw, 0, 0), _tuning, TICK_DT)
 		if detailed:
 			print("[detalle] t=%d modo=%s pies=%s vel=%s ancla=%s filo=%s por_qué=%s" % [t, ActorState.Mode.keys()[state.mode],
@@ -190,10 +192,10 @@ func _run(c: Dictionary) -> Dictionary:
 ## Antes de cada tick en el aire: si las manos cruzan la banda del filo (para
 ## el criterio 1) y, con la misma decisión y la misma dirección que el motor, por qué no se agarraría
 ## (para explicar los casos sin captura y la variante sin snap).
-func _note_tick(state: ActorState, wish: Vector3, variant: Array, result: Dictionary) -> void:
+func _note_tick(state: ActorState, look_yaw: float, variant: Array, result: Dictionary) -> void:
 	if state.mode != ActorState.Mode.AIR:
 		return
-	var direction := ActorMotor.grab_direction(state, wish).normalized()
+	var direction := ActorMotor.grab_direction(look_yaw).normalized()
 	var from := _actor.global_position
 	var fall := maxf(state.velocity.y - _tuning.gravity * TICK_DT, -_tuning.max_fall_speed)
 	var motion := Vector3(state.velocity.x, fall, state.velocity.z) * TICK_DT
@@ -203,7 +205,7 @@ func _note_tick(state: ActorState, wish: Vector3, variant: Array, result: Dictio
 		result["in_band"] = true
 	if result["why"] == "se agarraría":
 		return
-	var check := ActorMotor.grab_check(_actor, state, ActorMotor.grab_direction(state, wish), _tuning, TICK_DT)
+	var check := ActorMotor.grab_check(_actor, state, ActorMotor.grab_direction(look_yaw), _tuning, TICK_DT)
 	if check["edge"].is_empty():
 		return
 	var why: String = check["why"] if check["why"] != "" else "se agarraría"

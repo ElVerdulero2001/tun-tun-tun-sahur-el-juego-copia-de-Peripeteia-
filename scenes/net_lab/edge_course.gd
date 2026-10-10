@@ -1,3 +1,4 @@
+@tool
 extends Node3D
 
 ## Pista de bordes del laboratorio de Hanging, con las variantes que pide la
@@ -10,7 +11,9 @@ extends Node3D
 ##
 ## Todas las caras agarrables miran hacia +Z local: se llega caminando hacia -Z.
 ## Cada variante ocupa su lugar en la grilla, a VARIANT_SPACING de la anterior.
-## Todo se arma al cargar, con el mismo código en todas las máquinas.
+## Todo se arma al cargar, con el mismo código en todas las máquinas. Con
+## @tool también se arma en el editor, para verlo; las piezas no se guardan
+## en la escena.
 
 const VARIANT_SPACING := 3.5
 const ROW_SPACING := 8.0

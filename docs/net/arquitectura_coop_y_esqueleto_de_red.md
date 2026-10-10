@@ -1,7 +1,7 @@
 # Arquitectura de movimiento co-op y esqueleto de red: todo lo hecho hasta ahora
 
 **Proyecto:** tun-tun-tun-sahur · **Motor:** Godot 4.7.2 estable con Jolt Physics (`3d/physics_engine="Jolt Physics"` en `project.godot`).
-**Período:** del 2026-10-01 a las 20:41 al 2026-10-09 a las 18:46. Todas las horas están en hora de Argentina (UTC−3).
+**Período:** del 2026-10-01 a las 20:41 al 2026-10-10 a las 14:30. Todas las horas están en hora de Argentina (UTC−3).
 **Documento de arquitectura original:** [Arquitectura de movimiento co-op (Godot 4.7 + Jolt)](https://claude.ai/code/artifact/6760c3bf-39ed-4f2f-8d9d-23642c7ac797), en Claude Docs. Está copiado completo en el Apéndice A.
 
 **Historial de este documento:**
@@ -18,7 +18,8 @@
 - **Cuarta versión:** pedida el 2026-10-08 a las 16:32, commit `048dc4d` (16:41): "Con respecto a los md, actualízalos a los dos, y despues haces commit". Sumó la sección 8.6: la subida al borde se reemplazó por un salto para arriba con control aéreo. Ahí está cómo era la subida, por qué cambió, la demostración paso a paso y las pruebas. El Apéndice A y el documento de Claude Docs (revisión 60) quedaron corregidos con notas en los mismos lugares.
 - **Quinta versión:** pedida el 2026-10-08 a las 19:31, commit `2314f18` (19:35): "dale, actualizá los dos md y después hacé commit". Sumó la sección 8.7: agarrarse subiendo, sin tener que caer, y que al saltar hacia otro lado desde el colgado el personaje se dé vuelta hacia donde salta. El Apéndice A y el documento de Claude Docs (revisión 65) quedaron corregidos con notas.
 - **Corrección del 2026-10-09:** commit `9e4753e` (12:39). El usuario subió la rama a GitHub, y se corrigió "sin remota configurada" (secciones 1, 2, 7, 14 y 15).
-- **Esta actualización:** pedida el 2026-10-09 a las 18:46: "listo el push, actualizá los dos md y después hacé commit". Suma la sección 8.8: el punto 6 de la validación, colgarse de un compañero. Ahí están las decisiones del usuario, que dieron vuelta los roles del documento; la primera versión, con el cambio de línea que pide el documento; por qué se cambió después a predecir; y las pruebas. El Apéndice A y el documento de Claude Docs quedaron corregidos con notas. Como en las versiones anteriores, no se borró nada; donde algo cambió, se aclara qué era antes.
+- **Sexta versión:** pedida el 2026-10-09 a las 18:46, commit `f86b80f` (19:00): "listo el push, actualizá los dos md y después hacé commit". Sumó la sección 8.8: el punto 6 de la validación, colgarse de un compañero. Ahí están las decisiones del usuario, que dieron vuelta los roles del documento; la primera versión, con el cambio de línea que pide el documento; por qué se cambió después a predecir; y las pruebas. El Apéndice A y el documento de Claude Docs (revisión 66) quedaron corregidos con notas.
+- **Esta actualización:** pedida el 2026-10-10 a las 14:30, con las mismas palabras. Suma la sección 8.9: el punto 7, cámara lenta del mundo y personal, con los dos arreglos que salieron de probarlo en las dos PC. Uno es que el host le manda las cámaras lentas al que se conecta tarde. El otro, el temblor estando quieto sobre la balsa, venía del paso 7: un ida y vuelta entre la corrección del cliente y la adopción del host. Suma también la decisión sobre las correcciones de la balsa y lo que el usuario contó de los objetos con física y los vehículos del juego. El Apéndice A y el documento de Claude Docs (revisión 67) quedaron con notas en ocho lugares. Como en las versiones anteriores, no se borró nada; donde algo cambió, se aclara qué era antes.
 
 Este documento junta todo lo que se hizo, sin recortes:
 
@@ -26,7 +27,7 @@ Este documento junta todo lo que se hizo, sin recortes:
 - la arquitectura y las decisiones que se tomaron después;
 - el plan de 8 pasos del esqueleto de red y en qué se apartó la implementación;
 - cada paso implementado, con sus archivos, decisiones, problemas, pruebas automáticas, mediciones y pruebas en dos PC reales;
-- la validación de la arquitectura, punto por punto: base propia, postura y espacio libre, escalera con empujones programados e inmediatos, el escalón, Hanging con snap y colgarse de un compañero;
+- la validación de la arquitectura, punto por punto: base propia, postura y espacio libre, escalera con empujones programados e inmediatos, el escalón, Hanging con snap, colgarse de un compañero y la cámara lenta;
 - el estado actual del código, los formatos de red y las constantes;
 - cómo usar el laboratorio;
 - los hechos de Godot y Jolt que se comprobaron en el camino, los errores (incluidos los míos) y cómo se arreglaron;
@@ -79,16 +80,21 @@ Este documento junta todo lo que se hizo, sin recortes:
 - **Colgarse de un compañero (punto 6)**, probado en las dos PC y commiteado. El usuario dio vuelta los roles del documento: no es el de arriba el que agarra al que cae, sino que el que salta se cuelga de la cintura de un compañero que ya está agarrado de un borde o de una escalera (modo Enganchado). No tiene tecla, el alcance es de 1 m, y el de arriba se queda quieto. Hay un muro alto nuevo para probarlo.
 
   La primera versión hacía el cambio de línea que pide el documento: colgado, el cliente no se predecía y el host decidía todo. En la prueba en dos PC, con 200 ms, el salto recién salía cuando el host respondía. A pedido, ahora el cliente se predice colgado, porque el compañero está quieto: el salto y Ctrl responden al instante, y lo que haga el compañero llega como corrección (sección 8.8).
-- **La notebook se actualiza con un doble clic** desde una carpeta compartida de esta PC. Reemplazó a los zips desde el escalón (sección 6.2).
-- **Veinte commits** en la rama `codex/parkour-v3-h0-lab`:
-    - el esqueleto de red: `d75ef67`, `9cd1936`, `7547de1` y `c0e0421`;
-    - las cinco primeras versiones de este documento y una corrección: `9caaec3`, `375d419`, `fa26986`, `048dc4d`, `2314f18` y `9e4753e`;
-    - la validación: `600002a`, `25f7806`, `cb71b16`, `91a4433`, `b907dae` (escalón), `3cdcc91` (Hanging), `3825c2b` (salto para arriba), `bd2157b` (agarre subiendo), `f39ba70` (colgarse de un compañero, con cambio de línea) y `e21d6c6` (colgado, predicho).
+- **Cámara lenta del mundo y personal (punto 7)**, probada en las dos PC y commiteada. La del mundo la pide cualquier jugador con la V: el host la programa con anticipación y todas las máquinas pasan al 30 % en el mismo tick durante 3 s, con los actores, las plataformas y la balsa. La personal la aplica el host a los demás con la B. Probarla en las dos PC sacó dos fallas (sección 8.9):
+    - quien se conectaba después de una V tenía las plataformas guionadas desfasadas para siempre; ahora el host le manda todas las cámaras lentas al que se conecta;
+    - parado y quieto sobre la balsa con demora, el jugador temblaba entre dos lugares. Era un ida y vuelta entre la corrección del cliente y la adopción del host, que venía del paso 7. Ahora el cliente no se corrige hacia algo que él mismo afirmó.
 
-  Esta sexta versión del documento va en un commit propio, el número 21. El 2026-10-09 el usuario subió la rama a GitHub dos veces: hasta `2314f18` a las 11:39 y hasta `e21d6c6` a las 18:46 (sección 15).
+  Las correcciones que quedan en la balsa al subirse o saltar se aceptaron: a los jugadores se les va a pedir internet de menos de 140 ms y con poca pérdida.
+- **La notebook se actualiza con un doble clic** desde una carpeta compartida de esta PC. Reemplazó a los zips desde el escalón (sección 6.2).
+- **Veintitrés commits** en la rama `codex/parkour-v3-h0-lab`:
+    - el esqueleto de red: `d75ef67`, `9cd1936`, `7547de1` y `c0e0421`;
+    - las seis primeras versiones de este documento y una corrección: `9caaec3`, `375d419`, `fa26986`, `048dc4d`, `2314f18`, `9e4753e` y `f86b80f`;
+    - la validación: `600002a`, `25f7806`, `cb71b16`, `91a4433`, `b907dae` (escalón), `3cdcc91` (Hanging), `3825c2b` (salto para arriba), `bd2157b` (agarre subiendo), `f39ba70` (colgarse de un compañero, con cambio de línea), `e21d6c6` (colgado, predicho), `c408ad6` (cámara lenta) y `b7403fb` (el arreglo del temblor).
+
+  Esta séptima versión del documento va en un commit propio, el número 24. El usuario subió la rama a GitHub cuatro veces: el 2026-10-09 hasta `2314f18` a las 11:39, hasta `e21d6c6` a las 18:46 y hasta `f86b80f` a las 19:01; y el 2026-10-10 hasta `b7403fb`, a las 14:30 (sección 15).
 - **Cambios pendientes:** los cambios previos sin commitear de esa rama quedaron intactos.
     - La primera versión de este documento contaba 137: los 136 del parkour más un archivo temporal del editor de Godot.
-    - La segunda versión contaba 138; la tercera y esta, 137. No se averiguó cuáles cambiaron; ninguna es del laboratorio.
+    - La segunda versión contaba 138; de la tercera a esta, 137. No se averiguó cuáles cambiaron; ninguna es del laboratorio.
     - Entre ellas está `project.godot`, con el cambio de versión 4.6 → 4.7 que hizo el editor. Las dos acciones del Mapa de entrada que agregó el laboratorio sí están commiteadas.
 
 **Resultados principales:**
@@ -123,6 +129,12 @@ Este documento junta todo lo que se hizo, sin recortes:
 | Colgarse de un compañero, cambio de línea, en dos PC | Funciona; con 200 ms el salto sale recién cuando el host responde, ~0,4 s después |
 | Colgarse de un compañero, predicho, en red | El que se cuelga, 0 correcciones al colgarse, soltarse y saltar, también con internet mala. Si el de arriba se suelta, una corrección por caída: 0,10 m sin red simulada y 0,69 m con internet mala |
 | Colgarse de un compañero, predicho, en dos PC con 200 ms en las dos | "funciona muy bien" |
+| Cámara lenta del mundo y personal en red: la V del host o del cliente, la B y las dos juntas, sin red simulada y con internet mala | 0 correcciones y el mismo estado final en las dos máquinas; un anuncio que llegó tarde se repitió sin corrección |
+| El mismo salto con cámara lenta | Hasta 2,5 cm más alto (1,1388 m normal, 1,1643 m al 30 %), y dura 3,3 veces más |
+| Repetición determinista con cámara lenta | 5.178 repeticiones y 230.763 ticks idénticos, a 60 y con el ritmo variando |
+| Cámara lenta en dos PC | "todo funciona correctamente"; las plataformas quedaban desfasadas para quien entraba después de una V (hasta 7,33 m de corrección). Con el arreglo, 0 correcciones en los 7 casos de entrar tarde |
+| Quieto sobre la balsa con internet mala | De 56 correcciones (un ida y vuelta entre dos lugares a 0,69 m) a entre 0 y 3 por corrida, en 8 corridas. En dos PC: "los temblores se arreglaron" |
+| Arriba de la balsa, caminando y saltando, con internet mala en las dos | Antes del arreglo del temblor, 134 y 170 correcciones (y 88 y 167 con el código anterior al punto 7); después, 43 y 42 |
 
 ---
 
@@ -229,7 +241,18 @@ Este documento junta todo lo que se hizo, sin recortes:
 | 2026-10-09 14:57–15:06 | Prueba en las dos PC, capturas de 14:59 a 15:01. "Por ahora lo único que tengo para remarcar, es el tema de la latencia y como el host la maneja": colgado del host con 200 ms, el salto salía recién cuando el host respondía. Explicado: la teoría del usuario era correcta. |
 | 2026-10-09 15:37–16:03 | "que mi salto y mi Ctrl respondan al instante": el cliente pasa a predecir el actor colgado. Pruebas; un hueco en la prueba del de arriba que se suelta, cerrado. A las 16:03, listo para probar. |
 | 2026-10-09 18:34–18:39 | Prueba en las dos PC, con 200 ms en las dos: "funciona muy bien". El usuario eligió dos commits (18:39): `f39ba70`, con el cambio de línea tal como se probó, y `e21d6c6`, predicho. |
-| 2026-10-09 18:46 | "listo el push, actualizá los dos md y después hacé commit": la rama en GitHub hasta `e21d6c6`. Esta actualización y el documento de Claude Docs. |
+| 2026-10-09 18:46–19:00 | "listo el push, actualizá los dos md y después hacé commit": la rama en GitHub hasta `e21d6c6`. La sexta versión de este documento, el documento de Claude Docs (revisión 66) y el commit `f86b80f`. |
+| 2026-10-09 19:01–19:05 | "listo el push, sigamos con el punto 7, ¿pero que era el punto 7?". Explicado, con cuatro preguntas: la del mundo con una tecla que puede apretar cualquier jugador, 30 % durante 3 s, y la personal la aplica el host a los demás. |
+| 2026-10-09 19:05–20:05 | La cámara lenta del mundo y la personal, las pruebas en pareja, el salto medido con escala y la repetición. La repetición a 72 ticks por segundo falló en el tick 4998: el redondeo de `slide()`, arreglado. A las 20:05, listo para probar. |
+| 2026-10-09 20:20 | Prueba en las dos PC: "todo funciona correctamente", salvo que las plataformas quedaron en lugares distintos en cada notebook, y el host corregía. |
+| 2026-10-09 20:23–20:48 | Reproducido: una V antes de que entre el cliente nunca le llegaba. Arreglo: el host le manda todos los tramos al que se conecta. A las 20:48, listo para probar. |
+| 2026-10-09 21:04–21:24 | Treinta capturas. "por lo que parece ser, no depende de la cámara lenta", y un temblor del jugador "tanto con el player arriba del vagon como parado sobre el piso". Las capturas eran de la balsa, no del vagón. Comparado con el código anterior al punto 7: igual. |
+| 2026-10-09 21:32–21:52 | "esta vez ahora es un video". El usuario instaló ffmpeg para poder leerlo (21:41). Quieto sobre la balsa, el jugador iba y venía entre dos lugares: el ida y vuelta entre corrección y adopción, del paso 7. Arreglado en el cliente y probado una vez sin pantalla; la sesión se cortó ahí. |
+| 2026-10-10 13:08 | "las correcciones ocurren principalmente en la balsa, el vagón y muro que se mueve casi no los presentan". |
+| 2026-10-10 13:09–13:45 | Las pruebas del arreglo del temblor y las regresiones. "fijate que onda el headless, ya van mas de 30 minutos y no sale nada" (13:43) y "no me la pela, termine el proceso manualmente" (13:45): quedaron tres tandas sin correr. |
+| 2026-10-10 13:52–14:11 | "¿por que ocurre lo que ocurre con la balsa?", explicado. Después, qué hace Garry's Mod con los objetos con física, y qué objetos y vehículos va a tener el juego (sección 14). |
+| 2026-10-10 14:23–14:24 | "los temblores se arreglaron, pero no las correcciones, así que vamos a fingir demencia y pedirle a la gente que juegue con un buen internet [...]". Commits `c408ad6` (la cámara lenta) y `b7403fb` (el arreglo del temblor). |
+| 2026-10-10 14:30 | "listo el push, actualizá los dos md y después hacé commit": la rama en GitHub hasta `b7403fb`. Esta actualización y el documento de Claude Docs (revisión 67). |
 
 ---
 
@@ -382,6 +405,17 @@ El detalle está en la sección 8.7. En el Apéndice A y en el documento de Clau
 **Colgado de un compañero, el cliente se predice** (2026-10-09, 15:37, después de probarlo en las dos PC). El documento dice que Enganchado no se predice ("lo conduce el host") y que el cliente cambia de línea. La primera versión lo hizo así, y con 200 ms el salto salía recién cuando el host respondía. El pedido fue "que mi salto y mi Ctrl respondan al instante". Como el compañero del que se cuelga está quieto, el cliente puede calcular la pose desde él tal como lo ve, y da lo mismo que en el host. Lo que haga el compañero llega como corrección.
 
 El detalle está en la sección 8.8. En el Apéndice A y en el documento de Claude Docs (revisión 66) se agregaron notas en siete lugares: el caso "Sujetar", el modo Enganchado, el cambio de línea, la mezcla de 0,2 s de la presentación, la lista de salidas de Aire, el caso de la desconexión y la lista de lo que se valida primero.
+
+**La cámara lenta del mundo la pide cualquier jugador con una tecla** (2026-10-09, 19:04–19:05). El documento la muestra programada por el host a partir de un evento guionado; el laboratorio la programa igual, pero el pedido viene de la V de cualquier jugador, "temporalmente", hasta que existan capacidades especiales a elegir. La personal la aplica el host a los demás, como un empujón programado, y no un modificador.
+
+**Dos reglas que se agregaron al probarla** (sección 8.9):
+
+- **Al que se conecta, el host le manda todas las cámaras lentas del mundo que hubo.** Las plataformas guionadas van por el tiempo del mundo, y un tramo que alguien no conoce lo deja con las plataformas corridas para siempre. El documento no lo decía porque no trataba la entrada tarde.
+- **El cliente no se corrige hacia una afirmación que él mismo mandó para ese tick.** Si el host adoptó algo que el cliente le dijo antes de corregirse, corregir otra vez arma un ida y vuelta sin fin. Se suma a la regla de esperar los estados provisorios del paso 7, que tampoco está en el documento.
+
+Además, `move_and_slide()` con escala deja la velocidad tal cual si el movimiento no la tocó, en vez de dividirla siempre por el factor como dice el documento: dividirla dejaba un error de redondeo que dependía del delta del frame.
+
+En el Apéndice A y en el documento de Claude Docs (revisión 67) se agregaron notas en esos lugares y en los demás que toca el punto 7: ocho en total.
 
 ---
 
@@ -1122,7 +1156,7 @@ El documento de arquitectura termina con una lista, "Qué validan las primeras p
 | — | El escalón, pedido aparte antes del punto 5 | Hecho, probado en dos PC: commit `b907dae` (sección 8.4) |
 | 5 | El laboratorio de Hanging con snap y sus pruebas de confirmación | Hecho, probado en dos PC, con dos cambios pedidos después de la primera prueba: commit `3cdcc91` (sección 8.5). La subida al borde se reemplazó después por un salto para arriba (sección 8.6), y el agarre pasó a funcionar también subiendo (sección 8.7) |
 | 6 | Una interacción con cambio de línea: sujetar a un compañero | Hecho, probado en dos PC, como "colgarse de un compañero": commits `f39ba70` (con el cambio de línea) y `e21d6c6` (predicho, a pedido después de la primera prueba). Sección 8.8 |
-| 7 | Cámara lenta del mundo y personal | Pendiente; es el próximo |
+| 7 | Cámara lenta del mundo y personal | Hecho, probado en dos PC, con dos arreglos que salieron de la prueba: commits `c408ad6` (la cámara lenta, con las cámaras lentas al que se conecta tarde) y `b7403fb` (el temblor estando quieto, que venía del paso 7). Sección 8.9 |
 
 Cada punto siguió la misma rutina:
 
@@ -2553,6 +2587,191 @@ Dos capturas, a las 18:34:
 - **`f39ba70`**, `feat(net): hang from a teammate with a line change (validation item 6)`: 9 archivos, +906 / −88 líneas. Es la versión probada a las 14:57. El árbol de trabajo ya tenía el cambio encima, así que se commiteó desde una copia exacta guardada antes de tocarlo, sin pasar por los archivos de trabajo. Las huellas SHA-1 de los 9 archivos coincidieron con las de esa versión.
 - **`e21d6c6`**, `feat(net): predict hanging from a teammate so jump and Ctrl respond at once`: 4 archivos, +57 / −208 líneas. Las huellas de los 8 archivos del laboratorio coincidieron con la versión probada a las 18:34.
 
+### 8.9 Punto 7: cámara lenta del mundo y personal (2026-10-09 y 2026-10-10)
+
+#### Lo que pide el documento
+
+El punto 7 de la lista es "cámara lenta del mundo y personal". El documento la reparte en varias piezas:
+
+- **Escala de tiempo:** la del mundo la programa el host; la del actor viene de un modificador. Es un mecanismo, no un modo.
+- **La regla 5, tiempo del actor:** todo lo que dura (coyote, memoria del salto, aturdimiento) se mide en tiempo del actor. Una escala nunca se mide con su propio reloj: la del actor vence en tiempo del mundo, y la del mundo, en ticks.
+- **La regla 4, velocidad relativa a la base:** la escala del actor toca solo su propia locomoción, no lo que lo lleva la base.
+- **Red:** la cámara lenta del mundo es un evento confiable del host con número de tick, y sube la época de todos.
+- **El recorrido 2,** "Cámara lenta del mundo durante un salto especial": el host programa la escala 0,3 desde un tick, con un margen mayor que el RTT más alto; en ese tick cada máquina pone `Engine.time_scale` en 0,3 y Jolt frena lo que simula; la parábola del salto es la misma y se recorre 3,3 veces más lento; la escala vence a los 180 ticks reales.
+- **`move_and_slide()` con escala:** se multiplica la velocidad por el `dt` del actor dividido el delta del frame, se mueve y se divide la velocidad resultante por el mismo factor.
+- **En pantalla:** la interfaz y el mouse no se ralentizan.
+- **El riesgo:** "saltos de distinta altura según la escala".
+- **Descartado:** usar `Engine.time_scale` para la cámara lenta personal, porque es global.
+
+El documento no dice cómo se activa en el juego, cuánto dura ni quién se la aplica a quién. Eso lo decidió el usuario.
+
+#### Las decisiones del usuario (19:01–19:05)
+
+A las 19:01, después de subir la rama: "listo el push, sigamos con el punto 7, ¿pero que era el punto 7?". Se le explicó y se le hicieron tres preguntas con opciones. Las respuestas (19:04), tal cual:
+
+> **Cómo se activa la del mundo:** temporalmente va a ser con una tecla, pero a futuro tengo pensado en agregar una opcion para seleccionar capacidades especiales que se activan con la misma tecla, como la camara lenta, super salto/velocidad/fuerza, vision nocturna, etc.
+>
+> **Qué tan lenta y cuánto dura:** 30 % durante 3 s (Recomendado)
+>
+> **La personal, a quién le toca y cómo se activa:** El host a los demás
+
+Una pregunta más, sobre si la tecla de la del mundo la puede apretar cualquiera o solo el host, en los dos casos decidida y anunciada por el host (19:05):
+
+> cualquier jugador, la camara lenta se aplica a ambos
+
+#### Qué se implementó (`c408ad6`)
+
+**La tecla viaja en el input** (`actor_input.gd`, 11 bytes; eran 10): un contador de pulsaciones de la V, `ability_presses`, como el del salto. El host mira el contador propio y el del input más nuevo de cada cliente; si cambió, alguien la apretó. La primera vez que ve a un jugador solo anota su contador. La V se lee directo del teclado y no es una acción del Mapa de entrada, para no tocar `project.godot` con el editor abierto (sección 12).
+
+**La cámara lenta del mundo, en el host:**
+
+- **Una por vez:** si ya hay un tramo andando o por empezar, el pedido se ignora.
+- **Se programa como un empujón programado:** empieza en el tick que le alcanza al cliente más lejano (ahora + margen del input + ida y vuelta en ticks + 4) y termina 180 ticks después (`world_slow_time`, 3 s reales).
+- **Se anuncia a todos por un mensaje confiable nuevo**, con la escala en milésimos (`NetSync.send_world_slow`). Todas las máquinas guardan el tramo `[inicio, fin, escala]` en `SimClock`.
+- **En el tick de inicio,** el host sube la época de todos los actores; el cliente sube la del suyo en ese mismo tick. Una afirmación calculada sin saber del tramo no se adopta.
+
+**Lo que hace un tramo en cada máquina** (`sim_clock.gd`):
+
+- **El reloj:** al empezar cada tick, `Engine.time_scale` pasa a ritmo/60 × escala. El delta de física queda en 1/60 × escala, así que Jolt frena la balsa en el host. Los ticks por segundo reales no cambian: un tramo de 180 ticks dura 3 s reales.
+- **Los actores:** avanzan `SimClock.world_dt(tick)`, que es 1/60 × la escala del tick.
+- **Las plataformas guionadas:** van por el tiempo del mundo (`SimClock.world_ticks`), que dentro de un tramo avanza 0,3 por tick. Su pose y su velocidad salen de ahí, también en la interpolación de los demás jugadores. Después de un tramo, cada plataforma quedó 126 ticks (2,1 s) atrás de donde hubiera estado; en todas las máquinas igual.
+- **Si el anuncio llega tarde** (el tick de inicio ya se predijo), el cliente repite desde ahí, como con un empujón programado; si ya no tiene ese tick, lo arregla la corrección del snapshot.
+
+**La cámara lenta personal** (la B, solo el host, a los demás): un evento programado de un tipo nuevo (`NetSync.EventKind.SLOW`), por el mismo canal que los empujones, que sube la época del afectado. Pone `slow_left` en 3 s (`personal_slow_time`) en el estado del actor (89 bytes; eran 85); si ya estaba lento, empieza de nuevo. Mientras `slow_left` es mayor que cero, el `dt` del actor se multiplica por 0,3 (`slow_scale`) en la etapa 1 del paso, y `slow_left` baja con el tiempo del mundo, antes de la escala: es la regla 5. La base lo sigue llevando a su velocidad (regla 4). Las dos juntas dan 9 %.
+
+**`move_and_slide()` con escala** (`ActorBody.slide`): si el movimiento no tocó la velocidad, queda la de antes, tal cual. El documento dice dividirla por el factor, pero eso deja un error de redondeo que depende del delta del frame: la prueba de repetición a 72 ticks por segundo falló en el tick 4998, con una velocidad de 3,845 contra 3,846. Con el arreglo, la repetición coincide a cualquier ritmo.
+
+**El laboratorio:**
+
+- en el panel, "CÁMARA LENTA DEL MUNDO: al 30 % · quedan X s" o "Cámara lenta del mundo en X s", y "CÁMARA LENTA PERSONAL: al 30 % · quedan X s del mundo";
+- en la ayuda, "V cámara lenta del mundo, para todos" y, en el host, "B cámara lenta a los demás";
+- la medición de tirones de los demás tiene en cuenta las dos escalas;
+- en la traza, la escala del mundo y lo que le queda de cámara lenta personal;
+- los argumentos `--test-world-slow-at` y `--test-personal-slow-at`, y una línea más en el resumen;
+- la prueba de repetición suma tramos con cámara lenta del mundo, con la personal y con las dos.
+
+#### Pruebas automáticas
+
+| Prueba | Resultado |
+| --- | --- |
+| El host aprieta la V con el cliente en zigzag; lo mismo apretada por el cliente; la personal; las dos juntas. Sin red simulada y con internet mala | 0 correcciones, y el mismo estado final en el host y en el cliente. Con internet mala, un anuncio llegó tarde y se repitió desde su tick sin corrección |
+| Programada con solo 3 ticks de aviso, a propósito | 1 tarde y 1 demasiado tarde: 1 corrección de 0,751 m, como se esperaba |
+| Con el mundo lento: sobre el vagón, sobre la balsa, colgándose de bordes con la del mundo y la personal | Vagón y bordes: 0 correcciones. Balsa: 4 (la más grande de 0,29 m), su azar de siempre |
+| El mismo salto, sin pantalla (`diag_salto_lento.gd`) | Normal: 1,1388 m de alto, 0,97 s en el aire. Mundo lento o personal: 1,1643 m, 3,25 s. Las dos: 1,1496 m, 10,67 s. Coyote: 0,100 s normal y 0,333 s reales con el mundo lento |
+| Repetición, a 60 y con el ritmo variando | 5.178 repeticiones y 230.763 ticks idénticos, con 385 ticks de cámara lenta; huella `842c98a6eb27c29c`. A 72, antes del arreglo de `slide()`, fallaba en el tick 4998 |
+| Regresiones: bases, postura, escalera, escalones, Hanging en red, colgarse de un compañero y el barrido | Igual que antes, salvo la balsa, que varía |
+
+La altura del salto cambia hasta 2,5 cm según la escala. Es el riesgo que anota el documento, y viene de la cuantización: la velocidad se guarda en milímetros por segundo, y con un `dt` de 0,0015 s el paso de la gravedad (0,0147 m/s) se redondea a 0,015.
+
+#### Primera prueba en dos PC: las plataformas desfasadas (20:20)
+
+> listo, ya lo probé, las capturas están en la carpeta, todo funciona correctamente. Una sola cosa que note, no se en que punto exactamente o que fue lo que lo causo, pero en un punto la sincronización entre las dos notebooks se perdió. Esto desencadeno que las plataformas móviles se moviesen en ubicaciones distintas en las notebooks. Por consecuencia, lo que uno veía en la otra notebook parecía estar "quieta", pero no, en realidad la desincronización forzaba una corrección en la otra notebook generada por el host. Fuera de eso, la cámara lenta funciona bien.
+
+Cuatro capturas, de las 20:13 a las 20:14. La notebook, arriba del vagón ("base: Vagon (1)"), llevaba 960 correcciones, la última de 7,33 m. En el host: 712 afirmaciones adoptadas (la más lejana a 0,96 m), y 16 rechazadas por época, 327 por distancia y 732 por pose.
+
+**La causa:** si alguien apretaba la V cuando todavía no había ningún cliente conectado, el host anotaba el tramo pero no se lo mandaba a nadie. Quien se conectaba después no lo conocía, y sus plataformas guionadas quedaban 2,1 s adelantadas para siempre. Lo mismo le pasaría a quien sale y vuelve a entrar después de una V. Según los contadores de las capturas, el host estuvo solo unos 2 o 3 minutos antes de que entrara la notebook.
+
+**Reproducido:** con la V del host antes de que entre el cliente y el cliente sobre el vagón, 197 correcciones, la más grande de 5,86 m. Con la V después, 0.
+
+**El arreglo** (también en `c408ad6`):
+
+- al que se conecta, el host le manda todos los tramos anotados, también los que ya terminaron;
+- `SimClock.add_world_slow` no anota dos veces el mismo tramo (mismo tick de inicio) y los deja en orden. Hace falta porque, con la red simulada del host prendida, un anuncio sale demorado y puede llegarle también a uno que se conectó en el medio;
+- el resumen de las pruebas imprime la lista de tramos, para comparar el host con el cliente.
+
+| Prueba del arreglo | Resultado |
+| --- | --- |
+| Siete casos de entrar tarde: una V antes, dos V antes, entrar en plena cámara lenta, e internet mala en el cliente o en el host | 0 correcciones, y la misma lista de tramos en el host y en el cliente |
+| Lo mismo con el código anterior al arreglo, V antes | 197 correcciones, la más grande de 5,86 m |
+| Las demás pruebas de cámara lenta | Igual que antes. La balsa: 19 correcciones (la más grande de 0,52 m), dentro de lo que varía con el mismo código (de 0 a 51) |
+| Repetición, a 60 y con el ritmo variando | La misma huella, `842c98a6eb27c29c` |
+
+#### Segunda prueba en dos PC: la balsa y el temblor (21:04–21:10)
+
+Treinta capturas, de las 21:04 a las 21:05, casi todas de la notebook:
+
+> listo, ya lo probé, las capturas están en la carpeta y por lo que parece ser, no depende de la cámara lenta para que ocurra. Como veras en las capturas, solo lo probé en el carrito o vagón, no me acuerdo el nombre que le pusiste, no en otro lado. Ademas vi como en ciertas ocaciones empieza a temblar el player de la otra notebook, esto ocurre tanto con el player arriba del vagon como parado sobre el piso, la temblequera ocurre igual, hasta que pasado X tiempo se detiene.
+
+En todas las capturas de la notebook, el panel decía "base: Balsa (3)": era la balsa, no el vagón. La balsa la mueve solo el host, con física y con un rumbo al azar cada 3 s; la notebook no puede saber adónde va, y arriba de ella el host la corrige. En la última captura del host, esta PC también tenía la internet mala prendida.
+
+Para ver si era nuevo, se corrieron las mismas pruebas con el código de ahora y con una copia del commit anterior al punto 7 (`f86b80f`). En todas, el host prende internet mala a los 12 s y el cliente la tiene desde el principio:
+
+| Prueba | Antes del punto 7 | Con el punto 7 |
+| --- | --- | --- |
+| Los dos arriba de la balsa, 40 s, dos corridas | 88 y 167 correcciones, la más grande de 1,4 m | 134 y 170, la más grande de 1,6 m |
+| En el piso, el cliente en zigzag | 0 correcciones | 0 |
+| En el piso, el cliente mira al host en zigzag | 0,8 % de tirones del otro | 0,8 % |
+
+No venía de la cámara lenta. El temblor, con fotos sueltas, no se podía ver.
+
+#### El video y el temblor (21:32–21:52)
+
+> listo, ya lo probé, esta vez ahora es un video
+
+Un video de 55 s de la pantalla de la notebook, grabado con OBS. Para leerlo el usuario instaló ffmpeg (21:41), y se sacaron cuadros: uno por segundo para ver el panel y todos los cuadros de los momentos del temblor. Lo que tiembla es el propio jugador de la notebook. Parado y quieto arriba de la balsa ("Velocidad (sobre la base): 0.00"), con internet mala, recibía 4 o 5 correcciones por segundo: de 103 a 127 en unos 5 s.
+
+Quieto sobre una base no debería corregirse: la posición se guarda relativa a la base. Se sumó una prueba nueva, `--test-input=stand:3` (se sube a la balsa y se queda quieto), y un aviso provisorio que imprimía cada corrección con lo predicho y lo del host. Con internet mala, 56 correcciones: casi todas estando quieto, yendo y viniendo entre dos lugares a 0,69 m uno del otro, cada 2 a 16 ticks:
+
+```
+corrección en el tick 548: predicho (-0.9948, 0.1501, 1.047), host (-0.4237, 0.1502, 0.6512)
+corrección en el tick 558: predicho (-0.4237, 0.1502, 0.6512), host (-0.9948, 0.1501, 1.047)
+corrección en el tick 562: predicho (-0.9948, 0.1501, 1.047), host (-0.4237, 0.1502, 0.6512)
+...
+```
+
+**La causa, del paso 7 y no del punto 7.** Es un ida y vuelta entre la corrección del cliente y la adopción del host:
+
+1. Al subirse a la balsa, el cliente y el host quedan con dos posiciones distintas (A y B), las dos válidas y quietas.
+2. Un snapshot dice B y el cliente se corrige a B: restaura y repite, y desde ahí sus afirmaciones dicen B.
+3. Pero las afirmaciones que ya había mandado, que dicen A, siguen viajando. El host las recibe, son creíbles (a menos de 1 m) y las adopta: su estado pasa a ser A.
+4. Los snapshots de esos ticks dicen A. El cliente, que ya está en B, se corrige a A. Y así sin fin.
+
+Nada lo frena, porque A y B son las dos lugares donde quedarse quieto. En el piso empieza igual si un input tardío deja al host y al cliente en lugares distintos justo al frenar. Termina por azar, por ejemplo cuando una afirmación se rechaza por pose. Es "hasta que pasado X tiempo se detiene".
+
+**El arreglo** (`b7403fb`, `client_prediction.gd`): el cliente guarda lo que afirmó para cada tick, todas las versiones que mandó. Si el estado del host para un tick es una de sus propias afirmaciones de ese tick, no corrige: el host adoptó algo que el cliente le dijo antes de corregirse, y lo afirmado después todavía viaja y el host lo va a adoptar. Esas veces se cuentan aparte (`afirmaciones_viejas_adoptadas` en el resumen). Si el host no adopta lo nuevo, el snapshot siguiente no va a ser ninguna afirmación del cliente, y ahí sí corrige.
+
+| Prueba del arreglo | Antes | Después |
+| --- | --- | --- |
+| Quieto arriba de la balsa, sin red simulada, con internet mala en el cliente y en los dos | 56 correcciones con internet mala, casi todas quieto | 0 a 3 por corrida, en 8 corridas. En la primera, con el aviso provisorio todavía puesto, las 3 fueron al subirse; quieto, ninguna |
+| Quieto arriba del vagón, internet mala en los dos | — | 0 |
+| Los dos arriba de la balsa, caminando y saltando, internet mala en los dos | 134 y 170 | 43 y 42 |
+| En el piso, con el mismo salto de demora | 0 | 0 |
+| Bases, postura, escalera, escalones y Hanging en red | — | Igual que antes; la balsa con internet mala, de 11 a 0 |
+| Colgado del borde sobre un cuerpo del host (`hang:5`) | Sin red simulada 88 (la más grande de 0,10 m); con internet mala 279 (0,29 m) | 125 (0,37 m) y 45 (0,28 m). No se llegó a ver si la de sin red simulada es el azar del borde o el arreglo |
+
+No se corrieron, porque el usuario cortó la tanda a los 36 minutos (13:45: "no me la pela, termine el proceso manualmente"): colgarse de un compañero, la cámara lenta y entrar tarde, con el arreglo del temblor.
+
+#### Lo que pasa con la balsa, y la decisión (2026-10-10, 13:08–14:23)
+
+A las 13:08, al día siguiente:
+
+> bueno, resulta que las correcciones ocurren principalmente en la balsa, el vagón y muro que se mueve casi no los presentan, para no decir que no los tiene.
+
+A pedido ("¿por que ocurre lo que ocurre con la balsa?"), se explicó: el vagón y el muro siguen un recorrido fijo, así que las dos PC saben dónde van a estar; la balsa la decide solo el host al azar, y la notebook, que juega adelantada, la ve con 0,2 a 0,4 s de atraso. Al subirse, bajarse o saltar arriba, cada PC calcula con la balsa en otro lugar. Quieto en el medio no debería pasar nada; eso era el ida y vuelta.
+
+Después se habló de los objetos con física y de los vehículos del juego (sección 14). La prueba del arreglo, a las 14:23:
+
+> los temblores se arreglaron, pero no las correcciones, así que vamos a fingir demencia y pedirle a la gente que juegue con un buen internet que tenga poca perdida de paquetes y unos ms inferiores a 140.
+
+#### Lo que falta del documento y las simplificaciones
+
+- **Una tecla en vez de una capacidad:** a futuro, la misma tecla va a activar capacidades especiales a elegir.
+- **Una cámara lenta del mundo por vez;** un segundo pedido mientras hay una andando o por empezar se ignora.
+- **La personal es un evento del host, no un modificador:** no hay sistema de modificadores, ni campo lento por zona.
+- **Entre apretar la V y que empiece** pasan unos 0,12 s en la red de la casa y unos 0,4 s con internet mala: es el aviso para el cliente más lejano.
+- **El salto cambia hasta 2,5 cm** de alto según la escala.
+- **Las plataformas guionadas** recuerdan todos los tramos desde el arranque; cada uno suma un poco de cuenta.
+- **Un actor con cámara lenta personal que deja una plataforma** se lleva la velocidad de la plataforma, y la recorre a su escala. No se probó.
+- **La altura de la cámara** sigue a la cabeza con un suavizado que también se frena con la escala.
+- **No hay sonido** que escalar.
+
+### Commits `c408ad6` y `b7403fb`
+
+**Fecha:** 2026-10-10, 14:24, los dos, después de la prueba de las 14:23. Igual que en el punto 6, cada versión probada va en su commit:
+
+- **`c408ad6`**, `feat(net): world and personal slow motion (validation item 7)`: 11 archivos, +465 / −60 líneas. Es la versión de la segunda prueba (21:04), con el arreglo de los tramos. `net_lab.gd` ya tenía encima los cambios del arreglo del temblor, así que se commiteó desde una copia guardada antes de tocarlo, sin pasar por el árbol de trabajo (`git hash-object` y `git update-index`). Las huellas SHA-1 de los 11 archivos coincidieron con las de esa versión.
+- **`b7403fb`**, `fix(net): stop the correction ping-pong when the host adopts an old claim`: 2 archivos, +48 / −5 líneas. Las huellas de los 12 archivos del laboratorio coincidieron con la versión probada a las 14:23.
+
 ---
 
 ## 9. Estado actual del código
@@ -2565,37 +2784,37 @@ Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (p
 
 | Archivo | Líneas | Qué hace |
 | --- | --- | --- |
-| `scripts/actor/actor_state.gd` (`ActorState`) | 195 (130) | Estado completo del actor al final de un tick: modos Suelo, Aire, Deslizamiento, Escalera, Colgado y Enganchado (colgado de un compañero), postura, base, ancla (con el punto del filo o las manos), quién cuelga de él y reagarre. Cuantización, bytes (85; eran 51), copia y descripción |
-| `scripts/actor/actor_input.gd` (`ActorInput`) | 61 (59) | Input de un tick, cuantizado al crearlo; 10 bytes. Botones: saltar, agacharse y correr |
-| `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 108 (29) | Parámetros de movimiento, un recurso |
-| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 903 (100) | Paso por tick en orden fijo con los seis modos, la base, la postura, la escalera, el escalón, el borde y el salto para arriba desde el colgado, colgarse de un compañero y quién cuelga de quién, los impulsos con fuerza y la validación de poses ancladas |
-| `scripts/actor/actor_body.gd` (`ActorBody`) | 309 (130) | Cuerpo (`CharacterBody3D`): deslizar, restaurar y validar poses, las dos formas y el espacio libre, asentarse en el piso después de un escalón, presentación, desvío visual (con el del agarre aparte), las manos sobre el filo o sobre la cintura del compañero, y encontrar a los demás actores |
+| `scripts/actor/actor_state.gd` (`ActorState`) | 201 (130) | Estado completo del actor al final de un tick: modos Suelo, Aire, Deslizamiento, Escalera, Colgado y Enganchado (colgado de un compañero), postura, base, ancla (con el punto del filo o las manos), quién cuelga de él, reagarre y la cámara lenta personal que le queda. Cuantización, bytes (89; eran 51), copia y descripción |
+| `scripts/actor/actor_input.gd` (`ActorInput`) | 67 (59) | Input de un tick, cuantizado al crearlo; 11 bytes. Botones: saltar, agacharse y correr. Contadores de pulsaciones del salto y, desde el punto 7, de la V |
+| `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 117 (29) | Parámetros de movimiento, un recurso |
+| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 917 (100) | Paso por tick en orden fijo con los seis modos, la base, la postura, la escalera, el escalón, el borde y el salto para arriba desde el colgado, colgarse de un compañero y quién cuelga de quién, los impulsos con fuerza, la cámara lenta personal y la validación de poses ancladas |
+| `scripts/actor/actor_body.gd` (`ActorBody`) | 315 (130) | Cuerpo (`CharacterBody3D`): deslizar, restaurar y validar poses, las dos formas y el espacio libre, asentarse en el piso después de un escalón, presentación, desvío visual (con el del agarre aparte), las manos sobre el filo o sobre la cintura del compañero, y encontrar a los demás actores |
 | `scripts/actor/edge_probe.gd` (`EdgeProbe`) | 108 (nuevo, punto 5) | Sonda de borde: barrido de las manos, cara, superficie de arriba y filo; revalidación de un borde agarrado |
 | `scripts/actor/base_registry.gd` (`BaseRegistry`) | 73 (nuevo) | Registro de bases por id; origen, velocidad y posición en el mundo, real y dibujada |
-| `scripts/actor/scripted_platform.gd` (`ScriptedPlatform`) | 85 (nuevo) | Plataforma guionada: su pose sale del tick; se dibuja en el pasado cuando conviene |
+| `scripts/actor/scripted_platform.gd` (`ScriptedPlatform`) | 99 (nuevo) | Plataforma guionada: su pose sale del tiempo del mundo (hasta el punto 7, del tick); se dibuja en el pasado cuando conviene |
 | `scripts/actor/host_raft.gd` (`HostRaft`) | 95 (nuevo) | Balsa que simula solo el host; en los clientes, una copia interpolada |
 | `scripts/actor/ladder.gd` (`Ladder`) | 94 (nuevo) | Escalera autorada: eje, alto, volumen de entrada y dibujo |
 | `scenes/actor/actor.tscn` | 60 (41) | El actor: las dos formas (parada y agachada), sus mallas y la "nariz" |
-| `scripts/net/sim_clock.gd` (`SimClock`) | 295 (267) | Reloj único: ticks, orden fijo (los colgados de un compañero al final), sincronización, adelanto del cliente por ritmo variable, plataformas colocadas para el tick siguiente y pausa |
+| `scripts/net/sim_clock.gd` (`SimClock`) | 367 (267) | Reloj único: ticks, orden fijo (los colgados de un compañero al final), sincronización, adelanto del cliente por ritmo variable, plataformas colocadas para el tick siguiente, pausa y, desde el punto 7, los tramos de cámara lenta del mundo, con el tiempo del mundo y `time_scale` |
 | `scripts/net/net_session.gd` (`NetSession`) | 137 (132) | Conexión ENet, aparición con `MultiplayerSpawner`, salidas y lugares de aparición |
-| `scripts/net/net_sync.gd` (`NetSync`) | 322 (222) | Transporte: inputs, afirmaciones e ida y vuelta del cliente; snapshots del host con las balsas; márgenes; eventos programados por canal confiable |
+| `scripts/net/net_sync.gd` (`NetSync`) | 374 (222) | Transporte: inputs, afirmaciones e ida y vuelta del cliente; snapshots del host con las balsas; márgenes; eventos programados por canal confiable (empujones y, desde el punto 7, cámara lenta personal); anuncios de cámara lenta del mundo, a todos o al que se conecta |
 | `scripts/net/link_simulator.gd` (`LinkSimulator`) | 97 (84) | Simulador de red: demora, variación, pérdida y tirones; los mensajes confiables se demoran pero no se pierden |
-| `scripts/net/client_prediction.gd` (`ClientPrediction`) | 115 (91) | Predicción del cliente: historial, reconciliación, esperas, suavizado, repetición desde un tick para los eventos tardíos y la corrección más grande |
+| `scripts/net/client_prediction.gd` (`ClientPrediction`) | 138 (91) | Predicción del cliente: historial, reconciliación, esperas, suavizado, repetición desde un tick para los eventos tardíos, la corrección más grande y, desde `b7403fb`, lo que ya afirmó para cada tick, para no corregirse hacia eso |
 | `scripts/net/claim_adoption.gd` (`ClaimAdoption`) | 81 (74) | Adopción de afirmaciones en el host, con su registro; valida también las poses ancladas: de la escalera, del borde y colgado de un compañero |
 | `scripts/net/remote_interpolation.gd` (`RemoteInterpolation`) | 267 (90) | Interpolación de los demás jugadores y de las balsas en el cliente, con marcos de dibujo |
 | `scenes/net_lab/net_lab.tscn` | 125 | Escena del laboratorio, con menú y panel |
 | `scenes/net_lab/net_lab_level.tscn` | 389 (169) | Nivel del laboratorio: suma el vagón, el ascensor, la balsa, el túnel largo, la pared de medidas, la torre, las dos escaleras, la pista de escalones, la pista de bordes y los dos bordes que se mueven |
-| `scenes/net_lab/net_lab.gd` | 1.524 (585) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, quién cuelga de quién en el host, cableado de red, panel, pausa, capturas, mediciones, pruebas guionadas y la divergencia inyectada |
+| `scenes/net_lab/net_lab.gd` | 1.741 (585) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, quién cuelga de quién en el host, cámara lenta del mundo y personal, cableado de red, panel, pausa, capturas, mediciones, pruebas guionadas y la divergencia inyectada |
 | `scenes/net_lab/lab_camera.gd` (`LabCamera`) | 65 (46) | Cámara de tercera persona; la altura de la cabeza sigue la postura |
 | `scenes/net_lab/measure_wall.gd` | 46 (nuevo) | Pared de medidas: rayas cada 10 cm y números cada 50 cm |
 | `scenes/net_lab/step_course.gd` | 96 (nuevo, escalón) | Pista de escalones: sueltos de 10 a 40 cm y dos escaleras, una con rampa invisible |
 | `scenes/net_lab/edge_course.gd` | 195 (nuevo, punto 5) | Pista de bordes: las 11 variantes fijas, con sus carteles, y el muro alto para colgarse de un compañero (punto 6) |
-| `scenes/net_lab/actor_replay_test.gd` y `.tscn` | 314 + 13 (202 + 13) | Prueba de repetición determinista, a cualquier ritmo, con bases, postura, escalera, empujones, escalones y Hanging |
+| `scenes/net_lab/actor_replay_test.gd` y `.tscn` | 343 + 13 (202 + 13) | Prueba de repetición determinista, a cualquier ritmo, con bases, postura, escalera, empujones, escalones, Hanging y cámara lenta |
 | `scenes/net_lab/hang_sweep_test.gd` y `.tscn` | 464 + 13 (nuevo, punto 5) | Barrido de aproximaciones a los bordes, con los cuatro criterios y la altura del salto para arriba |
 | `tools/net_lab/actualizar_lab.bat` y `.ps1` | 14 + 71 (nuevo, escalón) | El doble clic que trae el laboratorio a la notebook y lo abre (sección 6.2) |
 | Archivos `.uid` | — | Uno por script, generados por Godot |
 
-**Total:** 6.649 líneas entre scripts y escenas, sin contar `tools/` (eran 2.589 al final del esqueleto, 4.431 en la segunda versión de este documento, 5.998 en la tercera, 5.969 en la cuarta y 5.982 en la quinta; con el cambio de línea, en `f39ba70`, fueron 6.800).
+**Total:** 7.097 líneas entre scripts y escenas, sin contar `tools/` (eran 2.589 al final del esqueleto, 4.431 en la segunda versión de este documento, 5.998 en la tercera, 5.969 en la cuarta, 5.982 en la quinta y 6.649 en la sexta; con el cambio de línea, en `f39ba70`, fueron 6.800, y en `c408ad6`, 7.054).
 
 ### 9.2 Funciones públicas
 
@@ -2612,7 +2831,8 @@ Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (p
     - `grab_direction(state, direction)` (punto 5, cambio después de la primera prueba): hacia dónde buscan las manos;
     - `hook_check(body, state, direction, tuning, dt)` (punto 6): la decisión de colgarse de un compañero, sin cambiar nada, con el motivo si no se cuelga;
     - `hook_pose(mate, tuning)` (punto 6): la pose colgado de ese compañero;
-    - `assign_hooks(actors, tuning)` (punto 6): lo que hace el host al empezar cada tick, anotar quién cuelga de quién; devuelve los cambios y los soltados.
+    - `assign_hooks(actors, tuning)` (punto 6): lo que hace el host al empezar cada tick, anotar quién cuelga de quién; devuelve los cambios y los soltados;
+    - `apply_slow(state, tuning)` (punto 7): la cámara lenta personal, como un evento.
 - **`ActorBody`:**
     - `slide()` y `apply_state()`, que devuelve si la pose entra en el mundo;
     - postura: `use_stance()`, `active_stance()`, `stance_height()` y `stance_fits()`;
@@ -2625,28 +2845,30 @@ Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (p
     - `add()`, `remove()`, `find(id)`, `all()` e `id_of(collider)`;
     - `origin(id)`, `velocity(id)` y `world_position(state)`;
     - `visual_origin(id)`, `visual_velocity(id)` y `visual_world_position(state)`, para dibujar.
-- **`ScriptedPlatform`:** `pose_at(tick)`, `prepare_tick(tick)`, `base_origin()`, `base_velocity()`, `visual_origin()`, `visual_velocity()` y `distance_to(point)`.
+- **`ScriptedPlatform`:** `pose_at(world_ticks)`, `pose_at_tick(tick)` y `velocity_at_tick(tick)` (desde el punto 7: la pose sale del tiempo del mundo, y hasta entonces `pose_at` recibía el tick), `prepare_tick(tick)`, `base_origin()`, `base_velocity()`, `visual_origin()`, `visual_velocity()` y `distance_to(point)`.
 - **`HostRaft`:** `become_copy()`, `place_copy(next_origin, current_origin, next_velocity)`, `base_origin()` y `base_velocity()`.
 - **`Ladder`:** `find(id)` y `all()`, estáticas; `up()`, `outward()`, `pose_at(t)` y `height_for(feet)`.
 - **`SimClock`:**
     - señales `tick_started(tick)`, `tick_finished(tick)` y `hard_resynced`;
-    - `apply_tick_rate(rate)` (estática), `sorted_actors()` y `report_input_margin(host_tick, margin)`;
+    - `apply_tick_rate(rate, slow)` (estática; `slow`, la escala del mundo, desde el punto 7), `sorted_actors()` y `report_input_margin(host_tick, margin)`;
+    - cámara lenta del mundo, todas estáticas (punto 7): `add_world_slow(start, end, scale)`, que devuelve si era nuevo (desde el arreglo de la entrada tarde), `clear_world_slow()`, `world_slow_spans()`, `world_scale(tick)`, `world_dt(tick)` y `world_ticks(tick)`;
     - pausa: la variable `paused` y `step()`, que pide un tick.
 - **`NetSession`:**
     - señales `status_changed(text)` y `local_actor_spawned(actor)`;
     - `start_local()`, `start_host(port, bind)`, `start_client(address, port)` y `spawn_position(peer)`.
 - **`NetSync`:**
     - del cliente: `send_ticks(records, rtt_ms)` y `apply_pending_snapshot(on_own_state, on_other_state, on_base_state)`; los eventos recibidos quedan en `received_events`;
-    - del host: `input_for(peer, tick)`, `claim_for(peer, tick)`, `input_margin_ticks(peer, tick)`, `peer_rtt_ms(peer)`, `send_snapshot(tick, actors, host_bases)` y `send_scheduled_event(peer, tick, impulse, force)`;
-    - `quantize_impulse(impulse)` (estática) y `forget_peer(peer)`.
+    - del host: `input_for(peer, tick)`, `claim_for(peer, tick)`, `latest_input(peer)` (punto 7), `input_margin_ticks(peer, tick)`, `peer_rtt_ms(peer)`, `send_snapshot(tick, actors, host_bases)`, `send_scheduled_event(peer, tick, impulse, force, kind)` (`kind` desde el punto 7) y `send_world_slow(start, end, scale_steps, peer)` (punto 7; `peer` en 0 es a todos);
+    - del cliente, desde el punto 7, los tramos recibidos quedan en `received_world_slow`;
+    - `quantize_impulse(impulse)`, `scale_to_steps(scale)` y `steps_to_scale(steps)` (estáticas) y `forget_peer(peer)`.
 - **`LinkSimulator`:** `configure(rtt, jitter, loss, seed, stall_every, stall)`, `is_active()`, `deliver(packet)`, `deliver_reliable(packet)` y `clear()`.
-- **`ClientPrediction`:** `record()`, `clear()`, `recent(count)`, `reconcile(actor, host_tick, host_state, used_input_tick, current_tick, step)` y `replay_from(actor, tick, current_tick, step)`; desde el punto 5, la variable `max_correction_meters`. En `f39ba70` tuvo además `resume()`, para salir del cambio de línea; se sacó en `e21d6c6`.
+- **`ClientPrediction`:** `record()`, `clear()`, `recent(count)`, `reconcile(actor, host_tick, host_state, used_input_tick, current_tick, step)` y `replay_from(actor, tick, current_tick, step)`; desde el punto 5, la variable `max_correction_meters`, y desde `b7403fb`, `adopted_old_claims`. En `f39ba70` tuvo además `resume()`, para salir del cambio de línea; se sacó en `e21d6c6`.
 - **`ClaimAdoption`:** `consider(actor, claim_bytes, tuning)` (hasta el punto 4, sin `tuning`), `peers()`, `count(peer, result)` y `max_difference(peer)`.
 - **`RemoteInterpolation`:** `add(peer, host_tick, state)`, `add_base(id, tick, position, velocity)`, `advance()`, `shown_tick()`, `place(actor)`, `place_bases(ahead)` y `forget(peer)`.
 
 ### 9.3 Formatos de red
 
-**`ActorInput`, 10 bytes:**
+**`ActorInput`, 11 bytes (10 hasta el punto 7):**
 
 | Campo | Tipo | Detalle |
 | --- | --- | --- |
@@ -2656,8 +2878,9 @@ Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (p
 | look_yaw | entero sin signo de 16 bits | yaw en 65.536 pasos |
 | buttons | entero sin signo de 8 bits | botones mantenidos, en bits: saltar (bit 0), agacharse (bit 1, desde el punto 3) y correr (bit 2, desde el punto 3) |
 | jump_presses | entero sin signo de 8 bits | contador de pulsaciones de salto (0 a 255, da la vuelta) |
+| ability_presses | entero sin signo de 8 bits | contador de pulsaciones de la V, la cámara lenta del mundo (desde el punto 7) |
 
-**`ActorState`, hoy 85 bytes.** Los primeros 51 son los del esqueleto, en el mismo orden, y después vienen los campos que agregó la validación:
+**`ActorState`, hoy 89 bytes.** Los primeros 51 son los del esqueleto, en el mismo orden, y después vienen los campos que agregó la validación:
 
 | Campo | Tipo | Paso de cuantización | Desde |
 | --- | --- | --- | --- |
@@ -2671,6 +2894,7 @@ Las líneas son de hoy. Entre paréntesis, las del final del esqueleto de red (p
 | regrab_left | entero de 32 bits | 0,1 ms | punto 4 |
 | anchor_point | 3 enteros de 32 bits | 0,1 mm. En Hanging, el punto del filo relativo al origen de su base (en el mundo si es geometría fija); en Enganchado, dónde están las manos, en el mundo | punto 5 (79 bytes) |
 | hooked_by | entero sin signo de 32 bits | id de red del compañero que cuelga de este actor, o 0 | punto 6 (85 bytes) |
+| slow_left | entero de 32 bits | 0,1 ms. Cuánto le queda de cámara lenta personal, en tiempo del mundo | punto 7 (89 bytes) |
 
 Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, Aire = 1, Deslizamiento = 2, Escalera = 3, Colgado = 4 y, desde el punto 6, Enganchado = 5. En Hanging la normal del borde no viaja: es la contraria a `facing_yaw`.
 
@@ -2689,20 +2913,21 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | jump_presses_seen | entero sin signo de 8 bits | último contador procesado |
 | epoch | entero sin signo de 16 bits | época (da la vuelta en 65.536) |
 
-**Mensajes.** Todos son RPC no confiables, salvo el evento programado:
+**Mensajes.** Todos son RPC no confiables, salvo el evento programado y el anuncio de cámara lenta del mundo:
 
 | Mensaje | Sentido | Contenido |
 | --- | --- | --- |
-| `_submit_inputs` | cliente → host, un paquete por tick | ida y vuelta que mide el cliente, en ms (16 bits, desde el punto 4); cantidad (8 bits); y, por cada tick sin confirmar (hasta 6): el input (10 bytes), el largo de la afirmación (8 bits) y la afirmación (85 bytes; 79 hasta el punto 6). Colgado de un compañero, en `f39ba70`, el input viajaba sin afirmación |
-| `_receive_snapshot` | host → todos, cada 2 ticks | tick del host (32 bits); cantidad de actores (8 bits); y, por actor: dueño (32 bits), tick del input usado (32 bits), margen del input (16 bits), largo del estado (8 bits) y estado (85 bytes). Al final, desde el punto 2, las bases que simula el host: cantidad (8 bits) y, por base, id (16 bits), posición (3 enteros de 32 bits, en 0,1 mm) y velocidad (3 enteros de 32 bits, en 1 mm/s). Las plataformas guionadas no viajan: cada máquina las calcula desde el tick |
-| `_receive_scheduled_event` | host → un cliente, **confiable** (desde el punto 4) | tick en que se aplica (32 bits), impulso (3 enteros de 32 bits, en 1 mm/s) y fuerza (8 bits) |
+| `_submit_inputs` | cliente → host, un paquete por tick | ida y vuelta que mide el cliente, en ms (16 bits, desde el punto 4); cantidad (8 bits); y, por cada tick sin confirmar (hasta 6): el input (11 bytes; 10 hasta el punto 7), el largo de la afirmación (8 bits) y la afirmación (89 bytes; 85 hasta el punto 7 y 79 hasta el punto 6). Colgado de un compañero, en `f39ba70`, el input viajaba sin afirmación |
+| `_receive_snapshot` | host → todos, cada 2 ticks | tick del host (32 bits); cantidad de actores (8 bits); y, por actor: dueño (32 bits), tick del input usado (32 bits), margen del input (16 bits), largo del estado (8 bits) y estado (89 bytes). Al final, desde el punto 2, las bases que simula el host: cantidad (8 bits) y, por base, id (16 bits), posición (3 enteros de 32 bits, en 0,1 mm) y velocidad (3 enteros de 32 bits, en 1 mm/s). Las plataformas guionadas no viajan: cada máquina las calcula desde el tick |
+| `_receive_scheduled_event` | host → un cliente, **confiable** (desde el punto 4) | tick en que se aplica (32 bits), impulso (3 enteros de 32 bits, en 1 mm/s), fuerza (8 bits) y, desde el punto 7, tipo (8 bits): empujón = 0 o cámara lenta personal = 1 |
+| `_receive_world_slow` | host → todos, o al que se conecta, **confiable** (desde el punto 7) | tick de inicio (32 bits), tick de fin, sin incluirlo (32 bits), y escala en milésimos (16 bits sin signo). Al que se conecta, uno por cada tramo anotado |
 | `_ping` / `_pong` | cliente → host → cliente, cada 30 ticks | microsegundos del cliente al mandar; el host responde con eso y su tick |
 
 ### 9.4 Qué pasa en cada tick
 
 **El paso por tick de un actor** (`ActorMotor.step`), hoy:
 
-1. **Tiempo:** se descuentan coyote, memoria del salto y bloqueo de reagarre.
+1. **Tiempo:** el `dt` que recibe es el del mundo: 1/60 por la escala del mundo (desde el punto 7). Si al actor le queda cámara lenta personal, eso se descuenta con ese `dt`, y después el `dt` se multiplica por 0,3 (punto 7). Con el `dt` que queda se descuentan coyote, memoria del salto y bloqueo de reagarre.
 2. **Base:** si está sobre una base, la base lo lleva hasta donde quedó en este tick.
 3. **Eventos:** una pulsación nueva de salto se detecta porque cambió el contador. Los empujones, en cambio, no se aplican acá (ver abajo).
 4. **Sondas:** colgado, la sonda de borde revalida el borde agarrado (desde el punto 5); colgado de un compañero, se lo busca por su id (desde el punto 6). Las demás lecturas del entorno se hacen donde se usan: el volumen de la escalera, el agarre de un borde y el de un compañero, en la transición; el escalón, en el movimiento, porque necesita saber si el movimiento chocó.
@@ -2725,26 +2950,29 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
     - reaparece quien cayó por debajo de −30 m;
     - se atienden los empujones pedidos con E y R: los inmediatos se aplican ya, y los programados se anotan para su tick y se anuncian;
     - se aplican los programados que tocan en este tick;
-    - se anota quién cuelga de quién (desde el punto 6, `assign_hooks`).
+    - se anota quién cuelga de quién (desde el punto 6, `assign_hooks`);
+    - desde el punto 7: se atienden las cámaras lentas personales pedidas con la B, programadas como un empujón; se mira si alguien apretó la V (el contador propio y el del input más nuevo de cada cliente) y, si no hay otra cámara lenta del mundo andando o por empezar, se programa y se anuncia; y si en este tick empieza una, sube la época de todos.
 
-    Los empujones suben la época del empujado, y anotar o borrar quién cuelga de un actor sube la de ese actor.
-2. **Los actores, en orden de dueño:** primero los que no cuelgan de un compañero y después los colgados (desde el punto 6). Cada uno toma su input (el propio del teclado; el de cada cliente, el que llegó, o el último repetido si falta), corre el paso por tick, se orienta y su desvío visual decae.
+    Los empujones y la cámara lenta personal suben la época del afectado, y anotar o borrar quién cuelga de un actor sube la de ese actor.
+2. **Los actores, en orden de dueño:** primero los que no cuelgan de un compañero y después los colgados (desde el punto 6). Antes, el reloj pone `Engine.time_scale` según la escala del mundo de este tick (desde el punto 7). Cada uno toma su input (el propio del teclado; el de cada cliente, el que llegó, o el último repetido si falta), corre el paso por tick, se orienta y su desvío visual decae.
 3. **Al terminar el tick:** para cada actor de otro jugador, la adopción considera su afirmación de ese tick.
 4. **Snapshot:** se manda si el tick es par, con las balsas.
 5. **Plataformas:** se colocan en su pose del tick siguiente.
 6. **La balsa del host** la mueve el motor de física, en su propio paso.
 
+**Cuando se conecta un jugador,** además de crear su actor, el host le manda todos los tramos de cámara lenta del mundo anotados, también los que ya terminaron (desde el punto 7).
+
 **En el cliente:**
 
 1. **Al empezar el tick:**
-    1. toma los eventos programados que llegaron y los anota para su tick: si ese tick ya pasó, repite desde ahí con el evento; si ya ni eso se puede, lo cuenta como demasiado tarde;
+    1. toma los eventos programados que llegaron y los anota para su tick: si ese tick ya pasó, repite desde ahí con el evento; si ya ni eso se puede, lo cuenta como demasiado tarde. Desde el punto 7 hace lo mismo con los tramos de cámara lenta del mundo, que además se anotan en el reloj (uno que ya conocía no se anota dos veces);
     2. se aplica el snapshot más nuevo: el estado propio va a la predicción (y el margen al reloj), el de los demás y el de las balsas al colchón de interpolación;
-    3. la predicción compara: si coincide, sigue; si no coincide y el estado se calculó con un input repetido, espera; si no coincide con input real, restaura, repite (con los eventos programados de esos ticks) y suaviza;
+    3. la predicción compara: si coincide, sigue; si el estado del host es algo que este cliente ya le afirmó para ese tick, antes de corregirse, tampoco corrige (desde `b7403fb`, sección 8.9); si no coincide y el estado se calculó con un input repetido, espera; si no coincide con input real, restaura, repite (con los eventos programados de esos ticks) y suaviza;
     4. avanza el momento que se muestra;
     5. decide cuánto en el pasado se dibuja cada plataforma, según lo cerca que esté el propio jugador;
     6. ubica a los demás en su pose interpolada, cada uno en su marco de dibujo;
-    7. arma el input del tick y aplica los eventos programados de este tick al propio actor.
-2. **El propio actor:** corre el paso por tick con ese input. Colgado de un compañero también: la pose sale del compañero tal como se lo muestra (desde `e21d6c6`; en `f39ba70` no se predecía, ver sección 8.8).
+    7. arma el input del tick, con el contador de la V, y aplica los eventos programados de este tick al propio actor; si en este tick empieza una cámara lenta del mundo, sube su época.
+2. **El propio actor:** corre el paso por tick con ese input y el `dt` del mundo de ese tick. Colgado de un compañero también: la pose sale del compañero tal como se lo muestra (desde `e21d6c6`; en `f39ba70` no se predecía, ver sección 8.8).
 3. **Al terminar el tick:**
     - se guarda lo predicho;
     - se manda al host el input con la afirmación de los ticks sin confirmar y la ida y vuelta medida;
@@ -2819,6 +3047,8 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | `GROUP` | `"actores"` | `ActorBody` | Grupo de nodos donde se anotan los actores, para encontrar a un compañero por su id (punto 6) |
 | ~~`LINE_BLEND_TIME` / `MAX_LINE_BLEND`~~ | 0,2 s / 4 m | `ActorBody` | Solo en `f39ba70`: la mezcla del cambio de línea y el salto más grande que mezclaba. Se sacaron al predecir colgado (sección 8.8) |
 | `HOOK_WALL_FACE_Z`, `HOOK_WALL_RIGHT_X`, `HOOK_WALL_TOP`, `HOOK_BOX_X`, `HOOK_MIDDLE_X`, `HOOK_CORRIDOR_X` | −26; 16,5; 3,6; 11,1; 13,5; 11,75 m | laboratorio | Dónde está el muro alto y por dónde llegan las pruebas guionadas (punto 6) |
+| `EventKind` | `PUSH` = 0, `SLOW` = 1 | `NetSync` | Tipo de un evento programado: empujón o cámara lenta personal (punto 7) |
+| `SCALE_STEPS` | 1.000 | `NetSync` | La escala de la cámara lenta del mundo viaja en milésimos (punto 7) |
 | `HOOK_HOLD_TICKS` / `HOOK_DROP_TICKS` | 60 / 30 | laboratorio | Cuánto cuelga la prueba antes de su salida, y cuánto sostiene el de arriba con `hookwall:drop` antes de soltarse (eran 120 en la primera tanda: no llegaba a soltarse) |
 
 **El actor** (`actor.tscn`): cápsula parada de 1,8 m de alto y cápsula agachada de 1,0 m, las dos de 0,35 m de radio.
@@ -2861,6 +3091,9 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | Colgarse de un compañero: alcance* | 1 m, como snap máximo (`hook_reach`); "esto vamos a tener que ir probando de a poco" |
 | Agarre colgado de un compañero* | 3 (`hook_grip`) |
 | Cuánto baja el agarre del de arriba con un compañero colgado* | 1 (`hook_load_grip_drop`): el borde y la escalera pasan de 3 a 2 |
+| Escala de la cámara lenta* | 0,3, la del mundo y la personal (`slow_scale`, punto 7) |
+| Duración de la cámara lenta del mundo* | 3 s reales, 180 ticks (`world_slow_time`) |
+| Duración de la cámara lenta personal* | 3 s del mundo (`personal_slow_time`); con el mundo lento, dura más en segundos reales |
 | Aceleración en el aire | 12 m/s²; desde el punto 3 no frena a quien viene más rápido que caminando |
 | Gravedad | 9,8 m/s² |
 | Caída máxima | 40 m/s |
@@ -2910,6 +3143,8 @@ Al correr `scenes/net_lab/net_lab.tscn` con **F6** aparece un menú con:
 | R | host | Empujón programado a los demás jugadores, con fuerza 4 (desde el punto 4) |
 | Shift + E, Shift + R | host | Los mismos empujones, débiles (fuerza 2): no sueltan la escalera |
 | Q | host | Prende o apaga la adopción |
+| V | todos | Cámara lenta del mundo, para todos: 30 % durante 3 s. La decide y la anuncia el host, y empieza unos 0,1 a 0,4 s después, según la red. Mientras hay una andando o por empezar, otra V no hace nada (punto 7) |
+| B | host | Cámara lenta personal a los demás jugadores: 30 % durante 3 s del mundo, programada como un empujón (punto 7) |
 | G | solo en Jugar solo | Pausa: congela todo donde está; otra G lo suelta (acción `toggle_debug_freeze`, desde el punto 3) |
 | F | solo en Jugar solo, en pausa | Avanza un tick, con las teclas que estén apretadas en ese momento (acción `avanzar_tick`) |
 | F12 | todos | Guarda una captura en el Escritorio, aunque haya otras teclas apretadas (acción `captura`, desde el punto 3) |
@@ -2918,7 +3153,7 @@ Al correr `scenes/net_lab/net_lab.tscn` con **F6** aparece un menú con:
 
 **Colgarse de un compañero tampoco tiene tecla** (punto 6): saltando hacia un compañero que está colgado de un borde o en una escalera, se cuelga de su cintura cuando las manos pasan por esa altura, a no más de 1 m. Mientras alguien cuelga de él, el de arriba no se mueve ni salta.
 
-1 a 5, E, R y Q se leen directo del teclado. G, F y F12 son acciones del Mapa de entrada, y se pueden cambiar en **Proyecto > Configuración del proyecto > Mapa de entrada**. La F comparte tecla con `toggle_free_cam` del parkour, y la E con `interactuar`; el laboratorio no usa esas acciones, así que no chocan. En una partida en red, la G no hace nada y no avisa.
+1 a 5, E, R, Q, V y B se leen directo del teclado. G, F y F12 son acciones del Mapa de entrada, y se pueden cambiar en **Proyecto > Configuración del proyecto > Mapa de entrada**. La F comparte tecla con `toggle_free_cam` del parkour, y la E con `interactuar`; el laboratorio no usa esas acciones, así que no chocan. En una partida en red, la G no hace nada y no avisa.
 
 Los niveles de red afectan solo a la máquina donde se eligen:
 
@@ -2942,11 +3177,12 @@ Los niveles de red afectan solo a la máquina donde se eligen:
 - en la escalera, "Escalera N · pies a X m sobre su base", y después de soltarla, cuánto falta para poder volver a agarrarla (desde el punto 4);
 - colgado, "Colgado del borde: filo a X m de altura" y, si el borde va sobre una base, "· sobre la base N"; y después de soltar un borde, "Recién soltó un borde: no puede agarrar otro por X s" (desde el punto 5);
 - colgado de un compañero, "Colgado de la cintura del jugador N"; con alguien colgado, "El jugador N cuelga de tu cintura: quedás quieto · Ctrl te suelta y se caen los dos"; y después de soltarse de un compañero, "Recién se soltó de un compañero: no se puede colgar de otro por X s" (desde el punto 6);
+- desde el punto 7, "CÁMARA LENTA DEL MUNDO: al 30 % · quedan X s" mientras anda, o "Cámara lenta del mundo en X s" si está por empezar; y "CÁMARA LENTA PERSONAL: al 30 % · quedan X s del mundo";
 - la velocidad, aclarando "(sobre la base)" si es relativa a una base;
 - "Pies en (x, y, z) · cabeza a … m de altura · base: …", con milímetros (desde el punto 3);
 - en pausa, "EN PAUSA (tick N) · G sigue · F avanza un tick";
 - arriba de todo, durante 3 s, el aviso de captura guardada;
-- la ayuda de teclas; desde el punto 5, con la línea "Colgado: A y D de costado · Espacio mirando a la pared sube, mirando a otro lado salta · Ctrl se suelta"; desde el punto 6, con "Saltando hacia un compañero colgado de un borde o en una escalera, te colgás de su cintura: ahí Espacio y Ctrl andan igual que colgado".
+- la ayuda de teclas; desde el punto 5, con la línea "Colgado: A y D de costado · Espacio mirando a la pared sube, mirando a otro lado salta · Ctrl se suelta"; desde el punto 6, con "Saltando hacia un compañero colgado de un borde o en una escalera, te colgás de su cintura: ahí Espacio y Ctrl andan igual que colgado"; desde el punto 7, con "V cámara lenta del mundo, para todos" y, en el host, "B cámara lenta a los demás" en la línea de E, R y Q.
 
 **En el cliente:**
 
@@ -2976,6 +3212,7 @@ Van después de `--` en la línea de comandos. Los temporizadores cuentan segund
 | `--test-input=walk` | Camina 1,5 s, salta a los 0,5 s y se queda quieto |
 | `--test-input=zigzag` | Un cuadrado que cambia de lado cada medio segundo, con un salto cada dos; a los 25 s se queda quieto |
 | `--test-input=ride:<id>` | Va hasta la base y se queda arriba, dando vueltas cerca del centro y saltando cada 3 s. Si la base está más alta, salta para subirse; si está muy alta (el ascensor arriba), la espera afuera (punto 2) |
+| `--test-input=stand:<id>` | Va hasta la base como `ride` y, a menos de 1 m de su centro, se queda parado ahí, sin moverse ni saltar (desde `b7403fb`; la prueba del temblor) |
 | `--test-input=hop:<id>` | Llega a la base y, cada 2,5 s, salta a 3,2 m del centro o vuelve saltando (punto 2) |
 | `--test-input=edge:<id>` | Igual, pero a 1,4 m del centro: cae en el borde (punto 2) |
 | `--test-input=walkoff:<id>` | Igual, a 2,5 m del centro y caminando, sin saltar (punto 2) |
@@ -2995,6 +3232,8 @@ Van después de `--` en la línea de comandos. Los temporizadores cuentan segund
 | `--test-spawn-at=x,z` | El host aparece en ese lugar (punto 2) |
 | `--test-pause-at=TICK` | Jugando solo, pone la pausa en ese tick (punto 3) |
 | `--no-adoption` | El host arranca con la adopción apagada |
+| `--test-world-slow-at=S1,S2,…` | Esta máquina aprieta la V a esos segundos (punto 7) |
+| `--test-personal-slow-at=S1,S2,…` | Solo host: cámara lenta personal a los demás a esos segundos (punto 7) |
 | `--test-push-at=S1,S2,…` | El host da empujones inmediatos a esos segundos |
 | `--test-scheduled-push-at=S1,S2,…` | El host da empujones programados a esos segundos (punto 4) |
 | `--test-push-force=N` | Fuerza de los empujones de prueba; por defecto 4 (punto 4) |
@@ -3007,7 +3246,7 @@ Van después de `--` en la línea de comandos. Los temporizadores cuentan segund
 
 - rol, tick, actores y sincronización;
 - ida y vuelta, adelanto, peor margen, ritmo y ticks ganados y perdidos;
-- saltos de reloj, coincidencias, correcciones, esperas y alineaciones;
+- saltos de reloj, coincidencias, correcciones, esperas y alineaciones, y desde `b7403fb` las afirmaciones viejas adoptadas (`afirmaciones_viejas_adoptadas`);
 - snapshots perdidos, red y paquetes descartados por el simulador.
 
 En el cliente agrega los tirones de los demás y, desde el punto 4, los empujones programados a tiempo, tarde y demasiado tarde. En el host agrega las reapariciones y, por jugador, las afirmaciones por resultado (iguales, adoptadas, rechazadas por época, distancia y pose, con la adopción apagada y sin afirmación) y la diferencia más grande adoptada. Con `tunnel`, imprime hasta qué tramo llegó y los ticks que estuvo parado bajo el techo. Con `steps`, "escalones: punto N de 15; pies a X m como máximo". Con `hang`, "colgar: N agarres, N subidas al borde, N vueltas del ciclo" y, en el cliente, "correcciones: la más grande de X m".
@@ -3022,7 +3261,14 @@ Desde el punto 6:
 
 En `f39ba70` el cliente imprimía también los cambios de línea, las veces que volvió a predecir y cuánto saltó el cuerpo al entrar y al salir de la línea.
 
-**Prueba de repetición:** `--scene res://scenes/net_lab/actor_replay_test.tscn -- --rate=N` (o `--rate=varying`). Sale con 0 si todas las repeticiones coinciden e imprime la huella de la pasada en vivo. Desde el punto 3 también imprime cuántos ticks pasó agachado y cuántos de ellos pidiendo pararse sin lugar; desde el punto 5, los ticks colgado.
+Desde el punto 7:
+
+- "cámara lenta del mundo: N pedidas, N programadas, N ignoradas porque ya había una; en el cliente, N a tiempo, N tarde (repetido desde su tick), N demasiado tarde; cámaras lentas personales dadas: N";
+- "tramos de cámara lenta del mundo [inicio, fin, escala]: …", para comparar el host con el cliente (desde el arreglo de la entrada tarde);
+- con `stand`, "quieto sobre la base N en el tick T" cuando se queda quieto;
+- la traza suma la escala del mundo y lo que le queda de cámara lenta personal.
+
+**Prueba de repetición:** `--scene res://scenes/net_lab/actor_replay_test.tscn -- --rate=N` (o `--rate=varying`). Sale con 0 si todas las repeticiones coinciden e imprime la huella de la pasada en vivo. Desde el punto 3 también imprime cuántos ticks pasó agachado y cuántos de ellos pidiendo pararse sin lugar; desde el punto 5, los ticks colgado; desde el punto 7, los ticks con cámara lenta.
 
 **Barrido de Hanging** (punto 5): `--scene res://scenes/net_lab/hang_sweep_test.tscn`. Imprime cada caso, una tabla por borde, las salidas, los cuatro criterios y el resumen con teclas y sin teclas. Desde el salto para arriba, también prueba dos formas de subir (W desde el salto y W recién arriba) e imprime hasta dónde llegan los pies sobre el filo. Sale con 0 si se cumplen los cuatro criterios. Con `-- --detalle=borde,vel,llegada,ángulo,lateral,objetivo,teclas` (por ejemplo `--detalle=curvo,6,-12.0,0,0.6,colgarse,empuja`) imprime ese caso tick a tick. Tarda unos minutos.
 
@@ -3158,6 +3404,25 @@ Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente c
 | P6 | Colgado predicho: el cliente se cuelga, sin red simulada y con internet mala | 0 correcciones al colgarse, soltarse y saltar |
 | P6 | Colgado predicho: el de arriba se suelta con alguien colgado | Del lado del de abajo, una corrección por caída (hasta 0,095 m limpia y 0,685 m mala). Del lado del de arriba, una de 0,000 m; al de abajo se lo ve colgado en el aire hasta 1,26 m (mala) |
 | P6 | Dos PC con el colgado predicho, 200 ms en las dos | "funciona muy bien"; la notebook arriba: 2.938 coincidencias y 9 correcciones (la última de 0,00 m), con 5 empujones del host |
+| P7 | La V del host y la del cliente, la B y las dos juntas, con el cliente en zigzag, sin red simulada y con internet mala | 0 correcciones y el mismo estado final en el host y en el cliente; con internet mala, un anuncio tarde, repetido desde su tick sin corrección |
+| P7 | Cámara lenta del mundo con solo 3 ticks de aviso | 1 tarde y 1 demasiado tarde: 1 corrección de 0,751 m (0,790 m en otra corrida) |
+| P7 | Con el mundo lento: vagón, balsa, y colgarse de bordes con la del mundo y la personal | Vagón y bordes: 0 correcciones. Balsa: 4 (hasta 0,29 m) y, en otra corrida, 19 (hasta 0,52 m) |
+| P7 | El mismo salto con escala (`diag_salto_lento.gd`) | Normal 1,1388 m y 0,97 s; mundo lento o personal 1,1643 m y 3,25 s; las dos 1,1496 m y 10,67 s. Coyote: 0,100 s, y 0,333 s reales con el mundo lento |
+| P7 | Repetición a 72, antes del arreglo de `slide()` | Fallaba en el tick 4998: velocidad 3,845 contra 3,846 |
+| P7 | Repetición a 60 y con el ritmo variando | 5.178 repeticiones y 230.763 ticks idénticos, con 385 ticks de cámara lenta; huella `842c98a6eb27c29c` |
+| P7 | Regresiones: bases, postura, escalera, escalones, Hanging en red, colgarse de un compañero y el barrido | Igual que antes, salvo la balsa |
+| P7 | Dos PC, primera prueba | "todo funciona correctamente"; la notebook, sobre el vagón, 960 correcciones (la última de 7,33 m): las plataformas desfasadas |
+| P7 | La V antes de que entre el cliente, sin el arreglo | 197 correcciones, la más grande de 5,86 m; con la V después, 0 |
+| P7 | Entrar tarde, con el arreglo: siete casos | 0 correcciones y la misma lista de tramos en el host y en el cliente |
+| P7 | `SimClock.add_world_slow` con un tramo repetido (`dedup_check.gd`) | Lo rechaza y deja los tramos en orden |
+| P7 | Los dos arriba de la balsa con internet mala en los dos (desde los 12 s en el host), código anterior al punto 7 contra el nuevo | 88 y 167 contra 134 y 170 correcciones; en el piso, 0 y 0; tirones del otro 0,8 % y 0,8 % |
+| P7 | Dos PC, segunda prueba | La notebook, sobre la balsa con internet mala: 212 a 345 correcciones en la sesión, la última de hasta 1,39 m; un temblor |
+| P7 | Video de la notebook, 55 s | Quieta sobre la balsa, 4 o 5 correcciones por segundo |
+| P7 | Quieto sobre la balsa (`stand:3`), con un aviso por corrección, antes del arreglo del temblor | Sin red simulada, 4 correcciones al subirse. Con internet mala, 56, casi todas quieto, yendo y viniendo entre dos lugares a 0,69 m |
+| P7 | Lo mismo, después del arreglo | De 0 a 3 por corrida en 8 corridas, con 0 a 7 afirmaciones viejas adoptadas. Quieto sobre el vagón: 0 |
+| P7 | Los dos arriba de la balsa con internet mala en los dos, después del arreglo | 43 y 42 correcciones (134 y 170 antes) |
+| P7 | Regresiones después del arreglo: bases, postura, escalera, escalones y Hanging en red | Igual que antes; la balsa con internet mala, de 11 a 0. Colgado del borde sobre un cuerpo del host: sin red simulada 125 correcciones (hasta 0,37 m) contra 88 (0,10 m) antes; con internet mala, 45 (0,28 m) contra 279 (0,29 m). No se llegó a ver si es el azar del borde |
+| P7 | Dos PC, después del arreglo | "los temblores se arreglaron, pero no las correcciones" |
 
 ---
 
@@ -3211,6 +3476,14 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - **Manejar el laboratorio con teclas simuladas:** `Input.action_press()` y `Input.action_release()` sirven para lo que se lee con `Input.get_vector()`, y un `InputEventAction` mandado con `Input.parse_input_event()` llega a `_unhandled_input()` como una pulsación (Espacio, que es la acción `jump`). Así se hizo la demostración del salto.
 - **Una cámara propia desde un script `-s`:** antes de que el nodo esté en el árbol, `look_at()` falla ("Node not inside tree"). Hay que armar el transform con `Basis.looking_at()`. Una `Camera3D` agregada con `current = true` muestra la escena desde otro lado, mientras el input sigue usando el giro de la cámara del laboratorio.
 - **Abrir el editor en una escena desde la línea de comandos:** `Godot -e --path <carpeta> res://scenes/net_lab/net_lab.tscn` abre el editor con esa escena. Antes, `--headless --path <carpeta> --import` prepara una copia recién traída y termina solo. Así funciona el doble clic de la notebook.
+
+**Comprobados en la cámara lenta (punto 7):**
+
+- **`time_scale` también frena a Jolt:** con `Engine.time_scale` en ritmo/60 × escala, el delta de física queda en 1/60 × escala, y un `RigidBody3D` (la balsa) recorre 0,3 veces lo de siempre por tick. Los ticks por segundo reales no cambian.
+- **Dividir por el factor de `move_and_slide()` no vuelve al número original:** multiplicar la velocidad por `dt / delta` y después dividirla deja un error de redondeo que depende del delta del frame. Un tick repetido en otro frame, con otro delta (con cámara lenta, o a otro ritmo), puede cuantizarse distinto: la repetición a 72 ticks por segundo difirió en 1 mm/s en el tick 4998. Si el movimiento no tocó la velocidad, hay que quedarse con la de antes.
+- **Un salto con escala cambia de alto:** la velocidad se cuantiza en mm/s, y con un `dt` chico el paso de la gravedad se redondea (0,0147 m/s pasa a 0,015). Al 30 %, el salto llegó 2,5 cm más alto.
+- **`rpc_id(0, …)` manda a todos,** como `rpc(…)`. Así el mismo anuncio de cámara lenta sirve para todos o para el que se conecta.
+- **Leer un video sin Python:** con ffmpeg (la versión "essentials" de gyan.dev, que el usuario instaló en `C:\ffmpeg`) se sacan hojas de cuadros (`-vf "fps=1,scale=640:360,tile=3x3"`) y todos los cuadros de un tramo recortados alrededor del personaje. Antes, sin instalar nada, las APIs de video de Windows desde PowerShell (`Windows.Media.Editing.MediaClip`) leyeron la duración, pero sacan los cuadros de a uno.
 
 ---
 
@@ -3300,6 +3573,15 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 | P6 (dos PC) | "si estoy agarrado del player que hace de host [...] ahi recien se ejecuta el salto" | El cambio de línea: colgado, el cliente no se predecía y el salto llegaba con la respuesta del host, ~0,4 s después con 200 ms | A pedido, el cliente se predice colgado (sección 8.8) |
 | P6 (error mío) | La prueba "el de arriba se suelta" nunca se soltaba | El de arriba esperaba 2 s con alguien colgado, y el de abajo se iba al segundo | Medio segundo; recién ahí se probó por red el caso de que el de arriba se suelte |
 | P6 | No había Python para editar archivos desde la terminal | No está instalado en esta PC | Se usaron las herramientas de la terminal (`head`, `tail`, `git show`) |
+| P7 | Avisos de GDScript al cargar | Un parámetro `world_scale` tapaba la función del mismo nombre, y uno `tick` tapaba una variable | Se llamaron `slow` y `at_tick` |
+| P7 | La repetición a 72 ticks por segundo difería en el tick 4998 (3,845 contra 3,846) | Dividir la velocidad por el factor de `move_and_slide()` deja un redondeo que depende del delta del frame | Si el movimiento no tocó la velocidad, queda la de antes |
+| P7 (dos PC) | "en un punto la sincronización entre las dos notebooks se perdió": plataformas en lugares distintos y el host corrigiendo | Una V apretada sin clientes conectados no le llegaba a nadie; quien entraba después tenía el tiempo del mundo corrido 2,1 s por cada tramo | El host le manda todos los tramos al que se conecta, y un tramo no se anota dos veces |
+| P7 (dos PC) | "no depende de la cámara lenta para que ocurra" | Las capturas eran de la balsa, no del vagón: el usuario las confunde | Se le mostró la línea "base:" del panel, y se comparó con el código anterior al punto 7: igual |
+| P7 (dos PC) | Un temblor del jugador, "hasta que pasado X tiempo se detiene" | Del paso 7: quieto con demora, el cliente se corregía a lo del host, el host adoptaba las afirmaciones viejas que seguían en viaje, y vuelta a corregir, entre dos lugares | El cliente no se corrige hacia algo que él mismo afirmó para ese tick (`b7403fb`) |
+| P7 | Las capturas, que son fotos sueltas, no mostraban el temblor | — | El usuario grabó un video; para leerlo instaló ffmpeg |
+| P7 | Una prueba temporal dejó `_standing` sin declarar al sacarle el comentario de diagnóstico | La declaración iba en la misma línea que se reemplazó | Se declaró junto a las demás variables de las pruebas, antes de entregar |
+| P7 (error mío) | Una tanda de regresiones de unos 50 minutos en segundo plano, sin mostrar nada hasta el final | Imprimía solo al terminar | El usuario la cortó a los 36 minutos ("no me la pela"). Quedaron sin correr colgarse de un compañero, la cámara lenta y entrar tarde, con el arreglo del temblor |
+| P7 | Un `sed` con barras invertidas de rutas de Windows rompió una copia de un script | `\5` en el reemplazo se leyó como referencia a un grupo | El script se escribió entero de nuevo |
 
 ---
 
@@ -3348,6 +3630,13 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - **Ctrl del de arriba suelta a los dos, se puede colgar de alguien en un borde o en una escalera, y de la cintura** (13:03).
 - **Colgado de un compañero, el cliente se predice** (15:37): "que mi salto y mi Ctrl respondan al instante". Se aparta del documento, que decía que Enganchado no se predice (sección 4.4).
 - **Dos commits para el punto 6** (18:39): primero la versión con el cambio de línea, tal como se probó, para que su código quede en git.
+- **Seguir con el punto 7** (19:01): "sigamos con el punto 7, ¿pero que era el punto 7?".
+- **La cámara lenta del mundo se activa con una tecla, "temporalmente"** (19:04). A futuro, la misma tecla va a activar capacidades especiales a elegir: "como la camara lenta, super salto/velocidad/fuerza, vision nocturna, etc."
+- **30 % durante 3 s, para las dos** (19:04).
+- **La personal la aplica el host a los demás** (19:04).
+- **La tecla de la del mundo la puede apretar cualquier jugador, y se aplica a todos** (19:05): "cualquier jugador, la camara lenta se aplica a ambos".
+- **Las correcciones que quedan en la balsa se aceptan** (2026-10-10, 14:23), después de arreglar el temblor: "vamos a fingir demencia y pedirle a la gente que juegue con un buen internet que tenga poca perdida de paquetes y unos ms inferiores a 140".
+- **Dos commits para el punto 7** (14:24), como en el punto 6: cada versión probada en el suyo. Esta vez no se preguntó.
 
 **¿Cuánto cuesta cambiar una mecánica después?** (pregunta del 2026-10-07, 13:06). La respuesta, resumida:
 
@@ -3371,6 +3660,16 @@ Los dos cambios de Hanging de la sección 8.5 fueron de la segunda y la tercera 
 
 El punto 6 fue de la última fila: un modo nuevo, con dos campos nuevos en el estado (6 bytes más), y las dos PC tuvieron que actualizarse juntas. El cambio a predecir colgado, en cambio, no tocó el motor: sacó código del cliente y de la adopción.
 
+El punto 7 también fue de la última fila: un contador en el input y lo que queda de cámara lenta personal en el estado (1 y 4 bytes más), y un mensaje nuevo. El arreglo del temblor no tocó el formato: es una regla del cliente.
+
+**Los objetos con física y los vehículos del juego** (2026-10-10, 14:01–14:10). Hablando de la balsa, el usuario preguntó qué hace Garry's Mod "para que los objetos con fisicas no hagan cagadas", porque el juego va a tener los suficientes "como para que tengan un peso en el gameplay":
+
+- **la respuesta:** Garry's Mod (Source, de 2004) no lo resuelve, lo esquiva: el servidor simula los objetos, los demás los ven unos 100 ms en el pasado, y solo se predice al propio jugador; si el jugador choca o se para sobre algo que se mueve, se corrige, como en la balsa. Los motores actuales, como Unreal 5, eligen por objeto: los que se empujan los simula el servidor, y los que controla un jugador se predicen y se recalculan;
+- **los objetos:** "cajas, escaleras, munición de 155 mm, puertas, tanques de agua (vacios), etc. Ademas de eso van a haber vehiculos";
+- **los vehículos:** "solo van a haber motos y autos, pero en el auto vos te quedas pegado al vehículo, tipo no podes meterte dentro y dar vueltas, pero si podes subirte arriba y que tu compañero te lleve hasta que la friccion no sea la suficiente y te caigas".
+
+Arriba del auto es el caso de la balsa, manejado por un compañero. Mientras la fricción alcance, la posición relativa al auto es predecible; lo difícil es cuándo empieza a resbalar (que lo calcule cada PC, con correcciones, o que lo decida el host, con demora). No se decidió nada: queda para cuando lleguen los vehículos, y quedan preguntas abiertas sobre las puertas, la munición y las escaleras (sección 16).
+
 **Forma de trabajo acordada:**
 
 - **Instrucciones clic por clic:** nada de argumentos ni jerga para probar. El laboratorio tiene un menú dentro del juego, y las instrucciones nombran los botones exactos ("literal no entendí una absoluta mierda", 13:45).
@@ -3385,12 +3684,13 @@ El punto 6 fue de la última fila: un modo nuevo, con dos campos nuevos en el es
 - **Archivos de prueba:** solo se borran los que hice yo, como la captura de prueba del Escritorio.
 - **El doble clic de la notebook se hace recién cuando aviso que algo está listo** (2026-10-07, 16:09). Si no, puede llegar una versión a medio terminar.
 - **Sin zips, lo probado se fija con huellas SHA-1** de los archivos del laboratorio al avisar que está listo, y se comparan antes del commit (desde Hanging).
+- **Las tandas largas de pruebas no se dejan corriendo sin mostrar nada** (2026-10-10, 13:45): el usuario cortó una de unos 50 minutos que solo imprimía al final.
 
 ---
 
 ## 15. Commits y entregas
 
-**Commits**, en la rama `codex/parkour-v3-h0-lab`. Hasta el 2026-10-09 eran todos locales. Las versiones anteriores de este documento decían "sin remota configurada", y no era exacto: el proyecto tiene GitHub configurado (`origin`, `ElVerdulero2001/tun-tun-tun-sahur-el-juego-copia-de-Peripeteia-`), pero esta rama nunca se había subido. El 2026-10-09 el usuario la subió, hasta `2314f18`: subieron 26 commits (356 archivos, 4,3 MB), los del laboratorio y sus commits de parkour de septiembre que ya estaban en la rama. Los cambios sin commitear no se subieron. A las 18:46 la volvió a subir, hasta `e21d6c6`.
+**Commits**, en la rama `codex/parkour-v3-h0-lab`. Hasta el 2026-10-09 eran todos locales. Las versiones anteriores de este documento decían "sin remota configurada", y no era exacto: el proyecto tiene GitHub configurado (`origin`, `ElVerdulero2001/tun-tun-tun-sahur-el-juego-copia-de-Peripeteia-`), pero esta rama nunca se había subido. El 2026-10-09 el usuario la subió, hasta `2314f18`: subieron 26 commits (356 archivos, 4,3 MB), los del laboratorio y sus commits de parkour de septiembre que ya estaban en la rama. Los cambios sin commitear no se subieron. A las 18:46 la volvió a subir, hasta `e21d6c6`, y a las 19:01, hasta `f86b80f`. El 2026-10-10 a las 14:30, hasta `b7403fb`.
 
 | Commit | Fecha | Mensaje | Archivos | Líneas |
 | --- | --- | --- | --- | --- |
@@ -3414,6 +3714,9 @@ El punto 6 fue de la última fila: un modo nuevo, con dos campos nuevos en el es
 | `9e4753e` | 2026-10-09 12:39 | docs(net): note the branch is on GitHub in the history | 1 | +8 / −5 |
 | `f39ba70` | 2026-10-09 18:39 | feat(net): hang from a teammate with a line change (validation item 6) | 9 | +906 / −88 |
 | `e21d6c6` | 2026-10-09 18:39 | feat(net): predict hanging from a teammate so jump and Ctrl respond at once | 4 | +57 / −208 |
+| `f86b80f` | 2026-10-09 19:00 | docs(net): record hanging from a teammate in the history | 1 | +670 / −56 |
+| `c408ad6` | 2026-10-10 14:24 | feat(net): world and personal slow motion (validation item 7) | 11 | +465 / −60 |
+| `b7403fb` | 2026-10-10 14:24 | fix(net): stop the correction ping-pong when the host adopts an old claim | 2 | +48 / −5 |
 
 **Zips en el escritorio** para copiar el proyecto a la otra PC, hasta el escalón. Los del esqueleto pesaban 18 MB cada uno; el tamaño de los de la validación no se anotó. Hoy quedan en el Escritorio el de la escalera y el del escalón; los demás se movieron o se borraron. Desde el escalón, la notebook se actualiza con el doble clic de la sección 6.2.
 
@@ -3450,6 +3753,9 @@ El punto 6 fue de la última fila: un modo nuevo, con dos campos nuevos en el es
 | 2026-10-08 18:20 | El agarre subiendo y el giro al saltar hacia otro lado. Probado en las dos PC a las 19:17 | `bd2157b` |
 | 2026-10-09 14:49 | Colgarse de un compañero, con el cambio de línea, y el muro alto. Probado en las dos PC a las 14:57 | `f39ba70` |
 | 2026-10-09 16:03 | Colgado de un compañero, predicho. Probado en las dos PC a las 18:34 | `e21d6c6` |
+| 2026-10-09 20:05 | La cámara lenta del mundo y la personal. Probada en las dos PC a las 20:20: las plataformas quedaban desfasadas para quien entraba tarde | Nunca se commiteó así |
+| 2026-10-09 20:48 | Con el arreglo de los tramos al que se conecta. Probada en las dos PC a las 21:04 | `c408ad6` |
+| 2026-10-10 13:46 | Con el arreglo del temblor y la prueba `stand`. Probada en las dos PC antes de las 14:23 | `b7403fb` |
 
 **Lo que no se tocó:** los cambios previos sin commitear de la rama siguen igual. Incluyen `project.godot` (solo con el cambio de versión 4.6 → 4.7 del editor), `docs/parkour/*`, `scenes/test/*`, `scripts/player_v2/*` y `assets/models/*`.
 
@@ -3465,8 +3771,11 @@ El punto 6 fue de la última fila: un modo nuevo, con dos campos nuevos en el es
 
 - ~~**Punto 5:** el laboratorio de Hanging con snap.~~ Hecho (sección 8.5).
 - ~~**Punto 6:** una interacción con cambio de línea, sujetar a un compañero.~~ Hecho como colgarse de un compañero (sección 8.8).
-- **Punto 7, el próximo:** cámara lenta del mundo y personal.
+- ~~**Punto 7:** cámara lenta del mundo y personal.~~ Hecho (sección 8.9). Con eso, la lista del documento quedó completa; lo que sigue lo decide el usuario.
 - **Hanging, prueba 7:** con 5 a 10 personas, cuando haya gente.
+- **Tres tandas sin correr con el arreglo del temblor** (`b7403fb`): colgarse de un compañero, la cámara lenta y entrar tarde. Y el colgado del borde sobre un cuerpo del host sin red simulada, que dio más correcciones que antes (125 contra 88, la más grande de 0,37 m contra 0,10 m): no se vio si es el azar del borde o el arreglo.
+
+**Lo que contó el usuario del juego** (sección 14), para cuando lleguen: objetos con física (cajas, escaleras, munición de 155 mm, puertas, tanques vacíos) y vehículos (motos y autos; adentro del auto se va pegado, y arriba te lleva el compañero hasta que la fricción no alcanza). Preguntas abiertas: si las puertas se empujan con el cuerpo o se abren con una tecla, si la munición y las cajas se llevan en las manos, si las escaleras se pueden mover con alguien arriba, y quién decide cuándo se resbala uno arriba del auto.
 
 **Pedido para más adelante:** la subida al borde con "un saltito". La tercera versión de este documento decía: "Hoy es un recorrido de dos tramos, 0,45 s hacia arriba y 0,25 s hacia adentro". El 2026-10-08 esa subida se reemplazó "temporalmente" por un salto para arriba con control aéreo, y el usuario dijo "por ahora lo dejamos asi" (sección 8.6). Si vuelve una animación de subida, el código viejo está en `3cdcc91`.
 
@@ -3483,7 +3792,7 @@ El punto 6 fue de la última fila: un modo nuevo, con dos campos nuevos en el es
 - **Bases:**
     - solo se trasladan, no giran;
     - una plataforma que choca de costado contra un personaje todavía no lo empuja (el documento lo llama empujador guionado);
-    - la balsa del host puede dar una ráfaga de correcciones al subirse desde el piso con internet mala (0 a 51 en las pruebas); arriba, ninguna.
+    - la balsa del host puede dar una ráfaga de correcciones al subirse desde el piso con internet mala (0 a 51 en las pruebas). Hasta `b7403fb`, quieto arriba también podía quedar temblando (sección 8.9). Al subirse, bajarse o saltar arriba, las correcciones siguen: se aceptaron, y a los jugadores se les va a pedir internet de menos de 140 ms y con poca pérdida.
 - **El otro jugador sobre una plataforma:** con la cápsula que mira cerca del vagón o arriba, queda un ajuste de unos 0,3 m al subirse o bajarse, y el caso raro de volver al final de un salto bajo. Al acercarse desde lejos, el vagón se adelanta de a poco a su momento real.
 - **Conexión:** el laboratorio no se reconecta. Un silencio de unos 5 s o más (según la ida y vuelta medida) termina la sesión.
 - **Pausa:** solo anda en Jugar solo. En red, la G no hace nada y no avisa; el aviso en el panel quedó ofrecido.
@@ -3522,6 +3831,15 @@ El punto 6 fue de la última fila: un modo nuevo, con dos campos nuevos en el es
     - en la escalera, si se llega a 0,9 m de ella antes que a la cintura, se agarra de la escalera;
     - colgado de un compañero que cuelga de un borde que se mueve: no se probó;
     - sin rayo de la cámara: si el borde y el compañero quedan al alcance a la vez (muros de unos 3 m), gana lo que las manos tocan primero.
+- **Cámara lenta** (sección 8.9):
+    - entre apretar la V y que empiece pasan unos 0,12 s en la red de la casa y unos 0,4 s con internet mala;
+    - una cámara lenta del mundo por vez;
+    - el salto cambia hasta 2,5 cm de alto según la escala;
+    - la personal es un evento del host, no un modificador, y no hay campo lento por zona;
+    - las plataformas guionadas recuerdan todos los tramos desde el arranque;
+    - quien deja una plataforma con cámara lenta personal recorre a su escala la velocidad que se lleva: no se probó;
+    - la altura de la cámara sigue a la cabeza con un suavizado que también se frena;
+    - la V se lee directo del teclado y no es una acción del Mapa de entrada; cuando lleguen las capacidades, puede pasar a serlo (con el editor cerrado).
 - **Las 62 correcciones y las 108 afirmaciones rechazadas** de la primera prueba de Hanging en dos PC pasaron antes de la primera captura y no se ubicaron. La sospecha es el borde sobre el cuerpo del host.
 - **El "tp" de la prueba de la base propia** no se pudo ubicar en las capturas. La sospecha es que se vio en el host, al volver la conexión.
 
@@ -3531,11 +3849,12 @@ El punto 6 fue de la última fila: un modo nuevo, con dos campos nuevos en el es
 - El control del adelanto con tirones periódicos: con tirones cada 3 s, el ritmo pasa casi todo el tiempo en 57. Ahora que la adopción absorbe los inputs tardíos, podría reaccionar menos.
 - El colchón de interpolación (100 ms): con tirones de 150 ms se vacía a veces (14 ticks en la prueba automática; 70 a 96 en las dos PC).
 - El umbral de suavizado (1,5 m) y la vida media del desvío (25 ms).
-- **El ancho de banda.** En la primera versión de este documento: hasta ~373 bytes por paquete del cliente y 62 bytes por actor en el snapshot. En la segunda, con el estado de 67 bytes: 471 y 78. En la quinta, con el de 79 bytes: 543 y 90. Hoy, con el estado de 85 bytes, la cuenta da:
-    - **cada paquete del cliente:** 2 + 1 + 6 × (10 + 1 + 85) = 579 bytes como máximo, 60 veces por segundo;
-    - **el snapshot:** 96 bytes por actor y 26 por balsa (más 1 byte con la cantidad de balsas), 30 veces por segundo.
+- **El ancho de banda.** En la primera versión de este documento: hasta ~373 bytes por paquete del cliente y 62 bytes por actor en el snapshot. En la segunda, con el estado de 67 bytes: 471 y 78. En la quinta, con el de 79 bytes: 543 y 90. En la sexta, con el de 85 bytes y el input de 10: 579 y 96. Hoy, con el estado de 89 bytes y el input de 11, la cuenta da:
+    - **cada paquete del cliente:** 2 + 1 + 6 × (11 + 1 + 89) = 609 bytes como máximo, 60 veces por segundo;
+    - **el snapshot:** 100 bytes por actor y 26 por balsa (más 1 byte con la cantidad de balsas), 30 veces por segundo.
 - **Hanging:** la distancia máxima de snap (35 cm), el tope de velocidad del dibujo al agarrarse (1,8 m/s), la altura del colgado (1,95 m) y el margen del salto para arriba (20 cm).
 - **Colgarse de un compañero:** el alcance (1 m), la altura de las manos sobre sus pies (1 m), la distancia entre los dos (0,7 m), cuánto baja el agarre del de arriba (1) y la tolerancia para adoptar (0,5 m).
+- **La cámara lenta:** la escala (30 %) y las dos duraciones (3 s).
 - **El colchón de los eventos programados** (4 ticks): en la prueba de dos PC llegaron tarde 11 de 29, pero todos se repitieron sin corrección.
 
 **Observaciones de las pruebas reales:**
@@ -3547,12 +3866,13 @@ El punto 6 fue de la última fila: un modo nuevo, con dos campos nuevos en el es
 
 **Del documento de arquitectura:**
 
-- **La regla de esperar los estados provisorios** que agregué en el paso 7 todavía no está escrita en el documento.
+- **La regla de esperar los estados provisorios** que agregué en el paso 7, y la de no corregirse hacia una afirmación propia (`b7403fb`), quedaron como nota en el documento (revisión 67), pero no en su texto.
 - **La inferencia I2 quedó confirmada** en el punto 2, pero el documento todavía la lista como inferencia. Anotarlo quedó ofrecido.
 - ~~**Agarrarse sin intención hacia la pared.**~~ Corregido, con notas, en la copia del Apéndice A y en el documento de Claude Docs (revisión 55).
 - ~~**Subir al borde como salto para arriba.**~~ Corregido, con la subida vieja copiada en una nota, en la copia del Apéndice A y en el documento de Claude Docs (revisión 60).
 - ~~**Agarrarse subiendo y el giro al saltar.**~~ Corregido, con notas, en la copia del Apéndice A y en el documento de Claude Docs (revisión 65). También el "Estado" de Hanging, que había quedado viejo con el salto para arriba.
 - ~~**Colgarse de un compañero, con los roles al revés y predicho.**~~ Anotado, con notas en siete lugares, en la copia del Apéndice A y en el documento de Claude Docs (revisión 66). El cambio de línea sigue en el documento como regla; hoy ninguna interacción del laboratorio la usa.
+- ~~**La cámara lenta y sus dos arreglos.**~~ Anotado, con notas en ocho lugares, en la copia del Apéndice A y en el documento de Claude Docs (revisión 67).
 - **Cuando el esqueleto pase a ser el juego,** los ajustes que hoy aplica el laboratorio al arrancar (60 ticks, `physics_jitter_fix` en 0 e interpolación de física) van a `project.godot`.
 - **Fuera del laboratorio** quedan los demás modos anclados, los cuerpos rígidos, las demás interacciones (empujar juntos, subirse a los hombros, arrastrar y revivir), la muerte, el sistema de modificadores, Steam y NAT.
 
@@ -3600,6 +3920,17 @@ La nota de "Subir al borde" cuenta los cuatro cambios.
 - la mezcla de 0,2 s del cambio de línea, en "Presentación";
 - el recorrido 5, la desconexión mientras sostiene a un compañero;
 - el punto 6 de "Qué validaría primero".
+
+**Correcciones del 2026-10-10, con el punto 7** (sección 8.9). La copia y el documento de Claude Docs (revisión 67) suman notas en ocho lugares, sin cambiar el texto original:
+
+- la tabla de quién simula qué: al que se conecta tarde, el host le manda todas las cámaras lentas;
+- "Qué hace el host con el tick T": el ida y vuelta entre corrección y adopción, y las dos reglas del cliente que el documento no tiene;
+- "Escala de tiempo con `move_and_slide()`": no dividir la velocidad si el movimiento no la tocó;
+- "Cámara lenta en pantalla": qué hace el laboratorio;
+- el recorrido 2, la cámara lenta del mundo en un salto;
+- el recorrido 4, sobre la balsa del host;
+- el riesgo de los saltos de distinta altura, medido;
+- el punto 7 de "Qué validaría primero".
 
 ### Arquitectura de movimiento co-op (Godot 4.7 + Jolt)
 
@@ -3697,6 +4028,8 @@ En el caso normal el host adopta la afirmación y el cliente no ve nada. Solo un
 | Interacciones, salud, muerte, respawn, cámara lenta del mundo | El host | Eventos confiables con número de tick |
 | Cámara, mirada, animación, sonido, IK | Cada máquina, en local | No se transmiten |
 
+> **Nota (2026-10-10), punto 7.** En el laboratorio la cámara lenta del mundo se anuncia así, y hizo falta algo más: al que se conecta, el host le manda todos los tramos que hubo, también los que ya terminaron. Las plataformas guionadas van por el tiempo del mundo, y quien no conoce un tramo las tiene corridas para siempre: en la prueba en dos PC, una V apretada antes de que entrara la notebook terminó en correcciones de hasta 7,33 m (sección 8.9).
+
 ##### Reloj
 
 Un tick fijo de 60 Hz, igual a `physics_ticks_per_second`, y un número de tick entero como línea de tiempo común. Con `physics_jitter_fix` en 0, como recomienda Godot para juegos en red.
@@ -3729,6 +4062,8 @@ La **época** es un contador por cliente. El host lo incrementa con cada evento 
 La adopción también cura los inputs tardíos: si el salto entró dos ticks tarde en el host, la afirmación siguiente es válida y el host la toma. La época cierra el hueco que la referencia de Unreal señala: el host no adopta a un cliente que todavía no vio un efecto.
 
 Riesgo propio: la adopción puede tapar errores reales de desincronización. Por eso el host registra cuánto difería su resultado de cada afirmación adoptada, y la adopción se puede apagar en pruebas.
+
+> **Nota (2026-10-10), punto 7.** La adopción y la corrección pueden armar un ida y vuelta que no termina. Con demora, el cliente se corrige a lo que dice un snapshot, pero las afirmaciones que mandó antes de corregirse siguen viajando; el host las adopta, el snapshot siguiente las trae de vuelta y el cliente se corrige otra vez. Quieto, entre dos poses válidas, no lo frena nada: en el laboratorio, un jugador quieto sobre la balsa temblaba entre dos lugares a 0,69 m. El laboratorio suma dos reglas del cliente que este documento no tiene. Una es del paso 7: no corregir con un estado que el host calculó repitiendo un input viejo. La otra salió de esto: no corregirse hacia algo que el propio cliente afirmó para ese tick, porque lo afirmado después todavía viaja y el host lo va a adoptar (sección 8.9).
 
 ##### Qué hace el cliente con cada snapshot
 
@@ -3936,6 +4271,8 @@ Hay condiciones, pero son listas planas por modo, no un árbol global. Un modo n
 
 `move_and_slide()` usa el delta del frame de física, que ya incluye `Engine.time_scale`. Para que un actor avance su propio `dt`, se multiplica `velocity` por `dt` del actor dividido el delta del frame, se mueve, y se divide la velocidad resultante por el mismo factor. Lo mismo vale al repetir varios ticks dentro de un frame: cada tick usa su propio factor.
 
+> **Nota (2026-10-10), punto 7.** Dividir la velocidad por el factor no siempre devuelve el mismo número: deja un error de redondeo que depende del delta del frame, y un tick repetido en otro frame (con cámara lenta o a otro ritmo) puede cuantizarse distinto. En el laboratorio, la repetición a 72 ticks por segundo difirió en 1 mm/s. Si el movimiento no tocó la velocidad, el laboratorio se queda con la de antes, tal cual (sección 8.9).
+
 ##### Escalones
 
 `CharacterBody3D` no tiene altura de escalón. La primera opción son rampas de colisión sobre las escaleras, una regla de nivel que también es estable en red. Si hacen falta cordones o escalones sueltos, el modo Suelo suma una sonda: subir, avanzar, bajar y aceptar solo si cae en suelo caminable.
@@ -4074,6 +4411,8 @@ La presentación lee la simulación y nunca escribe en ella. Su trabajo es absor
 
 - **Del mundo.** La escala de tiempo afecta todo lo que usa delta; la interfaz se procesa fuera de esa escala. El audio no se escala solo: Godot indica `AudioServer.playback_speed_scale` para eso.
 - **Personal.** Solo se escalan la animación y los sonidos de ese jugador, más efectos de cámara en su pantalla. Su mouse no se ralentiza.
+
+> **Nota (2026-10-10), punto 7.** En el laboratorio no hay animación ni sonido. El mouse y el panel no se ralentizan, en ninguna de las dos. La cámara sigue la altura de la cabeza con un suavizado que sí se frena con la escala del mundo, y quedó así (sección 8.9).
 
 #### Hanging: con snap
 
@@ -4224,6 +4563,8 @@ C hace un salto cargado. En el aire, un evento guionado pone el mundo a ×0,3 du
 5. Coyote y buffer de salto también se estiran. El mouse no.
 6. La escala del mundo vence a los 180 ticks reales, no con su propio reloj.
 
+> **Nota (2026-10-10), punto 7.** El laboratorio lo hace así, con dos diferencias: la pide cualquier jugador con una tecla (el contador viaja en el input y el host la programa), y hay una sola por vez. El salto con escala no llega exactamente a la misma altura: 2,5 cm más al 30 %, por la cuantización de la velocidad. Coyote y memoria del salto se estiran: el coyote pasa de 0,1 s a 0,33 s reales. Si el anuncio llega tarde, el cliente repite desde el tick de inicio, como con un empujón programado (sección 8.9).
+
 ##### 3. Fin de un deslizamiento bajo un techo
 
 D entra deslizándose a un túnel de 1,2 m de alto; parado mide 1,8 m.
@@ -4245,6 +4586,8 @@ E camina sobre un vagón guionado que va a 6 m/s y agarra una prisa ×1,5.
 5. El vagón es función del tiempo del mundo, igual en todas las máquinas; la afirmación va en coordenadas del vagón y se adopta.
 
 Si la base fuera una balsa del host, E predice su caminata sobre la balsa interpolada. Al saltar fuera aparece un error del tamaño de lo que se movió la balsa durante la latencia, y se corrige suave al aterrizar.
+
+> **Nota (2026-10-10), punto 7.** Confirmado en dos PC: sobre la balsa, que en el laboratorio va al azar, hay correcciones al subirse, bajarse y saltar, de hasta 1,4 m con internet mala. Quieto en el medio había además un temblor, que era el ida y vuelta entre corrección y adopción (nota en "Qué hace el host con el tick T"); ya no está. El usuario aceptó las correcciones que quedan: a los jugadores se les va a pedir internet de menos de 140 ms y con poca pérdida (sección 8.9).
 
 ##### 5. Desconexión mientras sostiene a un compañero
 
@@ -4407,6 +4750,8 @@ Cada pieza responde a un problema concreto: si se saca, algo identificable se ro
 | Desvío visual | Correcciones y snaps visibles | Tirones en pantalla |
 | Registro de eventos por tick | Repetir ticks repite sonidos | Sonidos dobles |
 
+> **Nota (2026-10-10), punto 7.** "Saltos de distinta altura según la escala": medido en el laboratorio, el mismo salto llega 1,1388 m a velocidad normal, 1,1643 m al 30 % y 1,1496 m con las dos escalas juntas (9 %). La diferencia viene de cuantizar la velocidad en mm/s con un `dt` chico (sección 8.9).
+
 ##### Riesgos abiertos
 
 - **La adopción puede tapar errores reales.** Se mitiga registrando la diferencia entre el resultado del host y cada afirmación adoptada, y apagando la adopción en pruebas.
@@ -4429,6 +4774,8 @@ Cada pieza responde a un problema concreto: si se saca, algo identificable se ro
 7. **Cámara lenta** del mundo y personal.
 
 > **Nota (2026-10-09), punto 6.** Hecho como "colgarse de un compañero" (sección 8.8). La primera versión hizo el cambio de línea y se probó en las dos PC. Después, a pedido, se cambió a predecir colgado, porque el compañero del que se cuelga está quieto.
+
+> **Nota (2026-10-10), punto 7.** Hecho y probado en dos PC (sección 8.9): la del mundo la pide cualquier jugador con una tecla y el host la programa para todos; la personal la aplica el host a los demás, como un empujón programado; las dos al 30 % durante 3 s. La prueba en dos PC sacó dos fallas, arregladas: la entrada tarde (nota en la tabla de quién simula qué) y un temblor que venía de la adopción (nota en "Qué hace el host con el tick T").
 
 #### Fuentes
 
@@ -4488,8 +4835,24 @@ Estos scripts no están en el repositorio: vivieron en una carpeta temporal de l
 | `diag_colgar_companero.gd` | 6 | Sin red, con el motor real y tres actores: dos que se cuelgan en el mismo tick, el de arriba quieto, los empujones débil y fuerte, y Ctrl del de arriba. Llama a `ActorMotor.assign_hooks()` al empezar cada tick, como el host |
 | `regresiones_p6.ps1` | 6 | Corre en orden las tandas de regresión anteriores (bases, postura, escalera, escalones y Hanging en red) y la repetición a 72 y con el ritmo variando |
 | `balsa_comparar.ps1` | 6 | Colgarse del borde sobre la balsa del host (`hang:5`), alternando el código del commit anterior (una copia mínima) y el actual, para ver si las correcciones cambiaron o son el azar de la balsa |
+| `lenta_pares.ps1` | 7 | Cámara lenta en red: la V del host y la del cliente, la personal, las dos juntas, con poco aviso, sobre el vagón y la balsa, y colgándose de bordes |
+| `diag_salto_lento.gd` | 7 | El mismo salto a velocidad normal, con la escala del mundo, con la personal y con las dos: altura, tiempo en el aire y coyote |
+| `regresiones_p7.ps1` | 7 | Las regresiones anteriores en orden, una parte de colgarse de un compañero y el barrido |
+| `desfase_pares.ps1` | 7 | Entrar tarde: la V antes de que se conecte el cliente, dos V antes, entrar en plena cámara lenta, e internet mala de cada lado. El cliente arranca 6 s después que el host (`-ClientDelayMs`) |
+| `dedup_check.gd` | 7 | `SimClock.add_world_slow` con un tramo repetido y otro anterior |
+| `regresiones_desfase.ps1` | 7 | La matriz de cámara lenta y la repetición, después del arreglo de la entrada tarde |
+| `temblor_pares.ps1` y `temblor_comparar.ps1` | 7 | El temblor: los dos sobre la balsa y en el piso, con internet mala desde el principio en el cliente y desde los 12 s en el host. Se corre sobre el código actual y sobre una copia mínima del commit anterior al punto 7 |
+| `quieto_pares.ps1` | 7 | Quieto sobre la balsa y sobre el vagón (`stand`), sin red simulada y con internet mala en uno o en los dos. La primera versión iba con un aviso provisorio en `ClientPrediction` que imprimía cada corrección, lo predicho y lo del host; ya se sacó |
+| `regresiones_arreglo.ps1` | 7 | Las pruebas del arreglo del temblor y todas las regresiones de red. El usuario la cortó a mitad de colgarse de un compañero |
 
 El barrido de Hanging no está acá: es parte del repositorio (`scenes/net_lab/hang_sweep_test.gd`).
+
+**El video del punto 7** se leyó con ffmpeg: primero una hoja con un cuadro por segundo, y después todos los cuadros de los segundos del temblor, recortados alrededor del personaje:
+
+```bash
+ffmpeg -i video.mp4 -vf "fps=1,scale=640:360,tile=3x3" hoja_%02d.png
+ffmpeg -ss 34 -t 1 -i video.mp4 -vf "crop=700:520:300:160,scale=320:238,tile=6x5" -frames:v 1 cerca_34.png
+```
 
 Ejemplo de prueba en pareja (la del 6b con la red saltando a 400 ms):
 
@@ -6819,4 +7182,330 @@ foreach ($round in 1..$Rounds) {
     "$name ronda $round`: correcciones=$corr máxima=$max"
   }
 }
+```
+
+#### lenta_pares.ps1
+
+```powershell
+param([string[]]$Only = @())
+# Punto 7: cámara lenta en red, con host y cliente por localhost.
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$proj = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+$common = @('--headless','--path',$proj,'-d','--scene','res://scenes/net_lab/net_lab.tscn','--')
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5','--sim-seed=22')
+
+function Show($file) {
+  Get-Content $file | Select-String -Pattern '^==== |resumen: rol=|adopci.n del jugador|c.mara lenta|empieza la c.mara|correcciones: la|los dem.s en pantalla|estado del actor|colgar:|SCRIPT|ERROR|WARNING: [A-Z]|TIMEOUT' | ForEach-Object {
+    $_.Line -replace 'ida_y_vuelta.*?saltos_de_reloj','saltos_de_reloj' -replace ' snapshots_perdidos.*$','' -replace '^\[net_lab\] ','' -replace 'm.ximo=\d+ ','' -replace 'actores=\[[^\]]*\] ','' -replace 'tick=\d+ ','' -replace 'prendida=true ','' -replace 'postura=STANDING \(pedida STANDING\) ','' -replace 'filo=\(0.0, 0.0, 0.0\) cuelga_de_.l=0 ','' }
+}
+
+function Pair($name, $hostExtra, $clientExtra, [int]$quit = 30) {
+  if ($Only.Count -gt 0 -and -not ($Only -contains $name)) { return }
+  $hostArgs = $common + @('--host','--port=7799','--bind=127.0.0.1',"--autoquit=$($quit + 2)","--report-after=$($quit - 1)") + $hostExtra
+  $clientArgs = $common + @('--client','--address=127.0.0.1','--port=7799',"--autoquit=$quit","--report-after=$($quit - 2.5)") + $clientExtra
+  $file = "$sp\lenta_$name.txt"
+  & "$sp\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds ($quit + 40) | Out-File -Encoding utf8 $file
+  "######## $name"
+  Show $file
+}
+
+# 1. El host aprieta la V con el cliente en zigzag; red limpia y mala.
+Pair 'mundo_host_zigzag_sin' @('--test-world-slow-at=5,14') @('--test-input=zigzag')
+Pair 'mundo_host_zigzag_mala' @('--test-world-slow-at=5,14') (@('--test-input=zigzag') + $mala)
+# 2. La aprieta el cliente: el pedido viaja en su input.
+Pair 'mundo_cliente_zigzag_sin' @() @('--test-input=zigzag','--test-world-slow-at=5,14')
+Pair 'mundo_cliente_zigzag_mala' @() (@('--test-input=zigzag','--test-world-slow-at=5,14') + $mala)
+# 3. Personal: el host la aplica al cliente (B).
+Pair 'personal_zigzag_sin' @('--test-personal-slow-at=5,14') @('--test-input=zigzag')
+Pair 'personal_zigzag_mala' @('--test-personal-slow-at=5,14') (@('--test-input=zigzag') + $mala)
+# 4. Las dos juntas.
+Pair 'juntas_zigzag_mala' @('--test-world-slow-at=5','--test-personal-slow-at=6') (@('--test-input=zigzag') + $mala)
+# 5. Programada con poco aviso: llega tarde y el cliente repite desde su tick.
+Pair 'tarde_mala' @('--test-world-slow-at=5,14','--test-schedule-ticks=3') (@('--test-input=zigzag') + $mala)
+# 6. Sobre el vagón y sobre la balsa, con el mundo lento.
+Pair 'vagon_mala' @('--test-world-slow-at=8,18') (@('--test-input=ride:1') + $mala) 32
+Pair 'balsa_mala' @('--test-world-slow-at=8,18') (@('--test-input=ride:3') + $mala) 32
+# 7. Colgarse de bordes con el mundo lento y el cliente lento.
+Pair 'colgar_mala' @('--test-world-slow-at=6,20','--test-personal-slow-at=13,27') (@('--test-input=hang') + $mala) 45
+```
+
+#### diag_salto_lento.gd
+
+```gdscript
+extends SceneTree
+
+# Diagnóstico del punto 7: el mismo salto parado, con el mundo a velocidad
+# normal, con cámara lenta del mundo (dt × 0,3), con cámara lenta personal
+# (dt × 0,3 dentro del motor) y con las dos (dt × 0,09). El riesgo que anota la
+# arquitectura: "saltos de distinta altura según la escala". Imprime la altura
+# máxima de los pies, cuántos ticks dura el salto y cuántos ticks dura el
+# coyote al caminar fuera de un escalón.
+
+const SCALE := 0.3
+
+
+class Runner extends Node:
+	var tuning := ActorTuning.new()
+	var actor: ActorBody
+
+	func _ready() -> void:
+		SimClock.apply_tick_rate(SimClock.TICK_RATE)
+		add_child(_box(Vector3(60, 1, 60), Vector3(0, -0.5, 0)))
+		add_child(_box(Vector3(4, 1, 4), Vector3(0, 0.5, -10)))  # una plataforma de 1 m para el coyote
+		actor = load("res://scenes/actor/actor.tscn").instantiate()
+		add_child(actor)
+		_run.call_deferred()
+
+	func _box(size: Vector3, center: Vector3) -> StaticBody3D:
+		var body := StaticBody3D.new()
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = size
+		shape.shape = box
+		body.add_child(shape)
+		body.position = center
+		return body
+
+	func _fresh(at: Vector3) -> ActorState:
+		var s := ActorState.new()
+		s.mode = ActorState.Mode.GROUND
+		s.on_floor = true
+		s.position = at
+		s.quantize()
+		actor.apply_state(s)
+		return s
+
+	func _jump(world: float, personal: bool) -> String:
+		var s := _fresh(Vector3(5, 0, 5))
+		if personal:
+			s.slow_left = 1000.0
+		var top := 0.0
+		var ticks := 0
+		for t in 2000:
+			var input := ActorInput.make(t, Vector2.ZERO, 0.0, 0, 1 if t >= 5 else 0)
+			ActorMotor.step(actor, s, input, tuning, SimClock.TICK_DT * world)
+			if t >= 5:
+				top = maxf(top, s.position.y)
+				if s.mode == ActorState.Mode.GROUND and t > 6:
+					ticks = t - 5
+					break
+		return "altura máxima %.4f m, %d ticks en el aire (%.2f s reales)" % [top, ticks, ticks * SimClock.TICK_DT]
+
+	# Camina fuera de la plataforma de 1 m y salta apenas deja el piso: cuenta
+	# hasta qué tick después de dejar el piso todavía puede saltar.
+	func _coyote(world: float) -> String:
+		var s := _fresh(Vector3(0, 1.0, -9))
+		var left_at := -1
+		for t in 600:
+			var input := ActorInput.make(t, Vector2(0, -1), 0.0, 0, 0)
+			ActorMotor.step(actor, s, input, tuning, SimClock.TICK_DT * world)
+			if s.mode == ActorState.Mode.AIR and left_at < 0:
+				left_at = t
+			if left_at >= 0 and s.coyote_left <= 0.0:
+				return "coyote: %d ticks (%.3f s reales)" % [t - left_at, (t - left_at) * SimClock.TICK_DT]
+		return "coyote: no se midió"
+
+	func _run() -> void:
+		print("[diag] normal:                %s" % _jump(1.0, false))
+		print("[diag] mundo lento:           %s" % _jump(SCALE, false))
+		print("[diag] personal:              %s" % _jump(1.0, true))
+		print("[diag] mundo lento y personal: %s" % _jump(SCALE, true))
+		print("[diag] normal, %s" % _coyote(1.0))
+		print("[diag] mundo lento, %s" % _coyote(SCALE))
+		get_tree().quit()
+
+
+func _initialize() -> void:
+	root.add_child(Runner.new())
+```
+
+#### regresiones_p7.ps1
+
+```powershell
+# Regresiones del punto 7: las tandas anteriores en orden (todas usan el puerto
+# 7799), el barrido de Hanging y una parte de colgarse de un compañero.
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$proj = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+& "$sp\regresiones_bases2.ps1" | Out-File -Encoding utf8 "$sp\p7_reg_bases.txt"
+& "$sp\postura_pares.ps1" | Out-File -Encoding utf8 "$sp\p7_reg_postura.txt"
+& "$sp\escalera_pares.ps1" | Out-File -Encoding utf8 "$sp\p7_reg_escalera.txt"
+& "$sp\escalones_pares.ps1" | Out-File -Encoding utf8 "$sp\p7_reg_escalones.txt"
+& "$sp\hang_pares.ps1" | Out-File -Encoding utf8 "$sp\p7_matriz_colgar.txt"
+& "$sp\hook_pares.ps1" -Only @('muro_cliente_se_cuelga_mala','muro_host_se_cuelga_mala','muro_suelta_arriba_cliente_se_cuelga_mala','escalera_cliente_se_cuelga_sin') -HostQuit 62 -ClientQuit 60 | Out-File -Encoding utf8 "$sp\p7_reg_companero.txt"
+& "$sp\run_godot.ps1" -GodotArgs @('--headless','--path',$proj,'-d','--scene','res://scenes/net_lab/hang_sweep_test.tscn') -TimeoutSeconds 590 | Out-File -Encoding utf8 "$sp\p7_barrido.txt"
+"listo"
+```
+
+#### desfase_pares.ps1
+
+```powershell
+param([string[]]$Only = @())
+# Desfase de las plataformas: la V antes de que se conecte el cliente, contra la
+# V con el cliente ya conectado (control).
+$old = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\52323eb3-c36b-437d-9f5c-70bee61a1c1a\scratchpad"
+$proj = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+$common = @('--headless','--path',$proj,'-d','--scene','res://scenes/net_lab/net_lab.tscn','--')
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5','--sim-seed=22')
+
+function Show($file) {
+  Get-Content $file | Select-String -Pattern '^==== |resumen: rol=|adopci.n del jugador|c.mara lenta|empieza la c.mara|correcciones: la|estado del actor|tramos|SCRIPT|ERROR|WARNING: [A-Z]|TIMEOUT|conect' | ForEach-Object {
+    $_.Line -replace 'ida_y_vuelta.*?saltos_de_reloj','saltos_de_reloj' -replace ' snapshots_perdidos.*$','' -replace '^\[net_lab\] ','' }
+}
+
+function Pair($name, $hostExtra, $clientExtra, [int]$quit = 30, [int]$delayMs = 1500) {
+  if ($Only.Count -gt 0 -and -not ($Only -contains $name)) { return }
+  $clientQuit = $quit - [math]::Floor($delayMs / 1000)
+  $hostArgs = $common + @('--host','--port=7799','--bind=127.0.0.1',"--autoquit=$($quit + 2)","--report-after=$($quit - 1)") + $hostExtra
+  $clientArgs = $common + @('--client','--address=127.0.0.1','--port=7799',"--autoquit=$clientQuit","--report-after=$($clientQuit - 2.5)") + $clientExtra
+  $file = "$sp\desfase_$name.txt"
+  & "$old\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -ClientDelayMs $delayMs -TimeoutSeconds ($quit + 40) | Out-File -Encoding utf8 $file
+  "######## $name"
+  Show $file
+}
+
+# 1. Control: la V del host con el cliente ya conectado, el cliente en el vagón.
+Pair 'control_vagon' @('--test-world-slow-at=12') @('--test-input=ride:1') 32 6000
+# 2. La V del host antes de que se conecte el cliente (sale a los 6 s).
+Pair 'antes_vagon' @('--test-world-slow-at=1') @('--test-input=ride:1') 32 6000
+# 3. Dos V antes de que se conecte.
+Pair 'antes_dos_vagon' @('--test-world-slow-at=1,4.5') @('--test-input=ride:1') 32 6000
+# 4. Se conecta en plena cámara lenta.
+Pair 'durante_vagon' @('--test-world-slow-at=5.6') @('--test-input=ride:1') 32 6000
+# 5. Lo mismo con internet mala en el cliente.
+Pair 'antes_vagon_mala' @('--test-world-slow-at=1') (@('--test-input=ride:1') + $mala) 32 6000
+Pair 'durante_vagon_mala' @('--test-world-slow-at=5.6') (@('--test-input=ride:1') + $mala) 32 6000
+# 6. Internet mala en el host: lo que manda sale demorado.
+Pair 'antes_vagon_host_mala' (@('--test-world-slow-at=1,4.5') + $mala) @('--test-input=ride:1') 32 6000
+```
+
+#### dedup_check.gd
+
+```gdscript
+extends SceneTree
+
+# Chequeo directo de SimClock.add_world_slow: no repite un tramo y los deja en orden.
+func _initialize() -> void:
+	SimClock.clear_world_slow()
+	var a := SimClock.add_world_slow(100, 280, 0.3)
+	var b := SimClock.add_world_slow(100, 280, 0.3)
+	var c := SimClock.add_world_slow(20, 200, 0.3)
+	print("[dedup] primero=%s repetido=%s otro=%s tramos=%s mundo(1000)=%.1f" % [a, b, c, SimClock.world_slow_spans(), SimClock.world_ticks(1000.0)])
+	SimClock.clear_world_slow()
+	quit()
+```
+
+#### regresiones_desfase.ps1
+
+```powershell
+# Regresiones del arreglo del desfase: la matriz de cámara lenta y la repetición
+# a 60 y a ritmo variable. En orden: los pares usan el puerto 7799.
+$old = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\52323eb3-c36b-437d-9f5c-70bee61a1c1a\scratchpad"
+$proj = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+& "$sp\lenta_pares.ps1" | Out-File -Encoding utf8 "$sp\lenta_matriz.txt"
+foreach ($rate in @('60', 'varying')) {
+  & "$old\run_godot.ps1" -GodotArgs @('--headless','--path',$proj,'-d','--scene','res://scenes/net_lab/actor_replay_test.tscn','--',"--rate=$rate") -TimeoutSeconds 590 | Out-File -Encoding utf8 "$sp\replay_$rate.txt"
+}
+"listo"
+```
+
+#### temblor_pares.ps1
+
+```powershell
+param([string]$Proj, [string]$Tag, [string[]]$Only = @())
+# Temblor del otro jugador: la demora sube de golpe a mitad de partida (el host
+# prende internet mala a los 12 s, el cliente la tiene desde el principio). Se
+# corre igual sobre el código de ahora y sobre la copia del último commit.
+$old = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\52323eb3-c36b-437d-9f5c-70bee61a1c1a\scratchpad"
+$common = @('--headless','--path',$Proj,'-d','--scene','res://scenes/net_lab/net_lab.tscn','--')
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5','--sim-seed=22')
+$malaTarde = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5','--sim-seed=31','--sim-after=12')
+
+function Show($file) {
+  Get-Content $file | Select-String -Pattern '^==== |resumen: rol=CLIENT|adopci.n del jugador|correcciones: la|los dem.s en pantalla|SCRIPT|ERROR|TIMEOUT' | ForEach-Object {
+    $_.Line -replace 'ida_y_vuelta.*?saltos_de_reloj','saltos_de_reloj' -replace ' snapshots_perdidos.*$','' -replace '^\[net_lab\] ','' -replace 'actores=\[[^\]]*\] ','' -replace 'm.ximo=\d+ ','' }
+}
+
+function Pair($name, $hostExtra, $clientExtra, [int]$quit = 32) {
+  if ($Only.Count -gt 0 -and -not ($Only -contains $name)) { return }
+  $hostArgs = $common + @('--host','--port=7799','--bind=127.0.0.1',"--autoquit=$($quit + 2)","--report-after=$($quit - 1)") + $hostExtra
+  $clientArgs = $common + @('--client','--address=127.0.0.1','--port=7799','--trace',"--autoquit=$quit","--report-after=$($quit - 2.5)") + $clientExtra
+  $file = "$sp\temblor_${Tag}_$name.txt"
+  & "$old\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds ($quit + 40) | Out-File -Encoding utf8 $file
+  "######## $Tag $name"
+  Show $file
+}
+
+# 1. Los dos sobre la balsa (saltan cada 3 s); dos corridas, porque la balsa es al azar.
+Pair 'balsa_1' (@('--test-input=ride:3') + $malaTarde) (@('--test-input=ride:3') + $mala) 40
+Pair 'balsa_2' (@('--test-input=ride:3') + $malaTarde) (@('--test-input=ride:3') + $mala) 40
+# 2. En el piso: el cliente hace zigzag y el host mira.
+Pair 'piso_cliente' $malaTarde (@('--test-input=zigzag') + $mala)
+# 3. En el piso: el host hace zigzag y el cliente lo mira.
+Pair 'piso_host' (@('--test-input=zigzag') + $malaTarde) $mala
+```
+
+#### temblor_comparar.ps1
+
+```powershell
+# Corre la tanda del temblor sobre el código de ahora y sobre el último commit.
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\52323eb3-c36b-437d-9f5c-70bee61a1c1a\scratchpad"
+& "$sp\temblor_pares.ps1" -Proj "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur" -Tag 'ahora' | Out-File -Encoding utf8 "$sp\temblor_ahora.txt"
+& "$sp\temblor_pares.ps1" -Proj "$sp\h" -Tag 'commit' | Out-File -Encoding utf8 "$sp\temblor_commit.txt"
+"listo"
+```
+
+#### quieto_pares.ps1
+
+```powershell
+param([string[]]$Only = @(), [string]$Tag = 'q')
+# El cliente se sube a una base y se queda quieto. Antes del arreglo, sobre la
+# balsa y con demora, iba y venía entre dos lugares sin parar.
+$old = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\52323eb3-c36b-437d-9f5c-70bee61a1c1a\scratchpad"
+$proj = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+$common = @('--headless','--path',$proj,'-d','--scene','res://scenes/net_lab/net_lab.tscn','--')
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5','--sim-seed=22')
+$malaHost = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5','--sim-seed=31')
+
+function Pair($name, $hostExtra, $clientExtra, [int]$quit = 30) {
+  if ($Only.Count -gt 0 -and -not ($Only -contains $name)) { return }
+  $hostArgs = $common + @('--host','--port=7799','--bind=127.0.0.1',"--autoquit=$($quit + 2)","--report-after=$($quit - 1)") + $hostExtra
+  $clientArgs = $common + @('--client','--address=127.0.0.1','--port=7799',"--autoquit=$quit","--report-after=$($quit - 2.5)") + $clientExtra
+  $file = "$sp\quieto_${Tag}_$name.txt"
+  & "$old\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds ($quit + 40) | Out-File -Encoding utf8 $file
+  "######## $name"
+  Get-Content $file | Select-String -Pattern 'resumen: rol=CLIENT|adopci.n del jugador|correcciones: la|quieto sobre|SCRIPT|ERROR' | ForEach-Object {
+    $_.Line -replace '^\[net_lab\] ','' -replace 'actores=\[[^\]]*\] ','' -replace 'm.ximo=\d+ ','' -replace 'ida_y_vuelta.*?saltos_de_reloj','saltos_de_reloj' -replace ' snapshots_perdidos.*$','' }
+}
+
+Pair 'balsa_sin' @() @('--test-input=stand:3')
+Pair 'balsa_mala_1' @() (@('--test-input=stand:3') + $mala)
+Pair 'balsa_mala_2' @() (@('--test-input=stand:3') + $mala)
+Pair 'balsa_mala_3' @() (@('--test-input=stand:3') + $mala)
+Pair 'balsa_ambas_1' $malaHost (@('--test-input=stand:3') + $mala)
+Pair 'balsa_ambas_2' $malaHost (@('--test-input=stand:3') + $mala)
+Pair 'vagon_ambas' $malaHost (@('--test-input=stand:1') + $mala)
+```
+
+#### regresiones_arreglo.ps1
+
+```powershell
+# Arreglo del ida y vuelta (afirmaciones viejas adoptadas): quedarse quieto,
+# la tanda del temblor y todas las regresiones de red. En orden: puerto 7799.
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\52323eb3-c36b-437d-9f5c-70bee61a1c1a\scratchpad"
+$proj = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+& "$sp\quieto_pares.ps1" -Tag 'arreglo' | Out-File -Encoding utf8 "$sp\ra_quieto.txt"
+& "$sp\temblor_pares.ps1" -Proj $proj -Tag 'arreglo' | Out-File -Encoding utf8 "$sp\ra_temblor.txt"
+& "$sp\regresiones_bases2.ps1" | Out-File -Encoding utf8 "$sp\ra_bases.txt"
+& "$sp\postura_pares.ps1" | Out-File -Encoding utf8 "$sp\ra_postura.txt"
+& "$sp\escalera_pares.ps1" | Out-File -Encoding utf8 "$sp\ra_escalera.txt"
+& "$sp\escalones_pares.ps1" | Out-File -Encoding utf8 "$sp\ra_escalones.txt"
+& "$sp\hang_pares.ps1" | Out-File -Encoding utf8 "$sp\ra_colgar.txt"
+& "$sp\hook_pares.ps1" -Only @('muro_cliente_se_cuelga_mala','muro_host_se_cuelga_mala','muro_suelta_arriba_cliente_se_cuelga_mala','escalera_cliente_se_cuelga_sin') -HostQuit 62 -ClientQuit 60 | Out-File -Encoding utf8 "$sp\ra_companero.txt"
+& "$sp\lenta_pares.ps1" | Out-File -Encoding utf8 "$sp\ra_lenta.txt"
+& "$sp\desfase_pares.ps1" | Out-File -Encoding utf8 "$sp\ra_desfase.txt"
+"listo"
 ```

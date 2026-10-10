@@ -35,7 +35,8 @@ extends Node3D
 ## cliente imprime su adelanto cada medio segundo), --test-input=walk (camina y
 ## salta solo, sin teclado), --test-input=zigzag (cambia de dirección cada
 ## medio segundo durante 25 s), --test-input=ride:ID (se sube a esa base y
-## salta arriba cada 3 s), --test-input=hop:ID (se sube y después salta afuera
+## salta arriba cada 3 s), --test-input=stand:ID (se sube a esa base y se queda
+## quieto), --test-input=hop:ID (se sube y después salta afuera
 ## y adentro cada 2,5 s), --test-input=edge:ID (igual, pero salta hacia el
 ## borde), --test-input=walkoff:ID (sale y entra caminando, sin saltar),
 ## --test-input=tunnel (se desliza en el túnel largo y sale agachado),
@@ -198,6 +199,8 @@ var _interpolation := RemoteInterpolation.new()
 var _ride_presses := 0
 ## Prueba `hop`: tick local en que llegó a la base por primera vez.
 var _hop_start := -1
+## Prueba `stand`: si ya se quedó quieto sobre la base.
+var _standing := false
 ## Prueba `tunnel`: tramo del recorrido y ticks en que quedó parado bajo el techo.
 var _tunnel_phase := 0
 var _tunnel_standing_under_roof := 0
@@ -478,6 +481,8 @@ func _local_input(tick: int) -> ActorInput:
 		var walking := _local_ticks < 90
 		var presses := 1 if _local_ticks >= 30 else 0
 		return ActorInput.make(tick, Vector2(0, 1) if walking else Vector2.ZERO, 0.0, 0, presses)
+	if test_input.begins_with("stand:"):
+		return _stand_input(tick, test_input.trim_prefix("stand:").to_int())
 	if test_input.begins_with("ride:"):
 		return _ride_input(tick, test_input.trim_prefix("ride:").to_int())
 	if test_input.begins_with("hop:"):
@@ -549,6 +554,21 @@ func _ride_input(tick: int, base_id: int) -> ActorInput:
 	var to := Vector2(target.x - me.x, target.z - me.z)
 	var move := Vector2(to.x, -to.y).limit_length(1.0) if to.length() > 0.15 else Vector2.ZERO
 	return ActorInput.make(tick, move, 0.0, 0, _ride_presses)
+
+
+## Prueba de quedarse quieto: llega a la base como `ride` y, a menos de 1 m de
+## su centro, se queda parado ahí sin moverse ni saltar.
+func _stand_input(tick: int, base_id: int) -> ActorInput:
+	var base = BaseRegistry.find(base_id)
+	if not _standing and base != null and is_instance_valid(_local_actor) and _local_actor.state.base_id == base_id:
+		var me := BaseRegistry.world_position(_local_actor.state)
+		var center: Vector3 = base.base_origin()
+		if Vector2(me.x - center.x, me.z - center.z).length() < 1.0:
+			_standing = true
+			print("[net_lab] quieto sobre la base %d en el tick %d" % [base_id, tick])
+	if _standing:
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _ride_presses)
+	return _ride_input(tick, base_id)
 
 
 ## Prueba de subir y bajar: llega a la base como `ride` y después, cada 2,5 s,
@@ -1659,10 +1679,10 @@ func _snapshot_loss_percent() -> float:
 
 
 func _print_summary_and_quit() -> void:
-	print("[net_lab] resumen: rol=%s tick=%d actores=%s máximo=%d sincronizado=%s ida_y_vuelta=%.1fms adelanto=%.1f peor_margen=%.1f ritmo=%d ganados=+%.1f perdidos=-%.1f saltos_de_reloj=%d coincidencias=%d correcciones=%d esperas_input_tardío=%d alineaciones=%d snapshots_perdidos=%.1f%% red=%s paquetes_perdidos_por_el_simulador=%d" % [
+	print("[net_lab] resumen: rol=%s tick=%d actores=%s máximo=%d sincronizado=%s ida_y_vuelta=%.1fms adelanto=%.1f peor_margen=%.1f ritmo=%d ganados=+%.1f perdidos=-%.1f saltos_de_reloj=%d coincidencias=%d correcciones=%d esperas_input_tardío=%d alineaciones=%d afirmaciones_viejas_adoptadas=%d snapshots_perdidos=%.1f%% red=%s paquetes_perdidos_por_el_simulador=%d" % [
 		Role.keys()[role], _clock.tick, _actor_ids(), max_actors_seen, _clock.synced,
 		_clock.rtt_ms, _clock.lead_ticks, _clock.worst_margin, _clock.rate_hz, _clock.ticks_gained, _clock.ticks_shed, _clock.resyncs,
-		_prediction.matches, _prediction.corrections, _prediction.waits_late_input, _prediction.alignments,
+		_prediction.matches, _prediction.corrections, _prediction.waits_late_input, _prediction.alignments, _prediction.adopted_old_claims,
 		_snapshot_loss_percent(), _net_sim_text(), _link.dropped,
 	])
 	if role == Role.CLIENT:

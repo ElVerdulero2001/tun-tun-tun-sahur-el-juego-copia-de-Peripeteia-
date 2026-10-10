@@ -33,7 +33,7 @@ const LOG_PREFIX := "[actor_replay_test]"
 
 enum Phase { LIVE, LONG, SHORT, DONE }
 
-var _tuning := ActorTuning.new()
+var _tuning := ActorTuning.from_scene()
 var _inputs: Array[ActorInput] = []
 ## Último tick de cada tramo del recorrido, para informar dónde terminó.
 var _segment_ends: Array[int] = []
@@ -72,6 +72,8 @@ var _ticks_slow := 0
 
 
 func _ready() -> void:
+	# Los valores del nodo Tuning de net_lab.tscn, en un nodo propio de la prueba.
+	add_child(_tuning)
 	SimClock.apply_tick_rate(SimClock.TICK_RATE)
 	SimClock.clear_world_slow()
 	Engine.physics_jitter_fix = 0.0
@@ -245,7 +247,10 @@ func _build_inputs() -> void:
 		[230, Vector2(0, 1), 0.0, [150, 165, 180]],  # sube la rampa, cae de la plataforma y salta al caer
 		[40, Vector2.ZERO, 0.0, []],  # se queda quieto
 		# Escalera de la cara sur de la plataforma verde, justo delante:
-		[90, Vector2(0, 1), PI, [], 0],  # camina hacia ella, se agarra, sube y sale arriba
+		[53, Vector2(0, 1), PI, [], 0],  # camina hacia ella, se agarra y sube un poco
+		[6, Vector2.ZERO, PI, [0], 0],  # mirándola, salta derecho para arriba, más alto que desde el piso
+		[110, Vector2.ZERO, PI, [], 0],  # pasa por encima de la plataforma y cae al pie de la escalera: el borde de arriba está detrás de la escalera y no se agarra
+		[70, Vector2(0, 1), PI, [], 0],  # se agarra, sube y sale arriba
 		[20, Vector2.ZERO, 0.0, [], 0],  # se queda arriba de la plataforma
 		[45, Vector2(0, 1), 0.0, [], 0],  # se va por el borde, alejándose de la escalera, y cae
 		[20, Vector2.ZERO, 0.0, [], 0],  # se queda en el piso
@@ -253,7 +258,9 @@ func _build_inputs() -> void:
 		[30, Vector2.ZERO, PI, [], 0, [[5, Vector3(1, 4, -1), 2]]],  # quieto: un empujón débil lo sube por la escalera
 		[60, Vector2.ZERO, PI, [], 0, [[10, Vector3(2, 3, -4), 4]]],  # un empujón fuerte lo saca y cae
 		[80, Vector2(0.5, 0.86), PI, [], 0],  # vuelve en diagonal, se agarra y sube un poco
-		[6, Vector2(0, 1), PI, [0], 0],  # salta de la escalera
+		# Mirando para atrás, así salta hacia atrás; con S, que mirando para
+		# atrás es ir hacia la escalera.
+		[6, Vector2(0, -1), 0.0, [0], 0],  # salta de la escalera
 		[40, Vector2(0, 1), PI, [], 0],  # empuja hacia ella con el bloqueo de reagarre puesto
 		[30, Vector2.ZERO, 0.0, [], 0],  # se queda quieto
 		# Pista de escalones, detrás de donde se aparece:

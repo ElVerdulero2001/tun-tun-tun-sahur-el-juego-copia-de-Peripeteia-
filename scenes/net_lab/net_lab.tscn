@@ -1,55 +1,69 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://da43euy0wtgss"]
 
-[ext_resource type="Script" path="res://scenes/net_lab/net_lab.gd" id="1_lab"]
+[ext_resource type="Script" uid="uid://dkdlu8xd2jvi2" path="res://scenes/net_lab/net_lab.gd" id="1_lab"]
 [ext_resource type="PackedScene" path="res://scenes/net_lab/net_lab_level.tscn" id="2_level"]
-[ext_resource type="Script" path="res://scripts/net/sim_clock.gd" id="3_clock"]
-[ext_resource type="Script" path="res://scripts/net/net_session.gd" id="4_session"]
-[ext_resource type="Script" path="res://scenes/net_lab/lab_camera.gd" id="5_camera"]
-[ext_resource type="Script" path="res://scripts/net/net_sync.gd" id="6_sync"]
-[ext_resource type="Script" path="res://scripts/net/link_simulator.gd" id="7_link"]
+[ext_resource type="Script" uid="uid://cw1lcfjj5psjq" path="res://scripts/net/sim_clock.gd" id="3_clock"]
+[ext_resource type="Script" uid="uid://b4gq7eh3kp1nt" path="res://scripts/net/net_session.gd" id="4_session"]
+[ext_resource type="Script" uid="uid://bwwtlotussuoo" path="res://scenes/net_lab/lab_camera.gd" id="5_camera"]
+[ext_resource type="Script" uid="uid://cr6kkmj70nrp" path="res://scripts/net/net_sync.gd" id="6_sync"]
+[ext_resource type="Script" uid="uid://bryre3m0h8n1e" path="res://scripts/net/link_simulator.gd" id="7_link"]
+[ext_resource type="Script" uid="uid://dkdiqhwldaecd" path="res://scripts/actor/actor_tuning.gd" id="8_tuning"]
 
-[node name="NetLab" type="Node3D"]
+[sub_resource type="Curve3D" id="Curve3D_guide"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4.5),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[node name="NetLab" type="Node3D" unique_id=1635899757]
 script = ExtResource("1_lab")
 
-[node name="Level" parent="." instance=ExtResource("2_level")]
+[node name="Level" parent="." unique_id=1991015406 instance=ExtResource("2_level")]
 
-[node name="Actors" type="Node3D" parent="."]
+[node name="Actors" type="Node3D" parent="." unique_id=301528492]
 
-[node name="ActorSpawner" type="MultiplayerSpawner" parent="."]
+[node name="ActorSpawner" type="MultiplayerSpawner" parent="." unique_id=847678242]
 spawn_path = NodePath("../Actors")
 
-[node name="Clock" type="Node" parent="."]
+[node name="Clock" type="Node" parent="." unique_id=2011260395]
 script = ExtResource("3_clock")
 
-[node name="NetSync" type="Node" parent="."]
+[node name="NetSync" type="Node" parent="." unique_id=684217326]
 script = ExtResource("6_sync")
 
-[node name="LinkSimulator" type="Node" parent="."]
+[node name="LinkSimulator" type="Node" parent="." unique_id=421903507]
 script = ExtResource("7_link")
 
-[node name="Session" type="Node" parent="." node_paths=PackedStringArray("spawner", "actors_root", "clock")]
+[node name="Session" type="Node" parent="." unique_id=2037399488 node_paths=PackedStringArray("spawner", "actors_root", "clock")]
 script = ExtResource("4_session")
 spawner = NodePath("../ActorSpawner")
 actors_root = NodePath("../Actors")
 clock = NodePath("../Clock")
 
-[node name="CameraRig" type="Node3D" parent="."]
+[node name="Tuning" type="Node" parent="." unique_id=866820587]
+script = ExtResource("8_tuning")
+ladder_jump_up = 1.2
+
+[node name="CameraRig" type="Node3D" parent="." unique_id=1623118060]
 physics_interpolation_mode = 2
-top_level = true
 transform = Transform3D(1, 0, 0, 0, 0.955336, 0.29552, 0, -0.29552, 0.955336, 0, 1.6, 8)
+top_level = true
 script = ExtResource("5_camera")
 
-[node name="SpringArm" type="SpringArm3D" parent="CameraRig"]
-collision_mask = 1
+[node name="SpringArm" type="SpringArm3D" parent="CameraRig" unique_id=1107211234]
 spring_length = 4.5
 margin = 0.2
 
-[node name="Camera" type="Camera3D" parent="CameraRig/SpringArm"]
+[node name="Camera" type="Camera3D" parent="CameraRig/SpringArm" unique_id=1507104828]
 current = true
 
-[node name="Hud" type="CanvasLayer" parent="."]
+[node name="Guide" type="Path3D" parent="CameraRig"]
+curve = SubResource("Curve3D_guide")
 
-[node name="Info" type="Label" parent="Hud"]
+[node name="Hud" type="CanvasLayer" parent="." unique_id=1047048158]
+
+[node name="Info" type="Label" parent="Hud" unique_id=954835062]
 offset_left = 16.0
 offset_top = 12.0
 offset_right = 900.0
@@ -57,9 +71,8 @@ offset_bottom = 240.0
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 6
 
-[node name="Menu" type="PanelContainer" parent="Hud"]
+[node name="Menu" type="PanelContainer" parent="Hud" unique_id=1371679088]
 visible = false
-layout_mode = 3
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
@@ -72,54 +85,56 @@ offset_bottom = 165.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Box" type="VBoxContainer" parent="Hud/Menu"]
+[node name="Box" type="VBoxContainer" parent="Hud/Menu" unique_id=386299258]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Title" type="Label" parent="Hud/Menu/Box"]
+[node name="Title" type="Label" parent="Hud/Menu/Box" unique_id=1738353557]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "Laboratorio de red"
 horizontal_alignment = 1
 
-[node name="LanAddress" type="Label" parent="Hud/Menu/Box"]
+[node name="LanAddress" type="Label" parent="Hud/Menu/Box" unique_id=1501971053]
 layout_mode = 2
 horizontal_alignment = 1
 
-[node name="Solo" type="Button" parent="Hud/Menu/Box"]
+[node name="Solo" type="Button" parent="Hud/Menu/Box" unique_id=362997310]
 layout_mode = 2
 text = "Jugar solo"
 
-[node name="Host" type="Button" parent="Hud/Menu/Box"]
+[node name="Host" type="Button" parent="Hud/Menu/Box" unique_id=1948891022]
 layout_mode = 2
 text = "Crear partida"
 
-[node name="JoinRow" type="HBoxContainer" parent="Hud/Menu/Box"]
+[node name="JoinRow" type="HBoxContainer" parent="Hud/Menu/Box" unique_id=1652715138]
 layout_mode = 2
 
-[node name="Address" type="LineEdit" parent="Hud/Menu/Box/JoinRow"]
+[node name="Address" type="LineEdit" parent="Hud/Menu/Box/JoinRow" unique_id=426149440]
 layout_mode = 2
 size_flags_horizontal = 3
 text = "127.0.0.1"
 placeholder_text = "IP del host"
 
-[node name="Join" type="Button" parent="Hud/Menu/Box/JoinRow"]
+[node name="Join" type="Button" parent="Hud/Menu/Box/JoinRow" unique_id=361694372]
 layout_mode = 2
 text = "Unirse"
 
-[node name="SimRow" type="HBoxContainer" parent="Hud/Menu/Box"]
+[node name="SimRow" type="HBoxContainer" parent="Hud/Menu/Box" unique_id=645940688]
 layout_mode = 2
 
-[node name="SimLabel" type="Label" parent="Hud/Menu/Box/SimRow"]
+[node name="SimLabel" type="Label" parent="Hud/Menu/Box/SimRow" unique_id=331772669]
 layout_mode = 2
 text = "Simular internet:"
 
-[node name="SimOption" type="OptionButton" parent="Hud/Menu/Box/SimRow"]
+[node name="SimOption" type="OptionButton" parent="Hud/Menu/Box/SimRow" unique_id=145285004]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="Help" type="Label" parent="Hud/Menu/Box"]
+[node name="Help" type="Label" parent="Hud/Menu/Box" unique_id=1537082650]
 layout_mode = 2
-text = "Misma PC: dejá 127.0.0.1 y tocá Unirse.\nDesde otra PC: escribí la IP que muestra la ventana del host.\nSimular internet: elegilo solo en la PC que se une."
+text = "Misma PC: dejá 127.0.0.1 y tocá Unirse.
+Desde otra PC: escribí la IP que muestra la ventana del host.
+Simular internet: elegilo solo en la PC que se une."
 horizontal_alignment = 1
 autowrap_mode = 3

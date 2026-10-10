@@ -1,10 +1,18 @@
 class_name ActorTuning
-extends Resource
+extends Node
 
 ## Parámetros de movimiento del actor. Son valores de partida, a calibrar.
 ##
-## Host y clientes tienen que usar exactamente el mismo recurso: si difieren,
-## la predicción diverge sin que nada lo avise.
+## Es el nodo Tuning de la escena del laboratorio (net_lab.tscn): los valores
+## se cambian ahí, en el Inspector, y todos los actores se mueven con ellos.
+##
+## Host y clientes tienen que tener exactamente los mismos valores: si
+## difieren, la predicción diverge sin que nada lo avise. Por eso se cambian
+## con el juego cerrado, y las dos máquinas tienen que tener la misma versión
+## de la escena.
+
+## Escena del nodo Tuning que usa el juego.
+const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 
 @export_group("Suelo")
 @export var walk_speed := 5.0
@@ -38,14 +46,22 @@ extends Resource
 @export var climb_speed := 2.5
 ## Aceleración sobre el eje de la escalera, en m/s².
 @export var climb_accel := 20.0
-## Al saltar de la escalera: velocidad hacia afuera y hacia arriba, en m/s.
+## Al saltar de la escalera mirando a otro lado (a más de climb_look_angle de
+## ella): velocidad hacia donde mira, sin la parte que iría contra la pared, y
+## hacia arriba, en m/s.
 @export var ladder_jump_out := 3.0
 @export var ladder_jump_up := 3.5
+## Al saltar de la escalera mirándola (a menos de climb_look_angle): salta
+## derecho para arriba, y los pies suben este tanto más que en un salto desde
+## el piso, en metros.
+@export var ladder_jump_extra := 1.0
 ## Al soltar un ancla por un salto o un empujón, cuánto tiempo no se la puede
 ## volver a agarrar, en segundos de tiempo del actor.
 @export var regrab_block_time := 0.4
-## Al salir por arriba: cuánto avanza sobre el borde, en metros.
-@export var ladder_top_step := 0.7
+## Al salir por arriba, con un saltito sobre el borde: cuánto suben los pies
+## por encima del tope, en metros, y la velocidad hacia adentro, en m/s.
+@export var ladder_top_hop_height := 0.2
+@export var ladder_top_hop_speed := 2.5
 
 @export_group("Borde")
 ## Colgado: altura del filo sobre los pies, que es también la altura de las
@@ -115,3 +131,25 @@ extends Resource
 @export var coyote_time := 0.1
 ## Cuánto se recuerda una pulsación de salto antes de tocar el piso, en segundos.
 @export var jump_buffer_time := 0.12
+
+
+## Un nodo nuevo con los valores del nodo Tuning de esa escena, leídos del
+## archivo sin instanciarla: los que no se cambiaron en el Inspector quedan con
+## el valor por defecto del script, como en el juego. Lo usan las pruebas, para
+## probar los mismos valores que se juegan.
+static func from_scene(path := SCENE_PATH) -> ActorTuning:
+	var tuning := ActorTuning.new()
+	var script: Script = tuning.get_script()
+	var state := (load(path) as PackedScene).get_state()
+	for i in state.get_node_count():
+		var values := {}
+		for j in state.get_node_property_count(i):
+			values[state.get_node_property_name(i, j)] = state.get_node_property_value(i, j)
+		if values.get("script") != script:
+			continue
+		for property: String in values:
+			if property != "script":
+				tuning.set(property, values[property])
+		return tuning
+	push_error("No hay un nodo Tuning en %s: quedan los valores por defecto." % path)
+	return tuning

@@ -97,8 +97,6 @@ const NET_PRESETS := [
 
 enum Role { LOCAL, HOST, CLIENT }
 
-@export var tuning: ActorTuning
-
 var role := Role.LOCAL
 var host_address := "127.0.0.1"
 var port := DEFAULT_PORT
@@ -258,6 +256,9 @@ var remote_ticks_measured := 0
 var remote_stutters := 0
 var _remote_last_positions := {}  # peer -> Vector3
 
+## Valores de movimiento: el nodo Tuning de esta escena. Todos los actores se
+## mueven con estos mismos valores.
+@onready var tuning: ActorTuning = $Tuning
 @onready var _clock: SimClock = $Clock
 @onready var _session: NetSession = $Session
 @onready var _net_sync: NetSync = $NetSync
@@ -285,8 +286,6 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	_ready_msec = Time.get_ticks_msec()
 	_read_launch_args()
-	if tuning == null:
-		tuning = ActorTuning.new()
 	_clock.actors_root = _actors
 	_clock.tuning = tuning
 	_clock.input_provider = _input_for
@@ -1618,7 +1617,8 @@ func _update_hud() -> void:
 				world.x, world.y, world.z, world.y + _local_actor.stance_height(s.stance),
 				"%s (%d)" % [base.name, s.base_id] if base != null else "ninguna"])
 	lines.append("")
-	lines.append("WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse) · mouse mirar · Esc suelta el mouse")
+	lines.append("WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse) · mouse mirar · rueda acerca la cámara, hasta primera persona · Esc suelta el mouse")
+	lines.append("Escalera: Espacio mirándola salta para arriba, mirando a otro lado salta hacia allá")
 	lines.append("Colgado: A y D de costado · Espacio mirando a la pared salta para arriba (con W pasás arriba), mirando a otro lado salta hacia allá · Ctrl se suelta")
 	lines.append("Saltando hacia un compañero colgado de un borde o en una escalera, te colgás de su cintura: ahí Espacio y Ctrl andan igual que colgado")
 	lines.append("V cámara lenta del mundo, para todos")

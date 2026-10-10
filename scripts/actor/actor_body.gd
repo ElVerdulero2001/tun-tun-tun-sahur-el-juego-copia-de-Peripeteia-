@@ -45,7 +45,8 @@ var simulated := true
 ## Evento de presentación del último paso: cuánto saltó el cuerpo a propósito
 ## (un snap lógico). Lo pone ActorMotor y lo consume present(); la simulación
 ## no lo lee. Subir un escalón usa snap_jump, que se suaviza como una
-## corrección; agarrarse de un borde usa grab_jump, con su tope de velocidad.
+## corrección; agarrarse de un borde, de una escalera o de un compañero usa
+## grab_jump, con su tope de velocidad.
 var snap_jump := Vector3.ZERO
 var grab_jump := Vector3.ZERO
 

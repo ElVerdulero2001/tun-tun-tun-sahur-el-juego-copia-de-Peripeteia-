@@ -1,3 +1,4 @@
+@tool
 class_name Ladder
 extends Node3D
 
@@ -20,8 +21,12 @@ static var _ladders := {}  # id de red -> Ladder
 @export var width := 0.8
 ## Distancia del eje al centro de la cápsula de quien trepa.
 @export var standoff := 0.45
-## Volumen de entrada: hasta esta distancia delante del eje se puede agarrar.
-@export var reach := 0.9
+## Volumen de entrada, una caja pegada a la escalera: hasta esta distancia
+## delante del eje se puede agarrar. Más chico, hay que estar más cerca y el
+## cuerpo se acomoda menos al agarrarse (queda a `standoff`).
+@export var reach := 0.6
+## Cuánto pasa el volumen de entrada de cada costado de la escalera.
+@export var side_reach := 0.3
 
 
 static func find(id: int) -> Ladder:
@@ -30,6 +35,16 @@ static func find(id: int) -> Ladder:
 
 static func all() -> Array:
 	return _ladders.values()
+
+
+## Si unos pies en `feet` están dentro del volumen de entrada de alguna
+## escalera. Ahí no se cuelga de un borde: delante de esa pared está la
+## escalera, y se trepa por ella.
+static func any_at(feet: Vector3) -> bool:
+	for ladder: Ladder in _ladders.values():
+		if ladder.height_for(feet) >= 0.0:
+			return true
+	return false
 
 
 func _enter_tree() -> void:
@@ -63,14 +78,15 @@ func pose_at(t: float) -> Vector3:
 ## del volumen de entrada.
 func height_for(feet: Vector3) -> float:
 	var local := global_transform.affine_inverse() * feet
-	if absf(local.x) > width * 0.5 + 0.3 or local.z < 0.0 or local.z > reach:
+	if absf(local.x) > width * 0.5 + side_reach or local.z < 0.0 or local.z > reach:
 		return -1.0
 	if local.y < -0.2 or local.y > height + 0.2:
 		return -1.0
 	return clampf(local.y, 0.0, height)
 
 
-## Dos largueros y un peldaño cada 30 cm. Es solo dibujo, sin colisión.
+## Dos largueros y un peldaño cada 30 cm. Es solo dibujo, sin colisión. Con
+## @tool también se dibuja en el editor; no se guarda en la escena.
 func _build_visual() -> void:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = Color(0.75, 0.6, 0.25)

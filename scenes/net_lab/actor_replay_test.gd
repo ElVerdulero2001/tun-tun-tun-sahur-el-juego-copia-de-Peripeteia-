@@ -15,6 +15,10 @@ extends Node3D
 ## Con --rate=N corre todo a N ticks por segundo real, y con --rate=varying va
 ## cambiando de ritmo cada pocos ticks, como el cliente al ajustar su adelanto.
 ## La huella final de la pasada en vivo tiene que dar igual a cualquier ritmo.
+##
+## Desde el punto 7, el recorrido termina con cámara lenta del mundo, personal y
+## las dos juntas: cada tick avanza el tiempo del mundo de ese tick
+## (SimClock.world_dt) y time_scale sigue a la escala, como en el juego.
 
 const TICK_DT := 1.0 / 60.0
 const TIMEOUT_SECONDS := 400.0
@@ -60,12 +64,16 @@ var _jumps := 0
 var _max_height := 0.0
 var _varying_rate := false
 var _physics_frames := 0
+## Ritmo de ticks actual, para combinarlo con la escala del mundo.
+var _rate := SimClock.TICK_RATE
+var _ticks_slow := 0
 
 @onready var _actor: ActorBody = $Actor
 
 
 func _ready() -> void:
 	SimClock.apply_tick_rate(SimClock.TICK_RATE)
+	SimClock.clear_world_slow()
 	Engine.physics_jitter_fix = 0.0
 	var rate_text := "60"
 	for arg in OS.get_cmdline_user_args():
@@ -73,7 +81,8 @@ func _ready() -> void:
 			_varying_rate = true
 			rate_text = "variable %s" % str(VARYING_RATES)
 		elif arg.begins_with("--rate="):
-			SimClock.apply_tick_rate(arg.trim_prefix("--rate=").to_int())
+			_rate = arg.trim_prefix("--rate=").to_int()
+			SimClock.apply_tick_rate(_rate)
 			rate_text = str(Engine.physics_ticks_per_second)
 	get_tree().create_timer(TIMEOUT_SECONDS, true, false, true).timeout.connect(_on_timeout)
 	_build_inputs()
@@ -87,7 +96,9 @@ func _physics_process(_delta: float) -> void:
 		_physics_frames += 1
 		if _physics_frames % RATE_SWITCH_FRAMES == 0:
 			@warning_ignore("integer_division")
-			SimClock.apply_tick_rate(VARYING_RATES[(_physics_frames / RATE_SWITCH_FRAMES) % VARYING_RATES.size()])
+			_rate = VARYING_RATES[(_physics_frames / RATE_SWITCH_FRAMES) % VARYING_RATES.size()]
+	# Como el reloj del juego: time_scale lleva el ritmo y la escala del mundo.
+	SimClock.apply_tick_rate(_rate, SimClock.world_scale(_tick) if _phase == Phase.LIVE else 1.0)
 	match _phase:
 		Phase.LIVE:
 			_live_tick()
@@ -103,7 +114,9 @@ func _live_tick() -> void:
 		_actor.apply_state(_state)
 	var previous_vertical := _state.velocity.y
 	_apply_events(_state, _tick)
-	ActorMotor.step(_actor, _state, _inputs[_tick], _tuning, TICK_DT)
+	if SimClock.world_scale(_tick) < 1.0 or _state.slow_left > 0.0:
+		_ticks_slow += 1
+	ActorMotor.step(_actor, _state, _inputs[_tick], _tuning, SimClock.world_dt(_tick))
 	_live.append(_state.to_bytes())
 
 	match _state.mode:
@@ -160,7 +173,7 @@ func _replay(start: int, stop: int) -> void:
 	_actor.apply_state(state)
 	for t in range(start, stop):
 		_apply_events(state, t)
-		ActorMotor.step(_actor, state, _inputs[t], _tuning, TICK_DT)
+		ActorMotor.step(_actor, state, _inputs[t], _tuning, SimClock.world_dt(t))
 		_replayed_ticks += 1
 		if state.to_bytes() != _live[t]:
 			_failure_count += 1
@@ -174,6 +187,7 @@ func _finish() -> void:
 	_phase = Phase.DONE
 	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d colgado, %d tocando pared, %d saltos, altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_hanging, _ticks_wall, _jumps, _max_height])
 	print("%s postura: %d ticks agachado, %d de ellos pidiendo pararse sin lugar" % [LOG_PREFIX, _ticks_crouched, _ticks_kept_crouched])
+	print("%s cámara lenta: %d ticks" % [LOG_PREFIX, _ticks_slow])
 	print("%s %d repeticiones, %d ticks repetidos" % [LOG_PREFIX, _replays, _replayed_ticks])
 	var hashing := HashingContext.new()
 	hashing.start(HashingContext.HASH_SHA256)
@@ -288,15 +302,25 @@ func _build_inputs() -> void:
 		[20, Vector2(-1, 0), -PI / 2.0, [], 0],  # A con la cámara igual: a la izquierda
 		[5, Vector2.ZERO, 0.0, [], crouch],  # Ctrl: se suelta
 		[40, Vector2.ZERO, 0.0, [], 0],  # se queda quieto
+		# Cámara lenta (el último número de cada tramo: ticks de cámara lenta del
+		# mundo desde que empieza el tramo):
+		[60, Vector2(0, 1), PI, [10, 40], 0, [], 120],  # el mundo lento: camina hacia atrás y salta dos veces
+		[60, Vector2.ZERO, 0.0, [], 0, []],  # el mundo vuelve a su velocidad en pleno salto
+		[90, Vector2(0, 1), -PI / 2.0, [20], 0, [[5, "lenta"]]],  # lento él solo: camina y salta
+		[120, Vector2(0, 1), PI / 2.0, [30], 0, [[0, "lenta"]], 60],  # lento él y el mundo a la vez
+		[60, Vector2.ZERO, 0.0, [], 0],  # se queda quieto
 	]
 	var presses := 0
 	var tick := 0
 	for segment in segments:
 		var buttons: int = segment[4] if segment.size() > 4 else 0
 		if segment.size() > 5:
-			# Empujones del tramo: [tick dentro del tramo, impulso, fuerza].
+			# Eventos del tramo: [tick dentro del tramo, impulso, fuerza] para un
+			# empujón, o [tick dentro del tramo, "lenta"] para la cámara lenta personal.
 			for event in segment[5]:
-				_events[tick + event[0]] = [event[1], event[2]]
+				_events[tick + event[0]] = [event[1], event[2] if event.size() > 2 else 0]
+		if segment.size() > 6:
+			SimClock.add_world_slow(tick, tick + segment[6], _tuning.slow_scale)
 		for i in segment[0]:
 			if i in segment[3]:
 				presses += 1
@@ -305,10 +329,15 @@ func _build_inputs() -> void:
 		_segment_ends.append(tick - 1)
 
 
-## Un empujón del recorrido, como lo aplica el host: antes del paso de su tick,
-## subiendo la época. En vivo y al repetir, igual.
+## Un evento del recorrido (un empujón o una cámara lenta personal), como lo
+## aplica el host: antes del paso de su tick, subiendo la época. En vivo y al
+## repetir, igual.
 func _apply_events(state: ActorState, tick: int) -> void:
 	var event: Variant = _events.get(tick)
-	if event != null:
+	if event == null:
+		return
+	if event[0] is String:
+		ActorMotor.apply_slow(state, _tuning)
+	else:
 		ActorMotor.apply_impulse(state, event[0], event[1], _tuning)
-		state.epoch += 1
+	state.epoch += 1

@@ -24,7 +24,7 @@ const NORMAL_STEP := 0.0001
 const TIME_STEP := 0.0001
 const YAW_STEPS := 65536
 ## Largo de to_bytes(). Lo que llega por red con otro largo se descarta.
-const BYTE_SIZE := 85
+const BYTE_SIZE := 89
 ## regrab_id de un bloqueo de bordes (Hanging), distinto de cualquier escalera.
 const REGRAB_EDGES := 0xFFFF
 ## regrab_id de un bloqueo de compañeros (Enganchado): no se puede volver a
@@ -79,6 +79,9 @@ var hooked_by := 0
 ## REGRAB_EDGES y bloquea todos los bordes: un borde no tiene id propio.
 var regrab_id := 0
 var regrab_left := 0.0
+## Cámara lenta personal: cuánto le queda, en tiempo del mundo. Mientras sea
+## mayor que cero, el actor avanza a la escala de cámara lenta.
+var slow_left := 0.0
 
 
 func quantize() -> void:
@@ -97,6 +100,7 @@ func quantize() -> void:
 	regrab_id &= 0xFFFF
 	regrab_left = _q(regrab_left, TIME_STEP)
 	hooked_by &= 0xFFFFFFFF
+	slow_left = _q(slow_left, TIME_STEP)
 
 
 func copy() -> ActorState:
@@ -124,6 +128,7 @@ func to_bytes() -> PackedByteArray:
 	b.put_32(roundi(regrab_left / TIME_STEP))
 	_put3(b, anchor_point, POSITION_STEP)
 	b.put_u32(hooked_by & 0xFFFFFFFF)
+	b.put_32(roundi(slow_left / TIME_STEP))
 	return b.data_array
 
 
@@ -150,13 +155,14 @@ static func from_bytes(bytes: PackedByteArray) -> ActorState:
 	s.regrab_left = b.get_32() * TIME_STEP
 	s.anchor_point = _get3(b, POSITION_STEP)
 	s.hooked_by = b.get_u32()
+	s.slow_left = b.get_32() * TIME_STEP
 	return s
 
 
 func describe() -> String:
-	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
+	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f lenta=%.4f pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
 		Mode.keys()[mode], Stance.keys()[stance], Stance.keys()[stance_wanted], on_floor, base_id,
-		anchor_id, anchor_t, anchor_point, hooked_by, regrab_id, regrab_left,
+		anchor_id, anchor_t, anchor_point, hooked_by, regrab_id, regrab_left, slow_left,
 		position, velocity, facing_yaw, coyote_left, jump_buffer_left, jump_presses_seen, epoch,
 	]
 

@@ -1,9 +1,11 @@
 class_name ScriptedPlatform
 extends AnimatableBody3D
 
-## Plataforma guionada: su posición es función del tick del mundo, así que da
+## Plataforma guionada: su posición es función del tiempo del mundo, así que da
 ## igual en todas las máquinas sin mandar nada por red. Va desde su lugar en la
 ## escena hasta ese lugar más `travel` y vuelve, con arranque y frenada suaves.
+## Con cámara lenta del mundo, el tiempo del mundo avanza menos por tick
+## (SimClock.world_ticks) y la plataforma va más lenta.
 ##
 ## Jolt mueve los cuerpos cinemáticos recién en el paso de física: lo que se
 ## coloca durante el tick T, las consultas lo ven en el tick T+1. Por eso el
@@ -45,18 +47,30 @@ func _ready() -> void:
 	_start = global_position
 
 
-## Posición en un tick del mundo. Entre dos ticks también vale, para dibujarla.
-func pose_at(tick: float) -> Vector3:
-	var turns := tick * SimClock.TICK_DT / period
+## Posición en un tiempo del mundo, contado en ticks. Entre dos ticks también
+## vale, para dibujarla.
+func pose_at(world_ticks: float) -> Vector3:
+	var turns := world_ticks * SimClock.TICK_DT / period
 	return _start + travel * (0.5 - 0.5 * cos(TAU * turns))
+
+
+## Posición en un tick (del host o de esta máquina), con su tiempo del mundo.
+func pose_at_tick(tick: float) -> Vector3:
+	return pose_at(SimClock.world_ticks(tick))
+
+
+## Velocidad en un tick, en tiempo del mundo: la que hereda quien la deja.
+func velocity_at_tick(tick: float) -> Vector3:
+	var world := SimClock.world_ticks(tick)
+	return (pose_at(world + 1.0) - pose_at(world)) / SimClock.TICK_DT
 
 
 ## Al final del tick anterior: la deja colocada para `tick`.
 func prepare_tick(tick: int) -> void:
 	var jumped := absi(tick - _tick) > 1
 	_tick = tick
-	global_position = pose_at(tick)
-	_visual.position = pose_at(tick - 1 - visual_lag) - pose_at(tick)
+	global_position = pose_at_tick(tick)
+	_visual.position = pose_at_tick(tick - 1 - visual_lag) - global_position
 	if jumped:
 		reset_physics_interpolation()
 
@@ -66,16 +80,16 @@ func base_origin() -> Vector3:
 
 
 func base_velocity() -> Vector3:
-	return (pose_at(_tick + 1) - pose_at(_tick)) / SimClock.TICK_DT
+	return velocity_at_tick(_tick)
 
 
 ## Dónde se la ve después de este tick.
 func visual_origin() -> Vector3:
-	return pose_at(_tick - visual_lag)
+	return pose_at_tick(_tick - visual_lag)
 
 
 func visual_velocity() -> Vector3:
-	return (pose_at(_tick + 1 - visual_lag) - pose_at(_tick - visual_lag)) / SimClock.TICK_DT
+	return velocity_at_tick(_tick - visual_lag)
 
 
 ## Distancia de un punto a la caja de la plataforma tal como la ven las

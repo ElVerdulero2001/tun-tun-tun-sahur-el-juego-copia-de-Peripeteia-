@@ -21,6 +21,10 @@ const BASE_POSITION_STEP := 0.0001
 const BASE_VELOCITY_STEP := 0.001
 ## Cuantización del impulso de un evento programado.
 const IMPULSE_STEP := 0.001
+## Qué es un evento programado: un empujón o una cámara lenta personal.
+enum EventKind { PUSH, SLOW }
+## Cuantización de la escala de la cámara lenta del mundo: milésimos.
+const SCALE_STEPS := 1000.0
 
 ## Simulador de red (paso 5). Todo lo que se manda o se recibe pasa por acá.
 var link: LinkSimulator
@@ -32,8 +36,11 @@ var acked_input_tick := -1
 var snapshots_received := 0
 var snapshots_missing := 0
 ## Cliente: eventos programados que llegaron y todavía no tomó el juego, como
-## [tick, impulso, fuerza].
+## [tick, impulso, fuerza, tipo].
 var received_events: Array = []
+## Cliente: tramos de cámara lenta del mundo que anunció el host y todavía no
+## tomó el juego, como [tick de inicio, tick de fin, escala].
+var received_world_slow: Array = []
 
 # Cliente
 var _pending_snapshot := PackedByteArray()
@@ -172,7 +179,13 @@ func input_for(peer_id: int, tick: int) -> ActorInput:
 	if chosen == null:
 		return null
 	_used_input_tick[peer_id] = chosen.tick
-	return ActorInput.make(tick, chosen.move, chosen.look_yaw, chosen.buttons, chosen.jump_presses)
+	return ActorInput.make(tick, chosen.move, chosen.look_yaw, chosen.buttons, chosen.jump_presses, chosen.ability_presses)
+
+
+## El input más nuevo que llegó de un jugador, o null. Con él el host se entera
+## de una pulsación apenas llega, sin esperar a simular ese tick.
+func latest_input(peer_id: int) -> ActorInput:
+	return _latest_input.get(peer_id)
 
 
 ## Lo que el jugador afirma haber predicho para ese tick exacto, en bytes, o
@@ -193,15 +206,40 @@ func peer_rtt_ms(peer_id: int) -> float:
 	return _peer_rtt_ms.get(peer_id, 0.0)
 
 
-## Host: anuncia a un jugador un evento programado, un impulso con su fuerza
-## para el tick `tick`. Va por un canal confiable: no se puede perder.
-func send_scheduled_event(peer_id: int, tick: int, impulse: Vector3, force: int) -> void:
+## Host: anuncia a un jugador un evento programado para el tick `tick`: un
+## empujón (un impulso con su fuerza) o una cámara lenta personal. Va por un
+## canal confiable: no se puede perder.
+func send_scheduled_event(peer_id: int, tick: int, impulse: Vector3, force: int, kind: EventKind = EventKind.PUSH) -> void:
 	var b := StreamPeerBuffer.new()
 	b.put_32(tick)
 	_put_vector(b, impulse, IMPULSE_STEP)
 	b.put_u8(force)
+	b.put_u8(kind)
 	var data := b.data_array
 	_send_reliable(func() -> void: _receive_scheduled_event.rpc_id(peer_id, data))
+
+
+## Host: anuncia un tramo de cámara lenta del mundo, de `start` a `end` (sin
+## incluirlo) con la escala en milésimos, a todos o solo a `peer_id`.
+## Confiable, como los eventos.
+func send_world_slow(start: int, end: int, scale_steps: int, peer_id: int = 0) -> void:
+	if multiplayer.get_peers().is_empty():
+		return
+	var b := StreamPeerBuffer.new()
+	b.put_32(start)
+	b.put_32(end)
+	b.put_u16(scale_steps)
+	var data := b.data_array
+	_send_reliable(func() -> void: _receive_world_slow.rpc_id(peer_id, data))
+
+
+## La escala en milésimos y de vuelta, como la usan todas las máquinas.
+static func scale_to_steps(scale: float) -> int:
+	return roundi(scale * SCALE_STEPS)
+
+
+static func steps_to_scale(steps: int) -> float:
+	return steps / SCALE_STEPS
 
 
 ## Cliente: lo que se recibió con el impulso ya cuantizado, como lo usa el host.
@@ -223,7 +261,21 @@ func _accept_scheduled_event(data: PackedByteArray) -> void:
 	var tick := b.get_32()
 	var impulse := _get_vector(b, IMPULSE_STEP)
 	var force := b.get_u8()
-	received_events.append([tick, impulse, force])
+	var kind := b.get_u8()
+	received_events.append([tick, impulse, force, kind])
+
+
+@rpc("authority", "call_remote", "reliable")
+func _receive_world_slow(data: PackedByteArray) -> void:
+	_receive_reliable(_accept_world_slow.bind(data))
+
+
+func _accept_world_slow(data: PackedByteArray) -> void:
+	var b := StreamPeerBuffer.new()
+	b.data_array = data
+	var start := b.get_32()
+	var end := b.get_32()
+	received_world_slow.append([start, end, steps_to_scale(b.get_u16())])
 
 
 ## Manda a todos los clientes el estado de todos los actores en este tick, y la

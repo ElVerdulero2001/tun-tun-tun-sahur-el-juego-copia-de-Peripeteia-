@@ -237,7 +237,7 @@ func _base_at(base_id: int, tick: int) -> Array:
 		return [Vector3.ZERO, Vector3.ZERO]
 	var base = BaseRegistry.find(base_id)
 	if base is ScriptedPlatform:
-		return [base.pose_at(tick), (base.pose_at(tick + 1) - base.pose_at(tick)) / SimClock.TICK_DT]
+		return [base.pose_at_tick(tick), base.velocity_at_tick(tick)]
 	var pose := _base_pose(base_id, tick)
 	if pose.is_empty():
 		return [BaseRegistry.origin(base_id), BaseRegistry.velocity(base_id)]

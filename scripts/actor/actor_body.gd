@@ -155,9 +155,15 @@ func stance_fits(stance: int, feet: Vector3) -> bool:
 func slide(actor_state: ActorState, snap_length: float, dt: float) -> void:
 	var factor := dt / get_physics_process_delta_time()
 	floor_snap_length = snap_length
-	velocity = actor_state.velocity * factor
+	var sent := actor_state.velocity * factor
+	velocity = sent
 	move_and_slide()
-	actor_state.velocity = velocity / factor
+	# Si el movimiento no tocó la velocidad, queda la de antes, tal cual.
+	# Deshacer el factor deja un error de redondeo que depende del delta del
+	# frame: un tick repetido en otro frame (con cámara lenta, otro delta)
+	# podría cuantizarse distinto.
+	if velocity != sent:
+		actor_state.velocity = velocity / factor
 
 
 ## Después de ubicar el cuerpo a mano sobre un piso (un escalón): refresca los

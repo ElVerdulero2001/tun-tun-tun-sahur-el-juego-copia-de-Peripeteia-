@@ -14,6 +14,12 @@ extends Node
 ## corre un poco más rápido o más lento que el host hasta volver a la franja
 ## buscada. Cada tick sigue avanzando exactamente TICK_DT; solo cambia cuántos
 ## ticks entran en un segundo real.
+##
+## Cámara lenta del mundo (punto 7): en los tramos que anuncia el host, cada
+## tick avanza TICK_DT por la escala. Siguen siendo 60 ticks por segundo real:
+## lo que se achica es cuánto tiempo del mundo pasa en cada uno. Los tramos son
+## los mismos en todas las máquinas, así que el tiempo del mundo de un tick
+## también.
 
 ## Al empezar cada tick, antes de mover actores. El cliente corrige y manda su input acá.
 signal tick_started(tick: int)
@@ -99,6 +105,12 @@ var _bad_estimates := 0
 var _margins: Array = []
 ## Ticks pedidos con step() mientras está en pausa.
 var _steps_requested := 0
+## Escala del mundo del último tick corrido: la que lleva time_scale.
+var _world_scale_now := 1.0
+
+## Tramos de cámara lenta del mundo: [tick de inicio, tick de fin (sin
+## incluirlo), escala]. Es estado del mundo, no de un actor.
+static var _world_slow: Array = []
 
 
 ## En pausa, corre un solo tick en el próximo frame de física.
@@ -108,20 +120,69 @@ func step() -> void:
 
 ## Cambia cuántos ticks entran en un segundo real. time_scale compensa para
 ## que el delta de física siga siendo exactamente TICK_DT: la simulación da
-## lo mismo, byte a byte, a cualquier ritmo.
-static func apply_tick_rate(rate: int) -> void:
+## lo mismo, byte a byte, a cualquier ritmo. Con cámara lenta del mundo,
+## time_scale lleva además su escala: así Jolt también frena lo que simula (la
+## balsa) y el delta de física queda en TICK_DT por esa escala.
+static func apply_tick_rate(rate: int, slow: float = 1.0) -> void:
 	Engine.physics_ticks_per_second = rate
-	Engine.time_scale = float(rate) / TICK_RATE
+	Engine.time_scale = float(rate) / TICK_RATE * slow
+
+
+## Anota un tramo de cámara lenta del mundo, el que anunció el host. Devuelve
+## false si ya estaba: al que se conecta el host le manda todos los tramos, y
+## uno de ellos puede llegarle también en su anuncio.
+static func add_world_slow(start: int, end: int, scale: float) -> bool:
+	for span in _world_slow:
+		if span[0] == start:
+			return false
+	_world_slow.append([start, end, scale])
+	_world_slow.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	return true
+
+
+static func clear_world_slow() -> void:
+	_world_slow.clear()
+
+
+## Tramos anotados, del más viejo al más nuevo.
+static func world_slow_spans() -> Array:
+	return _world_slow
+
+
+## Escala del mundo en un tick: 1 fuera de los tramos.
+static func world_scale(at_tick: int) -> float:
+	for span in _world_slow:
+		if at_tick >= span[0] and at_tick < span[1]:
+			return span[2]
+	return 1.0
+
+
+## Cuánto tiempo del mundo avanza en un tick.
+static func world_dt(at_tick: int) -> float:
+	return TICK_DT * world_scale(at_tick)
+
+
+## El tiempo del mundo al llegar a `tick`, contado en ticks: lo que se mueve
+## solo con el tiempo (las plataformas) se ubica con esto. Fuera de la cámara
+## lenta avanza uno por tick; adentro, la escala. Vale con ticks partidos.
+static func world_ticks(at_tick: float) -> float:
+	var ticks := at_tick
+	for span in _world_slow:
+		ticks -= (clampf(at_tick, span[0], span[1]) - span[0]) * (1.0 - span[2])
+	return ticks
 
 
 func _ready() -> void:
 	_adjust_history.resize(ADJUST_HISTORY_TICKS)
 	_adjust_history_tick.resize(ADJUST_HISTORY_TICKS)
 	_adjust_history_tick.fill(-1)
+	clear_world_slow()
 
 
 func _exit_tree() -> void:
+	_world_scale_now = 1.0
 	_set_rate(TICK_RATE)
+	apply_tick_rate(TICK_RATE)
 
 
 func _physics_process(_delta: float) -> void:
@@ -158,6 +219,7 @@ func _run_tick() -> void:
 		_adjust_history[slot] = _adjust_total
 		_adjust_history_tick[slot] = tick
 	tick_started.emit(tick)
+	_follow_world_scale(tick)
 	# Primero los que no cuelgan de nadie y después los que cuelgan de un
 	# compañero, que sacan su pose de la de él en este mismo tick. El orden se
 	# fija antes de mover: quien se cuelga en este tick ya se movió.
@@ -171,7 +233,7 @@ func _run_tick() -> void:
 			actor.apply_state(actor.state)
 			actor.reset_physics_interpolation()
 			actor.placed = true
-		ActorMotor.step(actor, actor.state, input_provider.call(actor, tick), tuning, TICK_DT)
+		ActorMotor.step(actor, actor.state, input_provider.call(actor, tick), tuning, world_dt(tick))
 		actor.present(actor.state)
 		actor.decay_visual_offset(TICK_DT)
 	tick_finished.emit(tick)
@@ -234,7 +296,17 @@ func _worst_margin() -> float:
 func _set_rate(rate: int) -> void:
 	if rate != rate_hz:
 		rate_hz = rate
-		apply_tick_rate(rate)
+		apply_tick_rate(rate, _world_scale_now)
+
+
+## Al empezar cada tick: si cambió la escala del mundo, time_scale la sigue.
+## El delta de física de este frame ya estaba fijado; el motor lo compensa
+## (ActorBody.slide), así que eso no cambia la simulación de los actores.
+func _follow_world_scale(for_tick: int) -> void:
+	var scale := world_scale(for_tick)
+	if scale != _world_scale_now:
+		_world_scale_now = scale
+		apply_tick_rate(rate_hz, scale)
 
 
 @rpc("any_peer", "call_remote", "unreliable")

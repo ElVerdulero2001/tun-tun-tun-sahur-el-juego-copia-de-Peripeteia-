@@ -21,6 +21,12 @@ extends Node3D
 ## que da el compañero tal como lo ve: como el compañero queda quieto, da lo
 ## mismo que en el host, y soltarse o saltar responden al instante. Lo que haga
 ## el compañero (soltarse, que lo empujen, irse) llega como corrección.
+## Punto 7: cámara lenta. La del mundo la pide cualquiera con la V; el host la
+## programa para todos con anticipación, como un empujón programado, y en ese
+## tick todas las máquinas pasan a la misma escala. La personal la aplica el
+## host a los demás con la B, también programada. Al que se conecta, el host
+## le cuenta todos los tramos que hubo: las plataformas van por el tiempo del
+## mundo.
 ##
 ## El rol se elige con el menú. Para pruebas automáticas también se puede pasar
 ## por argumentos: --local, --host o --client, --address=IP, --port=N,
@@ -49,7 +55,10 @@ extends Node3D
 ## compañero que está en el muro alto o en la escalera, y después se suelta,
 ## salta para arriba o salta hacia atrás, por turnos),
 ## --test-quit-hooked=TICKS (con alguien colgado de él, o colgado de alguien,
-## cierra el juego a los tantos ticks, como si se cortara) y,
+## cierra el juego a los tantos ticks, como si se cortara),
+## --test-world-slow-at=S1,S2 (esta máquina aprieta la V a esos segundos),
+## --test-personal-slow-at=S1,S2 (solo host: cámara lenta a los demás a esos
+## segundos) y,
 ## para simular red,
 ## --sim-rtt=MS, --sim-jitter=MS, --sim-loss=PORCENTAJE, --sim-seed=N, los
 ## tirones con --sim-stall-every=MS y --sim-stall=MS y, si la red simulada
@@ -127,6 +136,30 @@ var _sim_preset_name := "sin simulación"
 ## Contador de pulsaciones de salto: se suma en cada evento, no en cada tick,
 ## para no perder dos pulsaciones que caigan entre dos ticks.
 var jump_presses := 0
+## Lo mismo para la V, la cámara lenta del mundo. Viaja en el input.
+var ability_presses := 0
+## Segundos a los que esta máquina aprieta la V, y a los que el host pone en
+## cámara lenta a los demás, pedidos por argumentos.
+var test_world_slow_seconds := PackedFloat64Array()
+var test_personal_slow_seconds := PackedFloat64Array()
+## Host: el último contador de la V visto de cada jugador (el propio, con el
+## id del host), para saber cuándo apretó.
+var _ability_seen := {}
+## Ticks en que empieza un tramo de cámara lenta del mundo: ahí se sube la
+## época de todos (host) o la del propio actor (cliente).
+var _world_slow_starts := {}
+## Host: tramos pedidos y programados, pedidos ignorados porque ya había uno, y
+## cámaras lentas personales dadas. Cliente: tramos que llegaron a tiempo,
+## tarde (se repitió desde su tick) y demasiado tarde.
+var world_slow_requests := 0
+var world_slow_scheduled := 0
+var world_slow_ignored := 0
+var personal_slows := 0
+var world_slow_on_time := 0
+var world_slow_late := 0
+var world_slow_too_late := 0
+## Host: cámaras lentas personales pedidas con la B, para el próximo tick.
+var _personal_slow_requests := 0
 var max_actors_seen := 0
 var _role_from_args := false
 var _started := false
@@ -261,6 +294,7 @@ func _ready() -> void:
 	_net_sync.link = _link
 	multiplayer.server_disconnected.connect(_link.clear)
 	multiplayer.peer_disconnected.connect(_interpolation.forget)
+	multiplayer.peer_connected.connect(_announce_world_slow_to)
 	for preset in NET_PRESETS:
 		_sim_option.add_item(preset["name"])
 	if sim_from_args:
@@ -277,6 +311,10 @@ func _ready() -> void:
 		_real_timer(seconds, func() -> void: _push_requests.append([false, test_push_force]))
 	for seconds in test_scheduled_push_seconds:
 		_real_timer(seconds, func() -> void: _push_requests.append([true, test_push_force]))
+	for seconds in test_world_slow_seconds:
+		_real_timer(seconds, func() -> void: ability_presses = (ability_presses + 1) & 0xFF)
+	for seconds in test_personal_slow_seconds:
+		_real_timer(seconds, func() -> void: _personal_slow_requests += 1)
 	_session.status_changed.connect(func(text: String) -> void: print("[net_lab] %s" % text))
 	_session.local_actor_spawned.connect(_on_local_actor_spawned)
 	$Hud/Menu/Box/Solo.pressed.connect(_start.bind(Role.LOCAL))
@@ -314,6 +352,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		var index: int = [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5].find(event.keycode)
 		if index >= 0:
 			_apply_net_preset(index)
+		elif event.keycode == KEY_V:
+			ability_presses = (ability_presses + 1) & 0xFF
+		elif role == Role.HOST and event.keycode == KEY_B:
+			_personal_slow_requests += 1
 		elif role == Role.HOST and (event.keycode == KEY_E or event.keycode == KEY_R):
 			var force := PUSH_FORCE_WEAK if event.shift_pressed else PUSH_FORCE_STRONG
 			_push_requests.append([event.keycode == KEY_R, force])
@@ -1014,12 +1056,18 @@ func _on_tick_started(tick: int) -> void:
 		for request in _push_requests:
 			_push_others(request[0], request[1])
 		_push_requests.clear()
+		for i in _personal_slow_requests:
+			_slow_others()
+		_personal_slow_requests = 0
 		_apply_host_events(tick)
 	if role != Role.CLIENT:
+		_take_world_slow_requests(tick)
+		_start_world_slow(tick)
 		_update_hooks()
 	if role != Role.CLIENT or not _clock.client_sync:
 		return
 	_take_scheduled_events(tick)
+	_take_world_slow(tick)
 	_net_sync.apply_pending_snapshot(_on_own_state.bind(tick), _interpolation.add, _interpolation.add_base)
 	_interpolation.advance()
 	_update_platform_lag(tick)
@@ -1029,6 +1077,8 @@ func _on_tick_started(tick: int) -> void:
 	if is_instance_valid(_local_actor) and _clock.synced:
 		_local_actor.simulated = true
 		_current_input = _local_input(tick)
+		# La V viaja en el input, sea cual sea la prueba que arma el resto.
+		_current_input.ability_presses = ability_presses
 		_apply_client_events(_local_actor.state, tick)
 
 
@@ -1090,7 +1140,11 @@ func _measure_remote_smoothness() -> void:
 		var speed := Vector2(velocity.x, velocity.z).length()
 		if last == null or speed < 1.0:
 			continue
-		var expected := speed / _clock.rate_hz
+		# Con cámara lenta, cada tick avanza menos tiempo del mundo, y el actor
+		# lento, menos todavía.
+		var expected := speed / _clock.rate_hz * SimClock.world_scale(floori(_interpolation.shown_tick()))
+		if actor.state.slow_left > 0.0:
+			expected *= tuning.slow_scale
 		var moved := Vector2(seen.x - last.x, seen.z - last.z).length()
 		remote_ticks_measured += 1
 		if moved < expected * 0.25 or moved > expected * 2.0:
@@ -1140,12 +1194,8 @@ func _push_others(scheduled: bool, force: int) -> void:
 			actor.state.epoch += 1
 			continue
 		var peer := actor.owner_peer_id
-		var margin := maxi(_net_sync.input_margin_ticks(peer, _clock.tick), 0)
-		var rtt_ticks := ceili(_net_sync.peer_rtt_ms(peer) * SimClock.TICK_RATE / 1000.0)
-		var at := _clock.tick + margin + rtt_ticks + SCHEDULE_BUFFER_TICKS
-		if test_schedule_ticks > 0:
-			at = _clock.tick + test_schedule_ticks
-		_host_events.append([at, peer, impulse, force])
+		var at := _scheduled_tick([peer])
+		_host_events.append([at, peer, impulse, force, NetSync.EventKind.PUSH])
 		_net_sync.send_scheduled_event(peer, at, impulse, force)
 	if scheduled:
 		scheduled_pushes += 1
@@ -1154,8 +1204,37 @@ func _push_others(scheduled: bool, force: int) -> void:
 	print("[net_lab] empujón %s de fuerza %d en el tick %d" % ["programado" if scheduled else "inmediato", force, _clock.tick])
 
 
-## Host: aplica los empujones programados que tocan en este tick, igual que
-## los aplica el empujado en su predicción. Sube su época.
+## Host: el tick para un evento programado que tiene que llegar a tiempo a
+## estos jugadores: lo que tarda su input en llegar, más la ida y vuelta, más un
+## colchón; con varios, el del más lejano.
+func _scheduled_tick(peers: Array) -> int:
+	var ahead := 0
+	for peer in peers:
+		var margin := maxi(_net_sync.input_margin_ticks(peer, _clock.tick), 0)
+		var rtt_ticks := ceili(_net_sync.peer_rtt_ms(peer) * SimClock.TICK_RATE / 1000.0)
+		ahead = maxi(ahead, margin + rtt_ticks)
+	if test_schedule_ticks > 0:
+		return _clock.tick + test_schedule_ticks
+	return _clock.tick + ahead + SCHEDULE_BUFFER_TICKS
+
+
+## Host: cámara lenta personal a los demás jugadores (la B), programada como un
+## empujón: cada uno la empieza en el mismo tick que el host, sin corrección.
+func _slow_others() -> void:
+	for actor in _clock.sorted_actors():
+		if not _is_remote(actor):
+			continue
+		var peer := actor.owner_peer_id
+		var at := _scheduled_tick([peer])
+		_host_events.append([at, peer, Vector3.ZERO, 0, NetSync.EventKind.SLOW])
+		_net_sync.send_scheduled_event(peer, at, Vector3.ZERO, 0, NetSync.EventKind.SLOW)
+	personal_slows += 1
+	print("[net_lab] cámara lenta personal a los demás, pedida en el tick %d" % _clock.tick)
+
+
+## Host: aplica los eventos programados que tocan en este tick (empujones y
+## cámaras lentas personales), igual que los aplica el afectado en su
+## predicción. Sube su época.
 func _apply_host_events(tick: int) -> void:
 	var waiting: Array = []
 	for event in _host_events:
@@ -1164,10 +1243,97 @@ func _apply_host_events(tick: int) -> void:
 			continue
 		for actor in _clock.sorted_actors():
 			if actor.owner_peer_id == event[1]:
-				_log_push(actor, event[3], "programado")
-				ActorMotor.apply_impulse(actor.state, event[2], event[3], tuning)
-				actor.state.epoch += 1
+				_apply_event(actor.state, event[2], event[3], event[4])
+				if event[4] == NetSync.EventKind.PUSH:
+					_log_push(actor, event[3], "programado")
 	_host_events = waiting
+
+
+## Un evento programado sobre un estado, igual en el host y en el cliente.
+func _apply_event(state: ActorState, impulse: Vector3, force: int, kind: int) -> void:
+	if kind == NetSync.EventKind.SLOW:
+		ActorMotor.apply_slow(state, tuning)
+	else:
+		ActorMotor.apply_impulse(state, impulse, force, tuning)
+	state.epoch += 1
+
+
+## Host (y modo local): mira si alguien apretó la V. La propia se ve directo;
+## la de cada cliente, en su input más nuevo, apenas llega. La primera vez que
+## se ve a un jugador solo se anota su contador.
+func _take_world_slow_requests(tick: int) -> void:
+	var counts := {multiplayer.get_unique_id(): ability_presses}
+	if role == Role.HOST:
+		for actor in _clock.sorted_actors():
+			var latest := _net_sync.latest_input(actor.owner_peer_id)
+			if _is_remote(actor) and latest != null:
+				counts[actor.owner_peer_id] = latest.ability_presses
+	for peer in counts:
+		var seen: Variant = _ability_seen.get(peer)
+		_ability_seen[peer] = counts[peer]
+		if seen != null and seen != counts[peer]:
+			_request_world_slow(tick, peer)
+
+
+## Host: programa un tramo de cámara lenta del mundo para todos, con
+## anticipación suficiente para el jugador más lejano, y lo anuncia. Uno por
+## vez: si ya hay uno andando o por empezar, el pedido se ignora.
+func _request_world_slow(tick: int, peer: int) -> void:
+	world_slow_requests += 1
+	for span in SimClock.world_slow_spans():
+		if span[1] > tick:
+			world_slow_ignored += 1
+			return
+	var peers := []
+	for actor in _clock.sorted_actors():
+		if _is_remote(actor):
+			peers.append(actor.owner_peer_id)
+	var start := _scheduled_tick(peers)
+	var end := start + roundi(tuning.world_slow_time * SimClock.TICK_RATE)
+	var steps := NetSync.scale_to_steps(tuning.slow_scale)
+	SimClock.add_world_slow(start, end, NetSync.steps_to_scale(steps))
+	_world_slow_starts[start] = true
+	_net_sync.send_world_slow(start, end, steps)
+	world_slow_scheduled += 1
+	print("[net_lab] cámara lenta del mundo pedida por el jugador %d en el tick %d: del tick %d al %d" % [peer, tick, start, end])
+
+
+## Host: al que se conecta le anuncia todos los tramos anotados, también los
+## que ya pasaron. Las plataformas guionadas van por el tiempo del mundo: sin
+## un tramo de antes de que llegara, las vería corridas para siempre.
+func _announce_world_slow_to(peer_id: int) -> void:
+	if role != Role.HOST:
+		return
+	for span in SimClock.world_slow_spans():
+		_net_sync.send_world_slow(span[0], span[1], NetSync.scale_to_steps(span[2]), peer_id)
+
+
+## Host: en el tick en que empieza un tramo, sube la época de todos. Un cliente
+## que no se enteró a tiempo calculó esos ticks a velocidad normal, y su
+## afirmación no se puede adoptar.
+func _start_world_slow(tick: int) -> void:
+	if not _world_slow_starts.has(tick):
+		return
+	for actor in _clock.sorted_actors():
+		actor.state.epoch += 1
+	print("[net_lab] empieza la cámara lenta del mundo en el tick %d" % tick)
+
+
+## Cliente: anota los tramos de cámara lenta del mundo que anunció el host. Si
+## su tick ya se predijo (llegó tarde), repite desde ahí; si ya ni eso se puede,
+## lo arregla la corrección del snapshot.
+func _take_world_slow(tick: int) -> void:
+	for span in _net_sync.received_world_slow:
+		if not SimClock.add_world_slow(span[0], span[1], span[2]):
+			continue
+		_world_slow_starts[span[0]] = true
+		if span[0] >= tick or not is_instance_valid(_local_actor) or not _local_actor.simulated:
+			world_slow_on_time += 1
+		elif _prediction.replay_from(_local_actor, span[0], tick, _step_local):
+			world_slow_late += 1
+		else:
+			world_slow_too_late += 1
+	_net_sync.received_world_slow.clear()
 
 
 ## Prueba: a quién agarró un empujón que estaba colgado de un compañero o
@@ -1185,7 +1351,7 @@ func _log_push(actor: ActorBody, force: int, kind: String) -> void:
 func _take_scheduled_events(tick: int) -> void:
 	for event in _net_sync.received_events:
 		var at: int = event[0]
-		_client_events.get_or_add(at, []).append([event[1], event[2]])
+		_client_events.get_or_add(at, []).append([event[1], event[2], event[3]])
 		if at >= tick or not is_instance_valid(_local_actor) or not _local_actor.simulated:
 			events_on_time += 1
 		elif _prediction.replay_from(_local_actor, at, tick, _step_local):
@@ -1198,11 +1364,14 @@ func _take_scheduled_events(tick: int) -> void:
 			_client_events.erase(at)
 
 
-## Cliente: aplica a un estado los empujones programados de un tick, como el
-## host. Va antes del paso de ese tick, también al repetir ticks.
+## Cliente: aplica a un estado los eventos programados de un tick, como el
+## host: empujones, cámaras lentas personales y, si en ese tick empieza una
+## cámara lenta del mundo, la época. Va antes del paso de ese tick, también al
+## repetir ticks.
 func _apply_client_events(state: ActorState, tick: int) -> void:
 	for event in _client_events.get(tick, []):
-		ActorMotor.apply_impulse(state, event[0], event[1], tuning)
+		_apply_event(state, event[0], event[1], event[2])
+	if _world_slow_starts.has(tick):
 		state.epoch += 1
 
 
@@ -1250,7 +1419,7 @@ func _on_own_state(host_tick: int, state_bytes: PackedByteArray, used_input_tick
 
 func _step_local(input: ActorInput) -> void:
 	_apply_client_events(_local_actor.state, input.tick)
-	ActorMotor.step(_local_actor, _local_actor.state, input, tuning, SimClock.TICK_DT)
+	ActorMotor.step(_local_actor, _local_actor.state, input, tuning, SimClock.world_dt(input.tick))
 
 
 ## Host: quién cuelga de quién (ActorMotor.assign_hooks). Corre al empezar el
@@ -1338,6 +1507,12 @@ func _read_launch_args() -> void:
 			test_perturb_mm = arg.trim_prefix("--test-perturb-mm=").to_float()
 		elif arg.begins_with("--test-quit-hooked="):
 			test_quit_hooked = arg.trim_prefix("--test-quit-hooked=").to_int()
+		elif arg.begins_with("--test-world-slow-at="):
+			for seconds in arg.trim_prefix("--test-world-slow-at=").split(","):
+				test_world_slow_seconds.append(seconds.to_float())
+		elif arg.begins_with("--test-personal-slow-at="):
+			for seconds in arg.trim_prefix("--test-personal-slow-at=").split(","):
+				test_personal_slow_seconds.append(seconds.to_float())
 		elif arg.begins_with("--test-pause-at="):
 			test_pause_tick = arg.trim_prefix("--test-pause-at=").to_int()
 		elif arg.begins_with("--test-spawn-at="):
@@ -1388,10 +1563,15 @@ func _update_hud() -> void:
 					_adoption.count(peer, ClaimAdoption.Result.WRONG_EPOCH), _adoption.count(peer, ClaimAdoption.Result.TOO_FAR),
 					_adoption.count(peer, ClaimAdoption.Result.BAD_POSE),
 				])
+	var world_slow := _world_slow_text()
+	if world_slow != "":
+		lines.append(world_slow)
 	if is_instance_valid(_local_actor):
 		var s := _local_actor.state
 		if _clock.paused:
 			lines.append("EN PAUSA (tick %d)   ·   G sigue   ·   F avanza un tick" % _clock.tick)
+		if s.slow_left > 0.0:
+			lines.append("CÁMARA LENTA PERSONAL: al %d %%   ·   quedan %.1f s del mundo" % [roundi(tuning.slow_scale * 100.0), s.slow_left])
 		lines.append("Modo: %s   ·   en suelo: %s   ·   época: %d" % [ActorState.Mode.keys()[s.mode], "sí" if s.on_floor else "no", s.epoch])
 		var stance_names := ["parado", "agachado"]
 		lines.append("Postura: %s%s" % [stance_names[s.stance],
@@ -1421,14 +1601,26 @@ func _update_hud() -> void:
 	lines.append("WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse) · mouse mirar · Esc suelta el mouse")
 	lines.append("Colgado: A y D de costado · Espacio mirando a la pared salta para arriba (con W pasás arriba), mirando a otro lado salta hacia allá · Ctrl se suelta")
 	lines.append("Saltando hacia un compañero colgado de un borde o en una escalera, te colgás de su cintura: ahí Espacio y Ctrl andan igual que colgado")
+	lines.append("V cámara lenta del mundo, para todos")
 	if role == Role.HOST:
-		lines.append("E empuja a los demás ya · R los empuja programado · con Shift, empujón débil · Q prende o apaga la adopción")
+		lines.append("E empuja a los demás ya · R los empuja programado · con Shift, empujón débil · B cámara lenta a los demás · Q prende o apaga la adopción")
 	if role == Role.LOCAL:
 		lines.append("G pausa y congela · F avanza un tick en pausa")
 	lines.append("F12 guarda una captura en el Escritorio")
 	if Time.get_ticks_msec() < _flash_until_msec:
 		lines.insert(0, ">> %s" % _flash_text)
 	_info.text = "\n".join(lines)
+
+
+## La línea del panel de la cámara lenta del mundo: andando, por empezar o nada.
+func _world_slow_text() -> String:
+	var tick := _clock.tick
+	for span in SimClock.world_slow_spans():
+		if tick >= span[0] and tick < span[1]:
+			return "CÁMARA LENTA DEL MUNDO: al %d %%   ·   quedan %.1f s" % [roundi(span[2] * 100.0), (span[1] - tick) * SimClock.TICK_DT]
+		if tick < span[0]:
+			return "Cámara lenta del mundo en %.2f s" % ((span[0] - tick) * SimClock.TICK_DT)
+	return ""
 
 
 func _print_actor_report() -> void:
@@ -1446,10 +1638,10 @@ func _print_trace() -> void:
 		])
 	if is_instance_valid(_local_actor):
 		var s := _local_actor.state
-		print("[net_lab] traza %.1fs actor: base=%d mundo=%s rel=%s vel=%s modo=%s postura=%s suelo=%s ancla=%d t=%.3f época=%d" % [
+		print("[net_lab] traza %.1fs actor: base=%d mundo=%s rel=%s vel=%s modo=%s postura=%s suelo=%s ancla=%d t=%.3f época=%d escala_mundo=%.2f lenta=%.2f" % [
 			(Time.get_ticks_msec() - _ready_msec) / 1000.0, s.base_id, BaseRegistry.world_position(s),
 			s.position, s.velocity, ActorState.Mode.keys()[s.mode], ActorState.Stance.keys()[s.stance], s.on_floor,
-			s.anchor_id, s.anchor_t, s.epoch,
+			s.anchor_id, s.anchor_t, s.epoch, SimClock.world_scale(_clock.tick), s.slow_left,
 		])
 	_real_timer(0.5, _print_trace)
 
@@ -1494,6 +1686,11 @@ func _print_summary_and_quit() -> void:
 		print("[net_lab] compañero de arriba: tramo %d, se soltó %d veces con alguien colgado" % [_hook_phase, hook_drops])
 	if role != Role.CLIENT and (hook_events > 0 or hook_kicks > 0):
 		print("[net_lab] host: %d cambios de quién cuelga de quién, %d soltados por colgarse dos del mismo" % [hook_events, hook_kicks])
+	if world_slow_requests > 0 or world_slow_on_time + world_slow_late + world_slow_too_late > 0 or personal_slows > 0:
+		print("[net_lab] cámara lenta del mundo: %d pedidas, %d programadas, %d ignoradas porque ya había una; en el cliente, %d a tiempo, %d tarde (repetido desde su tick), %d demasiado tarde; cámaras lentas personales dadas: %d" % [
+			world_slow_requests, world_slow_scheduled, world_slow_ignored, world_slow_on_time, world_slow_late, world_slow_too_late, personal_slows])
+	if not SimClock.world_slow_spans().is_empty():
+		print("[net_lab] tramos de cámara lenta del mundo [inicio, fin, escala]: %s" % [SimClock.world_slow_spans()])
 	if hooked_gap_max > 0.0 or test_input.begins_with("hookwall") or test_input == "ladderhold":
 		print("[net_lab] el que cuelga de este jugador se dibujó a %.3f m como máximo de la pose que le da el cuerpo de este jugador" % hooked_gap_max)
 	if role == Role.CLIENT:

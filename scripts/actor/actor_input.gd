@@ -21,9 +21,12 @@ var buttons := 0
 ## Contador de pulsaciones de salto, de 0 a 255 y da la vuelta. Si se pierde
 ## el tick exacto en que se apretó, el contador igual cambió.
 var jump_presses := 0
+## Contador de pulsaciones de la tecla de cámara lenta del mundo (punto 7), igual
+## que el de salto. No lo usa el motor: con él, el host se entera del pedido.
+var ability_presses := 0
 
 
-static func make(p_tick: int, p_move: Vector2, p_look_yaw: float, p_buttons: int, p_jump_presses: int) -> ActorInput:
+static func make(p_tick: int, p_move: Vector2, p_look_yaw: float, p_buttons: int, p_jump_presses: int, p_ability_presses: int = 0) -> ActorInput:
 	var input := ActorInput.new()
 	input.tick = p_tick
 	var m := p_move.limit_length(1.0)
@@ -31,6 +34,7 @@ static func make(p_tick: int, p_move: Vector2, p_look_yaw: float, p_buttons: int
 	input.look_yaw = ActorState.quantize_yaw(p_look_yaw)
 	input.buttons = p_buttons
 	input.jump_presses = p_jump_presses & 0xFF
+	input.ability_presses = p_ability_presses & 0xFF
 	return input
 
 
@@ -38,7 +42,7 @@ func is_held(button: int) -> bool:
 	return (buttons & button) != 0
 
 
-## Escribe el input en 10 bytes. Como ya está cuantizado, leerlo del otro lado
+## Escribe el input en 11 bytes. Como ya está cuantizado, leerlo del otro lado
 ## da exactamente los mismos valores.
 func write_to(b: StreamPeerBuffer) -> void:
 	b.put_32(tick)
@@ -47,6 +51,7 @@ func write_to(b: StreamPeerBuffer) -> void:
 	b.put_u16(ActorState.yaw_to_index(look_yaw))
 	b.put_u8(buttons)
 	b.put_u8(jump_presses)
+	b.put_u8(ability_presses & 0xFF)
 
 
 static func read_from(b: StreamPeerBuffer) -> ActorInput:
@@ -58,4 +63,5 @@ static func read_from(b: StreamPeerBuffer) -> ActorInput:
 	input.look_yaw = ActorState.index_to_yaw(b.get_u16())
 	input.buttons = b.get_u8()
 	input.jump_presses = b.get_u8()
+	input.ability_presses = b.get_u8()
 	return input

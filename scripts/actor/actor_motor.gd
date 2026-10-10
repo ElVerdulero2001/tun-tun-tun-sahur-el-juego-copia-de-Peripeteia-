@@ -33,7 +33,14 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	body.snap_jump = Vector3.ZERO
 	body.grab_jump = Vector3.ZERO
 
-	# 1. Tiempo: todo lo que dura se descuenta en tiempo del actor.
+	# 1. Tiempo: dt es el del mundo, 1/60 por la escala del mundo. Con cámara
+	# lenta personal, el del actor es más chico todavía, y todo lo que dura se
+	# descuenta en tiempo del actor. La cámara lenta personal vence en tiempo
+	# del mundo, para no alargarse a sí misma (regla 5).
+	var slowed := state.slow_left > 0.0
+	state.slow_left = maxf(state.slow_left - dt, 0.0)
+	if slowed:
+		dt *= tuning.slow_scale
 	state.coyote_left = maxf(state.coyote_left - dt, 0.0)
 	state.jump_buffer_left = maxf(state.jump_buffer_left - dt, 0.0)
 	state.regrab_left = maxf(state.regrab_left - dt, 0.0)
@@ -449,6 +456,13 @@ static func apply_impulse(state: ActorState, impulse: Vector3, force: int, tunin
 	state.mode = ActorState.Mode.AIR
 	state.jump_buffer_left = 0.0
 	state.coyote_left = 0.0
+
+
+## Cámara lenta personal, como evento: la pone quien maneja el actor al
+## empezar el tick, igual que un empujón, y sube la época. Dura
+## personal_slow_time en tiempo del mundo; si ya estaba lento, empieza de nuevo.
+static func apply_slow(state: ActorState, tuning: ActorTuning) -> void:
+	state.slow_left = tuning.personal_slow_time
 
 
 ## Para validar una afirmación en un modo anclado: el ancla existe, el

@@ -27,6 +27,10 @@ const GRAB_MAX_SPEED := 1.8
 const FREE_SPACE_MARGIN := 0.02
 ## Grupo de todos los actores, para encontrar a un compañero por su id.
 const GROUP := "actores"
+## Movimiento libre: si después de move_and_slide() el cuerpo quedó a menos de
+## esto de inicio + velocidad × dt, la diferencia es error de redondeo y no un
+## choque. Medio paso de la cuantización de la posición.
+const FREE_MOVE_TOLERANCE := 0.00005
 
 ## Desvío del visual respecto del cuerpo. Es solo presentación: la simulación
 ## no lo lee nunca. El del agarre va aparte porque decae más lento.
@@ -156,6 +160,7 @@ func stance_fits(stance: int, feet: Vector3) -> bool:
 func slide(actor_state: ActorState, snap_length: float, dt: float) -> void:
 	var factor := dt / get_physics_process_delta_time()
 	floor_snap_length = snap_length
+	var start := global_position
 	var sent := actor_state.velocity * factor
 	velocity = sent
 	move_and_slide()
@@ -165,6 +170,15 @@ func slide(actor_state: ActorState, snap_length: float, dt: float) -> void:
 	# podría cuantizarse distinto.
 	if velocity != sent:
 		actor_state.velocity = velocity / factor
+		return
+	# Con la posición pasa lo mismo: Godot mueve velocidad × delta, y el error
+	# de redondeo de pasar por el delta del frame a veces cambia hacia dónde se
+	# cuantiza (0,1 mm). Si terminó donde va un movimiento libre, salvo ese
+	# error, la posición sale de la cuenta, que no depende del frame. Si chocó o
+	# el snap lo pegó al piso, más lejos que eso, queda lo que hizo Godot.
+	var free_end := start + actor_state.velocity * dt
+	if global_position.distance_to(free_end) < FREE_MOVE_TOLERANCE:
+		global_position = free_end
 
 
 ## Después de ubicar el cuerpo a mano sobre un piso (un escalón): refresca los

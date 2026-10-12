@@ -16,8 +16,8 @@ extends Node3D
 ## cambiando de ritmo cada pocos ticks, como el cliente al ajustar su adelanto.
 ## La huella final de la pasada en vivo tiene que dar igual a cualquier ritmo.
 ##
-## Desde el punto 7, el recorrido termina con cámara lenta del mundo, personal y
-## las dos juntas: cada tick avanza el tiempo del mundo de ese tick
+## Desde el punto 7, el recorrido termina con dos tramos de cámara lenta del
+## mundo: cada tick avanza el tiempo del mundo de ese tick
 ## (SimClock.world_dt) y time_scale sigue a la escala, como en el juego.
 
 const TICK_DT := 1.0 / 60.0
@@ -116,7 +116,7 @@ func _live_tick() -> void:
 		_actor.apply_state(_state)
 	var previous_vertical := _state.velocity.y
 	_apply_events(_state, _tick)
-	if SimClock.world_scale(_tick) < 1.0 or _state.slow_left > 0.0:
+	if SimClock.world_scale(_tick) < 1.0:
 		_ticks_slow += 1
 	ActorMotor.step(_actor, _state, _inputs[_tick], _tuning, SimClock.world_dt(_tick))
 	_live.append(_state.to_bytes())
@@ -313,8 +313,8 @@ func _build_inputs() -> void:
 		# mundo desde que empieza el tramo):
 		[60, Vector2(0, 1), PI, [10, 40], 0, [], 120],  # el mundo lento: camina hacia atrás y salta dos veces
 		[60, Vector2.ZERO, 0.0, [], 0, []],  # el mundo vuelve a su velocidad en pleno salto
-		[90, Vector2(0, 1), -PI / 2.0, [20], 0, [[5, "lenta"]]],  # lento él solo: camina y salta
-		[120, Vector2(0, 1), PI / 2.0, [30], 0, [[0, "lenta"]], 60],  # lento él y el mundo a la vez
+		[90, Vector2(0, 1), -PI / 2.0, [20], 0],  # camina y salta a velocidad normal
+		[120, Vector2(0, 1), PI / 2.0, [30], 0, [], 60],  # el mundo lento otra vez, desde el primer tick
 		[60, Vector2.ZERO, 0.0, [], 0],  # se queda quieto
 	]
 	var presses := 0
@@ -323,9 +323,9 @@ func _build_inputs() -> void:
 		var buttons: int = segment[4] if segment.size() > 4 else 0
 		if segment.size() > 5:
 			# Eventos del tramo: [tick dentro del tramo, impulso, fuerza] para un
-			# empujón, o [tick dentro del tramo, "lenta"] para la cámara lenta personal.
+			# empujón.
 			for event in segment[5]:
-				_events[tick + event[0]] = [event[1], event[2] if event.size() > 2 else 0]
+				_events[tick + event[0]] = [event[1], event[2]]
 		if segment.size() > 6:
 			SimClock.add_world_slow(tick, tick + segment[6], _tuning.slow_scale)
 		for i in segment[0]:
@@ -336,15 +336,11 @@ func _build_inputs() -> void:
 		_segment_ends.append(tick - 1)
 
 
-## Un evento del recorrido (un empujón o una cámara lenta personal), como lo
-## aplica el host: antes del paso de su tick, subiendo la época. En vivo y al
-## repetir, igual.
+## Un empujón del recorrido, como lo aplica el host: antes del paso de su
+## tick, subiendo la época. En vivo y al repetir, igual.
 func _apply_events(state: ActorState, tick: int) -> void:
 	var event: Variant = _events.get(tick)
 	if event == null:
 		return
-	if event[0] is String:
-		ActorMotor.apply_slow(state, _tuning)
-	else:
-		ActorMotor.apply_impulse(state, event[0], event[1], _tuning)
+	ActorMotor.apply_impulse(state, event[0], event[1], _tuning)
 	state.epoch += 1

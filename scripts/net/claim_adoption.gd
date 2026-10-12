@@ -11,8 +11,8 @@ extends RefCounted
 ## - la época coincide: el cliente ya incluyó todos los eventos del host;
 ## - los valores son posibles: la velocidad no se aleja de la del host más que
 ##   lo que cambia un input que llegó tarde, los tiempos no pasan de su máximo
-##   en el Tuning, y lo que decide el host (quién cuelga de este actor, la
-##   cámara lenta personal) es lo que dice el host. Un cliente con un error no
+##   en el Tuning, y lo que decide el host (quién cuelga de este actor) es lo
+##   que dice el host. Un cliente con un error no
 ##   le pasa al host, ni a los demás, un estado imposible;
 ## - la posición difiere de la del host en menos de MAX_DIFFERENCE;
 ## - la pose entra en el mundo del host: no queda metida en la geometría y,
@@ -112,8 +112,6 @@ func _values_possible(claim: ActorState, host: ActorState, tuning: ActorTuning) 
 	if not _time_within(claim.coyote_left, tuning.coyote_time) \
 			or not _time_within(claim.jump_buffer_left, tuning.jump_buffer_time) \
 			or not _time_within(claim.regrab_left, maxf(tuning.regrab_block_time, tuning.hang_regrab_time)):
-		return false
-	if absf(claim.slow_left - host.slow_left) > TIME_MARGIN:
 		return false
 	return claim.hooked_by == host.hooked_by or claim.hooked_by == 0
 

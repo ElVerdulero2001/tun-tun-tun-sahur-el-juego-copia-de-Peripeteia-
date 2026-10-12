@@ -101,13 +101,10 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 @export var hook_reach := 1.0
 
 @export_group("Cámara lenta")
-## Escala de tiempo de la cámara lenta, la del mundo y la personal.
+## Escala de tiempo de la cámara lenta del mundo.
 @export var slow_scale := 0.3
 ## Cuánto dura la cámara lenta del mundo, en segundos reales.
 @export var world_slow_time := 3.0
-## Cuánto dura la cámara lenta personal, en segundos del mundo: con el mundo
-## también lento, dura más en segundos reales.
-@export var personal_slow_time := 3.0
 
 @export_group("Agarre")
 ## Cuánta fuerza externa resiste cada modo antes de soltarse (escala de 0 a 5).

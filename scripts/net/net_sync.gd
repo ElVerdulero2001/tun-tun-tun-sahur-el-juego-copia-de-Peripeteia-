@@ -30,8 +30,6 @@ const BASE_POSITION_STEP := 0.0001
 const BASE_VELOCITY_STEP := 0.001
 ## Cuantización del impulso de un evento programado.
 const IMPULSE_STEP := 0.001
-## Qué es un evento programado: un empujón o una cámara lenta personal.
-enum EventKind { PUSH, SLOW }
 ## Cuantización de la escala de la cámara lenta del mundo: milésimos.
 const SCALE_STEPS := 1000.0
 
@@ -49,7 +47,7 @@ var snapshots_missing := 0
 ## Cliente: cuándo llegó el último snapshot, en ms reales; 0 si todavía ninguno.
 var last_snapshot_msec := 0
 ## Cliente: eventos programados que llegaron y todavía no tomó el juego, como
-## [tick, impulso, fuerza, tipo].
+## [tick, impulso, fuerza].
 var received_events: Array = []
 ## Cliente: tramos de cámara lenta del mundo que anunció el host y todavía no
 ## tomó el juego, como [tick de inicio, tick de fin, escala].
@@ -268,15 +266,13 @@ func peer_rtt_ms(peer_id: int) -> float:
 	return _peer_rtt_ms.get(peer_id, 0.0)
 
 
-## Host: anuncia a un jugador un evento programado para el tick `tick`: un
-## empujón (un impulso con su fuerza) o una cámara lenta personal. Va por un
-## canal confiable: no se puede perder.
-func send_scheduled_event(peer_id: int, tick: int, impulse: Vector3, force: int, kind: EventKind = EventKind.PUSH) -> void:
+## Host: anuncia a un jugador un empujón programado para el tick `tick`: un
+## impulso con su fuerza. Va por un canal confiable: no se puede perder.
+func send_scheduled_event(peer_id: int, tick: int, impulse: Vector3, force: int) -> void:
 	var b := StreamPeerBuffer.new()
 	b.put_32(tick)
 	_put_vector(b, impulse, IMPULSE_STEP)
 	b.put_u8(force)
-	b.put_u8(kind)
 	var data := b.data_array
 	_send_reliable(func() -> void: _receive_scheduled_event.rpc_id(peer_id, data))
 
@@ -323,8 +319,7 @@ func _accept_scheduled_event(data: PackedByteArray) -> void:
 	var tick := b.get_32()
 	var impulse := _get_vector(b, IMPULSE_STEP)
 	var force := b.get_u8()
-	var kind := b.get_u8()
-	received_events.append([tick, impulse, force, kind])
+	received_events.append([tick, impulse, force])
 
 
 @rpc("authority", "call_remote", "reliable")

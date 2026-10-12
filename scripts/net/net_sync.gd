@@ -16,6 +16,11 @@ const INPUT_REDUNDANCY := 6
 const SNAPSHOT_INTERVAL_TICKS := 2
 ## Cuánta historia de input guarda el host por jugador, en ticks.
 const INPUT_HISTORY_TICKS := 120
+## Si el input más nuevo de un jugador quedó más atrás que esto, en ticks, el
+## host deja de repetirlo y lo deja quieto: la conexión se cortó o se trabó
+## mucho, y repetir lo último lo llevaría lejos (corriendo hacia un borde, por
+## ejemplo). Medio segundo: mucho más que los tirones normales.
+const STALE_INPUT_TICKS := 30
 ## Cuantización de la pose de las bases del host en el snapshot.
 const BASE_POSITION_STEP := 0.0001
 const BASE_VELOCITY_STEP := 0.001
@@ -35,6 +40,8 @@ var acked_input_tick := -1
 ## Cliente: snapshots aceptados y snapshots que nunca llegaron a tiempo.
 var snapshots_received := 0
 var snapshots_missing := 0
+## Cliente: cuándo llegó el último snapshot, en ms reales; 0 si todavía ninguno.
+var last_snapshot_msec := 0
 ## Cliente: eventos programados que llegaron y todavía no tomó el juego, como
 ## [tick, impulso, fuerza, tipo].
 var received_events: Array = []
@@ -51,6 +58,7 @@ var _claims := {}  # peer -> {tick: estado afirmado, en bytes}
 var _latest_input := {}  # peer -> ActorInput con el tick más alto recibido
 var _used_input_tick := {}  # peer -> tick del input usado en el último tick simulado
 var _peer_rtt_ms := {}  # peer -> ida y vuelta que midió ese cliente, en ms
+var _heard_msec := {}  # peer -> cuándo llegó su último paquete, en ms reales
 
 
 func _ready() -> void:
@@ -62,7 +70,8 @@ func _ready() -> void:
 ## Manda al host los ticks predichos más recientes: por cada uno, el input y
 ## la afirmación ([ActorInput, estado en bytes], del más viejo al más nuevo).
 ## Adelante va la ida y vuelta que mide el cliente: con eso el host calcula
-## con cuánta anticipación programar un evento para él.
+## con cuánta anticipación programar un evento para él. Sin ticks, es solo un
+## aviso de que el cliente sigue ahí, aunque no esté prediciendo.
 func send_ticks(records: Array, rtt_ms: float) -> void:
 	var b := StreamPeerBuffer.new()
 	b.put_u16(clampi(roundi(rtt_ms), 0, 65535))
@@ -110,12 +119,25 @@ func apply_pending_snapshot(on_own_state: Callable, on_other_state: Callable, on
 		on_base_state.call(base_id, latest_snapshot_tick, position, velocity)
 
 
+## Olvida lo que llegó por la conexión anterior: se cortó, y al volver todo
+## llega de nuevo (los tramos de cámara lenta, también).
+func reset_client() -> void:
+	latest_snapshot_tick = -1
+	acked_input_tick = -1
+	last_snapshot_msec = 0
+	received_events.clear()
+	received_world_slow.clear()
+	_pending_snapshot = PackedByteArray()
+	_pending_snapshot_tick = -1
+
+
 @rpc("authority", "call_remote", "unreliable")
 func _receive_snapshot(data: PackedByteArray) -> void:
 	_receive(_accept_snapshot.bind(data))
 
 
 func _accept_snapshot(data: PackedByteArray) -> void:
+	last_snapshot_msec = Time.get_ticks_msec()
 	# Los paquetes pueden llegar desordenados: solo cuenta el más nuevo.
 	var tick := data.decode_s32(0)
 	if tick <= _pending_snapshot_tick or tick <= latest_snapshot_tick:
@@ -140,6 +162,7 @@ func _submit_inputs(data: PackedByteArray) -> void:
 
 
 func _accept_inputs(peer_id: int, data: PackedByteArray) -> void:
+	_heard_msec[peer_id] = Time.get_ticks_msec()
 	if not _inputs.has(peer_id):
 		_inputs[peer_id] = {}
 		_claims[peer_id] = {}
@@ -163,7 +186,8 @@ func _accept_inputs(peer_id: int, data: PackedByteArray) -> void:
 ## Input de un jugador remoto para un tick del host, o null si nunca llegó
 ## ninguno. Si falta el de ese tick, se repite el último anterior: mismos
 ## botones mantenidos y mismo contador de pulsaciones, así no se inventa ni se
-## duplica un salto.
+## duplica un salto. Si el último es de hace más de STALE_INPUT_TICKS, queda
+## quieto: sin moverse ni botones, con los mismos contadores.
 func input_for(peer_id: int, tick: int) -> ActorInput:
 	var by_tick: Dictionary = _inputs.get(peer_id, {})
 	var chosen: ActorInput = by_tick.get(tick)
@@ -179,6 +203,8 @@ func input_for(peer_id: int, tick: int) -> ActorInput:
 	if chosen == null:
 		return null
 	_used_input_tick[peer_id] = chosen.tick
+	if tick - chosen.tick > STALE_INPUT_TICKS:
+		return ActorInput.make(tick, Vector2.ZERO, chosen.look_yaw, 0, chosen.jump_presses, chosen.ability_presses)
 	return ActorInput.make(tick, chosen.move, chosen.look_yaw, chosen.buttons, chosen.jump_presses, chosen.ability_presses)
 
 
@@ -199,6 +225,12 @@ func claim_for(peer_id: int, tick: int) -> PackedByteArray:
 func input_margin_ticks(peer_id: int, tick: int) -> int:
 	var latest: ActorInput = _latest_input.get(peer_id)
 	return latest.tick - tick if latest != null else 0
+
+
+## Cuándo llegó el último paquete de un jugador, en ms reales, o 0. Los
+## paquetes vacíos que manda mientras no predice (ver send_ticks()) también cuentan.
+func heard_msec(peer_id: int) -> int:
+	return _heard_msec.get(peer_id, 0)
 
 
 ## La ida y vuelta que dice medir un jugador, en ms (con la red simulada incluida).
@@ -326,6 +358,7 @@ func forget_peer(peer_id: int) -> void:
 	_latest_input.erase(peer_id)
 	_used_input_tick.erase(peer_id)
 	_peer_rtt_ms.erase(peer_id)
+	_heard_msec.erase(peer_id)
 
 
 # --- Paso por el simulador de red -------------------------------------------

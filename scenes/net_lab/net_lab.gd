@@ -27,6 +27,9 @@ extends Node3D
 ## host a los demás con la B, también programada. Al que se conecta, el host
 ## le cuenta todos los tramos que hubo: las plataformas van por el tiempo del
 ## mundo.
+## Reconexión: si se corta la conexión, el cliente reintenta solo y el host
+## deja su actor en el mundo, quieto, hasta que vuelve (ver NetSession). Al
+## volver sigue donde estaba.
 ##
 ## El rol se elige con el menú. Para pruebas automáticas también se puede pasar
 ## por argumentos: --local, --host o --client, --address=IP, --port=N,
@@ -56,10 +59,16 @@ extends Node3D
 ## compañero que está en el muro alto o en la escalera, y después se suelta,
 ## salta para arriba o salta hacia atrás, por turnos),
 ## --test-quit-hooked=TICKS (con alguien colgado de él, o colgado de alguien,
-## cierra el juego a los tantos ticks, como si se cortara),
+## cierra el juego a los tantos ticks, como si se cortara; con
+## --test-cut-hooked, en vez de cerrar corta la red una vez),
 ## --test-world-slow-at=S1,S2 (esta máquina aprieta la V a esos segundos),
 ## --test-personal-slow-at=S1,S2 (solo host: cámara lenta a los demás a esos
-## segundos) y,
+## segundos), --test-relay=PUERTO (cliente: se conecta a través de un relevo
+## en ese puerto), --test-cut-at=S1,S2 (a esos segundos se corta el relevo,
+## como un cable; sin relevo, esta máquina deja de atender la red, como si se
+## trabara), --test-cut-for=SEGUNDOS (cuánto dura cada corte; 10 si no se
+## pide), --reconnect-wait=SEGUNDOS (cuánto espera el host a un jugador
+## cortado) y,
 ## para simular red,
 ## --sim-rtt=MS, --sim-jitter=MS, --sim-loss=PORCENTAJE, --sim-seed=N, los
 ## tirones con --sim-stall-every=MS y --sim-stall=MS y, si la red simulada
@@ -85,6 +94,14 @@ const PLATFORM_NEAR := 1.5
 const PLATFORM_FAR := 6.0
 ## Cuánto dura un aviso arriba del panel, en milisegundos.
 const FLASH_MSEC := 3000
+## Cliente: si hace más que esto que no llega nada del host, en ms reales, el
+## actor propio queda quieto donde está hasta que vuelvan los snapshots. Del
+## otro lado el host lo deja quieto igual (NetSync.STALE_INPUT_TICKS), así al
+## volver los dos lo tienen en el mismo lugar.
+const HOST_SILENCE_MSEC := 500
+## Cliente: mientras no predice (todavía no sincronizó, o quieto sin noticias
+## del host), cada cuántos ticks le avisa al host que sigue ahí.
+const HEARTBEAT_TICKS := 15
 ## Niveles del simulador de red, con las teclas 1 a 5. La demora es de ida y
 ## vuelta; los tirones traban la conexión stall ms cada stall_every ms.
 const NET_PRESETS := [
@@ -159,6 +176,18 @@ var world_slow_late := 0
 var world_slow_too_late := 0
 ## Host: cámaras lentas personales pedidas con la B, para el próximo tick.
 var _personal_slow_requests := 0
+## Prueba de reconexión: a esos segundos esta máquina deja de atender la red
+## durante test_cut_seconds, como si se cortara el cable.
+var test_cut_seconds_at := PackedFloat64Array()
+var test_cut_seconds := 10.0
+## Prueba de reconexión, cliente: si es mayor que cero, se conecta al host a
+## través de un relevo en este puerto (TestUdpRelay), y los cortes cortan el
+## relevo, como un cable. Sin relevo, un corte deja de atender la red: es una
+## máquina trabada, que todavía manda algunas cosas.
+var test_relay_port := 0
+var _relay: TestUdpRelay
+## Cliente: veces que el actor propio quedó quieto por no tener noticias del host.
+var host_silences := 0
 var max_actors_seen := 0
 var _role_from_args := false
 var _started := false
@@ -225,8 +254,11 @@ var _steps_max_height := 0.0
 ## daría el cuerpo de este jugador, como máximo.
 var hooked_gap_max := 0.0
 ## Prueba de desconexión: con un compañero colgado de él (o colgado de uno),
-## cierra el juego después de tantos ticks. 0 = nunca.
+## cierra el juego después de tantos ticks. 0 = nunca. Con test_cut_when_hooked,
+## en vez de cerrar corta la red una vez.
 var test_quit_hooked := 0
+var test_cut_when_hooked := false
+var _hooked_cut_done := false
 ## Host: cambios de quién cuelga de quién (eventos que suben la época) y
 ## colgados que se soltaron porque otro se colgó del mismo en el mismo tick.
 var hook_events := 0
@@ -294,6 +326,7 @@ func _ready() -> void:
 	_clock.hard_resynced.connect(_on_hard_resynced)
 	_clock.link = _link
 	_net_sync.link = _link
+	_session.net_sync = _net_sync
 	multiplayer.server_disconnected.connect(_link.clear)
 	multiplayer.peer_disconnected.connect(_interpolation.forget)
 	multiplayer.peer_connected.connect(_announce_world_slow_to)
@@ -317,8 +350,12 @@ func _ready() -> void:
 		_real_timer(seconds, func() -> void: ability_presses = (ability_presses + 1) & 0xFF)
 	for seconds in test_personal_slow_seconds:
 		_real_timer(seconds, func() -> void: _personal_slow_requests += 1)
+	for seconds in test_cut_seconds_at:
+		_real_timer(seconds, _cut_network)
 	_session.status_changed.connect(func(text: String) -> void: print("[net_lab] %s" % text))
 	_session.local_actor_spawned.connect(_on_local_actor_spawned)
+	_session.connection_lost.connect(_on_connection_lost)
+	_session.connection_restored.connect(func() -> void: _flash("Volviste a conectarte: seguís donde estabas"))
 	$Hud/Menu/Box/Solo.pressed.connect(_start.bind(Role.LOCAL))
 	$Hud/Menu/Box/Host.pressed.connect(_start.bind(Role.HOST))
 	$Hud/Menu/Box/JoinRow/Join.pressed.connect(_on_join_pressed)
@@ -423,7 +460,14 @@ func _start(new_role: Role) -> void:
 			for base in BaseRegistry.all():
 				if base is HostRaft:
 					base.become_copy()
-			_session.start_client(host_address, port)
+			if test_relay_port > 0:
+				_relay = TestUdpRelay.new()
+				add_child(_relay)
+				var err := _relay.start(test_relay_port, host_address, port)
+				print("[net_lab] relevo de prueba en el puerto %d hacia %s:%d (error %d)" % [test_relay_port, host_address, port, err])
+				_session.start_client("127.0.0.1", test_relay_port)
+			else:
+				_session.start_client(host_address, port)
 		_:
 			_session.start_local()
 
@@ -1001,8 +1045,14 @@ func _hook_input(tick: int, where: String) -> ActorInput:
 
 
 ## Prueba de desconexión con alguien colgado: imprime el estado y cierra el
-## juego sin despedirse, como si se cortara.
+## juego sin despedirse, como si se cortara. Con --test-cut-hooked corta la red
+## una sola vez, en vez de cerrar.
 func _quit_while_hooked() -> void:
+	if test_cut_when_hooked:
+		if not _hooked_cut_done:
+			_hooked_cut_done = true
+			_cut_network()
+		return
 	print("[net_lab] desconexión de prueba en el tick %d: %s" % [_clock.tick, _local_actor.state.describe()])
 	get_tree().quit()
 
@@ -1094,6 +1144,20 @@ func _on_tick_started(tick: int) -> void:
 		if _is_remote(actor):
 			_interpolation.place(actor)
 	if is_instance_valid(_local_actor) and _clock.synced:
+		if _host_silent():
+			# Sin noticias del host: el actor propio queda quieto donde está. Lo
+			# predicho hasta acá ya no se va a poder comparar.
+			if _local_actor.simulated:
+				_local_actor.simulated = false
+				_prediction.clear()
+				host_silences += 1
+				print("[net_lab] sin noticias del host desde hace %d ms, en el tick %d: el actor propio queda quieto en %s" % [
+					Time.get_ticks_msec() - _net_sync.last_snapshot_msec, tick, BaseRegistry.world_position(_local_actor.state)])
+			return
+		if not _local_actor.simulated:
+			# Empieza (o vuelve) a predecir: los márgenes de inputs anteriores no
+			# sirven para ajustar el adelanto.
+			_prediction_start_tick = tick
 		_local_actor.simulated = true
 		_current_input = _local_input(tick)
 		# La V viaja en el input, sea cual sea la prueba que arma el resto.
@@ -1119,6 +1183,9 @@ func _on_tick_finished(tick: int) -> void:
 			_perturb(_local_actor)
 		_prediction.record(tick, _current_input, _local_actor.state)
 		_net_sync.send_ticks(_prediction.recent(NetSync.INPUT_REDUNDANCY), _clock.rtt_ms)
+	elif role == Role.CLIENT and _clock.client_sync and tick % HEARTBEAT_TICKS == 0:
+		# Sin predicción no sale ningún input: el host no tiene que creer que se cortó.
+		_net_sync.send_ticks([], _clock.rtt_ms)
 	if role == Role.CLIENT:
 		# La balsa del host se coloca para el tick que viene, en la pose que se
 		# va a mostrar entonces: un tick del cliente son 60/ritmo ticks del host.
@@ -1459,6 +1526,50 @@ func _on_local_actor_spawned(actor: ActorBody) -> void:
 	_local_actor = actor
 	# La cámara sigue lo que se ve, con el desvío de las correcciones incluido.
 	_camera.target = actor.visual_root()
+	if role == Role.CLIENT:
+		# El contador de saltos arranca donde lo dejó el host: si se apretó
+		# Espacio mientras estaba cortado, al volver no salta solo.
+		jump_presses = actor.state.jump_presses_seen
+	if _session.reconnects > 0:
+		print("[net_lab] de vuelta, el actor propio es el %d en el tick %d: %s" % [actor.owner_peer_id, _clock.tick, actor.state.describe()])
+
+
+## Cliente: hace más de HOST_SILENCE_MSEC que no llega ningún snapshot.
+func _host_silent() -> bool:
+	return _net_sync.last_snapshot_msec > 0 \
+			and Time.get_ticks_msec() - _net_sync.last_snapshot_msec > HOST_SILENCE_MSEC
+
+
+## Cliente: se cortó la conexión con el host. Lo predicho y lo recibido ya no
+## sirven; la sesión reintenta sola y, al volver, todo arranca como al unirse.
+func _on_connection_lost() -> void:
+	_link.clear()
+	_prediction.clear()
+	_current_input = null
+	_net_sync.reset_client()
+	_interpolation.clear()
+	_client_events.clear()
+	_remote_last_positions.clear()
+	_flash("Se cortó la conexión con el host: reconectando…")
+
+
+## Prueba de reconexión: con relevo, se corta el relevo, como un cable. Sin
+## relevo, esta máquina deja de atender la red: lo que llega no se lee y lo
+## confiable no sale, como una PC trabada.
+func _cut_network() -> void:
+	print("[net_lab] corte de red de prueba (%s) por %.1f s en el tick %d: %s" % [
+			"cable" if _relay != null else "máquina trabada", test_cut_seconds, _clock.tick,
+			_local_actor.state.describe() if is_instance_valid(_local_actor) else "sin actor propio"])
+	if _relay != null:
+		_relay.cut = true
+	else:
+		get_tree().multiplayer_poll = false
+	_real_timer(test_cut_seconds, func() -> void:
+		if _relay != null:
+			_relay.cut = false
+		else:
+			get_tree().multiplayer_poll = true
+		print("[net_lab] vuelve la red de prueba en el tick %d" % _clock.tick))
 
 
 ## Lee los argumentos de lanzamiento. Se buscan tanto en los de usuario
@@ -1532,6 +1643,17 @@ func _read_launch_args() -> void:
 		elif arg.begins_with("--test-personal-slow-at="):
 			for seconds in arg.trim_prefix("--test-personal-slow-at=").split(","):
 				test_personal_slow_seconds.append(seconds.to_float())
+		elif arg.begins_with("--test-cut-at="):
+			for seconds in arg.trim_prefix("--test-cut-at=").split(","):
+				test_cut_seconds_at.append(seconds.to_float())
+		elif arg.begins_with("--test-relay="):
+			test_relay_port = arg.trim_prefix("--test-relay=").to_int()
+		elif arg == "--test-cut-hooked":
+			test_cut_when_hooked = true
+		elif arg.begins_with("--test-cut-for="):
+			test_cut_seconds = arg.trim_prefix("--test-cut-for=").to_float()
+		elif arg.begins_with("--reconnect-wait="):
+			_session.reconnect_wait = arg.trim_prefix("--reconnect-wait=").to_float()
 		elif arg.begins_with("--test-pause-at="):
 			test_pause_tick = arg.trim_prefix("--test-pause-at=").to_int()
 		elif arg.begins_with("--test-spawn-at="):
@@ -1559,6 +1681,11 @@ func _update_hud() -> void:
 		"tick %d   ·   actores: %s" % [_clock.tick, _actor_ids()],
 		"red simulada: %s   ·   teclas 1 a 5 para cambiarla" % _net_sim_text(),
 	])
+	if role == Role.CLIENT and _session.reconnecting:
+		lines.append("SIN CONEXIÓN CON EL HOST   ·   reintenta solo   ·   se rinde en %d s" % maxi(ceili(_session.give_up_left()), 0))
+	elif role == Role.CLIENT and _clock.client_sync and _host_silent():
+		lines.append("SIN NOTICIAS DEL HOST hace %.1f s   ·   tu personaje queda quieto hasta que vuelvan" % [
+				(Time.get_ticks_msec() - _net_sync.last_snapshot_msec) / 1000.0])
 	if role == Role.CLIENT:
 		lines.append("reloj: ida y vuelta %.0f ms   ·   vas %.1f ticks adelante del host   ·   saltos de reloj %d" % [_clock.rtt_ms, _clock.lead_ticks, _clock.resyncs])
 		lines.append("tu input le llega al host con %.1f ticks de anticipación, en el peor caso   ·   ritmo: %d ticks por segundo (ganados +%.1f / perdidos -%.1f)" % [_clock.worst_margin, _clock.rate_hz, _clock.ticks_gained, _clock.ticks_shed])
@@ -1576,6 +1703,10 @@ func _update_hud() -> void:
 		for actor in _clock.sorted_actors():
 			if actor != _local_actor:
 				var peer := actor.owner_peer_id
+				var left := _session.waiting_left(peer)
+				if left >= 0.0:
+					lines.append("jugador %d: se le cortó la conexión   ·   queda quieto y lo espero %d s más" % [peer, ceili(left)])
+					continue
 				lines.append("jugador %d: su input llega con %d ticks de anticipación   ·   época %d" % [peer, _net_sync.input_margin_ticks(peer, _clock.tick), actor.state.epoch])
 				lines.append("      afirmaciones: %d adoptadas (la más lejana a %.2f m), rechazadas %d por época, %d por distancia, %d por pose" % [
 					_adoption.count(peer, ClaimAdoption.Result.ADOPTED), _adoption.max_difference(peer),
@@ -1693,6 +1824,11 @@ func _print_summary_and_quit() -> void:
 		])
 	if respawns > 0:
 		print("[net_lab] reapariciones: %d" % respawns)
+	if not test_cut_seconds_at.is_empty() or _session.reconnects > 0 or _session.players_back > 0 or _session.players_dropped > 0:
+		print("[net_lab] reconexión: el cliente volvió %d veces (%d intentos en el último corte, reconectando=%s, quieto sin noticias del host %d veces); en el host, %d jugadores volvieron y %d no volvieron a tiempo" % [
+			_session.reconnects, _session.reconnect_attempts, _session.reconnecting, host_silences, _session.players_back, _session.players_dropped])
+	if _relay != null:
+		print("[net_lab] relevo de prueba: %d paquetes pasaron, %d se tiraron en los cortes" % [_relay.forwarded, _relay.dropped])
 	if test_input == "tunnel":
 		print("[net_lab] túnel: llegó al tramo %d; ticks parado bajo el techo: %d" % [_tunnel_phase, _tunnel_standing_under_roof])
 	if test_input == "steps":
@@ -1726,6 +1862,8 @@ func _print_summary_and_quit() -> void:
 			_adoption.count(peer, ClaimAdoption.Result.OFF),
 			_adoption.count(peer, ClaimAdoption.Result.NO_CLAIM),
 		])
+	# Cerrar al final de la prueba es irse a propósito, como cerrar la ventana.
+	_session.say_goodbye()
 	get_tree().quit()
 
 

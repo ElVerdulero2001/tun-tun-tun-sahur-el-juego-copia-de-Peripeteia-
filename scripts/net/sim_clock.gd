@@ -245,6 +245,18 @@ func _run_tick() -> void:
 			base.prepare_tick(tick + 1)
 
 
+## Cliente: olvida la sincronización con el host, para hacerla desde cero al
+## volver a conectarse después de un corte. Hasta entonces corre a ritmo normal.
+func reset_sync() -> void:
+	synced = false
+	_pings.clear()
+	_margins.clear()
+	_bad_estimates = 0
+	_ticks_since_ping = 0
+	worst_margin = 0.0
+	_set_rate(TICK_RATE)
+
+
 func sorted_actors() -> Array[ActorBody]:
 	var list: Array[ActorBody] = []
 	if actors_root == null:

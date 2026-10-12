@@ -165,6 +165,16 @@ func forget(peer_id: int) -> void:
 	_frame_blends.erase(peer_id)
 
 
+## Olvida todo lo recibido: se cortó la conexión con el host.
+func clear() -> void:
+	_render_tick = 0.0
+	_newest_tick = -1
+	_samples.clear()
+	_base_samples.clear()
+	_frame.clear()
+	_frame_blends.clear()
+
+
 ## Lo que se muestra del actor en el marco `frame`: la mezcla de los dos
 ## snapshots que rodean el momento que se muestra, pasados a ese marco.
 func _shown_state(samples: Array, frame: int) -> ActorState:

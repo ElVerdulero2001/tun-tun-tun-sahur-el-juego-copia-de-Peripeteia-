@@ -12,7 +12,7 @@ const BUTTON_RUN := 1 << 2
 const ALL_BUTTONS := BUTTON_JUMP | BUTTON_CROUCH | BUTTON_RUN
 const AXIS_STEPS := 127.0
 ## Largo de write_to().
-const BYTE_SIZE := 11
+const BYTE_SIZE := 12
 
 var tick := 0
 ## Ejes de movimiento: x hacia la derecha, y hacia adelante, cada uno de -1 a 1.
@@ -27,9 +27,13 @@ var jump_presses := 0
 ## Contador de pulsaciones de la tecla de cámara lenta del mundo (punto 7), igual
 ## que el de salto. No lo usa el motor: con él, el host se entera del pedido.
 var ability_presses := 0
+## Contador de pulsaciones del súper salto y velocidad (2 del teclado
+## numérico), igual que el de salto. Lo usa el motor: cada jugador lo activa
+## para sí mismo, sin esperar al host.
+var power_presses := 0
 
 
-static func make(p_tick: int, p_move: Vector2, p_look_yaw: float, p_buttons: int, p_jump_presses: int, p_ability_presses: int = 0) -> ActorInput:
+static func make(p_tick: int, p_move: Vector2, p_look_yaw: float, p_buttons: int, p_jump_presses: int, p_ability_presses: int = 0, p_power_presses: int = 0) -> ActorInput:
 	var input := ActorInput.new()
 	input.tick = p_tick
 	var m := p_move.limit_length(1.0)
@@ -38,6 +42,7 @@ static func make(p_tick: int, p_move: Vector2, p_look_yaw: float, p_buttons: int
 	input.buttons = p_buttons
 	input.jump_presses = p_jump_presses & 0xFF
 	input.ability_presses = p_ability_presses & 0xFF
+	input.power_presses = p_power_presses & 0xFF
 	return input
 
 
@@ -52,7 +57,7 @@ func is_possible() -> bool:
 	return move.length_squared() <= 1.01 and (buttons & ~ALL_BUTTONS) == 0
 
 
-## Escribe el input en 11 bytes. Como ya está cuantizado, leerlo del otro lado
+## Escribe el input en 12 bytes. Como ya está cuantizado, leerlo del otro lado
 ## da exactamente los mismos valores.
 func write_to(b: StreamPeerBuffer) -> void:
 	b.put_32(tick)
@@ -62,6 +67,7 @@ func write_to(b: StreamPeerBuffer) -> void:
 	b.put_u8(buttons)
 	b.put_u8(jump_presses)
 	b.put_u8(ability_presses & 0xFF)
+	b.put_u8(power_presses & 0xFF)
 
 
 static func read_from(b: StreamPeerBuffer) -> ActorInput:
@@ -74,4 +80,5 @@ static func read_from(b: StreamPeerBuffer) -> ActorInput:
 	input.buttons = b.get_u8()
 	input.jump_presses = b.get_u8()
 	input.ability_presses = b.get_u8()
+	input.power_presses = b.get_u8()
 	return input

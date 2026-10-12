@@ -232,8 +232,8 @@ func input_for(peer_id: int, tick: int) -> ActorInput:
 		return null
 	_used_input_tick[peer_id] = chosen.tick
 	if tick - chosen.tick > STALE_INPUT_TICKS:
-		return ActorInput.make(tick, Vector2.ZERO, chosen.look_yaw, 0, chosen.jump_presses, chosen.ability_presses)
-	return ActorInput.make(tick, chosen.move, chosen.look_yaw, chosen.buttons, chosen.jump_presses, chosen.ability_presses)
+		return ActorInput.make(tick, Vector2.ZERO, chosen.look_yaw, 0, chosen.jump_presses, chosen.ability_presses, chosen.power_presses)
+	return ActorInput.make(tick, chosen.move, chosen.look_yaw, chosen.buttons, chosen.jump_presses, chosen.ability_presses, chosen.power_presses)
 
 
 ## El input más nuevo que llegó de un jugador, o null. Con él el host se entera

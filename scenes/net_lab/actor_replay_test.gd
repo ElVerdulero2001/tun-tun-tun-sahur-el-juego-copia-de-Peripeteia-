@@ -16,9 +16,11 @@ extends Node3D
 ## cambiando de ritmo cada pocos ticks, como el cliente al ajustar su adelanto.
 ## La huella final de la pasada en vivo tiene que dar igual a cualquier ritmo.
 ##
-## Desde el punto 7, el recorrido termina con dos tramos de cámara lenta del
-## mundo: cada tick avanza el tiempo del mundo de ese tick
-## (SimClock.world_dt) y time_scale sigue a la escala, como en el juego.
+## Desde el punto 7, el recorrido termina con tramos de cámara lenta del
+## mundo, el último prendido hasta el final: cada tick avanza el tiempo del
+## mundo de ese tick (SimClock.world_dt) y time_scale sigue a la escala, como
+## en el juego. Antes del último pasa por el súper salto y velocidad, que se
+## prende y se apaga con el 2 del teclado numérico.
 
 const TICK_DT := 1.0 / 60.0
 const TIMEOUT_SECONDS := 400.0
@@ -67,6 +69,7 @@ var _physics_frames := 0
 ## Ritmo de ticks actual, para combinarlo con la escala del mundo.
 var _rate := SimClock.TICK_RATE
 var _ticks_slow := 0
+var _ticks_boost := 0
 
 @onready var _actor: ActorBody = $Actor
 
@@ -118,6 +121,8 @@ func _live_tick() -> void:
 	_apply_events(_state, _tick)
 	if SimClock.world_scale(_tick) < 1.0:
 		_ticks_slow += 1
+	if _state.boosted:
+		_ticks_boost += 1
 	ActorMotor.step(_actor, _state, _inputs[_tick], _tuning, SimClock.world_dt(_tick))
 	_live.append(_state.to_bytes())
 
@@ -189,7 +194,7 @@ func _finish() -> void:
 	_phase = Phase.DONE
 	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d colgado, %d tocando pared, %d saltos, altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_hanging, _ticks_wall, _jumps, _max_height])
 	print("%s postura: %d ticks agachado, %d de ellos pidiendo pararse sin lugar" % [LOG_PREFIX, _ticks_crouched, _ticks_kept_crouched])
-	print("%s cámara lenta: %d ticks" % [LOG_PREFIX, _ticks_slow])
+	print("%s cámara lenta: %d ticks; súper salto y velocidad: %d ticks" % [LOG_PREFIX, _ticks_slow, _ticks_boost])
 	print("%s %d repeticiones, %d ticks repetidos" % [LOG_PREFIX, _replays, _replayed_ticks])
 	var hashing := HashingContext.new()
 	hashing.start(HashingContext.HASH_SHA256)
@@ -316,8 +321,20 @@ func _build_inputs() -> void:
 		[90, Vector2(0, 1), -PI / 2.0, [20], 0],  # camina y salta a velocidad normal
 		[120, Vector2(0, 1), PI / 2.0, [30], 0, [], 60],  # el mundo lento otra vez, desde el primer tick
 		[60, Vector2.ZERO, 0.0, [], 0],  # se queda quieto
+		# Súper salto y velocidad (el octavo elemento: ticks del tramo con
+		# pulsación del 2 del teclado numérico; un tick repetido son dos
+		# pulsaciones en el mismo tick):
+		[20, Vector2.ZERO, 0.0, [], 0, [], 0, [0]],  # lo prende, quieto
+		[40, Vector2(0, 1), PI, [], run, [], 0],  # corre más rápido
+		[60, Vector2(0, 1), PI, [10], run, [], 0],  # salta corriendo, más alto
+		[20, Vector2.ZERO, 0.0, [], 0, [], 0, [5, 5]],  # dos pulsaciones juntas: sigue prendido
+		[20, Vector2.ZERO, 0.0, [], 0, [], 0, [5]],  # lo apaga
+		[60, Vector2.ZERO, 0.0, [10], 0],  # salto normal
+		# Cámara lenta del mundo prendida que nadie apaga (-1: hasta el final):
+		[60, Vector2(0, 1), 0.0, [20], 0, [], -1],
 	]
 	var presses := 0
+	var power_presses := 0
 	var tick := 0
 	for segment in segments:
 		var buttons: int = segment[4] if segment.size() > 4 else 0
@@ -326,12 +343,15 @@ func _build_inputs() -> void:
 			# empujón.
 			for event in segment[5]:
 				_events[tick + event[0]] = [event[1], event[2]]
-		if segment.size() > 6:
-			SimClock.add_world_slow(tick, tick + segment[6], _tuning.slow_scale)
+		if segment.size() > 6 and segment[6] != 0:
+			var end: int = tick + segment[6] if segment[6] > 0 else SimClock.OPEN_END
+			SimClock.add_world_slow(tick, end, _tuning.slow_scale)
+		var power_ticks: Array = segment[7] if segment.size() > 7 else []
 		for i in segment[0]:
 			if i in segment[3]:
 				presses += 1
-			_inputs.append(ActorInput.make(tick, segment[1], segment[2], buttons, presses))
+			power_presses += power_ticks.count(i)
+			_inputs.append(ActorInput.make(tick, segment[1], segment[2], buttons, presses, 0, power_presses))
 			tick += 1
 		_segment_ends.append(tick - 1)
 

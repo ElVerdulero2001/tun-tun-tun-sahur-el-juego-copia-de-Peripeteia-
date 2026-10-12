@@ -101,10 +101,21 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 @export var hook_reach := 1.0
 
 @export_group("Cámara lenta")
-## Escala de tiempo de la cámara lenta del mundo.
+## Escala de tiempo de la cámara lenta del mundo. La prende y la apaga
+## cualquier jugador con el 1 del teclado numérico.
 @export var slow_scale := 0.3
-## Cuánto dura la cámara lenta del mundo, en segundos reales.
-@export var world_slow_time := 3.0
+
+@export_group("Súper salto y velocidad")
+## Lo prende y lo apaga cada jugador para sí mismo con el 2 del teclado
+## numérico. Cuánto más alto llegan los pies en un salto desde el piso, en
+## metros, además de la altura de siempre.
+@export var boost_jump_extra := 1.5
+## Por cuánto se multiplica la velocidad en el piso: caminando, corriendo y
+## agachado.
+@export var boost_speed_scale := 1.5
+## Como jump_max_speed (grupo Salto), pero con el súper prendido: el salto
+## dura 1,5 s en el aire, así que se avanza más o menos esto por 1,5.
+@export var boost_jump_max_speed := 6.5
 
 @export_group("Agarre")
 ## Cuánta fuerza externa resiste cada modo antes de soltarse (escala de 0 a 5).
@@ -124,6 +135,12 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 
 @export_group("Salto")
 @export var jump_velocity := 4.8
+## Velocidad horizontal máxima al saltar desde el piso, en m/s: si venías más
+## rápido (corriendo, deslizándote), el salto sale con esta. Cuánto se avanza
+## en un salto es más o menos esto por el tiempo en el aire (1 s en un salto
+## normal). Bajalo y se salta menos lejos. Es la velocidad propia: sobre una
+## plataforma que se mueve, la de la plataforma se suma aparte.
+@export var jump_max_speed := 6.0
 ## Ventana para saltar después de dejar el piso, en segundos de tiempo del actor.
 @export var coyote_time := 0.1
 ## Cuánto se recuerda una pulsación de salto antes de tocar el piso, en segundos.

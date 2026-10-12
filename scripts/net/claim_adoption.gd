@@ -31,10 +31,9 @@ enum Result { NO_CLAIM, SAME, ADOPTED, OFF, WRONG_EPOCH, TOO_FAR, BAD_POSE, BAD_
 ## Diferencia máxima de posición para adoptar, en metros. Valor de partida, a
 ## calibrar: caminando, cubre un input que llegó unos 10 ticks tarde.
 const MAX_DIFFERENCE := 1.0
-## Diferencia máxima de velocidad con la del host, en m/s. Un input que llegó
-## tarde la cambia como mucho lo que arrancar a correr y saltar a la vez
-## (8 + 6,6 m/s desde la escalera, en direcciones distintas: unos 10,4).
-const MAX_VELOCITY_DIFFERENCE := 12.0
+## Margen sobre la diferencia de velocidad más grande que puede dar un input
+## que llegó tarde (ver _max_velocity_difference()), en m/s.
+const VELOCITY_MARGIN := 1.5
 ## Margen para comparar tiempos ya cuantizados.
 const TIME_MARGIN := ActorState.TIME_STEP
 
@@ -107,13 +106,25 @@ func _values_possible(claim: ActorState, host: ActorState, tuning: ActorTuning) 
 		return false
 	if absf(claim.floor_normal.length() - 1.0) > 0.01:
 		return false
-	if claim.velocity.distance_to(host.velocity) > MAX_VELOCITY_DIFFERENCE:
+	if claim.velocity.distance_to(host.velocity) > _max_velocity_difference(tuning):
 		return false
 	if not _time_within(claim.coyote_left, tuning.coyote_time) \
 			or not _time_within(claim.jump_buffer_left, tuning.jump_buffer_time) \
 			or not _time_within(claim.regrab_left, maxf(tuning.regrab_block_time, tuning.hang_regrab_time)):
 		return false
 	return claim.hooked_by == host.hooked_by or claim.hooked_by == 0
+
+
+## Lo más que un input que llegó tarde puede cambiar la velocidad: arrancar a
+## correr (con el súper salto y velocidad, más rápido; deslizándose, hasta su
+## tope) y saltar a la vez, en direcciones distintas, con el salto más alto
+## (el de la escalera o el súper salto), más un margen. Con el Tuning de
+## partida: 12 m/s y 7,2 m/s, unos 15,5 m/s.
+static func _max_velocity_difference(tuning: ActorTuning) -> float:
+	var run := maxf(tuning.sprint_speed * tuning.boost_speed_scale, tuning.slide_max_speed)
+	var dt := SimClock.TICK_DT
+	var jump := ActorMotor.floor_jump_speed(tuning, dt, maxf(tuning.ladder_jump_extra, tuning.boost_jump_extra))
+	return Vector2(run, jump).length() + VELOCITY_MARGIN
 
 
 static func _time_within(value: float, most: float) -> bool:

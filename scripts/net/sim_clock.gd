@@ -19,7 +19,8 @@ extends Node
 ## tick avanza TICK_DT por la escala. Siguen siendo 60 ticks por segundo real:
 ## lo que se achica es cuánto tiempo del mundo pasa en cada uno. Los tramos son
 ## los mismos en todas las máquinas, así que el tiempo del mundo de un tick
-## también.
+## también. La misma tecla la prende y la apaga: un tramo queda abierto
+## (OPEN_END) hasta que el host programa su fin.
 
 ## Al empezar cada tick, antes de mover actores. El cliente corrige y manda su input acá.
 signal tick_started(tick: int)
@@ -108,8 +109,12 @@ var _steps_requested := 0
 ## Escala del mundo del último tick corrido: la que lleva time_scale.
 var _world_scale_now := 1.0
 
+## Fin de un tramo de cámara lenta que sigue prendido: nadie la apagó todavía.
+const OPEN_END := 2147483647
+
 ## Tramos de cámara lenta del mundo: [tick de inicio, tick de fin (sin
-## incluirlo), escala]. Es estado del mundo, no de un actor.
+## incluirlo, OPEN_END si sigue prendida), escala]. Es estado del mundo, no de
+## un actor.
 static var _world_slow: Array = []
 
 
@@ -128,16 +133,22 @@ static func apply_tick_rate(rate: int, slow: float = 1.0) -> void:
 	Engine.time_scale = float(rate) / TICK_RATE * slow
 
 
-## Anota un tramo de cámara lenta del mundo, el que anunció el host. Devuelve
-## false si ya estaba: al que se conecta el host le manda todos los tramos, y
-## uno de ellos puede llegarle también en su anuncio.
-static func add_world_slow(start: int, end: int, scale: float) -> bool:
+## Anota un tramo de cámara lenta del mundo, el que anunció el host, o le pone
+## fin a uno que seguía prendido (mismo inicio, otro fin). Devuelve los ticks
+## en que esto cambia la escala: el inicio de un tramo nuevo (y su fin, si ya
+## lo tiene) o el fin nuevo; vacío si ya estaba igual. Al que se conecta el
+## host le manda todos los tramos, y uno puede llegarle también en su anuncio.
+static func add_world_slow(start: int, end: int, scale: float) -> Array:
 	for span in _world_slow:
-		if span[0] == start:
-			return false
+		if span[0] != start:
+			continue
+		if span[1] == end:
+			return []
+		span[1] = end
+		return [end]
 	_world_slow.append([start, end, scale])
 	_world_slow.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
-	return true
+	return [start] if end == OPEN_END else [start, end]
 
 
 static func clear_world_slow() -> void:

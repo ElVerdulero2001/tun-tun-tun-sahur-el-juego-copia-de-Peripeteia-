@@ -48,6 +48,13 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	if input.jump_presses != state.jump_presses_seen:
 		state.jump_presses_seen = input.jump_presses
 		state.jump_buffer_left = tuning.jump_buffer_time
+	# Cada pulsación prende o apaga el súper salto y velocidad: dos que caen
+	# entre dos ticks se anulan.
+	var power_presses := (input.power_presses - state.power_presses_seen) & 0xFF
+	if power_presses != 0:
+		state.power_presses_seen = input.power_presses
+		if power_presses % 2 == 1:
+			state.boosted = not state.boosted
 
 	# 4. Sondas: colgado, la de borde revalida cada tick el borde agarrado;
 	# colgado de un compañero, se lo busca por su id.
@@ -62,7 +69,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	match state.mode:
 		ActorState.Mode.GROUND:
 			if wants_jump:
-				_jump(state, tuning)
+				_jump(state, tuning, dt)
 			elif not state.on_floor:
 				state.mode = ActorState.Mode.AIR
 				state.coyote_left = tuning.coyote_time
@@ -75,7 +82,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 			if state.on_floor and state.velocity.y <= 0.0:
 				state.mode = ActorState.Mode.GROUND
 			elif wants_jump and state.coyote_left > 0.0:
-				_jump(state, tuning)
+				_jump(state, tuning, dt)
 			else:
 				if not crouch_held:
 					edge = _try_grab_edge(body, state, grab_direction(input.look_yaw), tuning, dt)
@@ -85,11 +92,13 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 					_try_grab_ladder(body, state, direction)
 		ActorState.Mode.SLIDE:
 			if wants_jump:
-				_jump(state, tuning)
+				_jump(state, tuning, dt)
 			elif not state.on_floor:
 				state.mode = ActorState.Mode.AIR
 				state.coyote_left = tuning.coyote_time
-			elif _horizontal_speed(state) < tuning.slide_min_speed:
+			elif not crouch_held or _horizontal_speed(state) < tuning.slide_min_speed:
+				# Soltar Ctrl corta el deslizamiento: vuelve a Suelo, que frena o
+				# sigue según lo que se apriete. Bajo un techo queda agachado.
 				state.mode = ActorState.Mode.GROUND
 		ActorState.Mode.LADDER:
 			var ladder := Ladder.find(state.anchor_id)
@@ -240,13 +249,15 @@ static func _wish_direction(input: ActorInput) -> Vector3:
 	return local.rotated(Vector3.UP, input.look_yaw)
 
 
-## En Suelo: agachado va despacio; correr pide postura parada.
+## En Suelo: agachado va despacio; correr pide postura parada. Con el súper
+## salto y velocidad, todo más rápido.
 static func _ground_speed(state: ActorState, input: ActorInput, tuning: ActorTuning) -> float:
+	var speed := tuning.walk_speed
 	if state.stance == ActorState.Stance.CROUCHED:
-		return tuning.crouch_speed
-	if input.is_held(ActorInput.BUTTON_RUN):
-		return tuning.sprint_speed
-	return tuning.walk_speed
+		speed = tuning.crouch_speed
+	elif input.is_held(ActorInput.BUTTON_RUN):
+		speed = tuning.sprint_speed
+	return speed * tuning.boost_speed_scale if state.boosted else speed
 
 
 static func _horizontal_speed(state: ActorState) -> float:
@@ -723,13 +734,19 @@ static func _climb_jump_speed(tuning: ActorTuning, dt: float) -> float:
 	return sqrt(2.0 * tuning.gravity * rise) + tuning.gravity * dt * 0.5
 
 
-## Saltar de la escalera mirándola: la velocidad justa para que los pies suban
-## ladder_jump_extra más que en un salto desde el piso con jump_velocity. Con la
-## misma cuenta que _climb_jump_speed: el salto del piso sigue la parábola de
-## una velocidad menor en g·dt/2, y a esa se le suma la altura extra.
+## Saltar de la escalera mirándola: los pies suben ladder_jump_extra más que en
+## un salto desde el piso.
 static func _ladder_jump_speed(tuning: ActorTuning, dt: float) -> float:
+	return floor_jump_speed(tuning, dt, tuning.ladder_jump_extra)
+
+
+## La velocidad justa para que los pies suban `extra` metros más que en un
+## salto desde el piso con jump_velocity. Con la misma cuenta que
+## _climb_jump_speed: el salto del piso sigue la parábola de una velocidad
+## menor en g·dt/2, y a esa se le suma la altura extra.
+static func floor_jump_speed(tuning: ActorTuning, dt: float, extra: float) -> float:
 	var floor_speed := tuning.jump_velocity - tuning.gravity * dt * 0.5
-	var speed := sqrt(floor_speed * floor_speed + 2.0 * tuning.gravity * tuning.ladder_jump_extra)
+	var speed := sqrt(floor_speed * floor_speed + 2.0 * tuning.gravity * extra)
 	return speed + tuning.gravity * dt * 0.5
 
 
@@ -922,9 +939,17 @@ static func _world_velocity(state: ActorState) -> Vector3:
 
 
 ## Impulso que fija el eje vertical. El snap no lo vuelve a pegar al piso
-## porque la velocidad sube: así lo documenta floor_snap_length.
-static func _jump(state: ActorState, tuning: ActorTuning) -> void:
-	state.velocity.y = tuning.jump_velocity
+## porque la velocidad sube: así lo documenta floor_snap_length. Con el súper
+## salto y velocidad, los pies llegan boost_jump_extra más alto. La velocidad
+## horizontal sale limitada (jump_max_speed): de eso depende cuánto se avanza.
+## Es la propia, relativa a la base si está sobre una.
+static func _jump(state: ActorState, tuning: ActorTuning, dt: float) -> void:
+	var most := tuning.boost_jump_max_speed if state.boosted else tuning.jump_max_speed
+	var horizontal := Vector2(state.velocity.x, state.velocity.z).limit_length(most)
+	state.velocity.x = horizontal.x
+	state.velocity.z = horizontal.y
+	state.velocity.y = floor_jump_speed(tuning, dt, tuning.boost_jump_extra) if state.boosted \
+			else tuning.jump_velocity
 	state.mode = ActorState.Mode.AIR
 	state.jump_buffer_left = 0.0
 	state.coyote_left = 0.0

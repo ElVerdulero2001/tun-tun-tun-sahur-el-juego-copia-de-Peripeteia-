@@ -127,11 +127,6 @@ func use_stance(stance: int) -> void:
 		_shapes[i].disabled = i != stance
 
 
-## Postura de la forma activa.
-func active_stance() -> int:
-	return _active_stance
-
-
 ## Radio de la forma activa.
 func capsule_radius() -> float:
 	var capsule: CapsuleShape3D = _shapes[_active_stance].shape

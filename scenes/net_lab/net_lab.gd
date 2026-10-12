@@ -29,7 +29,8 @@ extends Node3D
 ## mundo.
 ## Reconexión: si se corta la conexión, el cliente reintenta solo y el host
 ## deja su actor en el mundo, quieto, hasta que vuelve (ver NetSession). Al
-## volver sigue donde estaba.
+## volver sigue donde estaba. Una copia con otro Tuning, otro código u otro
+## nivel no entra: el host dice qué parte es distinta (SimFingerprint).
 ##
 ## El rol se elige con el menú. Para pruebas automáticas también se puede pasar
 ## por argumentos: --local, --host o --client, --address=IP, --port=N,
@@ -68,7 +69,8 @@ extends Node3D
 ## como un cable; sin relevo, esta máquina deja de atender la red, como si se
 ## trabara), --test-cut-for=SEGUNDOS (cuánto dura cada corte; 10 si no se
 ## pide), --reconnect-wait=SEGUNDOS (cuánto espera el host a un jugador
-## cortado) y,
+## cortado), --test-tuning=NOMBRE=VALOR (cambia un valor del Tuning, para
+## probar que el host no deja entrar a una copia distinta) y,
 ## para simular red,
 ## --sim-rtt=MS, --sim-jitter=MS, --sim-loss=PORCENTAJE, --sim-seed=N, los
 ## tirones con --sim-stall-every=MS y --sim-stall=MS y, si la red simulada
@@ -186,6 +188,9 @@ var test_cut_seconds := 10.0
 ## máquina trabada, que todavía manda algunas cosas.
 var test_relay_port := 0
 var _relay: TestUdpRelay
+## Prueba de compatibilidad: valores del Tuning cambiados por argumentos, por
+## nombre, como si esta copia tuviera otros en el Inspector.
+var test_tuning := {}
 ## Cliente: veces que el actor propio quedó quieto por no tener noticias del host.
 var host_silences := 0
 var max_actors_seen := 0
@@ -318,6 +323,11 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	_ready_msec = Time.get_ticks_msec()
 	_read_launch_args()
+	for property in test_tuning:
+		tuning.set(property, test_tuning[property])
+	# Antes del primer tick: después las plataformas y la balsa ya se movieron.
+	_session.compatibility = SimFingerprint.compute(tuning, SimFingerprint.level_text($Level))
+	print("[net_lab] huella de compatibilidad: %s" % _session.compatibility.hex_encode())
 	_clock.actors_root = _actors
 	_clock.tuning = tuning
 	_clock.input_provider = _input_for
@@ -326,6 +336,7 @@ func _ready() -> void:
 	_clock.hard_resynced.connect(_on_hard_resynced)
 	_clock.link = _link
 	_net_sync.link = _link
+	_net_sync.clock = _clock
 	_session.net_sync = _net_sync
 	multiplayer.server_disconnected.connect(_link.clear)
 	multiplayer.peer_disconnected.connect(_interpolation.forget)
@@ -1646,6 +1657,9 @@ func _read_launch_args() -> void:
 		elif arg.begins_with("--test-cut-at="):
 			for seconds in arg.trim_prefix("--test-cut-at=").split(","):
 				test_cut_seconds_at.append(seconds.to_float())
+		elif arg.begins_with("--test-tuning="):
+			var pair := arg.trim_prefix("--test-tuning=").split("=")
+			test_tuning[pair[0]] = str_to_var(pair[1])
 		elif arg.begins_with("--test-relay="):
 			test_relay_port = arg.trim_prefix("--test-relay=").to_int()
 		elif arg == "--test-cut-hooked":
@@ -1708,10 +1722,10 @@ func _update_hud() -> void:
 					lines.append("jugador %d: se le cortó la conexión   ·   queda quieto y lo espero %d s más" % [peer, ceili(left)])
 					continue
 				lines.append("jugador %d: su input llega con %d ticks de anticipación   ·   época %d" % [peer, _net_sync.input_margin_ticks(peer, _clock.tick), actor.state.epoch])
-				lines.append("      afirmaciones: %d adoptadas (la más lejana a %.2f m), rechazadas %d por época, %d por distancia, %d por pose" % [
+				lines.append("      afirmaciones: %d adoptadas (la más lejana a %.2f m), rechazadas %d por época, %d por distancia, %d por pose, %d por datos imposibles" % [
 					_adoption.count(peer, ClaimAdoption.Result.ADOPTED), _adoption.max_difference(peer),
 					_adoption.count(peer, ClaimAdoption.Result.WRONG_EPOCH), _adoption.count(peer, ClaimAdoption.Result.TOO_FAR),
-					_adoption.count(peer, ClaimAdoption.Result.BAD_POSE),
+					_adoption.count(peer, ClaimAdoption.Result.BAD_POSE), _adoption.count(peer, ClaimAdoption.Result.BAD_VALUES),
 				])
 	var world_slow := _world_slow_text()
 	if world_slow != "":
@@ -1852,13 +1866,14 @@ func _print_summary_and_quit() -> void:
 	if role == Role.CLIENT:
 		print("[net_lab] correcciones: la más grande de %.3f m" % _prediction.max_correction_meters)
 	for peer in _adoption.peers():
-		print("[net_lab] adopción del jugador %d: prendida=%s empujones=%d iguales=%d adoptadas=%d (máx %.3f m) rechazadas: época=%d distancia=%d pose=%d apagada=%d sin_afirmación=%d" % [
+		print("[net_lab] adopción del jugador %d: prendida=%s empujones=%d iguales=%d adoptadas=%d (máx %.3f m) rechazadas: época=%d distancia=%d pose=%d datos_imposibles=%d apagada=%d sin_afirmación=%d" % [
 			peer, _adoption.enabled, pushes,
 			_adoption.count(peer, ClaimAdoption.Result.SAME),
 			_adoption.count(peer, ClaimAdoption.Result.ADOPTED), _adoption.max_difference(peer),
 			_adoption.count(peer, ClaimAdoption.Result.WRONG_EPOCH),
 			_adoption.count(peer, ClaimAdoption.Result.TOO_FAR),
 			_adoption.count(peer, ClaimAdoption.Result.BAD_POSE),
+			_adoption.count(peer, ClaimAdoption.Result.BAD_VALUES),
 			_adoption.count(peer, ClaimAdoption.Result.OFF),
 			_adoption.count(peer, ClaimAdoption.Result.NO_CLAIM),
 		])

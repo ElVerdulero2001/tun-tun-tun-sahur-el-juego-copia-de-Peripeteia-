@@ -48,6 +48,11 @@ static func any_at(feet: Vector3) -> bool:
 
 
 func _enter_tree() -> void:
+	# En el editor no: con el nivel abierto en dos pestañas, cada escalera está dos veces.
+	var other = _ladders.get(ladder_id)
+	if not Engine.is_editor_hint() and other != null and other != self and is_instance_valid(other):
+		push_warning("Dos escaleras con el id %d: %s y %s. Cada escalera necesita un ladder_id propio." % [
+				ladder_id, other.get_path(), get_path()])
 	_ladders[ladder_id] = self
 
 

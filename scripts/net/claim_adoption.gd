@@ -9,6 +9,11 @@ extends RefCounted
 ##
 ## Adopta solo si se cumple todo:
 ## - la época coincide: el cliente ya incluyó todos los eventos del host;
+## - los valores son posibles: la velocidad no se aleja de la del host más que
+##   lo que cambia un input que llegó tarde, los tiempos no pasan de su máximo
+##   en el Tuning, y lo que decide el host (quién cuelga de este actor, la
+##   cámara lenta personal) es lo que dice el host. Un cliente con un error no
+##   le pasa al host, ni a los demás, un estado imposible;
 ## - la posición difiere de la del host en menos de MAX_DIFFERENCE;
 ## - la pose entra en el mundo del host: no queda metida en la geometría y,
 ##   si dice estar apoyada, hay piso. En un modo anclado, además, el ancla
@@ -21,11 +26,17 @@ extends RefCounted
 ## existe, lo sostiene y la pose está cerca de la que da el compañero acá (el
 ## cliente lo vio en el pasado, quieto).
 
-enum Result { NO_CLAIM, SAME, ADOPTED, OFF, WRONG_EPOCH, TOO_FAR, BAD_POSE }
+enum Result { NO_CLAIM, SAME, ADOPTED, OFF, WRONG_EPOCH, TOO_FAR, BAD_POSE, BAD_VALUES }
 
 ## Diferencia máxima de posición para adoptar, en metros. Valor de partida, a
 ## calibrar: caminando, cubre un input que llegó unos 10 ticks tarde.
 const MAX_DIFFERENCE := 1.0
+## Diferencia máxima de velocidad con la del host, en m/s. Un input que llegó
+## tarde la cambia como mucho lo que arrancar a correr y saltar a la vez
+## (8 + 6,6 m/s desde la escalera, en direcciones distintas: unos 10,4).
+const MAX_VELOCITY_DIFFERENCE := 12.0
+## Margen para comparar tiempos ya cuantizados.
+const TIME_MARGIN := ActorState.TIME_STEP
 
 var enabled := true
 var _stats := {}  # peer -> {Result: veces, "max": diferencia adoptada más grande}
@@ -64,6 +75,8 @@ func _decide(actor: ActorBody, claim_bytes: PackedByteArray, stats: Dictionary, 
 	var claim := ActorState.from_bytes(claim_bytes)
 	if claim.epoch != actor.state.epoch:
 		return Result.WRONG_EPOCH
+	if not _values_possible(claim, actor.state, tuning):
+		return Result.BAD_VALUES
 	# En el mundo: la afirmación puede estar sobre otra base que el resultado del host.
 	var difference := BaseRegistry.world_position(claim).distance_to(BaseRegistry.world_position(actor.state))
 	if difference > MAX_DIFFERENCE:
@@ -79,3 +92,31 @@ func _decide(actor: ActorBody, claim_bytes: PackedByteArray, stats: Dictionary, 
 	actor.smooth_from(seen)
 	stats["max"] = maxf(stats["max"], difference)
 	return Result.ADOPTED
+
+
+## Si lo que afirma el cliente puede salir del motor partiendo de lo que tiene
+## el host, con la misma época: modos y posturas que existen, una base que
+## existe, una velocidad cerca de la del host, tiempos dentro de su máximo, y
+## lo que decide el host igual que en el host. Soltarse borra quién cuelga de
+## este actor, así que ahí el cliente puede tener cero.
+func _values_possible(claim: ActorState, host: ActorState, tuning: ActorTuning) -> bool:
+	if claim.mode >= ActorState.Mode.size() or claim.stance >= ActorState.Stance.size() \
+			or claim.stance_wanted >= ActorState.Stance.size():
+		return false
+	if claim.base_id != 0 and BaseRegistry.find(claim.base_id) == null:
+		return false
+	if absf(claim.floor_normal.length() - 1.0) > 0.01:
+		return false
+	if claim.velocity.distance_to(host.velocity) > MAX_VELOCITY_DIFFERENCE:
+		return false
+	if not _time_within(claim.coyote_left, tuning.coyote_time) \
+			or not _time_within(claim.jump_buffer_left, tuning.jump_buffer_time) \
+			or not _time_within(claim.regrab_left, maxf(tuning.regrab_block_time, tuning.hang_regrab_time)):
+		return false
+	if absf(claim.slow_left - host.slow_left) > TIME_MARGIN:
+		return false
+	return claim.hooked_by == host.hooked_by or claim.hooked_by == 0
+
+
+static func _time_within(value: float, most: float) -> bool:
+	return value >= 0.0 and value <= most + TIME_MARGIN

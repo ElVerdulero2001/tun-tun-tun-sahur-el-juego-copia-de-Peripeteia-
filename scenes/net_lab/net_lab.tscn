@@ -58,7 +58,7 @@ margin = 0.2
 [node name="Camera" type="Camera3D" parent="CameraRig/SpringArm" unique_id=1507104828]
 current = true
 
-[node name="Guide" type="Path3D" parent="CameraRig"]
+[node name="Guide" type="Path3D" parent="CameraRig" unique_id=1961839727]
 curve = SubResource("Curve3D_guide")
 
 [node name="Hud" type="CanvasLayer" parent="." unique_id=1047048158]

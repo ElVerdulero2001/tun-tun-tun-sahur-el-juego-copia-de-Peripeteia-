@@ -13,7 +13,13 @@ extends RefCounted
 static var _bases := {}  # id -> base
 
 
+## Con el id repetido, la nueva reemplaza a la anterior y se avisa: un actor
+## sobre esa base la buscaría por id y encontraría la otra.
 static func add(base) -> void:
+	var other = _bases.get(base.base_id)
+	if other != null and other != base and is_instance_valid(other):
+		push_warning("Dos bases con el id %d: %s y %s. Cada base necesita un base_id propio." % [
+				base.base_id, other.get_path(), base.get_path()])
 	_bases[base.base_id] = base
 
 

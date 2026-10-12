@@ -9,7 +9,10 @@ extends RefCounted
 const BUTTON_JUMP := 1 << 0
 const BUTTON_CROUCH := 1 << 1
 const BUTTON_RUN := 1 << 2
+const ALL_BUTTONS := BUTTON_JUMP | BUTTON_CROUCH | BUTTON_RUN
 const AXIS_STEPS := 127.0
+## Largo de write_to().
+const BYTE_SIZE := 11
 
 var tick := 0
 ## Ejes de movimiento: x hacia la derecha, y hacia adelante, cada uno de -1 a 1.
@@ -40,6 +43,13 @@ static func make(p_tick: int, p_move: Vector2, p_look_yaw: float, p_buttons: int
 
 func is_held(button: int) -> bool:
 	return (buttons & button) != 0
+
+
+## Si pudo salir de make(): ejes dentro del círculo (con el redondeo de la
+## cuantización) y solo botones que existen. Lo que llega por red y no lo
+## cumple no es de este juego.
+func is_possible() -> bool:
+	return move.length_squared() <= 1.01 and (buttons & ~ALL_BUTTONS) == 0
 
 
 ## Escribe el input en 11 bytes. Como ya está cuantizado, leerlo del otro lado

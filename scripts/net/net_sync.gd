@@ -21,6 +21,10 @@ const INPUT_HISTORY_TICKS := 120
 ## mucho, y repetir lo último lo llevaría lejos (corriendo hacia un borde, por
 ## ejemplo). Medio segundo: mucho más que los tirones normales.
 const STALE_INPUT_TICKS := 30
+## Host: un input con un tick más adelante que esto del tick del host no es
+## creíble (el cliente va pocos ticks adelante) y se descarta, igual que uno
+## más viejo que la historia. Así lo que se guarda tiene límite.
+const MAX_INPUT_AHEAD_TICKS := 120
 ## Cuantización de la pose de las bases del host en el snapshot.
 const BASE_POSITION_STEP := 0.0001
 const BASE_VELOCITY_STEP := 0.001
@@ -33,6 +37,8 @@ const SCALE_STEPS := 1000.0
 
 ## Simulador de red (paso 5). Todo lo que se manda o se recibe pasa por acá.
 var link: LinkSimulator
+## Host: el reloj, para descartar inputs con ticks absurdos. Lo pone el laboratorio.
+var clock: SimClock
 ## Cliente: tick del último snapshot aplicado.
 var latest_snapshot_tick := -1
 ## Cliente: último tick de input propio que el host usó, según el snapshot.
@@ -161,26 +167,50 @@ func _submit_inputs(data: PackedByteArray) -> void:
 	_receive(_accept_inputs.bind(multiplayer.get_remote_sender_id(), data))
 
 
+## Guarda los inputs y afirmaciones de un paquete. Lo que no tiene la forma
+## que manda send_ticks() se descarta: un paquete cortado o con más registros
+## de los que se mandan, un input imposible o con un tick fuera de lugar.
 func _accept_inputs(peer_id: int, data: PackedByteArray) -> void:
+	# Puede llegar tarde, por el simulador, de alguien que ya se fue.
+	if not peer_id in multiplayer.get_peers() or data.size() < 3:
+		return
+	var b := StreamPeerBuffer.new()
+	b.data_array = data
+	var rtt_ms := b.get_u16()
+	var count := b.get_u8()
+	if count > INPUT_REDUNDANCY:
+		return
 	_heard_msec[peer_id] = Time.get_ticks_msec()
+	_peer_rtt_ms[peer_id] = float(rtt_ms)
 	if not _inputs.has(peer_id):
 		_inputs[peer_id] = {}
 		_claims[peer_id] = {}
 	var by_tick: Dictionary = _inputs[peer_id]
 	var claims: Dictionary = _claims[peer_id]
-	var b := StreamPeerBuffer.new()
-	b.data_array = data
-	_peer_rtt_ms[peer_id] = float(b.get_u16())
-	var count := b.get_u8()
 	for i in count:
+		if b.get_available_bytes() < ActorInput.BYTE_SIZE + 1:
+			return
 		var input := ActorInput.read_from(b)
-		var claim: PackedByteArray = b.get_data(b.get_u8())[1]
+		var claim_size := b.get_u8()
+		if b.get_available_bytes() < claim_size:
+			return
+		var claim: PackedByteArray = b.get_data(claim_size)[1]
+		if not input.is_possible() or not _tick_in_range(input.tick):
+			continue
 		by_tick[input.tick] = input
 		if claim.size() == ActorState.BYTE_SIZE:
 			claims[input.tick] = claim
 		var latest: ActorInput = _latest_input.get(peer_id)
 		if latest == null or input.tick > latest.tick:
 			_latest_input[peer_id] = input
+
+
+## Host: si un tick de input es creíble: ni más viejo que la historia que se
+## guarda ni demasiado adelante del host.
+func _tick_in_range(tick: int) -> bool:
+	if clock == null:
+		return true
+	return tick >= clock.tick - INPUT_HISTORY_TICKS and tick <= clock.tick + MAX_INPUT_AHEAD_TICKS
 
 
 ## Input de un jugador remoto para un tick del host, o null si nunca llegó

@@ -13,6 +13,10 @@ extends Node
 ## misma llave, el host le da un actor nuevo con el estado del que lo esperaba:
 ## sigue donde estaba.
 ##
+## Junto con la llave va la huella de compatibilidad (SimFingerprint): si el
+## Tuning, el código o el nivel del cliente no son los del host, el host no lo
+## deja entrar y le dice qué parte es distinta, y el cliente no reintenta.
+##
 ## Un corte se nota por silencio: `connection_timeout` segundos sin recibir
 ## nada del otro lado. No se espera a ENet: después de un tirón largo, su
 ## estimación de la ida y vuelta se infla y puede tardar más de 30 s en
@@ -61,7 +65,12 @@ const ATTEMPT_SECONDS := 3.0
 ## Lo que recibe por red, para saber cuándo se escuchó por última vez al otro
 ## lado. Lo pone el laboratorio.
 var net_sync: NetSync
+## Huella de compatibilidad de esta máquina (SimFingerprint). La pone el
+## laboratorio antes de conectar.
+var compatibility := PackedByteArray()
 var status := ""
+## Cliente: por qué el host no lo dejó entrar, o vacío.
+var rejection := ""
 ## Solo para pruebas: dónde aparece (y reaparece) el actor del host o del modo
 ## local, en vez de su lugar de aparición. Nulo para usar el de siempre.
 var host_spawn_override = null
@@ -149,9 +158,9 @@ func start_client(address: String, port: int) -> void:
 	_port = port
 	_key = Crypto.new().generate_random_bytes(KEY_BYTES)
 	var scene_multiplayer := multiplayer as SceneMultiplayer
-	# El host no manda nada para autenticarse; el cliente da su llave apenas se
-	# abre la conexión.
-	scene_multiplayer.auth_callback = func(_peer_id: int, _data: PackedByteArray) -> void: pass
+	# El cliente da su llave y su huella apenas se abre la conexión. El host
+	# solo le manda algo para decirle que no lo deja entrar.
+	scene_multiplayer.auth_callback = _on_host_refusal
 	scene_multiplayer.peer_authenticating.connect(_on_authenticating)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
@@ -199,12 +208,23 @@ func _goodbye() -> void:
 
 # --- Host ------------------------------------------------------------------
 
+## Lo que manda el cliente al conectarse: su llave y su huella. Si la huella
+## no es la del host, se le dice qué parte es distinta y no se completa la
+## autenticación: SceneMultiplayer lo desconecta a los 3 s.
 func _on_client_key(peer_id: int, data: PackedByteArray) -> void:
 	var scene_multiplayer := multiplayer as SceneMultiplayer
-	if data.size() != KEY_BYTES:
-		scene_multiplayer.disconnect_peer(peer_id)
+	var reason := ""
+	if data.size() != KEY_BYTES + compatibility.size():
+		reason = "es de otra versión"
+	else:
+		var different := SimFingerprint.differences(compatibility, data.slice(KEY_BYTES))
+		if not different.is_empty():
+			reason = "difiere en %s" % " y ".join(different)
+	if reason != "":
+		scene_multiplayer.send_auth(peer_id, reason.to_utf8_buffer())
+		_set_status("HOST: no dejé entrar a un jugador: su copia del laboratorio %s" % reason)
 		return
-	_key_of_peer[peer_id] = data.hex_encode()
+	_key_of_peer[peer_id] = data.slice(0, KEY_BYTES).hex_encode()
 	scene_multiplayer.complete_auth(peer_id)
 
 
@@ -343,8 +363,20 @@ func _connect() -> void:
 
 func _on_authenticating(peer_id: int) -> void:
 	var scene_multiplayer := multiplayer as SceneMultiplayer
-	scene_multiplayer.send_auth(peer_id, _key)
+	scene_multiplayer.send_auth(peer_id, _key + compatibility)
 	scene_multiplayer.complete_auth(peer_id)
+
+
+## El host no deja entrar: la copia de esta máquina no es igual a la suya. No
+## se reintenta: hasta actualizarla, daría lo mismo.
+func _on_host_refusal(_peer_id: int, data: PackedByteArray) -> void:
+	rejection = data.get_string_from_utf8()
+	reconnecting = false
+	_attempt_started_msec = 0
+	# Se cierra después: ahora mismo Godot está leyendo lo que llegó por esta conexión.
+	multiplayer.multiplayer_peer.close.call_deferred()
+	# En dos líneas: en una sola no entra en la pantalla de la notebook.
+	_set_status("CLIENTE: el host no te deja entrar: la copia del laboratorio de esta PC %s.\nActualizala (en la notebook, con actualizar_lab.bat) y volvé a unirte." % rejection)
 
 
 func _on_connected_to_server() -> void:
@@ -361,6 +393,8 @@ func _on_connected_to_server() -> void:
 
 
 func _on_connection_failed() -> void:
+	if rejection != "":
+		return
 	if reconnecting:
 		_retry_later()
 		return
@@ -380,6 +414,8 @@ func _check_silent_host() -> void:
 ## corte (lo nota esta sesión y después lo dice Godot), y también cuando un
 ## intento llegó al host pero no terminó de entrar.
 func _on_server_disconnected() -> void:
+	if rejection != "":
+		return
 	if reconnecting:
 		_retry_later()
 		return
@@ -414,7 +450,7 @@ func _retry_later() -> void:
 
 func _try_reconnect() -> void:
 	_retry_pending = false
-	if not reconnecting:
+	if not reconnecting or rejection != "":
 		return
 	if give_up_left() <= 0.0:
 		reconnecting = false

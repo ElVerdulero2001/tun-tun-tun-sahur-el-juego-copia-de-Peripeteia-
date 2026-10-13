@@ -1742,7 +1742,7 @@ func _update_hud() -> void:
 		if s.boosted:
 			lines.append("SÚPER SALTO Y VELOCIDAD: prendido   ·   2 del teclado numérico lo apaga")
 		lines.append("Modo: %s   ·   en suelo: %s   ·   época: %d" % [ActorState.Mode.keys()[s.mode], "sí" if s.on_floor else "no", s.epoch])
-		var stance_names := ["parado", "agachado"]
+		var stance_names := ["parado", "agachado", "encogido"]
 		lines.append("Postura: %s%s" % [stance_names[s.stance],
 				"   ·   pedida: %s (no hay lugar)" % stance_names[s.stance_wanted] if s.stance_wanted != s.stance else ""])
 		if s.mode == ActorState.Mode.LADDER:

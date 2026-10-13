@@ -100,13 +100,15 @@ func _process(delta: float) -> void:
 	# suelo, cambiar de postura mueve la cabeza (los pies quedan): la cámara la
 	# sigue con suavizado, y agachado bajo un techo queda adentro y no arriba.
 	# En el aire, cambiar de postura mueve los pies y la cabeza queda: la
-	# cámara cambia de golpe lo mismo que saltaron los pies, y no se mueve.
+	# cámara cambia de golpe lo mismo que saltaron los pies, y no se mueve. Lo
+	# mismo al agarrarse encogido (ver ActorMotor.keeps_head).
 	var wanted := head_height
 	var actor := target.get_parent() as ActorBody
 	if actor != null:
 		var standing := actor.stance_height(ActorState.Stance.STANDING)
 		wanted = head_height - standing + actor.stance_height(actor.state.stance)
-		if _last_stance != -1 and actor.state.stance != _last_stance and actor.state.mode == ActorState.Mode.AIR:
+		if _last_stance != -1 and actor.state.stance != _last_stance \
+				and ActorMotor.keeps_head(actor.state.mode, _last_stance):
 			_head_height = wanted
 		_last_stance = actor.state.stance
 	_head_height = lerpf(_head_height, wanted, 1.0 - exp(-head_follow_rate * delta))

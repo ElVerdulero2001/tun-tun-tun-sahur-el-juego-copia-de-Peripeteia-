@@ -88,6 +88,11 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## Ese salto para arriba lleva los pies hasta este tanto por encima del filo,
 ## en metros: el margen para pasar arriba del borde con el control aéreo.
 @export var hang_climb_clearance := 0.2
+## En ese salto el cuerpo se encoge este tanto desde abajo, en metros: la
+## cabeza queda donde estaba y suben los pies. Así los pies pasan el filo con
+## más margen sin que se salte más alto. Vuelve a su alto al tocar el piso o
+## al agarrarse de algo. 0 lo apaga.
+@export_range(0.0, 1.0, 0.01) var hang_climb_tuck := 0.2
 
 @export_group("Compañero")
 ## Colgarse de un compañero que está agarrado de un borde o de una escalera

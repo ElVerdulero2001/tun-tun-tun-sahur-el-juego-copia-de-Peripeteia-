@@ -62,6 +62,8 @@ var _events := {}
 var _ticks_crouched := 0
 ## Ticks agachado aunque pedía pararse: el techo no lo dejaba.
 var _ticks_kept_crouched := 0
+## Ticks encogido: el salto para arriba desde el colgado.
+var _ticks_tucked := 0
 var _jumps := 0
 var _max_height := 0.0
 var _varying_rate := false
@@ -137,6 +139,8 @@ func _live_tick() -> void:
 			_ticks_ladder += 1
 		ActorState.Mode.HANGING:
 			_ticks_hanging += 1
+	if _state.stance == ActorState.Stance.TUCKED:
+		_ticks_tucked += 1
 	if _state.stance == ActorState.Stance.CROUCHED:
 		_ticks_crouched += 1
 		if _state.stance_wanted == ActorState.Stance.STANDING:
@@ -193,7 +197,7 @@ func _replay(start: int, stop: int) -> void:
 func _finish() -> void:
 	_phase = Phase.DONE
 	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d colgado, %d tocando pared, %d saltos, altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_hanging, _ticks_wall, _jumps, _max_height])
-	print("%s postura: %d ticks agachado, %d de ellos pidiendo pararse sin lugar" % [LOG_PREFIX, _ticks_crouched, _ticks_kept_crouched])
+	print("%s postura: %d ticks agachado, %d de ellos pidiendo pararse sin lugar; %d encogido" % [LOG_PREFIX, _ticks_crouched, _ticks_kept_crouched, _ticks_tucked])
 	print("%s cámara lenta: %d ticks; súper salto y velocidad: %d ticks" % [LOG_PREFIX, _ticks_slow, _ticks_boost])
 	print("%s %d repeticiones, %d ticks repetidos" % [LOG_PREFIX, _replays, _replayed_ticks])
 	var hashing := HashingContext.new()

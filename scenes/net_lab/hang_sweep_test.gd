@@ -297,7 +297,9 @@ func _try_exit(hanging: ActorState, exit: String, height: float) -> String:
 		ActorMotor.step(_actor, state, ActorInput.make(t, move, yaw, buttons, presses), _tuning, TICK_DT)
 		if exit.begins_with("subir"):
 			if state.mode == ActorState.Mode.AIR:
-				_last_climb_peak = maxf(_last_climb_peak, _actor.global_position.y - height)
+				# Los pies de parado: encogido, los de verdad suben hang_climb_tuck más.
+				var tucked := _tuning.hang_climb_tuck if state.stance == ActorState.Stance.TUCKED else 0.0
+				_last_climb_peak = maxf(_last_climb_peak, _actor.global_position.y - tucked - height)
 			if state.mode == ActorState.Mode.GROUND and _actor.global_position.y > height - 0.5:
 				return "sí"
 	match exit:

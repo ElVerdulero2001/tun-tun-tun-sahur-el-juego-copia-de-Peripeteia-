@@ -15,8 +15,10 @@ extends RefCounted
 
 ## HOOKED es el modo Enganchado de la arquitectura: colgado de un compañero.
 enum Mode { GROUND, AIR, SLIDE, LADDER, HANGING, HOOKED }
-## Postura: parado o agachado. Cada una tiene su forma de colisión preparada.
-enum Stance { STANDING, CROUCHED }
+## Postura: parado, agachado o encogido. Cada una tiene su forma de colisión.
+## Encogido es parado con los pies más arriba (hang_climb_tuck): lo usa el
+## salto para arriba desde el colgado, y solo existe en el aire.
+enum Stance { STANDING, CROUCHED, TUCKED }
 
 const POSITION_STEP := 0.0001
 const VELOCITY_STEP := 0.001

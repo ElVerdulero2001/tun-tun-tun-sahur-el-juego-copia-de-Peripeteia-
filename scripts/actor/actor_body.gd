@@ -61,11 +61,14 @@ var _presented_stance := -1
 ## Formas para probar el espacio libre, una por postura, ya achicadas.
 var _probe_shapes: Array[CapsuleShape3D] = []
 var _probe_params := PhysicsShapeQueryParameters3D.new()
+## Cuánto más bajo que parado es encogido, en metros. Ver fit_tuck().
+var _tuck := 0.0
 
 @onready var _visual: Node3D = $Visual
-## Por postura, en el orden de ActorState.Stance. Las formas están preparadas
-## en la escena: cambiar las medidas de una forma en pleno juego obliga a Jolt
-## a reconstruirla.
+## Por postura, en el orden de ActorState.Stance. Parado y agachado están
+## preparadas en la escena; encogido se arma en _ready(), con el alto que pide
+## el Tuning. Cambiar las medidas de una forma en pleno juego obliga a Jolt a
+## reconstruirla: por eso se arman una vez y después solo se elige cuál va.
 @onready var _shapes: Array[CollisionShape3D] = [$Shape, $CrouchShape]
 @onready var _bodies: Array[Node3D] = [$Visual/Body, $Visual/BodyCrouch]
 @onready var _nose: Node3D = $Visual/Nose
@@ -83,11 +86,19 @@ func _ready() -> void:
 	floor_block_on_wall = true
 	floor_stop_on_slope = true
 	for shape in _shapes:
-		var capsule: CapsuleShape3D = shape.shape
-		var probe := CapsuleShape3D.new()
-		probe.radius = capsule.radius - FREE_SPACE_MARGIN
-		probe.height = capsule.height - 2.0 * FREE_SPACE_MARGIN
-		_probe_shapes.append(probe)
+		_probe_shapes.append(_probe_for(shape.shape))
+	var tuck_shape := CollisionShape3D.new()
+	tuck_shape.name = "TuckShape"
+	tuck_shape.disabled = true
+	add_child(tuck_shape)
+	_shapes.append(tuck_shape)
+	var tuck_body := MeshInstance3D.new()
+	tuck_body.name = "BodyTuck"
+	tuck_body.visible = false
+	_visual.add_child(tuck_body)
+	_bodies.append(tuck_body)
+	_probe_shapes.append(null)
+	_build_tuck()
 	var hand_mesh := BoxMesh.new()
 	hand_mesh.size = Vector3(0.12, 0.06, 0.14)
 	hand_mesh.material = ($Visual/Nose as MeshInstance3D).mesh.material
@@ -116,6 +127,46 @@ func teammate(peer_id: int) -> ActorBody:
 		if actor.owner_peer_id == peer_id:
 			return actor
 	return null
+
+
+## Cuánto más bajo que parado es encogido, en metros: hang_climb_tuck del
+## Tuning. Lo llaman el motor en cada paso y la sesión al crear el actor (los
+## que esta máquina no simula también se dibujan encogidos). La forma se arma
+## de nuevo solo si el valor cambió.
+func fit_tuck(amount: float) -> void:
+	if amount == _tuck:
+		return
+	_tuck = amount
+	if is_node_ready():
+		_build_tuck()
+
+
+## Encogido: la forma y el dibujo de parado, más bajos desde abajo.
+func _build_tuck() -> void:
+	var standing: CapsuleShape3D = _shapes[ActorState.Stance.STANDING].shape
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = standing.radius
+	capsule.height = maxf(standing.height - _tuck, 2.0 * standing.radius)
+	var shape := _shapes[ActorState.Stance.TUCKED]
+	shape.shape = capsule
+	shape.position = Vector3.UP * capsule.height * 0.5
+	_probe_shapes[ActorState.Stance.TUCKED] = _probe_for(capsule)
+	var standing_mesh: CapsuleMesh = (_bodies[ActorState.Stance.STANDING] as MeshInstance3D).mesh
+	var mesh := CapsuleMesh.new()
+	mesh.material = standing_mesh.material
+	mesh.radius = capsule.radius
+	mesh.height = capsule.height
+	var body := _bodies[ActorState.Stance.TUCKED] as MeshInstance3D
+	body.mesh = mesh
+	body.position = shape.position
+
+
+## La forma de prueba del espacio libre de una forma de colisión.
+func _probe_for(capsule: CapsuleShape3D) -> CapsuleShape3D:
+	var probe := CapsuleShape3D.new()
+	probe.radius = capsule.radius - FREE_SPACE_MARGIN
+	probe.height = capsule.height - 2.0 * FREE_SPACE_MARGIN
+	return probe
 
 
 ## Activa la forma de colisión de una postura.
@@ -232,9 +283,10 @@ func present(actor_state: ActorState) -> void:
 	_nose.position.y = stance_height(actor_state.stance) - 0.3
 	# En el aire, cambiar de postura mueve los pies y deja la cabeza: el origen
 	# salta, no se mueve. Interpolarlo dibujaría la forma nueva desde los pies
-	# viejos, con la cabeza bajando o subiendo durante un tick.
+	# viejos, con la cabeza bajando o subiendo durante un tick. Lo mismo al
+	# agarrarse encogido (ver ActorMotor.keeps_head).
 	if _presented_stance != -1 and actor_state.stance != _presented_stance \
-			and actor_state.mode == ActorState.Mode.AIR:
+			and ActorMotor.keeps_head(actor_state.mode, _presented_stance):
 		reset_physics_interpolation()
 	_presented_stance = actor_state.stance
 	# Un snap lógico (escalón, agarre): el cuerpo saltó de golpe, y el visual

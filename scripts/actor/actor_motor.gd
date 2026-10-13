@@ -7,7 +7,7 @@ extends RefCounted
 ##
 ## Sigue el orden fijo de etapas de la arquitectura. Por ahora existen los modos
 ## Suelo, Aire, Deslizamiento, Ladder, Hanging y Enganchado (HOOKED: colgado de
-## un compañero), y la postura (parado o agachado). La etapa de sondas (4)
+## un compañero), y la postura (parado, agachado o encogido). La etapa de sondas (4)
 ## revalida el borde agarrado y busca al compañero del que cuelga. Las demás
 ## sondas corren donde se usan: la de suelo en la de contactos, la de espacio
 ## libre en la de postura, la de escalera, la de agarrar un borde y la de
@@ -32,6 +32,7 @@ const HOOK_TOLERANCE := 0.5
 static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
 	body.snap_jump = Vector3.ZERO
 	body.grab_jump = Vector3.ZERO
+	body.fit_tuck(tuning.hang_climb_tuck)
 
 	# 1. Tiempo: dt es el del mundo, 1/60 por la escala del mundo (cámara lenta).
 	state.coyote_left = maxf(state.coyote_left - dt, 0.0)
@@ -66,6 +67,8 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	var wants_jump := state.jump_buffer_left > 0.0
 	var crouch_held := input.is_held(ActorInput.BUTTON_CROUCH)
 	var direction := _wish_direction(input)
+	# El salto para arriba desde el colgado pide encogerse (etapa 7).
+	var tuck := false
 	match state.mode:
 		ActorState.Mode.GROUND:
 			if wants_jump:
@@ -137,13 +140,14 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				# Un compañero cuelga de él: se queda quieto. Saltar no hace nada.
 				state.jump_buffer_left = 0.0
 			elif wants_jump:
-				# Mirando a la pared salta derecho para arriba, y con el control
-				# aéreo pasa arriba del borde; mirando a otro lado, salta hacia allá
-				# y se da vuelta hacia donde salta, así las manos buscan para ese
-				# lado y no la pared que deja.
+				# Mirando a la pared salta derecho para arriba, encogido, y con el
+				# control aéreo pasa arriba del borde; mirando a otro lado, salta
+				# hacia allá y se da vuelta hacia donde salta, así las manos buscan
+				# para ese lado y no la pared que deja.
 				var look := Vector3.FORWARD.rotated(Vector3.UP, input.look_yaw)
 				if look.dot(-edge["normal"]) >= cos(tuning.climb_look_angle):
 					_leave_edge(state, tuning, Vector3.UP * _climb_jump_speed(tuning, dt))
+					tuck = true
 				else:
 					_leave_edge(state, tuning, look * tuning.hang_jump_out + Vector3.UP * tuning.hang_jump_up)
 					state.facing_yaw = _yaw_of(look)
@@ -188,13 +192,17 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		state.facing_yaw = _yaw_of(direction)
 
 	# 7. Postura y movimiento. Deslizamiento siempre pide agachado; en los modos
-	# anclados se va parado; si no, lo pide el input. Los modos libres mueven
-	# con move_and_slide(), sin snap en el aire; los anclados (Ladder, Hanging,
+	# anclados se va parado; si no, lo pide el input. Encogido (el salto para
+	# arriba desde el colgado) sigue así mientras esté en el aire: al tocar el
+	# piso o agarrarse de algo pide parado. Los modos libres mueven con
+	# move_and_slide(), sin snap en el aire; los anclados (Ladder, Hanging,
 	# Enganchado), con un barrido. En Suelo, si el movimiento chocó, la sonda de
 	# escalón prueba subirlo.
 	var wanted := ActorState.Stance.STANDING
 	if state.mode == ActorState.Mode.SLIDE or (crouch_held and not _is_anchored(state)):
 		wanted = ActorState.Stance.CROUCHED
+	elif state.mode == ActorState.Mode.AIR and (tuck or state.stance == ActorState.Stance.TUCKED):
+		wanted = ActorState.Stance.TUCKED
 	_resolve_stance(body, state, wanted)
 	if state.mode == ActorState.Mode.LADDER:
 		_move_on_ladder(body, state)
@@ -266,8 +274,12 @@ static func _horizontal_speed(state: ActorState) -> float:
 
 ## Modos anclados: la pose sale del ancla y se mueven con un barrido.
 static func _is_anchored(state: ActorState) -> bool:
-	return state.mode == ActorState.Mode.LADDER or state.mode == ActorState.Mode.HANGING \
-			or state.mode == ActorState.Mode.HOOKED
+	return _anchored_mode(state.mode)
+
+
+static func _anchored_mode(mode: int) -> bool:
+	return mode == ActorState.Mode.LADDER or mode == ActorState.Mode.HANGING \
+			or mode == ActorState.Mode.HOOKED
 
 
 ## Orientación de una dirección horizontal: 0 mira hacia -Z.
@@ -312,20 +324,50 @@ static func _slide(state: ActorState, direction: Vector3, tuning: ActorTuning, d
 ## Etapa 7, antes de mover: concede la postura pedida si cabe. Achicarse
 ## siempre cabe; crecer necesita espacio libre, y nunca se crece hacia un
 ## espacio ocupado. En el suelo la forma cambia con los pies fijos; en el
-## aire, con la cabeza fija: agacharse sube los pies y pararse los baja.
+## aire, con la cabeza fija: agacharse sube los pies y pararse los baja (ver
+## keeps_head). Encogido, si al tocar el piso un techo no lo deja pararse, se
+## agacha, que siempre cabe: así encogido solo se está en el aire.
 static func _resolve_stance(body: ActorBody, state: ActorState, wanted: int) -> void:
 	state.stance_wanted = wanted
 	if wanted == state.stance:
 		return
-	var growth := body.stance_height(wanted) - body.stance_height(state.stance)
+	if not _change_stance(body, state, wanted) and state.stance == ActorState.Stance.TUCKED \
+			and not keeps_head(state.mode, state.stance):
+		_change_stance(body, state, ActorState.Stance.CROUCHED)
+
+
+## Pasa a `stance` si cabe. Devuelve si pasó.
+static func _change_stance(body: ActorBody, state: ActorState, stance: int) -> bool:
+	var growth := body.stance_height(stance) - body.stance_height(state.stance)
 	var feet := body.global_position
-	if state.mode == ActorState.Mode.AIR:
+	if keeps_head(state.mode, state.stance):
 		feet.y -= growth
-	if growth > 0.0 and not body.stance_fits(wanted, feet):
-		return
-	state.stance = wanted
+	if growth > 0.0 and not body.stance_fits(stance, feet):
+		return false
+	state.stance = stance
 	body.global_position = feet
-	body.use_stance(wanted)
+	body.use_stance(stance)
+	return true
+
+
+## Al cambiar de postura, qué queda quieto. En el suelo, los pies: la cabeza
+## sube o baja. En el aire, la cabeza: suben o bajan los pies. Al agarrarse de
+## algo encogido también queda la cabeza, porque el agarre se midió desde donde
+## estarían los pies parado (ver _standing_feet). `mode` es el modo del tick y
+## `from_stance`, la postura que deja. Lo usan también el dibujo y la cámara.
+static func keeps_head(mode: int, from_stance: int) -> bool:
+	return mode == ActorState.Mode.AIR \
+			or (from_stance == ActorState.Stance.TUCKED and _anchored_mode(mode))
+
+
+## Dónde estarían los pies parado. Encogido, la cabeza está donde estaría
+## parado y los pies, más arriba: las manos y la pose de los agarres se miden
+## desde los pies de parado, así se agarra igual que sin encogerse.
+static func _standing_feet(body: ActorBody, state: ActorState) -> Vector3:
+	var feet := body.global_position
+	if state.stance == ActorState.Stance.TUCKED:
+		feet.y -= body.stance_height(ActorState.Stance.STANDING) - body.stance_height(ActorState.Stance.TUCKED)
+	return feet
 
 
 ## Sonda de escalón de Suelo, en la etapa 7: el movimiento normal chocó contra
@@ -504,13 +546,14 @@ static func _try_grab_ladder(body: ActorBody, state: ActorState, direction: Vect
 		return false
 	var ladders := Ladder.all()
 	ladders.sort_custom(func(a: Ladder, b: Ladder) -> bool: return a.ladder_id < b.ladder_id)
+	var feet := _standing_feet(body, state)
 	for ladder: Ladder in ladders:
 		if ladder.ladder_id == state.regrab_id:
 			continue
-		var t := ladder.height_for(body.global_position)
+		var t := ladder.height_for(feet)
 		if t < 0.0 or direction.dot(-ladder.outward()) < 0.5:
 			continue
-		body.grab_jump += ladder.pose_at(t) - body.global_position
+		body.grab_jump += ladder.pose_at(t) - feet
 		state.mode = ActorState.Mode.LADDER
 		state.anchor_id = ladder.ladder_id
 		state.anchor_t = t
@@ -599,7 +642,7 @@ static func _try_grab_edge(body: ActorBody, state: ActorState, direction: Vector
 		return {}
 	var edge: Dictionary = check["edge"]
 	var pose: Vector3 = check["pose"]
-	var from := body.global_position
+	var from := _standing_feet(body, state)
 	state.mode = ActorState.Mode.HANGING
 	state.anchor_id = edge["base"]
 	state.anchor_point = edge["point"] - BaseRegistry.origin(edge["base"])
@@ -625,16 +668,18 @@ static func _try_grab_edge(body: ActorBody, state: ActorState, direction: Vector
 ## colgado: cabe, el camino hasta ella está libre, queda a menos de
 ## hang_snap_max y no cae delante de una escalera (Ladder.any_at). Devuelve {edge, pose, why}: why vacío si se puede agarrar, o
 ## por qué no. Lo usan el motor y las pruebas de confirmación.
+## Agachado no agarra; encogido sí, y todo se mide desde donde estarían los
+## pies parado (_standing_feet).
 static func grab_check(body: ActorBody, state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> Dictionary:
 	var result := {"edge": {}, "pose": Vector3.ZERO, "why": "sin borde"}
-	if state.regrab_id == ActorState.REGRAB_EDGES or state.stance != ActorState.Stance.STANDING:
+	if state.regrab_id == ActorState.REGRAB_EDGES or state.stance == ActorState.Stance.CROUCHED:
 		result["why"] = "bloqueo o postura"
 		return result
 	if direction.length_squared() < 0.01:
 		result["why"] = "sin dirección"
 		return result
 	var toward := Vector3(direction.x, 0.0, direction.z).normalized()
-	var from := body.global_position
+	var from := _standing_feet(body, state)
 	var fall := maxf(state.velocity.y - tuning.gravity * dt, -tuning.max_fall_speed)
 	var motion := Vector3(state.velocity.x, fall, state.velocity.z) * dt
 	var hands_to := EdgeProbe.hands_at(body, from + motion, toward, tuning)
@@ -656,7 +701,7 @@ static func grab_check(body: ActorBody, state: ActorState, direction: Vector3, t
 		result["why"] = "intención de costado"
 	elif rising and result["pose"].y > from.y + tuning.hang_rise_reach:
 		result["why"] = "subiendo, las manos todavía no llegan"
-	elif from.y + body.stance_height(state.stance) * 0.5 > edge["point"].y:
+	elif from.y + body.stance_height(ActorState.Stance.STANDING) * 0.5 > edge["point"].y:
 		# Con el cuerpo por encima del filo es un aterrizaje, no un agarre.
 		result["why"] = "por encima del filo"
 	elif result["pose"].distance_to(from) > tuning.hang_snap_max:
@@ -790,7 +835,7 @@ static func _try_hook(body: ActorBody, state: ActorState, direction: Vector3, tu
 	state.facing_yaw = mate.state.facing_yaw
 	state.jump_buffer_left = 0.0
 	state.coyote_left = 0.0
-	body.grab_jump += check["pose"] - body.global_position
+	body.grab_jump += check["pose"] - _standing_feet(body, state)
 	return mate
 
 
@@ -808,17 +853,19 @@ static func _try_hook(body: ActorBody, state: ActorState, direction: Vector3, tu
 ## Como el compañero está quieto, da lo mismo.
 ##
 ## Devuelve {anchor, pose, why}: why vacío si se puede, o por qué no (el del
-## último compañero mirado). Lo usan el motor y las pruebas.
+## último compañero mirado). Lo usan el motor y las pruebas. Como en
+## grab_check, agachado no se cuelga, y encogido se mide desde los pies de
+## parado.
 static func hook_check(body: ActorBody, state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> Dictionary:
 	var result := {"anchor": null, "pose": Vector3.ZERO, "why": "sin compañero"}
-	if state.regrab_id == ActorState.REGRAB_TEAMMATES or state.stance != ActorState.Stance.STANDING:
+	if state.regrab_id == ActorState.REGRAB_TEAMMATES or state.stance == ActorState.Stance.CROUCHED:
 		result["why"] = "bloqueo o postura"
 		return result
 	if direction.length_squared() < 0.01:
 		result["why"] = "sin dirección"
 		return result
 	var toward := Vector3(direction.x, 0.0, direction.z).normalized()
-	var from := body.global_position
+	var from := _standing_feet(body, state)
 	var fall := maxf(state.velocity.y - tuning.gravity * dt, -tuning.max_fall_speed)
 	var to_y := from.y + fall * dt
 	var low := minf(from.y, to_y)

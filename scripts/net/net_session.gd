@@ -487,6 +487,10 @@ func _spawn_actor(data: Dictionary) -> Node:
 	var peer_id: int = data["peer"]
 	actor.name = "Actor%d" % peer_id
 	actor.owner_peer_id = peer_id
+	# El alto de encogido sale del Tuning; así se dibuja bien también en las
+	# máquinas que no lo simulan.
+	if clock != null and clock.tuning != null:
+		actor.fit_tuck(clock.tuning.hang_climb_tuck)
 	# En el cliente nadie se simula al nacer; la predicción del propio arranca
 	# cuando el reloj queda sincronizado.
 	actor.simulated = multiplayer.is_server()

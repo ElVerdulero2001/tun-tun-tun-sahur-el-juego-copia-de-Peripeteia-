@@ -27,6 +27,24 @@ static var _probe_params: PhysicsShapeQueryParameters3D
 ## diferir su pose de la que da el compañero en el host. Es amplia porque el
 ## cliente vio al compañero en el pasado.
 const HOOK_TOLERANCE := 0.5
+## Esquinas colgado (ver _hang): cuánto adentro de cada cara se revalida el
+## filo al lado de una esquina, y dónde queda el punto al terminar de doblar.
+const CORNER_INSET := 0.03
+## Cuánto puede diferir de perpendicular la cara de al lado: el coseno del
+## ángulo entre su normal y la que tendría en un ángulo recto (20°).
+const CORNER_SQUARE := 0.94
+## Cuánto puede diferir la altura del filo de la cara de al lado.
+const CORNER_HEIGHT := 0.02
+## El giro más chico con el que se empieza a doblar por afuera, en radianes.
+const CORNER_MIN_TURN := 0.002
+## En cuántos tramos se prueba que el cuerpo pase al doblar.
+const CORNER_SWEEP_STEPS := 6
+## Por adentro: a qué distancia del rincón se revalida el filo de cada cara.
+const CORNER_PROBE := 0.1
+## Por adentro: cuánto antes de donde empieza la curva vale para empezarla, y
+## cuánto más allá de donde termina queda al terminarla. Así, al volver, la
+## encuentra otra vez.
+const CORNER_SLACK := 0.005
 
 
 static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
@@ -59,7 +77,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 
 	# 4. Sondas: colgado, la de borde revalida cada tick el borde agarrado;
 	# colgado de un compañero, se lo busca por su id.
-	var edge := _held_edge(body, state) if state.mode == ActorState.Mode.HANGING else {}
+	var edge := _held_edge(body, state, tuning) if state.mode == ActorState.Mode.HANGING else {}
 	var mate: ActorBody = body.teammate(state.anchor_id) if state.mode == ActorState.Mode.HOOKED else null
 
 	# 5. Transición: como máximo una por tick, decidida por la situación actual.
@@ -524,8 +542,8 @@ static func anchored_pose_valid(body: ActorBody, state: ActorState, tuning: Acto
 			return false
 		return BaseRegistry.world_position(state).distance_to(hook_pose(mate, tuning)) <= HOOK_TOLERANCE
 	if state.mode == ActorState.Mode.HANGING:
-		var edge := _held_edge(body, state)
-		if edge.is_empty() or state.anchor_t != 0.0:
+		var edge := _held_edge(body, state, tuning)
+		if edge.is_empty() or absf(state.anchor_t) >= PI * 0.5:
 			return false
 		return BaseRegistry.world_position(state).distance_to(_hang_pose(edge, tuning)) <= 0.1
 	if state.mode != ActorState.Mode.LADDER:
@@ -647,6 +665,7 @@ static func _try_grab_edge(body: ActorBody, state: ActorState, direction: Vector
 	state.anchor_id = edge["base"]
 	state.anchor_point = edge["point"] - BaseRegistry.origin(edge["base"])
 	state.anchor_t = 0.0
+	state.corner_inside = false
 	state.velocity = Vector3.ZERO
 	state.facing_yaw = _yaw_of(-edge["normal"])
 	state.jump_buffer_left = 0.0
@@ -727,12 +746,46 @@ static func grab_direction(look_yaw: float) -> Vector3:
 ## El borde agarrado, revalidado con la sonda: el punto guardado y la normal
 ## contraria a la orientación. Vacío si el borde ya no está o si desapareció
 ## la base que lo llevaba.
-static func _held_edge(body: ActorBody, state: ActorState) -> Dictionary:
+##
+## Doblando una esquina (anchor_t distinto de 0, ver _hang), el punto guardado
+## es la esquina y la normal va girando entre las de las dos caras: se
+## revalidan las dos caras, cada una un poco antes de la esquina.
+static func _held_edge(body: ActorBody, state: ActorState, tuning: ActorTuning) -> Dictionary:
 	if state.anchor_id != 0 and BaseRegistry.find(state.anchor_id) == null:
 		return {}
 	var point := BaseRegistry.origin(state.anchor_id) + state.anchor_point
 	var normal := -Vector3.FORWARD.rotated(Vector3.UP, state.facing_yaw)
-	return EdgeProbe.hold(body, point, normal)
+	if state.anchor_t == 0.0:
+		return EdgeProbe.hold(body, point, normal)
+	var spin := signf(state.anchor_t)
+	var first := normal.rotated(Vector3.UP, -state.anchor_t)
+	var second := first.rotated(Vector3.UP, spin * PI * 0.5)
+	# Por afuera, las dos caras siguen detrás de la esquina; por adentro, cada
+	# una sigue a lo largo de la normal de la otra.
+	var first_at := point + second * CORNER_PROBE if state.corner_inside \
+			else point + first.cross(Vector3.UP) * spin * CORNER_INSET
+	var second_at := point + first * CORNER_PROBE if state.corner_inside else point - first * CORNER_INSET
+	var first_side := EdgeProbe.hold(body, first_at, first)
+	var second_side := EdgeProbe.hold(body, second_at, second)
+	if first_side.is_empty() or second_side.is_empty():
+		return {}
+	return _arc_edge(point, first, state.anchor_t, state.corner_inside, first_side["base"], tuning)
+
+
+## El borde a mitad de una esquina, para `angle` girado desde la normal
+## `first` de la cara donde empezó. Por afuera, el punto es la esquina: el
+## cuerpo gira a hang_distance de ella. Por adentro, el cuerpo va por una
+## curva de hang_corner_radius que toca el camino de colgado de las dos caras;
+## el punto es el del filo que tendría delante, que queda en el aire, y la
+## esquina va aparte, en "corner".
+static func _arc_edge(corner: Vector3, first: Vector3, angle: float, inside: bool, base: int, tuning: ActorTuning) -> Dictionary:
+	var bent := first.rotated(Vector3.UP, angle)
+	if not inside:
+		return {"point": corner, "normal": bent, "base": base, "corner": corner}
+	var second := first.rotated(Vector3.UP, signf(angle) * PI * 0.5)
+	var reach := tuning.hang_distance + tuning.hang_corner_radius
+	var center := corner + (first + second) * reach
+	return {"point": center - bent * reach, "normal": bent, "base": base, "corner": corner}
 
 
 ## Hanging, etapa 6: se desplaza sobre el filo. La velocidad va a lo largo del
@@ -740,6 +793,20 @@ static func _held_edge(body: ActorBody, state: ActorState) -> Dictionary:
 ## que es la izquierda y la derecha del personaje frente a la pared, mire donde
 ## mire la cámara. Solo avanza si el borde sigue, no entra delante de una
 ## escalera y el cuerpo pasa. Con un compañero colgado, se queda quieto.
+##
+## Las esquinas en ángulo recto se doblan sin soltarse, con una curva
+## continua de una cara a la otra:
+## - Por afuera, donde el filo se termina y sigue por la cara de al lado: el
+##   cuerpo da la vuelta a la esquina por un cuarto de círculo, a la misma
+##   velocidad, con las manos en la esquina.
+## - Por adentro (un rincón), donde una pared de frente corta el paso y su
+##   filo sigue a la misma altura: hang_corner_radius antes de llegar, el
+##   cuerpo empieza una curva que lo deja en el camino de colgado de esa pared.
+##   Si ya está más cerca que eso (se agarró pegado al rincón), al chocar se da
+##   vuelta hacia la otra pared en el lugar.
+## Mientras dobla, anchor_t dice cuánto giró la normal desde la cara donde
+## empezó (en radianes, con signo), corner_inside si es un rincón, y
+## anchor_point es la esquina.
 ## Devuelve el borde donde quedó.
 static func _hang(body: ActorBody, state: ActorState, edge: Dictionary, input: ActorInput, tuning: ActorTuning, dt: float) -> Dictionary:
 	if edge.is_empty():
@@ -751,17 +818,182 @@ static func _hang(body: ActorBody, state: ActorState, edge: Dictionary, input: A
 	if state.hooked_by != 0:
 		along = 0.0
 	state.velocity = right * along
-	if absf(along) > 0.001:
-		var moved := EdgeProbe.hold(body, edge["point"] + right * along * dt, normal)
-		var from := _hang_pose(edge, tuning)
-		var to := _hang_pose(moved, tuning) if not moved.is_empty() else from
-		if moved.is_empty() or Ladder.any_at(to) or body.test_move(Transform3D(body.global_basis, from), to - from):
+	if state.anchor_t != 0.0:
+		edge = _round_corner(body, state, edge, along, tuning, dt)
+	elif absf(along) > 0.001:
+		var turn := signf(along)
+		var stride := absf(along) * dt
+		var turned := _inside_arc(body, state, edge, turn, stride, tuning)
+		if turned.is_empty():
+			var moved := EdgeProbe.hold(body, edge["point"] + right * along * dt, normal)
+			var from := _hang_pose(edge, tuning)
+			var to := _hang_pose(moved, tuning) if not moved.is_empty() else from
+			if moved.is_empty():
+				var corner := _outer_corner(body, edge, turn, tuning)
+				if not corner.is_empty():
+					state.anchor_t = turn * maxf(stride / tuning.hang_distance, CORNER_MIN_TURN)
+					state.corner_inside = false
+					turned = _arc_edge(corner["point"], normal, state.anchor_t, false, corner["base"], tuning)
+			elif not Ladder.any_at(to) and body.test_move(Transform3D(body.global_basis, from), to - from):
+				turned = _inner_corner(body, edge, turn, tuning)
+			elif not Ladder.any_at(to):
+				turned = moved
+		if turned.is_empty():
 			state.velocity = Vector3.ZERO
 		else:
-			edge = moved
-	state.anchor_point = edge["point"] - BaseRegistry.origin(state.anchor_id)
+			edge = turned
+			state.velocity = (-edge["normal"] as Vector3).cross(Vector3.UP) * along
+	state.anchor_point = edge.get("corner", edge["point"]) - BaseRegistry.origin(state.anchor_id)
 	state.facing_yaw = _yaw_of(-edge["normal"])
 	return edge
+
+
+## Por adentro, con curva: si hacia donde va hay un rincón (una pared de
+## frente en ángulo recto, con el filo a la misma altura) y en este paso llega
+## a donde empieza la curva, la empieza y devuelve el borde a mitad de ella;
+## si no, vacío. La curva tiene que estar libre de punta a punta.
+static func _inside_arc(body: ActorBody, state: ActorState, edge: Dictionary, turn: float, stride: float, tuning: ActorTuning) -> Dictionary:
+	var point: Vector3 = edge["point"]
+	var normal: Vector3 = edge["normal"]
+	var ahead := (-normal).cross(Vector3.UP) * turn
+	var radius := tuning.hang_corner_radius
+	var reach := tuning.hang_distance + radius
+	var from := point + normal * CORNER_INSET + Vector3.DOWN * EdgeProbe.FACE_DROP
+	var hit := _corner_ray(body, from, from + ahead * (reach + stride + 0.05))
+	if hit.is_empty() or (hit["normal"] as Vector3).dot(-ahead) < CORNER_SQUARE:
+		return {}
+	var corner: Vector3 = point + ahead * (hit["position"] - point).dot(ahead)
+	var now := (corner - point).dot(ahead)
+	if now < reach - CORNER_SLACK or now - stride >= reach:
+		return {}
+	# Por adentro la normal gira al revés de hacia donde va.
+	var spin := -turn
+	var second := normal.rotated(Vector3.UP, spin * PI * 0.5)
+	var side := EdgeProbe.hold(body, corner + normal * reach, second)
+	if side.is_empty() or absf(side["point"].y - point.y) > CORNER_HEIGHT:
+		return {}
+	# El camino: hasta donde empieza la curva y la curva, de a tramos.
+	var center := corner + (normal + second) * reach
+	var at := _hang_pose(edge, tuning)
+	for i in CORNER_SWEEP_STEPS + 1:
+		var bent := normal.rotated(Vector3.UP, spin * PI * 0.5 * i / CORNER_SWEEP_STEPS)
+		var next: Vector3 = center - bent * radius + Vector3.DOWN * tuning.hang_height
+		if body.test_move(Transform3D(body.global_basis, at), next - at):
+			return {}
+		at = next
+	if Ladder.any_at(at):
+		return {}
+	state.anchor_t = spin * maxf((stride - (now - reach)) / radius, CORNER_MIN_TURN)
+	state.corner_inside = true
+	return _arc_edge(corner, normal, state.anchor_t, true, edge["base"], tuning)
+
+
+## Por afuera: el filo se terminó entre el punto agarrado y el próximo. Si es
+## una esquina en ángulo recto (la cara de al lado mira hacia donde va y su
+## filo sigue a la misma altura) y el cuerpo puede dar la vuelta sin chocar,
+## devuelve el borde en la esquina, con la normal de la cara donde está; si
+## no, vacío.
+static func _outer_corner(body: ActorBody, edge: Dictionary, turn: float, tuning: ActorTuning) -> Dictionary:
+	var point: Vector3 = edge["point"]
+	var normal: Vector3 = edge["normal"]
+	var ahead := (-normal).cross(Vector3.UP) * turn
+	# La cara de la punta: un rayo desde más allá, apenas detrás de la cara
+	# de enfrente, que vuelve hacia atrás.
+	var from := point + ahead * 0.5 - normal * CORNER_INSET + Vector3.DOWN * EdgeProbe.FACE_DROP
+	var hit := _corner_ray(body, from, from - ahead * 0.6)
+	if hit.is_empty() or (hit["normal"] as Vector3).dot(ahead) < CORNER_SQUARE:
+		return {}
+	var corner: Vector3 = point + ahead * (hit["position"] - point).dot(ahead)
+	var side := EdgeProbe.hold(body, corner - normal * CORNER_INSET, hit["normal"])
+	if side.is_empty() or absf(side["point"].y - point.y) > CORNER_HEIGHT:
+		return {}
+	# El camino: hasta la esquina y la vuelta, de a tramos.
+	var at := _hang_pose(edge, tuning)
+	for i in CORNER_SWEEP_STEPS + 1:
+		var bent := normal.rotated(Vector3.UP, turn * PI * 0.5 * i / CORNER_SWEEP_STEPS)
+		var next: Vector3 = corner + bent * tuning.hang_distance + Vector3.DOWN * tuning.hang_height
+		if body.test_move(Transform3D(body.global_basis, at), next - at):
+			return {}
+		at = next
+	if Ladder.any_at(at):
+		return {}
+	return {"point": corner, "normal": normal, "base": edge["base"]}
+
+
+## Por adentro, sin lugar para la curva (se agarró pegado al rincón): el
+## cuerpo choca contra algo hacia donde va. Si es una pared en ángulo recto
+## con un filo a la misma altura, devuelve ese borde, en el punto donde la pose
+## de colgado de esa pared es la de la esquina; si no, vacío.
+static func _inner_corner(body: ActorBody, edge: Dictionary, turn: float, tuning: ActorTuning) -> Dictionary:
+	var point: Vector3 = edge["point"]
+	var normal: Vector3 = edge["normal"]
+	var ahead := (-normal).cross(Vector3.UP) * turn
+	var from := point + normal * CORNER_INSET + Vector3.DOWN * EdgeProbe.FACE_DROP
+	var hit := _corner_ray(body, from, from + ahead * 0.8)
+	if hit.is_empty() or (hit["normal"] as Vector3).dot(-ahead) < CORNER_SQUARE:
+		return {}
+	var corner: Vector3 = point + ahead * (hit["position"] - point).dot(ahead)
+	var side := EdgeProbe.hold(body, corner + normal * tuning.hang_distance, hit["normal"])
+	if side.is_empty() or absf(side["point"].y - point.y) > CORNER_HEIGHT:
+		return {}
+	var at := _hang_pose(edge, tuning)
+	var to := _hang_pose(side, tuning)
+	if Ladder.any_at(to) or body.test_move(Transform3D(body.global_basis, at), to - at):
+		return {}
+	return side
+
+
+## Doblando: avanza el giro, a la velocidad de siempre sobre la curva. Al
+## volver a cero queda en la cara donde empezó; al llegar al cuarto de vuelta,
+## en la otra. Por afuera, un poco adentro de la cara, donde la sonda la
+## encuentra; por adentro, donde termina la curva, un poco más allá para que
+## al volver la vuelva a encontrar.
+static func _round_corner(body: ActorBody, state: ActorState, edge: Dictionary, along: float, tuning: ActorTuning, dt: float) -> Dictionary:
+	var corner: Vector3 = edge["corner"]
+	var spin := signf(state.anchor_t)
+	var first := (edge["normal"] as Vector3).rotated(Vector3.UP, -state.anchor_t)
+	var second := first.rotated(Vector3.UP, spin * PI * 0.5)
+	var inside := state.corner_inside
+	var reach := tuning.hang_distance + tuning.hang_corner_radius + CORNER_SLACK
+	# Por afuera la normal gira hacia donde va; por adentro, al revés.
+	var angle := state.anchor_t
+	if inside:
+		angle -= along * dt / tuning.hang_corner_radius
+	else:
+		angle += along * dt / tuning.hang_distance
+	var landed := {}
+	if angle * spin <= 0.0:
+		var back := corner + second * reach if inside else corner + first.cross(Vector3.UP) * spin * CORNER_INSET
+		landed = EdgeProbe.hold(body, back, first)
+	elif angle * spin >= PI * 0.5:
+		var ahead := corner + first * reach if inside else corner - first * CORNER_INSET
+		landed = EdgeProbe.hold(body, ahead, second)
+	else:
+		state.anchor_t = angle
+		var arc := _arc_edge(corner, first, angle, inside, edge["base"], tuning)
+		state.velocity = (-arc["normal"] as Vector3).cross(Vector3.UP) * along
+		return arc
+	if landed.is_empty():
+		# No debería pasar: _held_edge acaba de ver las dos caras. Se queda donde está.
+		state.velocity = Vector3.ZERO
+		return edge
+	state.anchor_t = 0.0
+	state.corner_inside = false
+	state.velocity = (-landed["normal"] as Vector3).cross(Vector3.UP) * along
+	return landed
+
+
+## Rayo de las esquinas, contra lo mismo que las manos.
+static func _corner_ray(body: ActorBody, from: Vector3, to: Vector3) -> Dictionary:
+	var hit := body.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(
+			from, to, body.collision_mask, [body.get_rid()]))
+	if hit.is_empty():
+		return {}
+	var flat := Vector3(hit["normal"].x, 0.0, hit["normal"].z)
+	if flat.length_squared() < 0.5:
+		return {}
+	hit["normal"] = flat.normalized()
+	return hit
 
 
 ## Pose de colgado: los pies, a la distancia fija de la pared y a la altura
@@ -812,6 +1044,7 @@ static func _leave_edge(state: ActorState, tuning: ActorTuning, velocity: Vector
 	state.velocity = velocity
 	state.anchor_id = 0
 	state.anchor_t = 0.0
+	state.corner_inside = false
 	state.anchor_point = Vector3.ZERO
 	state.regrab_id = ActorState.REGRAB_EDGES
 	state.regrab_left = tuning.hang_regrab_time

@@ -258,6 +258,18 @@ var _hang_cycle := 0
 var _hang_presses := 0
 var hang_grabs := 0
 var hang_climbs := 0
+## Prueba `hangcorner`: la misma, pero colgado se mueve 2,5 s para cada lado,
+## así da la vuelta a las dos esquinas del bloque y vuelve. Ticks que se mueve
+## para cada lado, esquinas que empezó a doblar por afuera y si estaba doblando.
+## Prueba `hanginner`: lo mismo contra el rincón de la pista de bordes; está
+## detrás de la primera fila, y se llega rodeándola por x = _hang_detour_x.
+const INNER_CORNER_FACE := Vector3(26.5, 0.0, -18.0)
+var _hang_face := Vector3.INF
+var _hang_detour_x := 0.0
+var _hang_shimmy := 30
+var hang_corners := 0
+var hang_corners_inside := 0
+var _hang_turning := false
 ## Prueba `steps`: punto del recorrido al que va, ticks desde que lo empezó y
 ## la altura más alta de los pies.
 var _steps_index := 0
@@ -564,6 +576,14 @@ func _local_input(tick: int) -> ActorInput:
 		return _crouch_jump_input(tick)
 	if test_input == "hang" or test_input.begins_with("hang:"):
 		return _hang_input(tick, test_input.trim_prefix("hang:").to_int() if test_input.begins_with("hang:") else 0)
+	if test_input == "hangcorner":
+		_hang_shimmy = 150
+		return _hang_input(tick, 0)
+	if test_input == "hanginner":
+		_hang_shimmy = 150
+		_hang_face = INNER_CORNER_FACE
+		_hang_detour_x = 29.6
+		return _hang_input(tick, 0)
 	if test_input == "ladder" or test_input == "laddertop":
 		return _ladder_input(tick, test_input == "laddertop")
 	if test_input == "ladderhold":
@@ -800,7 +820,7 @@ func _ladder_input(tick: int, to_top: bool) -> ActorInput:
 func _hang_input(tick: int, base_id: int) -> ActorInput:
 	if not is_instance_valid(_local_actor):
 		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _hang_presses)
-	var face := Vector3(13.5, 0.0, -10.0)
+	var face := _hang_face if _hang_face != Vector3.INF else Vector3(13.5, 0.0, -10.0)
 	if base_id != 0:
 		var base = BaseRegistry.find(base_id)
 		if base == null:
@@ -815,6 +835,10 @@ func _hang_input(tick: int, base_id: int) -> ActorInput:
 	match _hang_phase:
 		0:  # a 2,2 m de la cara: primero en x y después en z, para rodear el muro
 			var to := Vector2(face.x - me.x, face.z + 2.2 - me.z)
+			if _hang_detour_x != 0.0 and me.z > face.z + 4.5:
+				# Detrás de otra fila: primero hasta x = _hang_detour_x, después la pasa en z.
+				to = Vector2(_hang_detour_x - me.x, 0.0) if absf(me.x - _hang_detour_x) > 0.3 \
+						else Vector2(0.0, face.z + 4.0 - me.z)
 			if to.length() < 0.3 and s.mode == ActorState.Mode.GROUND:
 				_hang_phase = 1
 			elif absf(to.x) > 0.3:
@@ -836,24 +860,30 @@ func _hang_input(tick: int, base_id: int) -> ActorInput:
 			elif s.mode == ActorState.Mode.GROUND and _hang_since > 20:
 				_hang_phase = 0
 		3:  # colgado
+			var shimmy := _hang_shimmy
+			if s.mode == ActorState.Mode.HANGING and s.anchor_t != 0.0 and not _hang_turning:
+				hang_corners += 1
+				if s.corner_inside:
+					hang_corners_inside += 1
+			_hang_turning = s.mode == ActorState.Mode.HANGING and s.anchor_t != 0.0
 			if s.mode != ActorState.Mode.HANGING:
-				_hang_phase = 4 if _hang_cycle % 3 == 0 and _hang_since > 90 else 0
+				_hang_phase = 4 if _hang_cycle % 3 == 0 and _hang_since > 30 + 2 * shimmy else 0
 			elif _hang_since < 20:
 				pass
-			elif _hang_since < 50:
+			elif _hang_since < 20 + shimmy:
 				move = Vector2(1, 0)
-			elif _hang_since < 80:
+			elif _hang_since < 20 + 2 * shimmy:
 				move = Vector2(-1, 0)
-			elif _hang_since == 90:
+			elif _hang_since == 30 + 2 * shimmy:
 				match _hang_cycle % 3:
 					0:
 						_hang_presses = (_hang_presses + 1) & 0xFF
 					2:
 						yaw = PI
 						_hang_presses = (_hang_presses + 1) & 0xFF
-			elif _hang_since >= 90 and _hang_since < 95 and _hang_cycle % 3 == 1:
+			elif _hang_since >= 30 + 2 * shimmy and _hang_since < 35 + 2 * shimmy and _hang_cycle % 3 == 1:
 				buttons = ActorInput.BUTTON_CROUCH
-			elif _hang_since > 200:
+			elif _hang_since > 140 + 2 * shimmy:
 				_hang_phase = 0
 			if _hang_phase != 3:
 				_hang_cycle += 1
@@ -1854,8 +1884,9 @@ func _print_summary_and_quit() -> void:
 		print("[net_lab] túnel: llegó al tramo %d; ticks parado bajo el techo: %d" % [_tunnel_phase, _tunnel_standing_under_roof])
 	if test_input == "steps":
 		print("[net_lab] escalones: punto %d de %d; pies a %.2f m como máximo" % [_steps_index, STEPS_ROUTE.size(), _steps_max_height])
-	if test_input == "hang" or test_input.begins_with("hang:"):
-		print("[net_lab] colgar: %d agarres, %d subidas al borde, %d vueltas del ciclo" % [hang_grabs, hang_climbs, _hang_cycle])
+	if test_input == "hang" or test_input == "hangcorner" or test_input == "hanginner" or test_input.begins_with("hang:"):
+		print("[net_lab] colgar: %d agarres, %d subidas al borde, %d vueltas del ciclo, %d esquinas dobladas (%d por adentro)" % [
+				hang_grabs, hang_climbs, _hang_cycle, hang_corners, hang_corners_inside])
 	if test_input.begins_with("hook:"):
 		print("[net_lab] compañero: %d se colgó, %d se soltó con Ctrl, %d saltó para arriba (%d se agarró del borde después, %d llegó arriba), %d saltó hacia atrás, %d se cayó con el compañero, %d se agarró de otra cosa" % [
 			hook_grabs, hook_releases, hook_jumps_up, hook_edges_after, hook_tops, hook_jumps_away, hook_fell_with_mate, hook_other_grabs])

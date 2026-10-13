@@ -26,7 +26,7 @@ const NORMAL_STEP := 0.0001
 const TIME_STEP := 0.0001
 const YAW_STEPS := 65536
 ## Largo de to_bytes(). Lo que llega por red con otro largo se descarta.
-const BYTE_SIZE := 87
+const BYTE_SIZE := 88
 ## regrab_id de un bloqueo de bordes (Hanging), distinto de cualquier escalera.
 const REGRAB_EDGES := 0xFFFF
 ## regrab_id de un bloqueo de compañeros (Enganchado): no se puede volver a
@@ -61,14 +61,16 @@ var stance_wanted: int = Stance.STANDING
 var stance: int = Stance.STANDING
 ## Modos anclados: id de red del ancla y el parámetro sobre ella.
 ## - Ladder: la escalera, y la altura de los pies sobre ella, en metros.
-## - Hanging: la base que lleva el borde (0 si es geometría fija); anchor_t no
-##   se usa y vale 0.
+## - Hanging: la base que lleva el borde (0 si es geometría fija); anchor_t
+##   vale 0, salvo doblando una esquina (por afuera o por adentro, ver
+##   corner_inside): cuánto giró la normal desde la cara
+##   donde empezó, en radianes, con signo (ver ActorMotor._hang).
 ## - Hooked: el id de red (peer) del compañero del que cuelga; anchor_t no se usa.
 var anchor_id := 0
 var anchor_t := 0.0
 ## Hanging: el punto del filo, relativo al origen de la base del ancla (en el
-## mundo si es geometría fija). La normal del borde no se guarda: es la
-## contraria a facing_yaw, que mira a la pared.
+## mundo si es geometría fija); doblando, la esquina. La normal del
+## borde no se guarda: es la contraria a facing_yaw, que mira a la pared.
 ## Hooked: dónde están las manos sobre el compañero, en el mundo. Lo usa la
 ## presentación; la simulación lo vuelve a calcular cada tick.
 var anchor_point := Vector3.ZERO
@@ -85,6 +87,8 @@ var regrab_left := 0.0
 ## apaga), y el último valor del contador de pulsaciones que ya se procesó.
 var boosted := false
 var power_presses_seen := 0
+## Hanging, doblando (anchor_t distinto de 0): si es un rincón, por adentro.
+var corner_inside := false
 
 
 func quantize() -> void:
@@ -133,6 +137,7 @@ func to_bytes() -> PackedByteArray:
 	b.put_u32(hooked_by & 0xFFFFFFFF)
 	b.put_u8(1 if boosted else 0)
 	b.put_u8(power_presses_seen & 0xFF)
+	b.put_u8(1 if corner_inside else 0)
 	return b.data_array
 
 
@@ -161,13 +166,15 @@ static func from_bytes(bytes: PackedByteArray) -> ActorState:
 	s.hooked_by = b.get_u32()
 	s.boosted = b.get_u8() == 1
 	s.power_presses_seen = b.get_u8()
+	s.corner_inside = b.get_u8() == 1
 	return s
 
 
 func describe() -> String:
-	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f súper=%s/%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
+	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f rincón=%s súper=%s/%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d época=%d" % [
 		Mode.keys()[mode], Stance.keys()[stance], Stance.keys()[stance_wanted], on_floor, base_id,
-		anchor_id, anchor_t, anchor_point, hooked_by, regrab_id, regrab_left, "sí" if boosted else "no", power_presses_seen,
+		anchor_id, anchor_t, anchor_point, hooked_by, regrab_id, regrab_left, "sí" if corner_inside else "no",
+		"sí" if boosted else "no", power_presses_seen,
 		position, velocity, facing_yaw, coyote_left, jump_buffer_left, jump_presses_seen, epoch,
 	]
 

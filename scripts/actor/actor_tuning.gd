@@ -93,6 +93,11 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## más margen sin que se salte más alto. Vuelve a su alto al tocar el piso o
 ## al agarrarse de algo. 0 lo apaga.
 @export_range(0.0, 1.0, 0.01) var hang_climb_tuck := 0.2
+## Colgado, al doblar un rincón (una esquina por adentro) el cuerpo hace una
+## curva de este radio, en metros: empieza a doblar este tanto antes de llegar
+## al rincón, y a mitad de la curva queda un poco más lejos de las paredes.
+## Con 0,4 la curva es tan larga como la vuelta a una esquina por afuera.
+@export_range(0.05, 1.0, 0.01) var hang_corner_radius := 0.4
 
 @export_group("Compañero")
 ## Colgarse de un compañero que está agarrado de un borde o de una escalera

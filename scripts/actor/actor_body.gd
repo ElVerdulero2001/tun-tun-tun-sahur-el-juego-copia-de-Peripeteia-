@@ -17,6 +17,11 @@ const POSE_TOLERANCE := 0.01
 const CORRECTION_HALF_LIFE := 0.025
 ## Saltos más grandes que esto no se suavizan: se ven como un salto.
 const MAX_SMOOTHED_JUMP := 1.5
+## Colgado, un cambio de orientación de más de esto en un tick (doblar una
+## esquina por adentro) se dibuja girando a TURN_SPEED, en radianes por
+## segundo: un cuarto de vuelta tarda unos 0,2 s.
+const TURN_SNAP := 0.5
+const TURN_SPEED := 8.0
 ## Presentación del agarre de un borde: su desvío decae igual que el de una
 ## corrección, pero a lo sumo a esta velocidad, en m/s. Así la cámara se mueve
 ## como mucho 9 cm en los 50 ms después de agarrarse (criterio de la
@@ -36,6 +41,10 @@ const FREE_MOVE_TOLERANCE := 0.00005
 ## no lo lee nunca. El del agarre va aparte porque decae más lento.
 var visual_offset := Vector3.ZERO
 var grab_offset := Vector3.ZERO
+## Desvío del giro del dibujo colgado (ver present()), y la orientación que
+## mostró la última vez.
+var _turn_offset := 0.0
+var _presented_yaw := NAN
 
 ## Estado del actor. Solo lo escriben ActorMotor y la red al restaurar.
 var state := ActorState.new()
@@ -277,7 +286,17 @@ func apply_state(actor_state: ActorState) -> bool:
 ## Presentación mínima: orienta el visual y muestra la postura concedida. No
 ## escribe nada en la simulación.
 func present(actor_state: ActorState) -> void:
-	_visual.rotation.y = actor_state.facing_yaw
+	# Colgado, doblar una esquina por adentro gira el cuerpo de golpe: el dibujo
+	# lo sigue a TURN_SPEED. Solo en los actores que esta máquina simula, que
+	# son los que llaman a decay_visual_offset().
+	if simulated and actor_state.mode == ActorState.Mode.HANGING and not is_nan(_presented_yaw):
+		var turned := wrapf(actor_state.facing_yaw - _presented_yaw, -PI, PI)
+		if absf(turned) > TURN_SNAP:
+			_turn_offset = wrapf(_turn_offset - turned, -PI, PI)
+	elif actor_state.mode != ActorState.Mode.HANGING:
+		_turn_offset = 0.0
+	_presented_yaw = actor_state.facing_yaw
+	_visual.rotation.y = actor_state.facing_yaw + _turn_offset
 	for i in _bodies.size():
 		_bodies[i].visible = i == actor_state.stance
 	_nose.position.y = stance_height(actor_state.stance) - 0.3
@@ -314,7 +333,31 @@ func present(actor_state: ActorState) -> void:
 			grip = actor_state.anchor_point - BaseRegistry.world_position(actor_state)
 		else:
 			grip = BaseRegistry.origin(actor_state.anchor_id) + actor_state.anchor_point - global_position \
-					+ Vector3.UP * 0.03 + toward * 0.05
+					+ Vector3.UP * 0.03
+			if actor_state.anchor_t != 0.0:
+				var turn := signf(actor_state.anchor_t)
+				var first := (-toward).rotated(Vector3.UP, -actor_state.anchor_t)
+				var second := first.rotated(Vector3.UP, turn * PI * 0.5)
+				if actor_state.corner_inside:
+					# Doblando un rincón: cada mano en el filo de la pared más
+					# cercana a donde iría, a los costados delante del cuerpo.
+					for i in _hands.size():
+						var want := toward * 0.4 + right * (0.2 if i == 0 else -0.2)
+						want.y = grip.y
+						var on_first := grip + second * maxf((want - grip).dot(second), 0.0)
+						var on_second := grip + first * maxf((want - grip).dot(first), 0.0)
+						var face := first if want.distance_to(on_first) <= want.distance_to(on_second) else second
+						_hands[i].position = (on_first if face == first else on_second) - face * 0.05
+						_hands[i].rotation.y = atan2(face.x, face.z)
+					return
+				# Doblando una esquina por afuera: una mano en cada cara, al lado
+				# de la esquina.
+				_hands[0].position = grip + first.cross(Vector3.UP) * turn * 0.2 - first * 0.05
+				_hands[0].rotation.y = atan2(first.x, first.z)
+				_hands[1].position = grip - first * 0.2 - second * 0.05
+				_hands[1].rotation.y = atan2(second.x, second.z)
+				return
+			grip += toward * 0.05
 		for i in _hands.size():
 			_hands[i].position = grip + right * (0.2 if i == 0 else -0.2)
 			_hands[i].rotation.y = actor_state.facing_yaw
@@ -349,6 +392,9 @@ func set_visual_offset(offset: Vector3) -> void:
 ## para que la interpolación de física lo suavice entre ticks. El del agarre
 ## decae igual, pero sin pasar de GRAB_MAX_SPEED.
 func decay_visual_offset(dt: float) -> void:
+	if _turn_offset != 0.0:
+		_turn_offset = move_toward(_turn_offset, 0.0, TURN_SPEED * dt)
+		_visual.rotation.y = _presented_yaw + _turn_offset
 	if visual_offset == Vector3.ZERO and grab_offset == Vector3.ZERO:
 		return
 	var factor := pow(0.5, dt / CORRECTION_HALF_LIFE)
@@ -368,6 +414,7 @@ func decay_visual_offset(dt: float) -> void:
 func teleported() -> void:
 	visual_offset = Vector3.ZERO
 	grab_offset = Vector3.ZERO
+	_turn_offset = 0.0
 	_visual.position = Vector3.ZERO
 	reset_physics_interpolation()
 

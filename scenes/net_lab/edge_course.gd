@@ -5,7 +5,9 @@ extends Node3D
 ## arquitectura: altos de 1,6, 2 y 2,4 m; espesores de 5 cm, 20 cm y 1 m; la
 ## superficie de arriba inclinada 10 y 25°; una malla en vez de una caja; uno
 ## curvo; uno bajo un techo bajo; y uno entre dos paredes que salen de la cara.
-## En una tercera fila, un muro alto con un cajón para colgarse de un compañero.
+## Para doblar esquinas colgado: un rincón en L, con el filo a la misma altura
+## en las dos paredes. En una tercera fila, un muro alto con un cajón para
+## colgarse de un compañero, y una columna cuadrada para darle la vuelta.
 ## Los bordes que se mueven (sobre una plataforma guionada y sobre un cuerpo
 ## rígido del host) son nodos del nivel, porque son bases con id de red.
 ##
@@ -39,8 +41,11 @@ func _ready() -> void:
 	_curved(Vector2(2, 1), 2.0, "curvo")
 	_under_ceiling(Vector2(3, 1), 2.0, "techo bajo:\nno se puede subir")
 	_between_walls(Vector2(4, 1), 2.0, "paredes al costado")
+	# Esquinas en ángulo recto, para doblarlas colgado.
+	_inner_corner(Vector2(5, 1), 2.4, "rincón: colgado, A y D\ndoblan la esquina por adentro")
 	# Fila 3: el muro alto para colgarse de un compañero (punto 6).
 	_teammate_wall(Vector2(1, 2))
+	_column(Vector2(3, 2), 2.4, 1.6, "columna: colgado, A y D\ndan la vuelta entera")
 
 
 ## Centro de la cara en el piso para un lugar de la grilla.
@@ -148,6 +153,26 @@ func _between_walls(slot: Vector2, height: float, text: String) -> void:
 		var wall := Vector3(0.3, height + 1.0, 1.2)
 		_add_body(BoxShape3D.new(), wall, _box_mesh(wall), face + Vector3(side * 1.0, (height + 1.0) * 0.5, 0.6 - 0.1))
 	_add_label(text, face + Vector3(0, height + 1.4, 0.3))
+
+
+## Rincón: el bloque de siempre y, en su punta +X, una pared que sale de la
+## cara hacia +Z, del mismo alto. Las dos caras se encuentran en ángulo recto.
+func _inner_corner(slot: Vector2, height: float, text: String) -> void:
+	var face := _slot(slot)
+	var size := Vector3(WIDTH, height, DEPTH)
+	_add_body(BoxShape3D.new(), size, _box_mesh(size), face + Vector3(0, height * 0.5, -DEPTH * 0.5))
+	var wing := Vector3(DEPTH, height, 2.0)
+	_add_body(BoxShape3D.new(), wing, _box_mesh(wing), face + Vector3(WIDTH * 0.5 - DEPTH * 0.5, height * 0.5, 1.0))
+	_add_label(text, face + Vector3(-0.3, height + 0.7, 0.3))
+
+
+## Columna cuadrada de `side` de lado, centrada en el lugar con su cara +Z en
+## la línea de las demás.
+func _column(slot: Vector2, height: float, side: float, text: String) -> void:
+	var face := _slot(slot)
+	var size := Vector3(side, height, side)
+	_add_body(BoxShape3D.new(), size, _box_mesh(size), face + Vector3(0, height * 0.5, -side * 0.5))
+	_add_label(text, face + Vector3(0, height + 0.7, 0.3))
 
 
 ## Muro de 3,6 m, 6 m de ancho, centrado en el lugar: desde el piso las manos

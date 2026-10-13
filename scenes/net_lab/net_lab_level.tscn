@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/actor/ladder.gd" id="4_ladder"]
 [ext_resource type="Script" path="res://scenes/net_lab/step_course.gd" id="5_steps"]
 [ext_resource type="Script" path="res://scenes/net_lab/edge_course.gd" id="6_edges"]
+[ext_resource type="Script" path="res://scenes/net_lab/parkour_tower.gd" id="7_tower"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_lab"]
 
@@ -343,6 +344,10 @@ script = ExtResource("5_steps")
 [node name="PistaDeBordes" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -10)
 script = ExtResource("6_edges")
+
+[node name="TorreDeParkour" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19, 0, -19)
+script = ExtResource("7_tower")
 
 [node name="BordeMovil" type="AnimatableBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 1, -5)

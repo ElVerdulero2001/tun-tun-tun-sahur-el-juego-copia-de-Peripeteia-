@@ -93,8 +93,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
-	# El actor puede borrarse (por ejemplo, si el host cierra la sesión).
-	if not is_instance_valid(target):
+	# El actor puede borrarse (por ejemplo, si el host cierra la sesión). Antes
+	# de borrarlo, la red lo saca del árbol: ese cuadro tampoco se lo sigue.
+	if not is_instance_valid(target) or not target.is_inside_tree():
 		return
 	# La cámara va a la altura de la cabeza, que depende de la postura. En el
 	# suelo, cambiar de postura mueve la cabeza (los pies quedan): la cámara la

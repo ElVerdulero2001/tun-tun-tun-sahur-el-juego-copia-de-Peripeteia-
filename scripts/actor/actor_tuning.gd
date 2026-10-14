@@ -151,6 +151,16 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## normal). Bajalo y se salta menos lejos. Es la velocidad propia: sobre una
 ## plataforma que se mueve, la de la plataforma se suma aparte.
 @export var jump_max_speed := 6.0
+## Salto en el aire: cayendo sin haber saltado desde que dejó el piso o algo
+## de donde estaba agarrado (se cayó de un borde, se soltó, lo empujaron),
+## Espacio salta una vez más. Velocidad para arriba, en m/s: con la misma que
+## jump_velocity sube lo mismo que un salto desde el piso; con el súper salto
+## y velocidad, los pies suben boost_jump_extra más.
+@export var air_jump_velocity := 4.8
+## Sale hacia donde mira la cámara, con la velocidad horizontal que traía
+## pero no menos que esta, en m/s (con el súper, por boost_speed_scale), ni
+## más que el tope del salto (jump_max_speed, o boost_jump_max_speed).
+@export var air_jump_speed := 5.0
 ## Ventana para saltar después de dejar el piso, en segundos de tiempo del actor.
 @export var coyote_time := 0.1
 ## Cuánto se recuerda una pulsación de salto antes de tocar el piso, en segundos.

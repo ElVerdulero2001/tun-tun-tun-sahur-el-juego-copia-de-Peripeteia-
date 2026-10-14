@@ -123,7 +123,8 @@ func _values_possible(claim: ActorState, host: ActorState, tuning: ActorTuning) 
 static func _max_velocity_difference(tuning: ActorTuning) -> float:
 	var run := maxf(tuning.sprint_speed * tuning.boost_speed_scale, tuning.slide_max_speed)
 	var dt := SimClock.TICK_DT
-	var jump := ActorMotor.floor_jump_speed(tuning, dt, maxf(tuning.ladder_jump_extra, tuning.boost_jump_extra))
+	var jump := maxf(ActorMotor.floor_jump_speed(tuning, dt, maxf(tuning.ladder_jump_extra, tuning.boost_jump_extra)),
+			ActorMotor.raised_jump_speed(tuning.air_jump_velocity, tuning, dt, tuning.boost_jump_extra))
 	return Vector2(run, jump).length() + VELOCITY_MARGIN
 
 

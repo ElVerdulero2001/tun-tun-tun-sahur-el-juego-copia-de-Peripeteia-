@@ -104,6 +104,8 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				state.mode = ActorState.Mode.GROUND
 			elif wants_jump and state.coyote_left > 0.0:
 				_jump(state, tuning, dt)
+			elif wants_jump and not state.jumped and state.velocity.y <= 0.0:
+				_air_jump(state, input.look_yaw, tuning, dt)
 			else:
 				if not crouch_held:
 					edge = _try_grab_edge(body, state, grab_direction(input.look_yaw), tuning, dt)
@@ -142,6 +144,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 					var away := (look + ladder.outward() * maxf(into, 0.0)).normalized()
 					_leave_anchor(state, tuning, away * tuning.ladder_jump_out + ladder.up() * tuning.ladder_jump_up, true)
 					state.facing_yaw = _yaw_of(away)
+				state.jumped = true
 			elif state.anchor_t <= 0.0 and toward < -0.5:
 				_leave_anchor(state, tuning, Vector3.ZERO, false)
 			elif state.anchor_t >= ladder.height and toward > 0.5:
@@ -169,6 +172,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				else:
 					_leave_edge(state, tuning, look * tuning.hang_jump_out + Vector3.UP * tuning.hang_jump_up)
 					state.facing_yaw = _yaw_of(look)
+				state.jumped = true
 		ActorState.Mode.HOOKED:
 			if not _hook_holds(body, mate):
 				# Invariante roto: el compañero se soltó, lo soltaron o se fue. Sale
@@ -186,6 +190,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				else:
 					_leave_hook(state, tuning, look * tuning.hang_jump_out + Vector3.UP * tuning.hang_jump_up, true)
 					state.facing_yaw = _yaw_of(look)
+				state.jumped = true
 
 	# 6. Modo: el modo activo decide la velocidad.
 	match state.mode:
@@ -258,6 +263,9 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	# el host y el cliente, así soltarse no necesita un evento del host.
 	if state.mode != ActorState.Mode.HANGING and state.mode != ActorState.Mode.LADDER:
 		state.hooked_by = 0
+	# El salto en el aire vuelve al apoyarse o agarrarse de algo.
+	if state.mode != ActorState.Mode.AIR:
+		state.jumped = false
 	# Apoyado sobre una base, no puede alejarse de ella hacia arriba. Al aterrizar,
 	# Godot deja en cero la velocidad vertical en el mundo; si la base baja, en su
 	# marco eso sería subir, y el actor nunca pasaría a Suelo.
@@ -1022,8 +1030,13 @@ static func _ladder_jump_speed(tuning: ActorTuning, dt: float) -> float:
 ## _climb_jump_speed: el salto del piso sigue la parábola de una velocidad
 ## menor en g·dt/2, y a esa se le suma la altura extra.
 static func floor_jump_speed(tuning: ActorTuning, dt: float, extra: float) -> float:
-	var floor_speed := tuning.jump_velocity - tuning.gravity * dt * 0.5
-	var speed := sqrt(floor_speed * floor_speed + 2.0 * tuning.gravity * extra)
+	return raised_jump_speed(tuning.jump_velocity, tuning, dt, extra)
+
+
+## Lo mismo, partiendo de otra velocidad de salto (el salto en el aire).
+static func raised_jump_speed(jump_speed: float, tuning: ActorTuning, dt: float, extra: float) -> float:
+	var base := jump_speed - tuning.gravity * dt * 0.5
+	var speed := sqrt(base * base + 2.0 * tuning.gravity * extra)
 	return speed + tuning.gravity * dt * 0.5
 
 
@@ -1233,3 +1246,22 @@ static func _jump(state: ActorState, tuning: ActorTuning, dt: float) -> void:
 	state.mode = ActorState.Mode.AIR
 	state.jump_buffer_left = 0.0
 	state.coyote_left = 0.0
+	state.jumped = true
+
+
+## Salto en el aire: cayendo sin haber saltado desde que dejó el piso o algo
+## de donde estaba agarrado (se cayó, se soltó, lo empujaron), Espacio salta
+## una vez, tan alto como desde el piso (air_jump_velocity; con el súper,
+## boost_jump_extra más) y hacia donde mira la cámara: con la velocidad
+## horizontal que traía, pero no menos que air_jump_speed ni más que el tope
+## del salto. El cuerpo se da vuelta hacia allá.
+static func _air_jump(state: ActorState, look_yaw: float, tuning: ActorTuning, dt: float) -> void:
+	var most := tuning.boost_jump_max_speed if state.boosted else tuning.jump_max_speed
+	var least := tuning.air_jump_speed * (tuning.boost_speed_scale if state.boosted else 1.0)
+	var look := Vector3.FORWARD.rotated(Vector3.UP, look_yaw)
+	state.velocity = look * minf(maxf(_horizontal_speed(state), least), most)
+	state.velocity.y = raised_jump_speed(tuning.air_jump_velocity, tuning, dt, tuning.boost_jump_extra) \
+			if state.boosted else tuning.air_jump_velocity
+	state.facing_yaw = _yaw_of(look)
+	state.jump_buffer_left = 0.0
+	state.jumped = true

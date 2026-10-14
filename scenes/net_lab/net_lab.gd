@@ -250,6 +250,13 @@ var _crouch_jump_start := -1
 ## ya llegó arriba.
 var _ladder_direction := 1.0
 var _ladder_top_done := false
+## Prueba `airjump`: sube la escalera de la torre, se cae por el costado y,
+## cayendo, salta en el aire hacia donde mira la cámara. Tramo, ticks cayendo,
+## pulsaciones de salto propias y cuántos saltos en el aire hizo.
+var _air_phase := 0
+var _air_since := 0
+var _air_presses := 0
+var air_jumps := 0
 ## Prueba `hang`: tramo del ciclo, ticks en el tramo, vuelta del ciclo,
 ## pulsaciones de salto propias y cuántas veces se agarró y subió.
 var _hang_phase := 0
@@ -584,6 +591,8 @@ func _local_input(tick: int) -> ActorInput:
 		_hang_face = INNER_CORNER_FACE
 		_hang_detour_x = 29.6
 		return _hang_input(tick, 0)
+	if test_input == "airjump":
+		return _air_jump_input(tick)
 	if test_input == "ladder" or test_input == "laddertop":
 		return _ladder_input(tick, test_input == "laddertop")
 	if test_input == "ladderhold":
@@ -808,6 +817,39 @@ func _ladder_input(tick: int, to_top: bool) -> ActorInput:
 	var foot := ladder.pose_at(0.0) + ladder.outward() * 1.2
 	var to := Vector2(foot.x - me.x, foot.z - me.z)
 	return ActorInput.make(tick, Vector2(to.x, -to.y).limit_length(1.0), 0.0, 0, 0)
+
+
+## Prueba del salto en el aire, en ciclos: sube la escalera de la torre (2,5 m),
+## camina hacia +X hasta caerse por el costado y, a los 0,25 s de caer, gira
+## la cámara hacia -Z y salta en el aire sin teclas: sale hacia la cámara y
+## cae delante de la torre, cerca de la escalera, para empezar otra vuelta.
+func _air_jump_input(tick: int) -> ActorInput:
+	if not is_instance_valid(_local_actor):
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _air_presses)
+	var s := _local_actor.state
+	match _air_phase:
+		0:  # sube la escalera hasta el techo
+			if _ladder_top_done and s.mode == ActorState.Mode.GROUND and BaseRegistry.world_position(s).y > 2.0:
+				_air_phase = 1
+			var climb := _ladder_input(tick, true)
+			climb.jump_presses = _air_presses
+			return climb
+		1:  # camina hacia +X hasta caerse
+			if s.mode == ActorState.Mode.AIR:
+				_air_phase = 2
+				_air_since = 0
+			return ActorInput.make(tick, Vector2(0, 1), -PI * 0.5, 0, _air_presses)
+		2:  # cayendo: salta en el aire mirando a -Z
+			_air_since += 1
+			if _air_since == 15:
+				_air_presses = (_air_presses + 1) & 0xFF
+			elif _air_since == 17 and s.velocity.y > 3.0:
+				air_jumps += 1
+			elif _air_since > 17 and s.mode == ActorState.Mode.GROUND:
+				_air_phase = 0
+				_ladder_top_done = false
+			return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _air_presses)
+	return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _air_presses)
 
 
 ## Prueba de Hanging, en ciclos, contra la cara de un bloque de 2 m de la pista
@@ -1772,6 +1814,9 @@ func _update_hud() -> void:
 		if s.boosted:
 			lines.append("SÚPER SALTO Y VELOCIDAD: prendido   ·   2 del teclado numérico lo apaga")
 		lines.append("Modo: %s   ·   en suelo: %s   ·   época: %d" % [ActorState.Mode.keys()[s.mode], "sí" if s.on_floor else "no", s.epoch])
+		if s.mode == ActorState.Mode.AIR:
+			lines.append("Salto en el aire: %s" % ("ya saltaste: vuelve al tocar el piso o agarrarte de algo" if s.jumped
+					else "listo, Espacio cayendo" if s.velocity.y <= 0.0 else "listo cuando empieces a caer"))
 		var stance_names := ["parado", "agachado", "encogido"]
 		lines.append("Postura: %s%s" % [stance_names[s.stance],
 				"   ·   pedida: %s (no hay lugar)" % stance_names[s.stance_wanted] if s.stance_wanted != s.stance else ""])
@@ -1800,6 +1845,7 @@ func _update_hud() -> void:
 	lines.append("WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse, mientras lo mantengas) · mouse mirar · rueda acerca la cámara, hasta primera persona · Esc suelta el mouse")
 	lines.append("Escalera: Espacio mirándola salta para arriba, mirando a otro lado salta hacia allá")
 	lines.append("Colgado: A y D de costado · Espacio mirando a la pared salta para arriba (con W pasás arriba), mirando a otro lado salta hacia allá · Ctrl se suelta")
+	lines.append("Cayendo sin haber saltado (te caíste, te soltaste, te empujaron): Espacio salta en el aire, una vez, hacia donde mira la cámara")
 	lines.append("Saltando hacia un compañero colgado de un borde o en una escalera, te colgás de su cintura: ahí Espacio y Ctrl andan igual que colgado")
 	lines.append("1 del teclado numérico: prende o apaga la cámara lenta del mundo, para todos · 2 del teclado numérico: prende o apaga tu súper salto y velocidad")
 	if role == Role.HOST:
@@ -1880,6 +1926,8 @@ func _print_summary_and_quit() -> void:
 			_session.reconnects, _session.reconnect_attempts, _session.reconnecting, host_silences, _session.players_back, _session.players_dropped])
 	if _relay != null:
 		print("[net_lab] relevo de prueba: %d paquetes pasaron, %d se tiraron en los cortes" % [_relay.forwarded, _relay.dropped])
+	if test_input == "airjump":
+		print("[net_lab] salto en el aire: %d saltos" % air_jumps)
 	if test_input == "tunnel":
 		print("[net_lab] túnel: llegó al tramo %d; ticks parado bajo el techo: %d" % [_tunnel_phase, _tunnel_standing_under_roof])
 	if test_input == "steps":

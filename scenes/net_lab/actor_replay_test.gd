@@ -65,6 +65,8 @@ var _ticks_kept_crouched := 0
 ## Ticks encogido: el salto para arriba desde el colgado.
 var _ticks_tucked := 0
 var _jumps := 0
+## Saltos en el aire (cayendo sin haber saltado).
+var _air_jumps := 0
 var _max_height := 0.0
 var _varying_rate := false
 var _physics_frames := 0
@@ -120,6 +122,7 @@ func _live_tick() -> void:
 		_state = _initial.copy()
 		_actor.apply_state(_state)
 	var previous_vertical := _state.velocity.y
+	var could_air_jump := _state.mode == ActorState.Mode.AIR and not _state.jumped and _state.coyote_left == 0.0
 	_apply_events(_state, _tick)
 	if SimClock.world_scale(_tick) < 1.0:
 		_ticks_slow += 1
@@ -147,6 +150,8 @@ func _live_tick() -> void:
 			_ticks_kept_crouched += 1
 	if _actor.is_on_wall():
 		_ticks_wall += 1
+	if could_air_jump and _state.jumped:
+		_air_jumps += 1
 	if previous_vertical <= 0.0 and _state.velocity.y > 1.0:
 		_jumps += 1
 	_max_height = maxf(_max_height, _state.position.y)
@@ -196,7 +201,7 @@ func _replay(start: int, stop: int) -> void:
 
 func _finish() -> void:
 	_phase = Phase.DONE
-	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d colgado, %d tocando pared, %d saltos, altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_hanging, _ticks_wall, _jumps, _max_height])
+	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d colgado, %d tocando pared, %d saltos (%d en el aire), altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_hanging, _ticks_wall, _jumps, _air_jumps, _max_height])
 	print("%s postura: %d ticks agachado, %d de ellos pidiendo pararse sin lugar; %d encogido" % [LOG_PREFIX, _ticks_crouched, _ticks_kept_crouched, _ticks_tucked])
 	print("%s cámara lenta: %d ticks; súper salto y velocidad: %d ticks" % [LOG_PREFIX, _ticks_slow, _ticks_boost])
 	print("%s %d repeticiones, %d ticks repetidos" % [LOG_PREFIX, _replays, _replayed_ticks])

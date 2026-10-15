@@ -20,7 +20,9 @@ extends Node3D
 ## mundo, el último prendido hasta el final: cada tick avanza el tiempo del
 ## mundo de ese tick (SimClock.world_dt) y time_scale sigue a la escala, como
 ## en el juego. Antes del último pasa por el súper salto y velocidad, que se
-## prende y se apaga con el 2 del teclado numérico.
+## prende y se apaga con el 2 del teclado numérico. Ese salto pasa por debajo
+## del cable plano de la pista de cables y se agarra; el salto siguiente lo
+## suelta.
 
 const TICK_DT := 1.0 / 60.0
 const TIMEOUT_SECONDS := 400.0
@@ -57,6 +59,7 @@ var _ticks_wall := 0
 var _ticks_slide := 0
 var _ticks_ladder := 0
 var _ticks_hanging := 0
+var _ticks_cable := 0
 ## Empujones del recorrido, por tick: [impulso, fuerza].
 var _events := {}
 var _ticks_crouched := 0
@@ -142,6 +145,8 @@ func _live_tick() -> void:
 			_ticks_ladder += 1
 		ActorState.Mode.HANGING:
 			_ticks_hanging += 1
+		ActorState.Mode.CABLE:
+			_ticks_cable += 1
 	if _state.stance == ActorState.Stance.TUCKED:
 		_ticks_tucked += 1
 	if _state.stance == ActorState.Stance.CROUCHED:
@@ -201,7 +206,7 @@ func _replay(start: int, stop: int) -> void:
 
 func _finish() -> void:
 	_phase = Phase.DONE
-	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d colgado, %d tocando pared, %d saltos (%d en el aire), altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_hanging, _ticks_wall, _jumps, _air_jumps, _max_height])
+	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d colgado, %d en un cable, %d tocando pared, %d saltos (%d en el aire), altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_hanging, _ticks_cable, _ticks_wall, _jumps, _air_jumps, _max_height])
 	print("%s postura: %d ticks agachado, %d de ellos pidiendo pararse sin lugar; %d encogido" % [LOG_PREFIX, _ticks_crouched, _ticks_kept_crouched, _ticks_tucked])
 	print("%s cámara lenta: %d ticks; súper salto y velocidad: %d ticks" % [LOG_PREFIX, _ticks_slow, _ticks_boost])
 	print("%s %d repeticiones, %d ticks repetidos" % [LOG_PREFIX, _replays, _replayed_ticks])

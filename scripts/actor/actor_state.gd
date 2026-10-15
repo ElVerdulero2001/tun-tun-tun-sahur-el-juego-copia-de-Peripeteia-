@@ -14,7 +14,8 @@ extends RefCounted
 ## hasta unos 800 m desde el origen; más lejos, float32 pierde ese detalle.
 
 ## HOOKED es el modo Enganchado de la arquitectura: colgado de un compañero.
-enum Mode { GROUND, AIR, SLIDE, LADDER, HANGING, HOOKED }
+## CABLE es colgado de un cable (la Tirolesa de la arquitectura).
+enum Mode { GROUND, AIR, SLIDE, LADDER, HANGING, HOOKED, CABLE }
 ## Postura: parado, agachado o encogido. Cada una tiene su forma de colisión.
 ## Encogido es parado con los pies más arriba (hang_climb_tuck): lo usa el
 ## salto para arriba desde el colgado, y solo existe en el aire.
@@ -32,6 +33,8 @@ const REGRAB_EDGES := 0xFFFF
 ## regrab_id de un bloqueo de compañeros (Enganchado): no se puede volver a
 ## colgar de ninguno por un rato.
 const REGRAB_TEAMMATES := 0xFFFE
+## regrab_id de un bloqueo de cables: no se puede volver a agarrar de ninguno por un rato.
+const REGRAB_CABLES := 0xFFFD
 
 ## Con base, relativa a ella; sin base, en el mundo. Ver BaseRegistry.world_position().
 var position := Vector3.ZERO
@@ -66,13 +69,15 @@ var stance: int = Stance.STANDING
 ##   corner_inside): cuánto giró la normal desde la cara
 ##   donde empezó, en radianes, con signo (ver ActorMotor._hang).
 ## - Hooked: el id de red (peer) del compañero del que cuelga; anchor_t no se usa.
+## - Cable: el cable, y la distancia sobre él desde su origen, en metros.
 var anchor_id := 0
 var anchor_t := 0.0
 ## Hanging: el punto del filo, relativo al origen de la base del ancla (en el
 ## mundo si es geometría fija); doblando, la esquina. La normal del
 ## borde no se guarda: es la contraria a facing_yaw, que mira a la pared.
-## Hooked: dónde están las manos sobre el compañero, en el mundo. Lo usa la
-## presentación; la simulación lo vuelve a calcular cada tick.
+## Hooked: dónde están las manos sobre el compañero, en el mundo. Cable: dónde
+## están las manos sobre el cable, en el mundo. Los dos los usa la presentación;
+## la simulación los vuelve a calcular cada tick.
 var anchor_point := Vector3.ZERO
 ## Id de red (peer) del compañero que cuelga de este actor, o 0. Lo escribe solo
 ## el host, como un evento que sube la época; el motor lo borra cuando este

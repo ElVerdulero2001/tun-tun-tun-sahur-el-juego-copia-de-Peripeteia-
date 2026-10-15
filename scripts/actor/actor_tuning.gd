@@ -99,6 +99,46 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## Con 0,4 la curva es tan larga como la vuelta a una esquina por afuera.
 @export_range(0.05, 1.0, 0.01) var hang_corner_radius := 0.4
 
+@export_group("Cable")
+## Colgado de un cable, el cuerpo cuelga hang_height por debajo de las manos, de
+## frente al cable. Las teclas se toman según la cámara, como caminando, y lo
+## mueven a lo largo del cable hacia donde apuntan, a shimmy_speed (grupo
+## Borde): mirando a lo largo del cable, W y S; mirándolo de costado, A y D.
+## Sin teclas se queda quieto, esté como esté inclinado el cable.
+##
+## Se agarra sin tecla si en un tick el cable toca la parte de arriba del
+## cuerpo (ver cable_grab_body) o las manos, a no más de esto del eje del
+## cuerpo, en metros: el radio del cilindro que detecta el cable. El cuerpo
+## tiene 0,35; con 0,4 el cilindro sobresale 5 cm alrededor.
+@export_range(0.05, 1.0, 0.01) var cable_reach := 0.4
+## Qué parte del cuerpo de parado, desde la cabeza para abajo, agarra el cable:
+## con 0,5, de la mitad para arriba; con 0,3, el 30 % de arriba. Lo de arriba
+## no cambia: siempre cuenta hasta las manos, 15 cm por encima de la cabeza. El
+## cuerpo queda colgado de las manos, así que si el cable lo toca más abajo, el
+## cuerpo baja de golpe hasta que las manos llegan al cable: con 0,5, hasta
+## 1,05 m; con 0,3, hasta 0,69 m. Más chico se ve mejor pero hay que caer más
+## justo.
+@export_range(0.0, 1.0, 0.01) var cable_grab_body := 0.5
+## Si el cable está más inclinado que esto, las teclas hacia donde baja lo
+## hacen deslizarse.
+@export_range(0.0, 89.0, 0.1, "radians_as_degrees") var cable_slide_angle := deg_to_rad(15.0)
+## Las teclas mueven por el cable si apuntan (según la cámara) a menos de
+## este ángulo del cable, para un lado o para el otro; más de costado, no
+## hacen nada. Con 60°: mirando a menos de 60° del cable sirven W y S, y a
+## menos de 60° de mirarlo de costado, A y D; en el medio, todas.
+@export_range(1.0, 90.0, 0.1, "radians_as_degrees") var cable_move_angle := deg_to_rad(60.0)
+## Deslizándose, la velocidad a la que llega es esta por el seno de la
+## inclinación, en m/s: a 25°, unos 5 m/s; a 45°, unos 8,5 m/s. Acelera con la
+## gravedad sobre el cable.
+@export var cable_slide_speed := 12.0
+## En un cable más inclinado que cable_slide_angle, las teclas hacia arriba lo
+## suben a esta velocidad, en m/s: más lento que en uno plano.
+@export var cable_climb_speed := 0.75
+## Frenado al dejar de deslizarse (soltar las teclas, apretar las de para
+## arriba, o que el cable se aplane), en m/s²: con 12, de 5 m/s queda quieto en
+## unos 0,4 s. Apretando las de para arriba, después de frenar sube.
+@export var cable_brake := 12.0
+
 @export_group("Compañero")
 ## Colgarse de un compañero que está agarrado de un borde o de una escalera
 ## (modo Enganchado). Las manos van a la cintura: esta altura sobre sus pies,
@@ -133,6 +173,7 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 @export var ladder_grip := 3
 @export var hang_grip := 3
 @export var hook_grip := 3
+@export var cable_grip := 3
 ## Con un compañero colgado, el agarre del que lo sostiene baja este tanto
 ## (el modificador de carga de la arquitectura).
 @export var hook_load_grip_drop := 1

@@ -65,8 +65,9 @@ static func code_text() -> String:
 
 
 ## Lo que forma el nivel: cada forma de colisión con su lugar en el mundo y
-## sus medidas, y los valores exportados de cada nodo con script (escaleras,
-## plataformas, la balsa, las pistas armadas por código). En el orden del árbol.
+## sus medidas, y los valores exportados y el lugar de cada nodo con script
+## (escaleras, cables, plataformas, la balsa, las pistas armadas por código). En
+## el orden del árbol.
 static func level_text(level: Node) -> String:
 	var text := ""
 	var pending: Array[Node] = [level]
@@ -79,6 +80,9 @@ static func level_text(level: Node) -> String:
 		var script: Script = node.get_script()
 		if script != null:
 			text += "nodo %s\n%s" % [script.resource_path, _exports_text(node, "  ")]
+			# Dónde está: un cable o una escalera en otro lugar cambian la simulación.
+			if node is Node3D:
+				text += "  lugar %s\n" % _value_text((node as Node3D).global_transform)
 		pending.append_array(node.get_children())
 	return text
 

@@ -7,6 +7,8 @@
 [ext_resource type="Script" path="res://scenes/net_lab/step_course.gd" id="5_steps"]
 [ext_resource type="Script" path="res://scenes/net_lab/edge_course.gd" id="6_edges"]
 [ext_resource type="Script" path="res://scenes/net_lab/parkour_tower.gd" id="7_tower"]
+[ext_resource type="Script" path="res://scenes/net_lab/cable_course.gd" id="8_cables"]
+[ext_resource type="Script" path="res://scripts/actor/cable.gd" id="9_cable"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_lab"]
 
@@ -348,6 +350,36 @@ script = ExtResource("6_edges")
 [node name="TorreDeParkour" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19, 0, -19)
 script = ExtResource("7_tower")
+
+[node name="PistaDeCables" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, 10)
+script = ExtResource("8_cables")
+
+[node name="CablePlano" type="Node3D" parent="PistaDeCables"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.9, 0)
+script = ExtResource("9_cable")
+cable_id = 1
+
+[node name="CableA10" type="Node3D" parent="PistaDeCables"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.9, 4)
+script = ExtResource("9_cable")
+cable_id = 2
+end = Vector3(8, 1.4106, 0)
+look = 2
+
+[node name="CableConComba" type="Node3D" parent="PistaDeCables"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 9)
+script = ExtResource("9_cable")
+cable_id = 3
+end = Vector3(10, 0, 0)
+sag = 1.0
+look = 1
+
+[node name="Tirolesa" type="Node3D" parent="PistaDeCables"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.5, 14)
+script = ExtResource("9_cable")
+cable_id = 4
+end = Vector3(10, -4.6631, 0)
 
 [node name="BordeMovil" type="AnimatableBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 1, -5)

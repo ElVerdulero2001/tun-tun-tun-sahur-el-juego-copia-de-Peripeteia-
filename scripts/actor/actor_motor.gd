@@ -6,8 +6,9 @@ extends RefCounted
 ## se puede repetir después de restaurar el estado.
 ##
 ## Sigue el orden fijo de etapas de la arquitectura. Por ahora existen los modos
-## Suelo, Aire, Deslizamiento, Ladder, Hanging y Enganchado (HOOKED: colgado de
-## un compañero), y la postura (parado, agachado o encogido). La etapa de sondas (4)
+## Suelo, Aire, Deslizamiento, Ladder, Hanging, Enganchado (HOOKED: colgado de
+## un compañero) y Cable (colgado de un cable, la Tirolesa de la arquitectura),
+## y la postura (parado, agachado o encogido). La etapa de sondas (4)
 ## revalida el borde agarrado y busca al compañero del que cuelga. Las demás
 ## sondas corren donde se usan: la de suelo en la de contactos, la de espacio
 ## libre en la de postura, la de escalera, la de agarrar un borde y la de
@@ -45,6 +46,8 @@ const CORNER_PROBE := 0.1
 ## cuánto más allá de donde termina queda al terminarla. Así, al volver, la
 ## encuentra otra vez.
 const CORNER_SLACK := 0.005
+## Agarre de un cable: de a cuánto se barre el movimiento del tick, en metros.
+const CABLE_SWEEP_STEP := 0.1
 
 
 static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
@@ -79,6 +82,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	# colgado de un compañero, se lo busca por su id.
 	var edge := _held_edge(body, state, tuning) if state.mode == ActorState.Mode.HANGING else {}
 	var mate: ActorBody = body.teammate(state.anchor_id) if state.mode == ActorState.Mode.HOOKED else null
+	var cable: Cable = Cable.find(state.anchor_id) if state.mode == ActorState.Mode.CABLE else null
 
 	# 5. Transición: como máximo una por tick, decidida por la situación actual.
 	# Cada modo revisa su lista de salidas en orden de prioridad.
@@ -111,7 +115,9 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 					edge = _try_grab_edge(body, state, grab_direction(input.look_yaw), tuning, dt)
 					if edge.is_empty():
 						mate = _try_hook(body, state, grab_direction(input.look_yaw), tuning, dt)
-				if edge.is_empty() and mate == null:
+					if edge.is_empty() and mate == null:
+						cable = _try_grab_cable(body, state, grab_direction(input.look_yaw), tuning, dt)
+				if state.mode == ActorState.Mode.AIR:
 					_try_grab_ladder(body, state, direction)
 		ActorState.Mode.SLIDE:
 			if wants_jump:
@@ -191,6 +197,22 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 					_leave_hook(state, tuning, look * tuning.hang_jump_out + Vector3.UP * tuning.hang_jump_up, true)
 					state.facing_yaw = _yaw_of(look)
 				state.jumped = true
+		ActorState.Mode.CABLE:
+			if cable == null or crouch_held:
+				# Ctrl se suelta, o se rompió el invariante: el cable ya no existe.
+				# Sale con la velocidad que traía sobre el cable.
+				_leave_cable(state, tuning, state.velocity)
+			elif wants_jump:
+				# Salta hacia donde mira la cámara, como colgado de un borde mirando a
+				# otro lado, y se da vuelta hacia allá. Se lleva la velocidad que traía
+				# sobre el cable, sin pasar del tope del salto.
+				var look := Vector3.FORWARD.rotated(Vector3.UP, input.look_yaw)
+				var most := tuning.boost_jump_max_speed if state.boosted else tuning.jump_max_speed
+				var carried := Vector3(state.velocity.x, 0.0, state.velocity.z) + look * tuning.hang_jump_out
+				carried = carried.limit_length(maxf(most, tuning.hang_jump_out))
+				_leave_cable(state, tuning, carried + Vector3.UP * tuning.hang_jump_up)
+				state.facing_yaw = _yaw_of(look)
+				state.jumped = true
 
 	# 6. Modo: el modo activo decide la velocidad.
 	match state.mode:
@@ -208,6 +230,8 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 			# Cuelga quieto: la pose la da el compañero.
 			state.velocity = Vector3.ZERO
 			state.facing_yaw = mate.state.facing_yaw
+		ActorState.Mode.CABLE:
+			_cable(state, cable, input, tuning, dt)
 	if state.mode == ActorState.Mode.SLIDE:
 		if _horizontal_speed(state) > 0.01:
 			state.facing_yaw = _yaw_of(state.velocity)
@@ -219,8 +243,8 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	# arriba desde el colgado) sigue así mientras esté en el aire: al tocar el
 	# piso o agarrarse de algo pide parado. Los modos libres mueven con
 	# move_and_slide(), sin snap en el aire; los anclados (Ladder, Hanging,
-	# Enganchado), con un barrido. En Suelo, si el movimiento chocó, la sonda de
-	# escalón prueba subirlo.
+	# Enganchado, Cable), con un barrido. En Suelo, si el movimiento chocó, la
+	# sonda de escalón prueba subirlo.
 	var wanted := ActorState.Stance.STANDING
 	if state.mode == ActorState.Mode.SLIDE or (crouch_held and not _is_anchored(state)):
 		wanted = ActorState.Stance.CROUCHED
@@ -233,6 +257,8 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		_move_hanging(body, state, edge, tuning)
 	elif state.mode == ActorState.Mode.HOOKED:
 		_move_hooked(body, state, mate, tuning)
+	elif state.mode == ActorState.Mode.CABLE:
+		_move_on_cable(body, state, cable, tuning)
 	else:
 		var snap := 0.0 if state.mode == ActorState.Mode.AIR else tuning.floor_snap_length
 		var start := body.global_transform
@@ -305,7 +331,7 @@ static func _is_anchored(state: ActorState) -> bool:
 
 static func _anchored_mode(mode: int) -> bool:
 	return mode == ActorState.Mode.LADDER or mode == ActorState.Mode.HANGING \
-			or mode == ActorState.Mode.HOOKED
+			or mode == ActorState.Mode.HOOKED or mode == ActorState.Mode.CABLE
 
 
 ## Orientación de una dirección horizontal: 0 mira hacia -Z.
@@ -514,7 +540,8 @@ static func _probe_base(body: ActorBody) -> int:
 ## suelta y sale a Aire con el impulso y un bloqueo de reagarre; si no, el
 ## modo lo proyecta sobre lo que puede moverse (en Ladder, sobre el eje;
 ## colgado, sobre el filo; con un compañero colgado o colgado de un compañero,
-## nada) y el resto se descarta. Con un compañero colgado, el agarre es menor.
+## nada; en un cable, sobre el cable) y el resto se descarta. Con un compañero
+## colgado, el agarre es menor.
 static func apply_impulse(state: ActorState, impulse: Vector3, force: int, tuning: ActorTuning) -> void:
 	var load_drop := tuning.hook_load_grip_drop if state.hooked_by != 0 else 0
 	if state.mode == ActorState.Mode.LADDER:
@@ -532,6 +559,15 @@ static func apply_impulse(state: ActorState, impulse: Vector3, force: int, tunin
 	if state.mode == ActorState.Mode.HOOKED:
 		if force >= tuning.hook_grip:
 			_leave_hook(state, tuning, impulse, true)
+		return
+	if state.mode == ActorState.Mode.CABLE:
+		if force >= tuning.cable_grip:
+			_leave_cable(state, tuning, state.velocity + impulse)
+		else:
+			var cable := Cable.find(state.anchor_id)
+			if cable != null:
+				var tangent := cable.tangent_at(state.anchor_t)
+				state.velocity += tangent * impulse.dot(tangent)
 		return
 	state.velocity += impulse
 	state.mode = ActorState.Mode.AIR
@@ -554,6 +590,11 @@ static func anchored_pose_valid(body: ActorBody, state: ActorState, tuning: Acto
 		if edge.is_empty() or absf(state.anchor_t) >= PI * 0.5:
 			return false
 		return BaseRegistry.world_position(state).distance_to(_hang_pose(edge, tuning)) <= 0.1
+	if state.mode == ActorState.Mode.CABLE:
+		var cable := Cable.find(state.anchor_id)
+		if cable == null or state.anchor_t < 0.0 or state.anchor_t > cable.length() + ActorState.POSITION_STEP:
+			return false
+		return BaseRegistry.world_position(state).distance_to(_cable_pose(cable, state.anchor_t, tuning)) <= 0.1
 	if state.mode != ActorState.Mode.LADDER:
 		return true
 	var ladder := Ladder.find(state.anchor_id)
@@ -1222,6 +1263,177 @@ static func _leave_hook(state: ActorState, tuning: ActorTuning, velocity: Vector
 	if block:
 		state.regrab_id = ActorState.REGRAB_TEAMMATES
 		state.regrab_left = tuning.hang_regrab_time
+	state.jump_buffer_left = 0.0
+	state.coyote_left = 0.0
+
+
+## Cable desde Aire: si cable_check() encuentra un cable del que colgarse, entra
+## al modo Cable; en la etapa 7 de este mismo tick el cuerpo va a la pose. Es un
+## snap lógico, como el agarre de un borde. Devuelve el cable, o null.
+static func _try_grab_cable(body: ActorBody, state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> Cable:
+	var check := cable_check(body, state, direction, tuning, dt)
+	if check["why"] != "":
+		return null
+	var cable: Cable = check["cable"]
+	var t: float = check["t"]
+	body.grab_jump += check["pose"] - _standing_feet(body, state)
+	state.mode = ActorState.Mode.CABLE
+	state.anchor_id = cable.cable_id
+	state.anchor_t = t
+	state.anchor_point = cable.point_at(t)
+	state.velocity = Vector3.ZERO
+	state.facing_yaw = _yaw_of(check["facing"])
+	state.jump_buffer_left = 0.0
+	state.coyote_left = 0.0
+	return cable
+
+
+## La decisión de colgarse de un cable, sin cambiar nada. Sin tecla, como un
+## borde, pero más fácil: alcanza con que en este tick el cable toque la parte
+## de arriba del cuerpo de parado (cable_grab_body: con 0,5, de la mitad para
+## arriba) o las manos, que llegan hasta hang_height por encima de los pies, a
+## no más de cable_reach del eje del cuerpo, mire donde mire la cámara. Se barre el movimiento del tick de a CABLE_SWEEP_STEP, así a mucha
+## velocidad no lo atraviesa sin verlo. Las manos van al punto del cable que
+## tocó, y el cuerpo cuelga debajo, de frente al cable, del lado hacia donde
+## mira la cámara. La pose cabe y el camino hasta ella está libre. Con varios,
+## gana el de id más chico.
+##
+## Devuelve {cable, t, pose, facing, why}: why vacío si se puede, o por qué no
+## (el del último cable mirado). Lo usan el motor y las pruebas. Como en
+## grab_check, agachado no se agarra, y encogido se mide desde los pies de parado.
+static func cable_check(body: ActorBody, state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> Dictionary:
+	var result := {"cable": null, "t": 0.0, "pose": Vector3.ZERO, "facing": Vector3.FORWARD, "why": "sin cable"}
+	if state.regrab_id == ActorState.REGRAB_CABLES or state.stance == ActorState.Stance.CROUCHED:
+		result["why"] = "bloqueo o postura"
+		return result
+	var toward := Vector3(direction.x, 0.0, direction.z)
+	if toward.length_squared() < 0.0001:
+		toward = Vector3.FORWARD.rotated(Vector3.UP, state.facing_yaw)
+	toward = toward.normalized()
+	var from := _standing_feet(body, state)
+	var fall := maxf(state.velocity.y - tuning.gravity * dt, -tuning.max_fall_speed)
+	var motion := Vector3(state.velocity.x, fall, state.velocity.z) * dt
+	var low := body.stance_height(ActorState.Stance.STANDING) * (1.0 - tuning.cable_grab_body)
+	var high := tuning.hang_height
+	var steps := maxi(ceili(motion.length() / CABLE_SWEEP_STEP), 1)
+	for cable: Cable in Cable.all():
+		result["cable"] = cable
+		var touched := false
+		var t := 0.0
+		var point := Vector3.ZERO
+		for i in steps + 1:
+			var feet := from + motion * (float(i) / steps)
+			# El punto del cable más cercano a la franja del cuerpo que agarra,
+			# hasta las manos: primero a su centro, después a la altura de ese punto.
+			t = cable.closest(feet + Vector3.UP * (low + high) * 0.5)
+			point = cable.point_at(t)
+			t = cable.closest(feet + Vector3.UP * clampf(point.y - feet.y, low, high))
+			point = cable.point_at(t)
+			var flat := Vector2(point.x - feet.x, point.z - feet.z).length()
+			if flat <= tuning.cable_reach and point.y >= feet.y + low - 0.01 and point.y <= feet.y + high + 0.01:
+				touched = true
+				break
+		if not touched:
+			result["why"] = "no toca el cable"
+			continue
+		var tangent := cable.tangent_at(t)
+		var across := Vector3.UP.cross(tangent)
+		across.y = 0.0
+		var pose := point + Vector3.DOWN * tuning.hang_height
+		result["t"] = t
+		result["pose"] = pose
+		if across.length_squared() < 0.0001:
+			result["why"] = "cable vertical"
+		elif not body.stance_fits(ActorState.Stance.STANDING, pose):
+			result["why"] = "la pose no cabe"
+		elif body.test_move(body.global_transform, pose - from):
+			result["why"] = "camino tapado"
+		else:
+			across = across.normalized()
+			result["facing"] = across if across.dot(toward) >= 0.0 else -across
+			result["why"] = ""
+			return result
+	return result
+
+
+## Pose colgado de un cable: los pies, hang_height debajo del punto del cable.
+static func _cable_pose(cable: Cable, t: float, tuning: ActorTuning) -> Vector3:
+	return cable.point_at(t) + Vector3.DOWN * tuning.hang_height
+
+
+## Cable, etapa 6: la velocidad va sobre el cable. Sin teclas se queda quieto,
+## esté como esté inclinado. Las teclas se toman según la cámara, como
+## caminando: si apuntan a menos de cable_move_angle del cable, lo mueven hacia
+## ese lado (mirando a lo largo, W y S; mirándolo de costado, A y D); más de
+## costado, nada. Va a shimmy_speed, salvo en un cable más inclinado que
+## cable_slide_angle: hacia arriba sube a cable_climb_speed, y hacia abajo se
+## desliza, acelerando con la gravedad sobre el cable hasta cable_slide_speed
+## por el seno de la inclinación. Soltando las teclas o apretando las de para
+## arriba (y si el cable se aplana) frena a cable_brake. En las puntas se frena
+## en seco.
+static func _cable(state: ActorState, cable: Cable, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
+	if cable == null:
+		return
+	var tangent := cable.tangent_at(state.anchor_t)
+	# Hacia dónde piden ir las teclas, según la cámara, y cuánto de eso va sobre
+	# el cable: positivo hacia la punta `end`.
+	var look := Vector3.FORWARD.rotated(Vector3.UP, input.look_yaw)
+	var asked := look.cross(Vector3.UP) * input.move.x + look * input.move.y
+	var flat := Vector3(tangent.x, 0.0, tangent.z)
+	var press := 0.0
+	if asked.length_squared() > 0.0001 and flat.length_squared() > 0.0001:
+		var lined := asked.normalized().dot(flat.normalized())
+		if absf(lined) >= cos(tuning.cable_move_angle):
+			press = signf(lined) * minf(asked.length(), 1.0)
+	var along := state.velocity.dot(tangent)
+	var slope := asin(clampf(tangent.y, -1.0, 1.0))
+	var steep := absf(slope) >= tuning.cable_slide_angle
+	var downhill := -signf(slope)
+	var wish := press * tuning.shimmy_speed
+	var rate := tuning.climb_accel
+	if steep and press * downhill > 0.0:
+		wish = downhill * tuning.cable_slide_speed * absf(sin(slope))
+		rate = tuning.gravity * absf(sin(slope)) if along * downhill < absf(wish) else tuning.cable_brake
+	else:
+		if steep and press * downhill < 0.0:
+			wish = press * tuning.cable_climb_speed
+		if absf(along) > tuning.shimmy_speed + 0.001:
+			# Venía deslizándose: soltó las teclas, pidió para arriba o el cable se aplanó.
+			rate = tuning.cable_brake
+	along = move_toward(along, wish, rate * dt)
+	var t := state.anchor_t + along * dt
+	var top := cable.length()
+	if t <= 0.0 or t >= top:
+		along = 0.0
+	state.anchor_t = clampf(t, 0.0, top)
+	state.velocity = cable.tangent_at(state.anchor_t) * along
+
+
+## Cable, etapa 7: un barrido hasta la pose del punto del cable. Si algo lo
+## frena, vuelve a donde estaba y se queda quieto ahí. Las manos quedan sobre
+## el cable, para dibujarlas.
+static func _move_on_cable(body: ActorBody, state: ActorState, cable: Cable, tuning: ActorTuning) -> void:
+	if cable == null:
+		return
+	var start := body.global_position
+	var motion := _cable_pose(cable, state.anchor_t, tuning) - start
+	if motion.length_squared() > 1e-12 and body.move_and_collide(motion) != null:
+		body.global_position = start
+		state.anchor_t = cable.closest(start + Vector3.UP * tuning.hang_height)
+		state.velocity = Vector3.ZERO
+	state.anchor_point = cable.point_at(state.anchor_t)
+
+
+## Sale de un cable a Aire con una velocidad y un bloqueo corto de reagarre de
+## cables.
+static func _leave_cable(state: ActorState, tuning: ActorTuning, velocity: Vector3) -> void:
+	state.mode = ActorState.Mode.AIR
+	state.velocity = velocity
+	state.anchor_id = 0
+	state.anchor_t = 0.0
+	state.anchor_point = Vector3.ZERO
+	state.regrab_id = ActorState.REGRAB_CABLES
+	state.regrab_left = tuning.hang_regrab_time
 	state.jump_buffer_left = 0.0
 	state.coyote_left = 0.0
 

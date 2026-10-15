@@ -53,6 +53,9 @@ extends Node3D
 ## --test-input=crouchjump (salta frente a la pared de medidas y se agacha
 ## en el aire), --test-input=ladder (sube y baja por la escalera de la torre)
 ## o --test-input=laddertop (la sube y sale al techo de la torre),
+## --test-input=cable (sube a la plataforma alta de la pista de cables, se
+## agarra de la tirolesa, se desliza con W hasta abajo, frenando una vez a
+## mitad de camino, sube un poco con S y se suelta),
 ## --test-spawn-at=X,Z (solo host), --test-pause-at=TICK (jugando solo: se
 ## pone la pausa en ese tick), --no-adoption y
 ## --test-push-at=S1,S2 y --test-scheduled-push-at=S1,S2 (solo host: empuja a
@@ -257,6 +260,17 @@ var _air_phase := 0
 var _air_since := 0
 var _air_presses := 0
 var air_jumps := 0
+## Prueba `cable`: tramo del ciclo, ticks en el tramo, desde dónde subió, a qué
+## punto del camino de vuelta va, y cuántas veces se agarró, frenó a mitad de
+## camino al soltar W, llegó abajo deslizándose y cuánto subió en total.
+var _cable_phase := 0
+var _cable_ticks := 0
+var _cable_climb_from := 0.0
+var _cable_waypoint := 0
+var cable_grabs := 0
+var cable_slides := 0
+var cable_stops := 0
+var cable_climbed := 0.0
 ## Prueba `hang`: tramo del ciclo, ticks en el tramo, vuelta del ciclo,
 ## pulsaciones de salto propias y cuántas veces se agarró y subió.
 var _hang_phase := 0
@@ -271,6 +285,12 @@ var hang_climbs := 0
 ## Prueba `hanginner`: lo mismo contra el rincón de la pista de bordes; está
 ## detrás de la primera fila, y se llega rodeándola por x = _hang_detour_x.
 const INNER_CORNER_FACE := Vector3(26.5, 0.0, -18.0)
+## Prueba `cable`: la escalera de la plataforma alta y la tirolesa de la pista
+## de cables, y el camino de vuelta desde abajo hasta el pie de la escalera,
+## por detrás de la plataforma.
+const CABLE_LADDER_ID := 6
+const CABLE_ZIPLINE_ID := 4
+const CABLE_RETURN := [Vector3(16.0, 0.0, 27.5), Vector3(9.35, 0.0, 27.5)]
 var _hang_face := Vector3.INF
 var _hang_detour_x := 0.0
 var _hang_shimmy := 30
@@ -593,6 +613,8 @@ func _local_input(tick: int) -> ActorInput:
 		return _hang_input(tick, 0)
 	if test_input == "airjump":
 		return _air_jump_input(tick)
+	if test_input == "cable":
+		return _cable_input(tick)
 	if test_input == "ladder" or test_input == "laddertop":
 		return _ladder_input(tick, test_input == "laddertop")
 	if test_input == "ladderhold":
@@ -787,12 +809,12 @@ func _crouch_jump_input(tick: int) -> ActorInput:
 	return ActorInput.make(tick, Vector2.ZERO, 0.0, buttons, 1 if elapsed >= 20 else 0)
 
 
-## Prueba de escalera: va al pie de la escalera de la torre, se agarra
+## Prueba de escalera: va al pie de la escalera de la torre (u otra, por su id), se agarra
 ## caminando hacia ella y sube y baja entre 0,5 y 2 m. Si la suelta (un
 ## empujón fuerte), vuelve. Con `to_top`, sube hasta arriba, sale al techo de
 ## la torre y se queda ahí.
-func _ladder_input(tick: int, to_top: bool) -> ActorInput:
-	var ladder := Ladder.find(1)
+func _ladder_input(tick: int, to_top: bool, ladder_id := 1) -> ActorInput:
+	var ladder := Ladder.find(ladder_id)
 	if ladder == null or not is_instance_valid(_local_actor):
 		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
 	var s := _local_actor.state
@@ -850,6 +872,77 @@ func _air_jump_input(tick: int) -> ActorInput:
 				_ladder_top_done = false
 			return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _air_presses)
 	return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _air_presses)
+
+
+## Prueba de cables, en ciclos, en la tirolesa de la pista de cables: sube la
+## escalera de la plataforma alta, camina hacia +X hasta caerse por el borde y
+## agarrarse del cable, se desliza con W mirando hacia abajo (a la mitad suelta
+## W medio segundo y frena), sube 1,5 s con S (mirando para abajo, S es para
+## arriba), se suelta con Ctrl y vuelve a la escalera por detrás de la
+## plataforma.
+func _cable_input(tick: int) -> ActorInput:
+	if not is_instance_valid(_local_actor):
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
+	var s := _local_actor.state
+	var me := BaseRegistry.world_position(s)
+	var cable := Cable.find(CABLE_ZIPLINE_ID)
+	var phase := _cable_phase
+	var input := ActorInput.make(tick, Vector2.ZERO, -PI * 0.5, 0, 0)
+	match _cable_phase:
+		0:  # sube la escalera hasta la plataforma
+			if _ladder_top_done and s.mode == ActorState.Mode.GROUND and me.y > 5.0:
+				_cable_phase = 1
+			input = _ladder_input(tick, true, CABLE_LADDER_ID)
+		1:  # camina hacia +X hasta caerse por el borde y agarrarse
+			if s.mode == ActorState.Mode.CABLE:
+				cable_grabs += 1
+				_cable_phase = 2
+				_cable_ticks = 0
+			elif s.mode == ActorState.Mode.GROUND and me.y < 1.0:
+				_cable_phase = 4
+				_cable_waypoint = 0
+			else:
+				input = ActorInput.make(tick, Vector2(0, 1), -PI * 0.5, 0, 0)
+		2:  # se desliza con W mirando hacia abajo; a mitad de camino suelta W y frena
+			_cable_ticks += 1
+			if s.mode != ActorState.Mode.CABLE or cable == null:
+				_cable_phase = 4
+				_cable_waypoint = 0
+			elif _cable_ticks > 60 and s.velocity.length() < 0.001 and s.anchor_t >= cable.length() - 1.0:
+				cable_slides += 1
+				_cable_phase = 3
+				_cable_ticks = 0
+				_cable_climb_from = s.anchor_t
+			else:
+				var resting := _cable_ticks > 40 and _cable_ticks <= 70
+				if _cable_ticks == 70 and s.velocity.length() < 0.001:
+					cable_stops += 1
+				input = ActorInput.make(tick, Vector2.ZERO if resting else Vector2(0, 1), -PI * 0.5, 0, 0)
+		3:  # sube 1,5 s con S y se suelta con Ctrl
+			_cable_ticks += 1
+			if s.mode != ActorState.Mode.CABLE or cable == null:
+				_cable_phase = 4
+				_cable_waypoint = 0
+			elif _cable_ticks <= 90:
+				input = ActorInput.make(tick, Vector2(0, -1), -PI * 0.5, 0, 0)
+			else:
+				cable_climbed += _cable_climb_from - s.anchor_t
+				input = ActorInput.make(tick, Vector2.ZERO, -PI * 0.5, ActorInput.BUTTON_CROUCH, 0)
+				_cable_phase = 4
+				_cable_waypoint = 0
+		4:  # vuelve a la escalera por detrás de la plataforma
+			if s.mode == ActorState.Mode.GROUND:
+				if _cable_waypoint < CABLE_RETURN.size():
+					var target: Vector3 = CABLE_RETURN[_cable_waypoint]
+					if Vector2(target.x - me.x, target.z - me.z).length() < 0.4:
+						_cable_waypoint += 1
+					input = ActorInput.make(tick, _walk_to(me, target), 0.0, 0, 0)
+				else:
+					_cable_phase = 0
+					_ladder_top_done = false
+	if phase != _cable_phase:
+		print("[net_lab] cable: tramo %d en %s, %s" % [_cable_phase, me, s.describe()])
+	return input
 
 
 ## Prueba de Hanging, en ciclos, contra la cara de un bloque de 2 m de la pista
@@ -1827,6 +1920,14 @@ func _update_hud() -> void:
 					"   ·   sobre la base %d" % s.anchor_id if s.anchor_id != 0 else ""])
 		elif s.mode == ActorState.Mode.HOOKED:
 			lines.append("Colgado de la cintura del jugador %d" % s.anchor_id)
+		elif s.mode == ActorState.Mode.CABLE:
+			var cable := Cable.find(s.anchor_id)
+			var slope := absf(rad_to_deg(asin(clampf(cable.tangent_at(s.anchor_t).y, -1.0, 1.0)))) if cable != null else 0.0
+			lines.append("Colgado del cable %d   ·   a %.2f m de su punta   ·   inclinación %.0f°%s" % [s.anchor_id, s.anchor_t, slope,
+					("   ·   te deslizás: soltá las teclas para frenar" if s.velocity.length() > tuning.shimmy_speed + 0.01
+					else "   ·   las teclas hacia abajo te deslizan") if slope >= rad_to_deg(tuning.cable_slide_angle) else ""])
+		elif s.regrab_left > 0.0 and s.regrab_id == ActorState.REGRAB_CABLES:
+			lines.append("Recién soltó un cable: no puede agarrar otro por %.2f s" % s.regrab_left)
 		elif s.regrab_left > 0.0 and s.regrab_id == ActorState.REGRAB_EDGES:
 			lines.append("Recién soltó un borde: no puede agarrar otro por %.2f s" % s.regrab_left)
 		elif s.regrab_left > 0.0 and s.regrab_id == ActorState.REGRAB_TEAMMATES:
@@ -1845,6 +1946,7 @@ func _update_hud() -> void:
 	lines.append("WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse, mientras lo mantengas) · mouse mirar · rueda acerca la cámara, hasta primera persona · Esc suelta el mouse")
 	lines.append("Escalera: Espacio mirándola salta para arriba, mirando a otro lado salta hacia allá")
 	lines.append("Colgado: A y D de costado · Espacio mirando a la pared salta para arriba (con W pasás arriba), mirando a otro lado salta hacia allá · Ctrl se suelta")
+	lines.append("Cable: te agarrás solo · teclas según la cámara · hacia abajo en uno inclinado te deslizás, soltar frena · Espacio salta hacia donde mirás · Ctrl se suelta")
 	lines.append("Cayendo sin haber saltado (te caíste, te soltaste, te empujaron): Espacio salta en el aire, una vez, hacia donde mira la cámara")
 	lines.append("Saltando hacia un compañero colgado de un borde o en una escalera, te colgás de su cintura: ahí Espacio y Ctrl andan igual que colgado")
 	lines.append("1 del teclado numérico: prende o apaga la cámara lenta del mundo, para todos · 2 del teclado numérico: prende o apaga tu súper salto y velocidad")
@@ -1928,6 +2030,8 @@ func _print_summary_and_quit() -> void:
 		print("[net_lab] relevo de prueba: %d paquetes pasaron, %d se tiraron en los cortes" % [_relay.forwarded, _relay.dropped])
 	if test_input == "airjump":
 		print("[net_lab] salto en el aire: %d saltos" % air_jumps)
+	if test_input == "cable":
+		print("[net_lab] cable: %d agarres, %d frenadas a mitad de camino, %d bajadas hasta la punta, subió %.2f m en total; tramo %d" % [cable_grabs, cable_stops, cable_slides, cable_climbed, _cable_phase])
 	if test_input == "tunnel":
 		print("[net_lab] túnel: llegó al tramo %d; ticks parado bajo el techo: %d" % [_tunnel_phase, _tunnel_standing_under_roof])
 	if test_input == "steps":

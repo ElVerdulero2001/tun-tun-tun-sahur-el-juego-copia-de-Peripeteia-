@@ -321,9 +321,20 @@ func present(actor_state: ActorState) -> void:
 	# Colgado: las manos sobre el filo, a los costados. Colgado de un compañero,
 	# sobre su cintura. Cuelgan del cuerpo y no del dibujo, así quedan donde
 	# agarran mientras el dibujo se acomoda.
-	var holding := actor_state.mode == ActorState.Mode.HANGING or actor_state.mode == ActorState.Mode.HOOKED
+	var holding := actor_state.mode == ActorState.Mode.HANGING or actor_state.mode == ActorState.Mode.HOOKED \
+			or actor_state.mode == ActorState.Mode.CABLE
 	for i in _hands.size():
 		_hands[i].visible = holding
+	if actor_state.mode == ActorState.Mode.CABLE:
+		# Colgado de un cable: las manos sobre el cable, una a cada lado del punto
+		# donde cuelga, siguiendo su inclinación.
+		var cable := Cable.find(actor_state.anchor_id)
+		var along := cable.tangent_at(actor_state.anchor_t) if cable != null else Vector3.RIGHT
+		var grip := actor_state.anchor_point - BaseRegistry.world_position(actor_state)
+		for i in _hands.size():
+			_hands[i].position = grip + along * (0.15 if i == 0 else -0.15)
+			_hands[i].rotation.y = actor_state.facing_yaw
+		return
 	if holding:
 		var toward := Vector3.FORWARD.rotated(Vector3.UP, actor_state.facing_yaw)
 		var right := toward.cross(Vector3.UP)

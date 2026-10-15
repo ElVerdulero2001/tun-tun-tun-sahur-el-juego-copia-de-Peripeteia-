@@ -44,6 +44,8 @@ clock = NodePath("../Clock")
 [node name="Tuning" type="Node" parent="." unique_id=866820587]
 script = ExtResource("8_tuning")
 ladder_jump_up = 1.2
+cable_reach = 0.6000000000000001
+cable_grab_body = 0.3
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=1623118060]
 physics_interpolation_mode = 2

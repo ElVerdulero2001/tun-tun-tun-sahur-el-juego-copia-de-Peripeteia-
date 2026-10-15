@@ -1,7 +1,7 @@
 # Arquitectura de movimiento co-op y esqueleto de red: todo lo hecho hasta ahora
 
 **Proyecto:** tun-tun-tun-sahur · **Motor:** Godot 4.7.2 estable con Jolt Physics (`3d/physics_engine="Jolt Physics"` en `project.godot`).
-**Período:** del 2026-10-01 a las 20:41 al 2026-10-14 a las 15:41. Todas las horas están en hora de Argentina (UTC−3).
+**Período:** del 2026-10-01 a las 20:41 al 2026-10-14 a las 21:07. Todas las horas están en hora de Argentina (UTC−3).
 **Documento de arquitectura original:** [Arquitectura de movimiento co-op (Godot 4.7 + Jolt)](https://claude.ai/code/artifact/6760c3bf-39ed-4f2f-8d9d-23642c7ac797), en Claude Docs. Está copiado completo en el Apéndice A.
 
 **Historial de este documento:**
@@ -35,7 +35,7 @@
     - que el cuerpo sigue girando hacia donde camina.
 
   El Apéndice A y el documento de Claude Docs (revisión 68) quedaron con notas en seis lugares.
-- **Esta actualización:** pedida el 2026-10-14 a las 14:35: "actualiza el md con todo lo agregado hasta ahora". Suma las secciones 8.11 a 8.18, con lo hecho del 2026-10-10 a la noche al 2026-10-14:
+- **Novena versión:** pedida el 2026-10-14 a las 14:35, commit `5a06178` (15:47): "actualiza el md con todo lo agregado hasta ahora". Suma las secciones 8.11 a 8.18, con lo hecho del 2026-10-10 a la noche al 2026-10-14:
     - la diferencia de 0,1 mm, resuelta; la reconexión después de un corte; y la rama propia del laboratorio, `net-lab`, con todos los commits copiados y otros hashes (sección 8.11);
     - lo que se tomó de una revisión externa hecha con GPT: las dos PC comprueban al conectarse que tienen el mismo Tuning, código y nivel, y el host valida lo que le manda el cliente (sección 8.12);
     - los poderes en el teclado numérico: una sola cámara lenta, en el 1, y el súper salto y velocidad, en el 2, los dos de prender y apagar; los saltos más cortos y el corte del deslizamiento al soltar Ctrl (sección 8.13). La cámara lenta personal se sacó: había sido idea mía y no del usuario, y eso corrige lo que decía la sección 8.9;
@@ -46,6 +46,13 @@
     - la demora de la cámara lenta y la lista de mecánicas que dependen de un buen internet (sección 8.18).
 
   Primero se pidió solo este documento. Después, a las 15:41, "agrega las notas en los dos y despues hace el commit local": el documento de Claude Docs (revisión 69) y su copia en el Apéndice A suman notas en once lugares. Como en las versiones anteriores, no se borró nada; donde algo cambió, se aclara qué era antes.
+- **Esta actualización:** pedida el 2026-10-14 a las 21:07: "actualiza el md y el claude doc con los cables". Suma la sección 8.19, los cables:
+    - la primera versión, que se agarraba como un borde y se deslizaba sola en los cables inclinados;
+    - el rediseño después de probarla: se agarra con tocar el cuerpo, y se queda quieto en cualquier inclinación;
+    - la segunda vuelta: el alto de la detección en el Tuning y las teclas según la cámara;
+    - un error viejo del redondeo del input, que apareció al probarlos en red.
+
+  El documento de Claude Docs (revisión 71) y su copia en el Apéndice A suman notas en cuatro lugares. Los números de las pruebas se volvieron a correr con los valores que dejó el usuario en la escena. A las 22:34, "hace commit local del md": va en un commit propio, solo local.
 
 Este documento junta todo lo que se hizo, sin recortes:
 
@@ -54,7 +61,7 @@ Este documento junta todo lo que se hizo, sin recortes:
 - el plan de 8 pasos del esqueleto de red y en qué se apartó la implementación;
 - cada paso implementado, con sus archivos, decisiones, problemas, pruebas automáticas, mediciones y pruebas en dos PC reales;
 - la validación de la arquitectura, punto por punto: base propia, postura y espacio libre, escalera con empujones programados e inmediatos, el escalón, Hanging con snap, colgarse de un compañero y la cámara lenta; después, la segunda vuelta de la escalera, los valores en el Inspector y la primera persona;
-- lo que siguió a la validación: la reconexión, la rama propia, los controles de una revisión externa, los poderes del teclado numérico, el cuerpo encogido en el salto desde el colgado, la torre de parkour, doblar esquinas colgado, el salto en el aire y lo que depende de un buen internet;
+- lo que siguió a la validación: la reconexión, la rama propia, los controles de una revisión externa, los poderes del teclado numérico, el cuerpo encogido en el salto desde el colgado, la torre de parkour, doblar esquinas colgado, el salto en el aire, lo que depende de un buen internet y los cables;
 - el estado actual del código, los formatos de red y las constantes;
 - cómo usar el laboratorio;
 - los hechos de Godot y Jolt que se comprobaron en el camino, los errores (incluidos los míos) y cómo se arreglaron;
@@ -119,7 +126,7 @@ Este documento junta todo lo que se hizo, sin recortes:
     - la rueda del mouse mueve la cámara sobre una guía editable, de tercera persona hasta primera persona;
     - las manos buscan un borde o un compañero hacia donde mira la cámara. El cuerpo sigue girando hacia donde camina; al apuntar con armas, cuando existan, va a seguir a la cámara;
     - las pruebas de un proceso corren sin esperar al reloj: la de repetición, de 96,6 s a 9 s.
-- **Lo que siguió a la validación** (secciones 8.11 a 8.18), todo probado en las dos PC y commiteado, salvo la 8.18, que no tocó código:
+- **Lo que siguió a la validación** (secciones 8.11 a 8.19), todo probado en las dos PC y commiteado, salvo la 8.18, que no tocó código:
     - **la diferencia de 0,1 mm** del salto con cámara lenta era un error real de determinismo: según el cuadro en que corría un tick, la posición podía caer en otro paso de 0,1 mm. Resuelto;
     - **la reconexión:** si se corta la red, el cliente reintenta solo y el host deja al jugador quieto en el mundo hasta 60 s; al volver sigue donde estaba, también si estaba colgado de un compañero;
     - **la rama propia, `net-lab`:** `main` más los commits del laboratorio, copiados con otros hashes. Lo del parkour sin commitear quedó guardado en git;
@@ -129,15 +136,16 @@ Este documento junta todo lo que se hizo, sin recortes:
     - **la torre de parkour:** 12 m, 9 tramos con escalones, bordes, un saliente, techos bajos, escaleras, un hueco con pilar y nicho, y un muro con cajón;
     - **doblar esquinas colgado:** por afuera, en un cuarto de círculo; por adentro, en una curva de 0,4 m de radio;
     - **el salto en el aire:** cayendo sin haber saltado, Espacio salta una vez, tan alto como desde el piso y hacia donde mira la cámara;
-    - **lo que depende de un buen internet:** la lista que pidió el usuario, con las correcciones de la balsa y la demora de la cámara lenta.
+    - **lo que depende de un buen internet:** la lista que pidió el usuario, con las correcciones de la balsa y la demora de la cámara lenta;
+    - **los cables:** rectos o con comba, dibujados como tubo, cadena o textura. Se agarran sin tecla si el cable toca la parte de arriba del cuerpo, de cualquier altura y a cualquier velocidad. Sin teclas se queda quieto en cualquier inclinación; las teclas van según la cámara, y en uno inclinado, hacia abajo se desliza. Probarlos en red sacó a la luz un error viejo del redondeo del input, que la adopción tapaba.
 - **La notebook se actualiza con un doble clic** desde una carpeta compartida de esta PC. Reemplazó a los zips desde el escalón (sección 6.2).
-- **Treinta y cinco commits del laboratorio,** hoy en la rama `net-lab`. Los primeros 26, de esta lista, se hicieron en la rama `codex/parkour-v3-h0-lab` y el 2026-10-11 se copiaron a `net-lab` con otros hashes (la tabla de equivalencias está en la sección 15). En este resumen y en las secciones 7 y 8.1 a 8.10 van con sus hashes de la rama vieja:
+- **Treinta y ocho commits del laboratorio,** hoy en la rama `net-lab`. Los primeros 26, de esta lista, se hicieron en la rama `codex/parkour-v3-h0-lab` y el 2026-10-11 se copiaron a `net-lab` con otros hashes (la tabla de equivalencias está en la sección 15). En este resumen y en las secciones 7 y 8.1 a 8.10 van con sus hashes de la rama vieja:
     - el esqueleto de red: `d75ef67`, `9cd1936`, `7547de1` y `c0e0421`;
-    - las ocho primeras versiones de este documento y una corrección: `9caaec3`, `375d419`, `fa26986`, `048dc4d`, `2314f18`, `9e4753e`, `f86b80f`, `1988808` y `b419717`;
+    - las nueve primeras versiones de este documento y una corrección: `9caaec3`, `375d419`, `fa26986`, `048dc4d`, `2314f18`, `9e4753e`, `f86b80f`, `1988808`, `b419717` y `5a06178`;
     - la validación: `600002a`, `25f7806`, `cb71b16`, `91a4433`, `b907dae` (escalón), `3cdcc91` (Hanging), `3825c2b` (salto para arriba), `bd2157b` (agarre subiendo), `f39ba70` (colgarse de un compañero, con cambio de línea), `e21d6c6` (colgado, predicho), `c408ad6` (cámara lenta), `b7403fb` (el arreglo del temblor) y `f7640fb` (la segunda vuelta de la escalera, Tuning y la primera persona);
-    - después, ya en `net-lab`: `1184427` (los 0,1 mm), `97d23cc` (reconexión), `1dba5db` (copias iguales y validación), `599628b` (una sola cámara lenta), `a1f9084` (súper salto y velocidad), `7f9b3e5` (encogido), `245d55a` (torre), `8e5bd15` (esquinas) y `f855536` (salto en el aire).
+    - después, ya en `net-lab`: `1184427` (los 0,1 mm), `97d23cc` (reconexión), `1dba5db` (copias iguales y validación), `599628b` (una sola cámara lenta), `a1f9084` (súper salto y velocidad), `7f9b3e5` (encogido), `245d55a` (torre), `8e5bd15` (esquinas), `f855536` (salto en el aire), `a099f95` (el redondeo del input) y `7dd59ca` (cables).
 
-  Esta novena versión del documento va en un commit propio, el número 36, solo local. El usuario subió la rama vieja a GitHub cinco veces, del 2026-10-09 al 2026-10-10, y el 2026-10-10 a las 19:13 se subió desde la sesión hasta `b419717`. `net-lab` se subió el 2026-10-11 a las 20:55, hasta `e1d9eb9`. Los 9 commits siguientes son solo locales: el 2026-10-12 el usuario pidió "por ahora no hacemos push del commit, dejémoslo solo en local" (sección 15).
+  La novena versión de este documento es el commit 36, `5a06178`, y los cables, los 37 y 38. Esta décima versión va en un commit propio, el número 39, solo local. El usuario subió la rama vieja a GitHub cinco veces, del 2026-10-09 al 2026-10-10, y el 2026-10-10 a las 19:13 se subió desde la sesión hasta `b419717`. `net-lab` se subió el 2026-10-11 a las 20:55, hasta `e1d9eb9`. Los 12 commits siguientes son solo locales: el 2026-10-12 el usuario pidió "por ahora no hacemos push del commit, dejémoslo solo en local" (sección 15).
 - **Cambios pendientes:** en `net-lab`, `git status` muestra solo cosas que no son del laboratorio:
     - `project.godot`, con el cambio de versión 4.6 → 4.7 que hizo el editor. Las cuatro acciones del Mapa de entrada que agregó el laboratorio sí están commiteadas;
     - archivos sin seguir: las carpetas `archive/`, `docs/parkour/`, `output/` (con la revisión de GPT) y `tmp/` (la copia del código que dejó esa revisión); `parkour_3d_godot_investigacion_arquitectura.md`; el temporal del editor `project.godot~RF78902d2f.TMP`; y 46 modelos y texturas de `assets/models/`.
@@ -201,7 +209,10 @@ Este documento junta todo lo que se hizo, sin recortes:
 | Doblar esquinas colgado | Vuelta entera a una columna; la curva del rincón, sin saltos, a 0,40 m o más de las paredes; en red, 0 correcciones también con internet mala |
 | Salto en el aire | Sube 1,138 m contra 1,139 desde el piso; sale hacia la cámara; 0 correcciones en red |
 | Demora de la cámara lenta desde que se aprieta el 1 | 0,1 s en la red de la casa; 0,25 a 0,33 s con internet mala, también si aprieta el host. Aceptada como algo que depende de un buen internet |
-| Repetición determinista, hoy | 5.607 repeticiones y 250.497 ticks idénticos, a 60 y con el ritmo variando; huella `0da3362442e559bf` |
+| Cables, sin red (`diag_cables.gd`) | 58 comprobaciones: se agarra cayendo a 40 m/s y cruzando el cable a 60 m/s; quieto en cualquier inclinación; a 25°, con W mirando hacia abajo, hasta 5,07 m/s; frena en 23 ticks soltando W, y en 8 con S |
+| Cables en red y en dos PC | 0 correcciones y 0 adoptadas, también con internet mala; en la notebook con +200 ms, 5.357 coincidencias y 0 correcciones |
+| El input rehecho en el host | De 197 direcciones distintas, de 20.000, a 0 |
+| Repetición determinista, hoy | 5.607 repeticiones y 250.497 ticks idénticos, a 60 y con el ritmo variando; con los valores de la escena, huella `9c40e65ecd396f6a` (29 ticks en un cable) |
 
 ---
 
@@ -365,9 +376,15 @@ Este documento junta todo lo que se hizo, sin recortes:
 | 2026-10-14 13:43–13:48 | Prueba en las dos PC. Commit `f855536`. Aviso: con el perfil 4, el súper "se activa con retraso". |
 | 2026-10-14 13:49–13:57 | El súper no tiene demora; "era la camara lenta" (13:52). La demora de la cámara lenta, medida: 0,1 s sin red simulada y hasta 0,33 s con internet mala. "Dejarla así". |
 | 2026-10-14 14:24–14:28 | "¿no hay forma de darle al del mal internte la camara lenta? [...] falsear por un momento". En parte. "deja nomas, metelo dentro de las mecanicas dependientes de un buen internet". |
-| 2026-10-14 14:35 | "actualiza el md con todo lo agregado hasta ahora": esta actualización. |
+| 2026-10-14 14:35 | "actualiza el md con todo lo agregado hasta ahora": la novena versión. |
 | 2026-10-14 15:39 | La pregunta abierta sobre soltar solo Shift en el deslizamiento: "con respecto al deslizamiento, déjalo como esta". |
-| 2026-10-14 15:40–15:41 | "¿que falta agregar a los md?": las notas del documento de arquitectura. "agrega las notas en los dos y despues hace el commit local": once notas en el documento de Claude Docs (revisión 69) y en el Apéndice A, y el commit de esta versión. |
+| 2026-10-14 15:40–15:47 | "¿que falta agregar a los md?": las notas del documento de arquitectura. "agrega las notas en los dos y despues hace el commit local": once notas en el documento de Claude Docs (revisión 69) y en el Apéndice A, y el commit de la novena versión, `5a06178` (15:47). |
+| 2026-10-14 15:57–16:03 | "bien, ahora vamos por los cables, tanto 3D como texturas alargadas". Cinco preguntas: según la pendiente (deslizarse si pasa un ángulo, y subir más lento), sin tecla, rectos o con comba, Espacio y Ctrl como en un borde, y A y D de costado. |
+| 2026-10-14 16:03–18:03 | El modo Cable, el nodo `Cable` con tubo, cadena y textura, y la pista de cables, agregada al nivel con Godot cerrado (17:42). Un error viejo del redondeo del input, encontrado y arreglado. |
+| 2026-10-14 19:19–19:44 | "me tiro directamente a la cadena o cuerda pero no me agarro" y "te podes quedar quieto en cualquier punto sin que el angulo te afecte". Dos preguntas (19:20); se agarra con tocar el cuerpo de la mitad para arriba, y se desliza con W mirando hacia abajo. |
+| 2026-10-14 20:14–20:30 | Con un dibujo: un valor en el Tuning para el alto de la detección, y las teclas "usar como referencia la direccion de la camara". Dos preguntas (20:16); hecho. |
+| 2026-10-14 20:52–21:06 | `cable_grab_body` en 0,3; la detección es un cilindro; el ancho, un deslizador (20:55), en 0,6. Prueba en las dos PC, también con +200 ms. Commits `a099f95` y `7dd59ca`. |
+| 2026-10-14 21:07–22:34 | "actualiza el md y el claude doc con los cables": esta actualización, con cuatro notas en el documento de Claude Docs (revisión 71). "hace commit local del md" (22:34). |
 
 ---
 
@@ -1276,7 +1293,7 @@ El documento de arquitectura termina con una lista, "Qué validan las primeras p
 | 6 | Una interacción con cambio de línea: sujetar a un compañero | Hecho, probado en dos PC, como "colgarse de un compañero": commits `f39ba70` (con el cambio de línea) y `e21d6c6` (predicho, a pedido después de la primera prueba). Sección 8.8 |
 | 7 | Cámara lenta del mundo y personal | Hecho, probado en dos PC, con dos arreglos que salieron de la prueba: commits `c408ad6` (la cámara lenta, con las cámaras lentas al que se conecta tarde) y `b7403fb` (el temblor estando quieto, que venía del paso 7). Sección 8.9. La personal se sacó el 2026-10-12 (sección 8.13) |
 
-Con la lista completa, lo que siguió no es parte de ella: pedidos del usuario y pendientes técnicos (secciones 8.10 a 8.18). Los hashes de esta sección son los de la rama vieja, `codex/parkour-v3-h0-lab`. Desde el 2026-10-11 el laboratorio va en la rama `net-lab`, con los mismos commits copiados y otros hashes (sección 15).
+Con la lista completa, lo que siguió no es parte de ella: pedidos del usuario y pendientes técnicos (secciones 8.10 a 8.19). Los hashes de esta sección son los de la rama vieja, `codex/parkour-v3-h0-lab`. Desde el 2026-10-11 el laboratorio va en la rama `net-lab`, con los mismos commits copiados y otros hashes (sección 15).
 
 | Sección | Qué | Commit en `net-lab` |
 | --- | --- | --- |
@@ -1289,6 +1306,7 @@ Con la lista completa, lo que siguió no es parte de ella: pedidos del usuario y
 | 8.16 | Colgado, doblar esquinas | `8e5bd15` |
 | 8.17 | El salto en el aire | `f855536` |
 | 8.18 | La demora de la cámara lenta y lo que depende de un buen internet | Sin código |
+| 8.19 | Los cables, y el redondeo del input | `a099f95` y `7dd59ca` |
 
 Cada punto siguió la misma rutina:
 
@@ -3644,6 +3662,152 @@ La respuesta: en parte. El personaje propio se podría poner lento al instante d
 
 No se cambió código.
 
+### 8.19 Los cables (2026-10-14)
+
+#### El pedido (15:57)
+
+> bien, ahora vamos por los cables, tanto 3D como texturas alargadas.
+
+Venía de la lista del parkour del 2026-10-12, "que sean tanto un modelo 3D o una textura larga", donde faltaba saber qué se hace en ellos (sección 16). A las 15:58, cuatro preguntas con opciones, respondidas a las 16:01:
+
+| Pregunta | Opciones | Respuesta |
+| --- | --- | --- |
+| Una vez agarrado del cable, ¿qué hacés? | Avanzar con las manos, deslizarse como en una tirolesa, o según la pendiente | "medio que una mezcla de las tres opciones, si el cable tiene menos de x inclinacion, vos con las teclas moves al player, pero si supera ese valor, empieza a deslizarse con respecto al angulo del cable, mientras mas angulo, mas rapido caes. Pero los cables con angulo no impiden poder escalarlos, podes hacerlo, solo que te toma mas tiempo." |
+| ¿Cómo te agarrás del cable? | Sin tecla, como un borde, o con una tecla | "Sin tecla, como un borde" |
+| ¿Cómo es el cable? | Recto y quieto, con comba y quieto, o que se mueve con el peso | "puede ser tanto recto como cóncavo" |
+| Colgado del cable, ¿Espacio y Ctrl andan igual que colgado de un borde? | Igual, u otra cosa | "Igual que en un borde" |
+
+A las 16:02, una más: hacia dónde mira el cuerpo y con qué teclas se mueve por el cable. Las opciones eran de costado con A y D, a lo largo con W y S, o según la cámara. A las 16:03: "De costado, con A y D".
+
+#### Primera versión (17:26 en el motor; 18:03 en el nivel)
+
+Lo que las respuestas no decían lo elegí yo, y se le avisó:
+
+- Espacio salta siempre hacia donde mira la cámara. No hay salto para arriba como en el borde, porque no hay pared.
+- Saltando a lo largo del cable, al caer se vuelve a agarrar más adelante.
+- Ctrl se suelta con la velocidad que traía, y Espacio también se la lleva, con el tope del salto.
+- Nadie se puede colgar de un compañero que está en un cable.
+
+Que el cable sea una línea invisible y lo de afuera solo el dibujo fue idea mía del 2026-10-12; el usuario no la objetó.
+
+- **El modo Cable** (`CABLE = 6`) es la Tirolesa de la arquitectura. En el estado no suma bytes: `anchor_id` es el número del cable; `anchor_t`, la distancia sobre el cable desde su origen, en metros; y `anchor_point`, dónde están las manos, en el mundo, para dibujarlas. No tiene base. Al soltarse, `REGRAB_CABLES` (0xFFFD) bloquea todos los cables por `hang_regrab_time` (0,3 s).
+- **El nodo `Cable`** (`scripts/actor/cable.gd`): una línea del nodo hasta `end`, recta o con `sag` metros de comba en el medio (una parábola), partida en tramos de 25 cm. Sabe su largo, el punto y la dirección a cierta distancia de su origen, y la distancia de su punto más cercano a otro punto. Se anota por número (`cable_id`) y avisa si dos tienen el mismo. El dibujo va aparte (`look`):
+    - **Tubo,** de 8 lados;
+    - **Modelo,** una malla repetida a lo largo del cable; por defecto, eslabones de cadena armados con toroides;
+    - **Textura,** una tira que siempre mira a la cámara; por defecto, una textura de soga que arma el código.
+
+  Grosor, color, material, modelo, textura y cada cuánto se repite la textura van en el Inspector. Se ve también en el editor.
+- **El agarre, como un borde:** las manos, a 1,95 m de los pies, tenían que pasar en ese tick por la altura del cable (subiendo, recién cuando llegaban), a no más de 35 cm (`hang_snap_max`), y el cable no podía quedar detrás de donde miraba la cámara. El cuerpo cuelga debajo del cable, de frente a él, del lado hacia donde mira la cámara. La pose tiene que caber y el camino hasta ella estar libre; con varios cables, gana el de número más chico.
+- **Moverse:** A y D, a la izquierda y a la derecha del cuerpo, a 1,5 m/s, mire donde mire la cámara. En un cable de más de 15° (`cable_slide_angle`) se deslizaba solo para abajo, acelerando con la gravedad sobre el cable hasta 12 m/s por el seno de la inclinación (`cable_slide_speed`: unos 5 m/s a 25°). Con la tecla hacia arriba subía a 0,75 m/s (`cable_climb_speed`). Donde el cable se aplanaba frenaba a 4 m/s² (`cable_brake`). En las puntas frena en seco.
+- **Salidas:** Ctrl se suelta. Espacio salta hacia la cámara, a 4 m/s hacia allá y 4 para arriba (los valores de colgado), y el cuerpo se da vuelta. Un empujón con fuerza menor que `cable_grip` (3) se lleva sobre el cable; uno más fuerte lo suelta. El host valida la pose: a 10 cm o menos de la del cable, y dentro de su largo.
+- **El dibujo:** las manos van sobre el cable, una a cada lado del punto, siguiendo la inclinación. El agarre se ve suavizado, como el de un borde.
+- **La pista de cables** (`scenes/net_lab/cable_course.gd`, nodo `PistaDeCables` del nivel, en (14, 0, 10)). Tiene cuatro cables, cada uno con su cartel:
+    - uno plano, a 2,9 m, entre dos postes, con tubo;
+    - uno a 10°, con textura;
+    - uno con 1 m de comba entre dos plataformas de 2,5 m, con cadena;
+    - una tirolesa a 25° desde una plataforma de 6 m con escalera (la 6), con tubo.
+
+  El poste de arriba de la tirolesa tapaba el camino hacia el cable. Quedó al costado, con un brazo por encima de la cabeza que es solo dibujo.
+- **La prueba en red `cable`:** sube la escalera de la plataforma alta, camina hasta caerse por el borde y agarrarse de la tirolesa, baja, sube un poco y se suelta. Después vuelve por detrás de la plataforma, en ciclos.
+- **La huella del nivel** (sección 8.12) suma el lugar de cada nodo con script. Antes tomaba sus valores, pero no dónde estaban, y un cable o una escalera en otro lugar cambian la simulación.
+
+Agregar la pista cambiaba la escena, y Godot estaba abierto: se agregó después de que el usuario lo cerró (17:42). Para ver los tres dibujos sin abrir el juego, se sacaron fotos de la pista con Movie Maker.
+
+**Un error viejo que apareció al probar en red.** La primera prueba en red dio 140 afirmaciones adoptadas, con diferencias de 1 mm, y no tenía por qué: sin red simulada, host y cliente calculan lo mismo. El host rehace con `ActorInput.make` el input que recibe (en `NetSync.input_for`), y eso no daba lo mismo que la primera vez. Redondeados a 1/127, los dos ejes pueden quedar apenas más largos que 1: 0,976 y −0,236 dan 1,0045. Al rehacerlo, se achicaban otra vez y daban otro paso. Con direcciones al azar pasaba en 197 de 20.000. Con las ocho del teclado no pasa; sí con un joystick o con las direcciones que arma la prueba al volver caminando. La adopción lo tapaba. Ahora `make` achica el eje más largo de a un paso hasta que el largo no pase de 1: 0 de 20.000, y la prueba de los cables pasó a 0 adoptadas. Va en un commit aparte, `a099f95`.
+
+| Prueba (primera versión) | Resultado |
+| --- | --- |
+| Cables armados en una prueba aparte (`diag_cables.gd`): plano, a 10°, a 25° y con comba | Las 28 comprobaciones. Saltando debajo, se agarra; mirando para el otro lado o a 60 cm, no. En el plano, A y D a 1,5 m/s, y quieto sin teclas. A 10° no se desliza; a 25° llega a 5 m/s y sube a 0,75 m/s; con comba, frena antes del medio. Ctrl, Espacio, empujones, repetir ticks y validar la pose |
+| La pista en el nivel (`diag_cables_nivel.gd`) | No la toca nada, ni la balsa moviéndose. La escalera 6 y los cuatro cables, registrados: 8, 8,12, 10,26 y 11,03 m |
+| En red, `cable`: sin red simulada, con internet mala y con otro mirando | 0 correcciones, y desde el arreglo del input, 0 adoptadas |
+| Regresiones: colgarse, compañero, túnel, escalera, salto en el aire, esquinas, repetición y barrido | Igual que antes; la huella de la repetición, `0da3362442e559bf` |
+
+#### El rediseño después de probarla (19:19)
+
+> joya, anda bien, no se como le hiciste con la cadena, pero se ve piola. Volviendo al tema, se mueve correctamente, no como tenia pensado que funciona, pero por lo menos la idea básica corre correctamente. Tenemos que cambiar como es que se cuelga, no es que lo haga mal, pero reciclar el mecanismo de los bordes de paredes (creo que así lo hiciste) no es suficiente, porque me tiro directamente a la cadena o cuerda pero no me agarro. Desde el punto de vista de gameplay eso es malísimo, uno ve un cable y lo primero que espera es tirarse de cualquier altura y no importa donde caigas, te agarras igual. Lo otro es con respecto a los angulos y los deslizamientos, no estan mal, me gustan, pero no es como lo esperaba [...] te podes quedar quieto en cualquier punto sin que el angulo te afecte. [...] para que se deslice tiene que tener apretada la tecla W y mirar hacia donde cae el cable (la pendiente hacia abajo). De esta manera si desea detenerse, simplemente aprieta la tecla S [...]
+
+Dos preguntas (19:20), respondidas a las 19:22:
+
+| Pregunta | Respuesta |
+| --- | --- |
+| Cayendo desde arriba sobre el cable, ¿cuándo te agarrás: cuando te toca el cuerpo, o cuando llegan las manos? | "no es directamente tocar el cuerpo, aunque a partir de cierta velocidad si va a ser un requisito, pero mientras toque desde la mitad de la capsula es suficiente. Aclaro lo de altas velocidades por lo del efecto tunel este, pero el player tendria que moverse como a mil y pico kilometros por hora, asi que dudo que pase." |
+| Deslizándote, ¿qué te hace parar: solo S, o soltar W o apretar S? | "Soltar W o apretar S" |
+
+**Cómo quedó (19:44):**
+
+- **El agarre:** alcanza con que en el tick el cable toque el cuerpo de la mitad para arriba, hasta las manos, a no más de 40 cm del eje del cuerpo (`cable_reach`), mire donde mire la cámara. Se mira todo el movimiento del tick, de a 10 cm (`CABLE_SWEEP_STEP`): así no se lo atraviesa sin verlo, aunque se vaya a 60 m/s. Las manos van al punto que tocó, y el cuerpo baja hasta quedar colgado de ellas. Si el cable le toca solo las piernas, no se agarra; con Ctrl apretado, tampoco.
+- **Quieto en cualquier inclinación:** sin teclas no se mueve.
+- **Deslizarse:** en un cable de más de 15°, W mirando hacia donde baja (a menos de 60°, `cable_look_angle`) lo desliza, con la aceleración y la velocidad de antes. Soltando W o apretando S, frena a 12 m/s² (`cable_brake`, que era 4): de 5 m/s, en unos 0,4 s.
+- **A y D,** como antes. En un cable inclinado, hacia arriba van a 0,75 m/s, y hacia abajo a 1,5 m/s, sin deslizarse.
+
+Los 40 cm, los 60° y el frenado los elegí yo, y se le avisó.
+
+| Prueba (rediseño) | Resultado |
+| --- | --- |
+| `diag_cables.gd`, puesto al día | Las 48. Se agarra cayendo de 5 m, cayendo a 40 m/s (0,67 m por tick) y cruzando el cable de costado a 60 m/s (1 m por tick, sin que ningún tick termine cerca); a 60 cm, no. Mirando para el otro lado o corriendo y saltando, también se agarra. Con el cable a 60 cm del piso, que solo toca las piernas, no. A 25°: quieto sin teclas; W mirando para arriba, de costado o a 70°, nada; mirando para abajo, hasta 5,07 m/s; soltando W frena en 23 ticks, y con S, en 8 |
+| En red, `cable`, ahora con W mirando hacia abajo y una frenada a mitad de camino | 4 agarres, 4 frenadas y 4 bajadas por corrida; 0 correcciones y 0 adoptadas, sin red simulada, con internet mala y con otro mirando |
+| Barrido de bordes | Igual que antes |
+| Repetición | Coincide, a 60 y con el ritmo variando, pero la huella pasó a `38e9023ca7f8b080`. Su súper salto pasa justo por debajo del cable plano de la pista, y con el agarre nuevo se agarra: 34 ticks en el cable, hasta que el salto siguiente lo suelta. Desde entonces la prueba cuenta los ticks en un cable |
+
+En el mensaje de la prueba le dije que, si el cable toca a la altura de la cintura, el cuerpo "sube de golpe" hasta 1 m. Era al revés: baja, hasta que las manos llegan al cable. Lo corregí en el mensaje siguiente.
+
+#### Segunda vuelta: el alto de la detección y las teclas según la cámara (20:14)
+
+Con un dibujo de dos cápsulas, cada una con un recuadro que baja desde la cabeza, uno marcado "0.5" y el otro "0.3":
+
+> ya hice las pruebas y hay unas cosas a mejorar. Empezamos por el suavizado, la verdad no me gusta como se ve, pero tampoco vamos a ir tocando asi por que si el tamaño de la capsula de detección (no se si es asi como lo armaste), tipo tener un apartado en el tuning donde yo pueda cambiar el valor de la longitud de la capsula que hace la detección, para mayor referencia te hice un dibujito, donde la parte del tope de la cabeza nunca cambia pero si la parte del "torso", que es la parte que si cambia. Despues tenemos el tema de los controles, no son malos, pero rapidamente se vuelven molestos. Tipo tendriamos que usar como referencia la direccion de la camara, asi se puede mirar hacia adelante y mantener presionada la tecla W para avanzar, pero de repente cambio la ubicacion de la camara y ahora miro al otro lado, pero puedo seguir avanzando en direccion a la camara sin tener que apretar la tecla S para ir hacia atras. Como esta configurado ahora no permite eso. No digo que eliminemos usar las teclas A y S para moverse a los costado, pero su funciona entraria cuando no se mira hacia adelante o atras, mas bien a los costados.
+
+Pasar las teclas a la cámara dejaba dos huecos. Se preguntaron a las 20:16, y las respuestas llegaron a las 20:19:
+
+| Pregunta | Respuesta |
+| --- | --- |
+| En un cable inclinado, mirando de costado, A o D hacia donde baja: ¿se desliza igual que W, o baja despacio? | "Se desliza, igual que W" |
+| Deslizándote con W, S (que ahora es ir para atrás, o sea para arriba): ¿frena y después sube, o solo frena? | "Frena y después sube" |
+
+**Cómo quedó (20:30):**
+
+- **`cable_grab_body`** (Tuning, grupo Cable): qué parte del cuerpo de parado, desde la cabeza para abajo, agarra el cable. Con 0,5, el valor por defecto y lo de antes, de la mitad para arriba; con 0,3, el 30 % de arriba. Arriba siempre cuenta hasta las manos, 15 cm por encima de la cabeza. Como el cuerpo cuelga de las manos, lo que baja de golpe al agarrarse es como mucho 1,95 m − 1,8 m × (1 − el valor): 1,05 m con 0,5 y 0,69 m con 0,3. El suavizado no se tocó.
+- **Las teclas, según la cámara, como al caminar:** la dirección que piden mueve a lo largo del cable si está a menos de 60° de él, hacia un lado o el otro (`cable_move_angle`, que reemplazó a `cable_look_angle`). Más de costado, no hace nada. Mirando a lo largo, sirven W y S; mirándolo de costado, A y D; con la cámara entre 30° y 60° del cable, todas. Girando la cámara, la misma W lleva para el otro lado.
+- **En un cable inclinado,** lo que apunta hacia abajo desliza, sea W, A o D, y lo que apunta hacia arriba sube a 0,75 m/s. Deslizándose, primero frena a 12 m/s² y después sube. Soltando, frena. Una consecuencia: en el cable con comba, con W apretada, donde se aplana ya no frena solo; sigue a 1,5 m/s hasta que se suelte.
+
+Los 60° los elegí yo, y se le avisó. Los carteles, el panel y la ayuda quedaron al día, y la prueba en red sube con S, mirando para abajo.
+
+| Prueba (segunda vuelta) | Resultado |
+| --- | --- |
+| `diag_cables.gd`, puesto al día | Las 58. En el plano: mirándolo de costado, D va a la derecha de la cámara, y mirando del otro lado, al revés. W de costado o D a lo largo no mueven. W a lo largo avanza, y girando la cámara la misma W vuelve; a 50° también avanza, y a 70° no. A 10°, W para abajo va a 1,5 m/s, sin deslizarse. A 25°: S frena en 8 ticks y sube 0,75 m en 1 s, y A para abajo, mirando de costado, desliza (4,15 m/s en 1 s). Con 0,5, un cable a 1 m de los pies agarra, y con 0,3, no. Cayendo, el cuerpo baja 1,22 y 0,86 m en el tick del agarre: lo de cada valor, más lo que cae en ese tick |
+| En red, `cable` | 0 correcciones y 0 adoptadas, en los tres casos |
+| Repetición | La misma huella, `38e9023ca7f8b080`: en el cable, el recorrido no se mueve |
+
+#### La prueba, la forma de la detección y el ancho (20:52–21:06)
+
+> hice las pruebas, quedo mucho mejor el tema de las teclas, al igual que el cable grab body, que lo puse en 0.3, ahí queda bastante bien [...] Hay una ultima cosa que te tengo que preguntar, la zona de detección del cable grab, ¿es una esfera, cilindro como la capsula u otra cosa?
+
+Es un cilindro parado, con las puntas planas. Tiene de radio `cable_reach` alrededor del eje del cuerpo, que tiene 0,35 m. Va desde 1,8 m × (1 − `cable_grab_body`) sobre los pies (1,26 m con 0,3) hasta las manos (1,95 m), y se barre a lo largo del movimiento del tick. En las capturas, la línea de ayuda del cable se cortaba a la derecha: se acortó.
+
+A las 20:55, "¿podes agregar en el tuning un slider para poder tocar el ancho?": `cable_reach` pasó a ser un deslizador de 0,05 a 1 m. A las 21:06:
+
+> joya, lo deje en 0.6, ese valor queda bien. Hice las pruebas en la otra notebook y todo funciona correctamente, también están incluidas un par de capturas con la configuración de +200 ms, no tiene retraso o cosas por el estilo.
+
+En las capturas de la notebook con internet mala, deslizándose por la tirolesa: 5.357 coincidencias, 0 correcciones y 0 % de tirones del otro jugador. En la escena quedaron `cable_grab_body` en 0,3 y `cable_reach` en 0,6.
+
+**Con esos valores** (corrido para esta versión del documento): `diag_cables.gd`, 58 de 58, con los dos casos de "no llega" medidos 20 cm más allá de `cable_reach` (con 0,6, a 80 cm), porque a 60 cm quedaban justo en el borde. La repetición coincide, a 60 y con el ritmo variando, con la huella `9c40e65ecd396f6a`: el súper salto se agarra del cable plano un poco más tarde, 29 ticks en el cable. La prueba en red `cable` corrió con los valores por defecto (0,5 y 0,4); con los de la escena, la probó el usuario en las dos PC.
+
+### Commits `a099f95` y `7dd59ca`
+
+**Fecha:** 2026-10-14, 21:06, en `net-lab`, después de la prueba en las dos PC:
+
+- `a099f95`, `fix(actor): keep ActorInput.make idempotent after rounding the axes`: 1 archivo, +13 / −1 líneas;
+- `7dd59ca`, `feat(actor): hang from cables, straight or sagging, and slide down them`: 13 archivos, +915 / −18 líneas, con los valores del usuario en el nodo Tuning.
+
+#### Lo que falta y las simplificaciones
+
+- Los cables están quietos: no se mueven con el peso ni se balancean, y no van sobre una base.
+- Un cable vertical no se agarra.
+- El cuerpo cuelga de frente al cable, de costado al camino: no gira hacia donde se mueve. No hay brazos ni manos que se alternen.
+- Nadie se puede colgar de un compañero que está en un cable. Dos en el mismo cable no se estorban, porque no chocan entre sí; no se probó.
+- Lo que baja el cuerpo al agarrarse (hasta 0,69 m con 0,3) se ve con el suavizado del agarre de un borde, a 1,8 m/s como máximo.
+- No hay botón de agarre ni capacidad de agarrar: Ctrl mantenido es la única forma de pasar por un cable sin agarrarse.
+
 ---
 
 ## 9. Estado actual del código
@@ -3656,40 +3820,42 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
 
 | Archivo | Líneas | Qué hace |
 | --- | --- | --- |
-| `scripts/actor/actor_state.gd` (`ActorState`) | 219 (201) | Estado completo del actor al final de un tick: modos Suelo, Aire, Deslizamiento, Escalera, Colgado y Enganchado (colgado de un compañero); postura (parado, agachado y, desde el 2026-10-12, encogido); base; ancla (con el punto del filo, la esquina que dobla o las manos); quién cuelga de él; reagarre; el súper salto y velocidad; si dobla un rincón; y si ya saltó. Cuantización, bytes (89; eran 51 en el esqueleto), copia y descripción. La cámara lenta personal que le quedaba se sacó el 2026-10-12 |
-| `scripts/actor/actor_input.gd` (`ActorInput`) | 84 (67) | Input de un tick, cuantizado al crearlo; 12 bytes. Botones: saltar, agacharse y correr. Contadores de pulsaciones del salto, de la cámara lenta del mundo y del súper. Desde el 2026-10-12, dice si un input que llegó por red es posible |
-| `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 189 (155) | Parámetros de movimiento: el nodo Tuning de `net_lab.tscn`, que se edita en el Inspector; `from_scene()` lee sus valores para las pruebas |
-| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 1.267 (944) | Paso por tick en orden fijo con los seis modos, la base, la postura (con el encogido), la escalera, el escalón, el borde (con el salto para arriba y las esquinas), colgarse de un compañero y quién cuelga de quién, los impulsos con fuerza, el súper salto y velocidad, el salto en el aire y la validación de poses ancladas |
-| `scripts/actor/actor_body.gd` (`ActorBody`) | 424 (316) | Cuerpo (`CharacterBody3D`): deslizar (desde el 2026-10-10, sin depender del delta del cuadro), restaurar y validar poses, las tres formas y el espacio libre, asentarse en el piso después de un escalón, presentación (con el giro suave al doblar un rincón), desvío visual, las manos sobre el filo (una en cada cara al doblar), sobre la cintura del compañero, y encontrar a los demás actores |
+| `scripts/actor/actor_state.gd` (`ActorState`) | 224 (201) | Estado completo del actor al final de un tick: modos Suelo, Aire, Deslizamiento, Escalera, Colgado, Enganchado (colgado de un compañero) y, desde el 2026-10-14, Cable; postura (parado, agachado y, desde el 2026-10-12, encogido); base; ancla (con el punto del filo, la esquina que dobla o las manos); quién cuelga de él; reagarre; el súper salto y velocidad; si dobla un rincón; y si ya saltó. Cuantización, bytes (89; eran 51 en el esqueleto), copia y descripción. La cámara lenta personal que le quedaba se sacó el 2026-10-12 |
+| `scripts/actor/actor_input.gd` (`ActorInput`) | 96 (67) | Input de un tick, cuantizado al crearlo; 12 bytes. Botones: saltar, agacharse y correr. Contadores de pulsaciones del salto, de la cámara lenta del mundo y del súper. Desde el 2026-10-12, dice si un input que llegó por red es posible. Desde el 2026-10-14, cuantizar otra vez lo ya cuantizado da lo mismo |
+| `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 230 (155) | Parámetros de movimiento: el nodo Tuning de `net_lab.tscn`, que se edita en el Inspector; `from_scene()` lee sus valores para las pruebas |
+| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 1.479 (944) | Paso por tick en orden fijo con los siete modos, la base, la postura (con el encogido), la escalera, el escalón, el borde (con el salto para arriba y las esquinas), colgarse de un compañero y quién cuelga de quién, los impulsos con fuerza, el súper salto y velocidad, el salto en el aire, los cables y la validación de poses ancladas |
+| `scripts/actor/actor_body.gd` (`ActorBody`) | 435 (316) | Cuerpo (`CharacterBody3D`): deslizar (desde el 2026-10-10, sin depender del delta del cuadro), restaurar y validar poses, las tres formas y el espacio libre, asentarse en el piso después de un escalón, presentación (con el giro suave al doblar un rincón), desvío visual, las manos sobre el filo (una en cada cara al doblar), sobre la cintura del compañero o sobre un cable, y encontrar a los demás actores |
 | `scripts/actor/edge_probe.gd` (`EdgeProbe`) | 108 | Sonda de borde: barrido de las manos, cara, superficie de arriba y filo; revalidación de un borde agarrado |
 | `scripts/actor/base_registry.gd` (`BaseRegistry`) | 79 (73) | Registro de bases por id; origen, velocidad y posición en el mundo, real y dibujada. Desde el 2026-10-12 avisa si dos bases tienen el mismo id |
 | `scripts/actor/scripted_platform.gd` (`ScriptedPlatform`) | 99 | Plataforma guionada: su pose sale del tiempo del mundo; se dibuja en el pasado cuando conviene |
 | `scripts/actor/host_raft.gd` (`HostRaft`) | 95 | Balsa que simula solo el host; en los clientes, una copia interpolada |
 | `scripts/actor/ladder.gd` (`Ladder`) | 115 (110) | Escalera autorada: eje, alto, volumen de entrada (que también es la barrera para los bordes de detrás) y dibujo, visible también en el editor. Desde el 2026-10-12 avisa si dos escaleras tienen el mismo id |
+| `scripts/actor/cable.gd` (`Cable`) | 367 (nuevo, 2026-10-14) | Cable autorado: una línea recta o con comba, partida en tramos de 25 cm, con su largo, el punto y la dirección a una distancia de su origen, y el punto más cercano a otro; el registro por número; y el dibujo (tubo, un modelo repetido o una tira con textura que mira a la cámara), visible también en el editor |
 | `scenes/actor/actor.tscn` | 60 | El actor: las formas parada y agachada, sus mallas y la "nariz". La forma encogida la arma el código al arrancar (`fit_tuck`) |
 | `scripts/net/sim_clock.gd` (`SimClock`) | 390 (367) | Reloj único: ticks, orden fijo (los colgados de un compañero al final), sincronización, adelanto del cliente por ritmo variable, plataformas colocadas para el tick siguiente, pausa y los tramos de cámara lenta del mundo (desde el 2026-10-12, también abiertos), con el tiempo del mundo y `time_scale` |
 | `scripts/net/net_session.gd` (`NetSession`) | 513 (137) | Conexión ENet, aparición con `MultiplayerSpawner`, salidas y lugares de aparición. Desde el 2026-10-11, la reconexión: la llave del cliente, el corte por silencio, la espera del host, los reintentos y el adiós al cerrar. Desde el 2026-10-12, la huella de compatibilidad al conectarse |
-| `scripts/net/sim_fingerprint.gd` (`SimFingerprint`) | 128 (nuevo, 2026-10-12) | Huella de lo que tiene que ser igual en todas las máquinas: los valores del Tuning, el código y el nivel |
+| `scripts/net/sim_fingerprint.gd` (`SimFingerprint`) | 132 (nuevo, 2026-10-12) | Huella de lo que tiene que ser igual en todas las máquinas: los valores del Tuning, el código y el nivel; desde el 2026-10-14, con el lugar de cada nodo del nivel que tiene script |
 | `scripts/net/net_sync.gd` (`NetSync`) | 432 (374) | Transporte: inputs, afirmaciones e ida y vuelta del cliente; snapshots del host con las balsas; márgenes; eventos programados por canal confiable (empujones); anuncios de cámara lenta del mundo, a todos o al que se conecta. Desde el 2026-10-11, cuándo se escuchó a cada jugador y el input quieto después de 30 ticks sin noticias; desde el 2026-10-12, descarta los paquetes mal armados |
 | `scripts/net/link_simulator.gd` (`LinkSimulator`) | 97 | Simulador de red: demora, variación, pérdida y tirones; los mensajes confiables se demoran pero no se pierden |
 | `scripts/net/client_prediction.gd` (`ClientPrediction`) | 138 | Predicción del cliente: historial, reconciliación, esperas, suavizado, repetición desde un tick para los eventos tardíos, la corrección más grande y lo que ya afirmó para cada tick, para no corregirse hacia eso |
 | `scripts/net/claim_adoption.gd` (`ClaimAdoption`) | 132 (81) | Adopción de afirmaciones en el host, con su registro; valida las poses ancladas y, desde el 2026-10-12, que los valores sean posibles |
 | `scripts/net/remote_interpolation.gd` (`RemoteInterpolation`) | 277 (267) | Interpolación de los demás jugadores y de las balsas en el cliente, con marcos de dibujo; desde el 2026-10-11 se vacía al cortarse la conexión |
-| `scenes/net_lab/net_lab.tscn` | 140 | Escena del laboratorio, con menú y panel, el nodo Tuning, el nodo Session (con los tiempos de la reconexión) y la guía de la cámara |
-| `scenes/net_lab/net_lab_level.tscn` | 394 (389) | Nivel del laboratorio: el vagón, el ascensor, la balsa, el túnel largo, la pared de medidas, la torre chica, las dos escaleras, la pista de escalones, la pista de bordes, los dos bordes que se mueven y, desde el 2026-10-13, la torre de parkour |
-| `scenes/net_lab/net_lab.gd` | 1.980 (1.741) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, quién cuelga de quién en el host, cámara lenta del mundo, cableado de red, qué hacer al cortarse, panel, pausa, capturas, mediciones, pruebas guionadas y la divergencia inyectada |
+| `scenes/net_lab/net_lab.tscn` | 142 | Escena del laboratorio, con menú y panel, el nodo Tuning, el nodo Session (con los tiempos de la reconexión) y la guía de la cámara |
+| `scenes/net_lab/net_lab_level.tscn` | 426 (389) | Nivel del laboratorio: el vagón, el ascensor, la balsa, el túnel largo, la pared de medidas, la torre chica, las dos escaleras, la pista de escalones, la pista de bordes, los dos bordes que se mueven, desde el 2026-10-13 la torre de parkour y, desde el 2026-10-14, la pista de cables, con sus cuatro cables |
+| `scenes/net_lab/net_lab.gd` | 2.084 (1.741) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, quién cuelga de quién en el host, cámara lenta del mundo, cableado de red, qué hacer al cortarse, panel, pausa, capturas, mediciones, pruebas guionadas y la divergencia inyectada |
 | `scenes/net_lab/lab_camera.gd` (`LabCamera`) | 148 (145) | Cámara de tercera a primera persona sobre una guía editable; la altura de la cabeza sigue la postura, y salta junto con ella cuando la cabeza queda fija. Desde el 2026-10-13 no sigue a un actor que ya salió del árbol |
 | `scenes/net_lab/measure_wall.gd` | 48 | Pared de medidas: rayas cada 10 cm y números cada 50 cm, visibles también en el editor |
 | `scenes/net_lab/step_course.gd` | 99 | Pista de escalones: sueltos de 10 a 40 cm y dos escaleras, una con rampa invisible; visible también en el editor |
 | `scenes/net_lab/edge_course.gd` | 223 (198) | Pista de bordes: las 11 variantes fijas, con sus carteles, el muro alto para colgarse de un compañero y, desde el 2026-10-13, un rincón en L y una columna cuadrada; visible también en el editor |
 | `scenes/net_lab/parkour_tower.gd` | 214 (nuevo, 2026-10-13) | La torre de parkour: núcleo de 6 × 6 × 12 m, terrazas, saliente, techos bajos, escaleras, hueco con pilar y nicho, y muro con cajón; visible también en el editor |
+| `scenes/net_lab/cable_course.gd` | 112 (nuevo, 2026-10-14) | La pista de cables: postes, plataformas, la escalera 6, el brazo de la tirolesa y los carteles. Los cables son nodos `Cable` de la escena; visible también en el editor |
 | `scenes/net_lab/test_udp_relay.gd` (`TestUdpRelay`) | 51 (nuevo, 2026-10-11) | Solo para pruebas: un relevo UDP entre el cliente y el host que, cortado, no deja pasar nada, como un cable cortado |
-| `scenes/net_lab/actor_replay_test.gd` y `.tscn` | 375 + 13 (350 + 13) | Prueba de repetición determinista, a cualquier ritmo, con bases, postura (también encogido), escalera, empujones, escalones, Hanging, cámara lenta, el súper y el salto en el aire, con los valores del nodo Tuning |
+| `scenes/net_lab/actor_replay_test.gd` y `.tscn` | 380 + 13 (350 + 13) | Prueba de repetición determinista, a cualquier ritmo, con bases, postura (también encogido), escalera, empujones, escalones, Hanging, cámara lenta, el súper, el salto en el aire y, sin buscarlo, un cable, con los valores del nodo Tuning |
 | `scenes/net_lab/hang_sweep_test.gd` y `.tscn` | 468 + 13 (466 + 13) | Barrido de aproximaciones a los bordes, con los cuatro criterios y la altura del salto para arriba (desde el 2026-10-12, medida desde los pies de parado), con los valores del nodo Tuning |
 | `tools/net_lab/actualizar_lab.bat` y `.ps1` | 14 + 71 | El doble clic que trae el laboratorio a la notebook y lo abre (sección 6.2) |
 | Archivos `.uid` | — | Uno por script, generados por Godot |
 
-**Total:** 9.012 líneas entre scripts y escenas, sin contar `tools/` (eran 2.589 al final del esqueleto, 4.431 en la segunda versión de este documento, 5.998 en la tercera, 5.969 en la cuarta, 5.982 en la quinta, 6.649 en la sexta, 7.097 en la séptima y 7.291 en la octava; con el cambio de línea, en `f39ba70`, fueron 6.800, y en `c408ad6`, 7.054).
+**Total:** 9.919 líneas entre scripts y escenas, sin contar `tools/` (eran 2.589 al final del esqueleto, 4.431 en la segunda versión de este documento, 5.998 en la tercera, 5.969 en la cuarta, 5.982 en la quinta, 6.649 en la sexta, 7.097 en la séptima, 7.291 en la octava y 9.012 en la novena; con el cambio de línea, en `f39ba70`, fueron 6.800, y en `c408ad6`, 7.054).
 
 ### 9.2 Funciones públicas
 
@@ -3697,7 +3863,7 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
     - `quantize()`, `copy()`, `to_bytes()` y `from_bytes()` (estática);
     - `describe()`;
     - `quantize_yaw()`, `yaw_to_index()` e `index_to_yaw()` (estáticas).
-- **`ActorInput`:** `make()` (estática), `is_held()`, `write_to()` y `read_from()` (estática); desde el 2026-10-12, `is_possible()`: ejes dentro del círculo y solo botones que existen.
+- **`ActorInput`:** `make()` (estática), `is_held()`, `write_to()` y `read_from()` (estática); desde el 2026-10-12, `is_possible()`: ejes dentro del círculo y solo botones que existen. Desde el 2026-10-14, `make()` con lo que ya dio `make()` da lo mismo.
 - **`ActorMotor`, todas estáticas:**
     - `step(body, state, input, tuning, dt)`;
     - `apply_impulse(state, impulse, force, tuning)`, que reemplazó a `push(state, impulse)`;
@@ -3709,7 +3875,8 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
     - `assign_hooks(actors, tuning)` (punto 6): lo que hace el host al empezar cada tick, anotar quién cuelga de quién; devuelve los cambios y los soltados;
     - ~~`apply_slow(state, tuning)`~~ (punto 7): la cámara lenta personal, como un evento. Se sacó el 2026-10-12, con la personal;
     - `keeps_head(mode, from_stance)` (2026-10-12): al cambiar de postura, si queda quieta la cabeza (en el aire, o al agarrarse encogido) o los pies (en el suelo). La usan también el dibujo y la cámara;
-    - `floor_jump_speed(tuning, dt, extra)` y `raised_jump_speed(jump_speed, tuning, dt, extra)` (2026-10-12 y 2026-10-14): la velocidad para arriba de un salto que sube `extra` metros más que el del piso (o que el de `jump_speed`), con la corrección de `g·dt/2`. Las usan la escalera, el súper, el salto en el aire y la adopción.
+    - `floor_jump_speed(tuning, dt, extra)` y `raised_jump_speed(jump_speed, tuning, dt, extra)` (2026-10-12 y 2026-10-14): la velocidad para arriba de un salto que sube `extra` metros más que el del piso (o que el de `jump_speed`), con la corrección de `g·dt/2`. Las usan la escalera, el súper, el salto en el aire y la adopción;
+    - `cable_check(body, state, direction, tuning, dt)` (2026-10-14): la decisión de colgarse de un cable, sin cambiar nada, con el motivo si no se cuelga; la usan el motor y las pruebas.
 - **`ActorBody`:**
     - `slide()` y `apply_state()`, que devuelve si la pose entra en el mundo;
     - postura: `use_stance()`, `stance_height()` y `stance_fits()`. `active_stance()` se sacó el 2026-10-12: no se usaba;
@@ -3726,6 +3893,7 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
 - **`ScriptedPlatform`:** `pose_at(world_ticks)`, `pose_at_tick(tick)` y `velocity_at_tick(tick)` (desde el punto 7: la pose sale del tiempo del mundo, y hasta entonces `pose_at` recibía el tick), `prepare_tick(tick)`, `base_origin()`, `base_velocity()`, `visual_origin()`, `visual_velocity()` y `distance_to(point)`.
 - **`HostRaft`:** `become_copy()`, `place_copy(next_origin, current_origin, next_velocity)`, `base_origin()` y `base_velocity()`.
 - **`Ladder`:** `find(id)`, `all()` y, desde el 2026-10-10, `any_at(feet)` (si unos pies caen en el volumen de alguna escalera), estáticas; `up()`, `outward()`, `pose_at(t)` y `height_for(feet)`.
+- **`Cable`** (2026-10-14): `find(id)` y `all()`, estáticas; `length()`, `point_at(t)`, `tangent_at(t)` y `closest(point)`.
 - **`ActorTuning`** (2026-10-10): `from_scene(path)`, estática: un nodo con los valores del nodo Tuning de `net_lab.tscn`, leídos del archivo sin instanciarla. Lo usan las pruebas.
 - **`LabCamera`:** `start_capture()`, y las variables `yaw`, `pitch` y `target`.
 - **`SimClock`:**
@@ -3774,11 +3942,11 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
 | base_id | entero sin signo de 16 bits | id de red de la base, 0 sin base | punto 2 (53 bytes) |
 | stance_wanted | entero sin signo de 8 bits | postura pedida: parado = 0, agachado = 1 y, desde el 2026-10-12, encogido = 2 | punto 3 |
 | stance | entero sin signo de 8 bits | postura concedida | punto 3 |
-| anchor_id | entero sin signo de 32 bits (16 hasta el punto 6) | id del ancla. En Ladder, la escalera; en Hanging, la base que lleva el borde, 0 si es geometría fija; en Enganchado, el id de red del compañero | punto 4 |
-| anchor_t | entero de 32 bits | 0,1 mm. En Ladder, la altura de los pies sobre la escalera. En Hanging, hasta el 2026-10-08, el avance de la subida en segundos (con el mismo paso); después, 0, y desde el 2026-10-13, doblando una esquina, cuánto giró la normal desde la cara donde empezó, en radianes, con signo | punto 4 |
-| regrab_id | entero sin signo de 16 bits | ancla bloqueada para reagarrar; 0xFFFF bloquea todos los bordes y 0xFFFE, desde el punto 6, todos los compañeros | punto 4 |
+| anchor_id | entero sin signo de 32 bits (16 hasta el punto 6) | id del ancla. En Ladder, la escalera; en Hanging, la base que lleva el borde, 0 si es geometría fija; en Enganchado, el id de red del compañero; en Cable (2026-10-14), el número del cable | punto 4 |
+| anchor_t | entero de 32 bits | 0,1 mm. En Ladder, la altura de los pies sobre la escalera. En Hanging, hasta el 2026-10-08, el avance de la subida en segundos (con el mismo paso); después, 0, y desde el 2026-10-13, doblando una esquina, cuánto giró la normal desde la cara donde empezó, en radianes, con signo. En Cable (2026-10-14), la distancia sobre el cable desde su origen, en metros | punto 4 |
+| regrab_id | entero sin signo de 16 bits | ancla bloqueada para reagarrar; 0xFFFF bloquea todos los bordes; 0xFFFE, desde el punto 6, todos los compañeros; y 0xFFFD, desde el 2026-10-14, todos los cables | punto 4 |
 | regrab_left | entero de 32 bits | 0,1 ms | punto 4 |
-| anchor_point | 3 enteros de 32 bits | 0,1 mm. En Hanging, el punto del filo relativo al origen de su base (en el mundo si es geometría fija); doblando una esquina, la esquina. En Enganchado, dónde están las manos, en el mundo | punto 5 (79 bytes) |
+| anchor_point | 3 enteros de 32 bits | 0,1 mm. En Hanging, el punto del filo relativo al origen de su base (en el mundo si es geometría fija); doblando una esquina, la esquina. En Enganchado y, desde el 2026-10-14, en Cable, dónde están las manos, en el mundo | punto 5 (79 bytes) |
 | hooked_by | entero sin signo de 32 bits | id de red del compañero que cuelga de este actor, o 0 | punto 6 (85 bytes) |
 | ~~slow_left~~ | entero de 32 bits | 0,1 ms. Cuánto le quedaba de cámara lenta personal, en tiempo del mundo. Se sacó el 2026-10-12 (85 bytes) | punto 7 (89 bytes) |
 | boosted | entero sin signo de 8 bits | 1 si el súper salto y velocidad está prendido | 2026-10-12 |
@@ -3786,7 +3954,7 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
 | corner_inside | entero sin signo de 8 bits | Hanging, doblando: 1 si es un rincón, por adentro | 2026-10-13 (88 bytes) |
 | jumped | entero sin signo de 8 bits | 1 si saltó desde que dejó el piso o algo de donde estaba agarrado: sin eso, cayendo tiene el salto en el aire | 2026-10-14 (89 bytes) |
 
-Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, Aire = 1, Deslizamiento = 2, Escalera = 3, Colgado = 4 y, desde el punto 6, Enganchado = 5. En Hanging la normal del borde no viaja: es la contraria a `facing_yaw`.
+Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, Aire = 1, Deslizamiento = 2, Escalera = 3, Colgado = 4, desde el punto 6 Enganchado = 5 y, desde el 2026-10-14, Cable = 6. En Hanging la normal del borde no viaja: es la contraria a `facing_yaw`.
 
 **`ActorState` del esqueleto, 51 bytes:**
 
@@ -3822,17 +3990,18 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 1. **Tiempo:** el `dt` que recibe es el del mundo: 1/60 por la escala del mundo (desde el punto 7). Con él se descuentan coyote, memoria del salto y bloqueo de reagarre. Del punto 7 al 2026-10-12, si al actor le quedaba cámara lenta personal, eso se descontaba con ese `dt`, y después el `dt` se multiplicaba por 0,3. Desde el 2026-10-12, antes de todo, la forma encogida se arma con el valor del Tuning si cambió (`fit_tuck`).
 2. **Base:** si está sobre una base, la base lo lleva hasta donde quedó en este tick.
 3. **Eventos:** una pulsación nueva de salto se detecta porque cambió el contador. Desde el 2026-10-12, igual con el del súper: cada pulsación nueva lo prende o lo apaga, y dos entre dos ticks se anulan. Los empujones, en cambio, no se aplican acá (ver abajo).
-4. **Sondas:** colgado, la sonda de borde revalida el borde agarrado (desde el punto 5); colgado de un compañero, se lo busca por su id (desde el punto 6). Las demás lecturas del entorno se hacen donde se usan: el volumen de la escalera, el agarre de un borde y el de un compañero, en la transición; el escalón, en el movimiento, porque necesita saber si el movimiento chocó.
+4. **Sondas:** colgado, la sonda de borde revalida el borde agarrado (desde el punto 5); colgado de un compañero, se lo busca por su id (desde el punto 6); colgado de un cable, el cable, por su número (2026-10-14). Las demás lecturas del entorno se hacen donde se usan: el volumen de la escalera, el agarre de un borde y el de un compañero, en la transición; el escalón, en el movimiento, porque necesita saber si el movimiento chocó.
 5. **Transición:** como máximo una por tick.
     - **Suelo:** salto, caída, agarrar una escalera o deslizamiento.
-    - **Aire:** aterrizaje, salto con coyote, salto en el aire (desde el 2026-10-14: con Espacio, sin haber saltado y bajando), agarrar un borde (sin Ctrl; desde el punto 5; bajando o, desde el 2026-10-08, también subiendo), colgarse de un compañero (sin Ctrl; desde el punto 6) o agarrar una escalera.
+    - **Aire:** aterrizaje, salto con coyote, salto en el aire (desde el 2026-10-14: con Espacio, sin haber saltado y bajando), agarrar un borde (sin Ctrl; desde el punto 5; bajando o, desde el 2026-10-08, también subiendo), colgarse de un compañero (sin Ctrl; desde el punto 6), agarrarse de un cable (sin Ctrl; desde el 2026-10-14) o agarrar una escalera.
     - **Deslizamiento:** salto, caída, o fin por velocidad o, desde el 2026-10-12, por soltar Ctrl.
     - **Escalera:** respaldo, salto, salida abajo o salida arriba. Con un compañero colgado, solo el respaldo (desde el punto 6).
     - **Colgado** (desde el punto 5): respaldo si el borde ya no está; Ctrl se suelta; Espacio salta para arriba mirando a la pared, o hacia donde mira si no, y en ese caso se da vuelta hacia allá (desde el 2026-10-08, sección 8.7). Hasta el 2026-10-08, Espacio mirando a la pared empezaba la subida, y mientras subía no había otra transición (sección 8.6). Desde el 2026-10-12, el salto para arriba pide la postura encogida. Con un compañero colgado, Espacio no hace nada; Ctrl lo suelta igual (desde el punto 6).
     - **Enganchado** (desde el punto 6): respaldo si el compañero ya no lo sostiene, con la velocidad de él; Ctrl se suelta; Espacio salta para arriba mirando hacia el compañero, o hacia donde mira si no, y se da vuelta.
-6. **Modo:** el modo activo decide la velocidad. En el suelo, con el súper, por 1,5 (desde el 2026-10-12). Colgado, la velocidad va a lo largo del filo y, desde el 2026-10-13, sigue doblando las esquinas: por afuera, un cuarto de círculo alrededor de la esquina; por adentro, una curva de `hang_corner_radius` (sección 8.16). Con un compañero colgado, en el borde y en la escalera, es cero. Enganchado, es cero y mira hacia donde mira el compañero.
-7. **Postura y movimiento:** se resuelve la postura. Desde el 2026-10-12, encogido sigue así mientras está en el aire; al tocar el piso pide parado (con los pies fijos, o agachado si un techo no deja) y al agarrarse de algo, parado con la cabeza fija. Después, los modos libres se mueven con `move_and_slide()`, y los anclados (la escalera, el colgado y el colgado de un compañero) con un barrido. En Suelo, si el movimiento chocó, la sonda de escalón prueba subirlo (desde el escalón).
-8. **Contactos:** los indicadores de Godot pasan al estado. La sonda de suelo dice sobre qué base quedó parado, y al cambiar de base la velocidad cambia de marco; colgado, la base es la del borde; colgado de un compañero, no hay base. Si el actor ya no está agarrado de un borde ni de una escalera, se borra quién cuelga de él (desde el punto 6). Si el modo ya no es Aire, se apaga `jumped`: vuelve el salto en el aire (desde el 2026-10-14). Todo se cuantiza.
+    - **Cable** (2026-10-14): respaldo si el cable ya no existe; Ctrl se suelta, con la velocidad que traía; Espacio salta hacia donde mira la cámara, con la velocidad del cable y el tope del salto, y se da vuelta.
+6. **Modo:** el modo activo decide la velocidad. En el suelo, con el súper, por 1,5 (desde el 2026-10-12). Colgado, la velocidad va a lo largo del filo y, desde el 2026-10-13, sigue doblando las esquinas: por afuera, un cuarto de círculo alrededor de la esquina; por adentro, una curva de `hang_corner_radius` (sección 8.16). Con un compañero colgado, en el borde y en la escalera, es cero. Enganchado, es cero y mira hacia donde mira el compañero. En un cable (2026-10-14), la velocidad va sobre el cable: las teclas, según la cámara, lo mueven hacia donde apuntan si están a menos de `cable_move_angle` de él; en uno inclinado, hacia abajo se desliza y hacia arriba sube despacio; sin teclas, quieto (sección 8.19).
+7. **Postura y movimiento:** se resuelve la postura. Desde el 2026-10-12, encogido sigue así mientras está en el aire; al tocar el piso pide parado (con los pies fijos, o agachado si un techo no deja) y al agarrarse de algo, parado con la cabeza fija. Después, los modos libres se mueven con `move_and_slide()`, y los anclados (la escalera, el colgado, el colgado de un compañero y, desde el 2026-10-14, el cable) con un barrido. En Suelo, si el movimiento chocó, la sonda de escalón prueba subirlo (desde el escalón).
+8. **Contactos:** los indicadores de Godot pasan al estado. La sonda de suelo dice sobre qué base quedó parado, y al cambiar de base la velocidad cambia de marco; colgado, la base es la del borde; colgado de un compañero o de un cable, no hay base. Si el actor ya no está agarrado de un borde ni de una escalera, se borra quién cuelga de él (desde el punto 6). Si el modo ya no es Aire, se apaga `jumped`: vuelve el salto en el aire (desde el 2026-10-14). Todo se cuantiza.
 
 **Los empujones no entran al paso.** Los aplica con `apply_impulse` quien maneja el actor (el host, o el cliente en su predicción) al empezar el tick, antes del paso, y suben la época. El documento los pone en la etapa 3. Una diferencia que sale de leer el código: el bloqueo de reagarre que pone un empujón empieza a descontarse en el mismo tick, en la etapa 1. Host y cliente lo hacen igual, así que no causa correcciones.
 
@@ -3949,7 +4118,7 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | `SCALE_STEPS` | 1.000 | `NetSync` | La escala de la cámara lenta del mundo viaja en milésimos (punto 7) |
 | `HOOK_HOLD_TICKS` / `HOOK_DROP_TICKS` | 60 / 30 | laboratorio | Cuánto cuelga la prueba antes de su salida, y cuánto sostiene el de arriba con `hookwall:drop` antes de soltarse (eran 120 en la primera tanda: no llegaba a soltarse) |
 
-**Constantes que sumó lo que siguió a la validación** (secciones 8.11 a 8.17):
+**Constantes que sumó lo que siguió a la validación** (secciones 8.11 a 8.19):
 
 | Constante | Valor | Dónde | Para qué |
 | --- | --- | --- | --- |
@@ -3975,10 +4144,15 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | `LEVEL_1` a `LEVEL_4` | 1,5; 4; 7; 9,5 m | torre de parkour | Alturas de las terrazas; la de arriba es el techo del núcleo |
 | `LOW_CLEARANCE`, `NICHE_HEIGHT`, `WALL_HEIGHT` | 1,3 m; 3,2 m; 3,6 m | torre de parkour | Alto libre de los techos bajos, del nicho y del muro del tramo 9 |
 | `LADDER_BACK_ID`, `LADDER_UP_ID`, `LADDER_TOP_ID` | 3, 4 y 5 | torre de parkour | Números de sus escaleras: la de vuelta, la del tramo 4 y la del tramo 8 |
+| `CABLE_SWEEP_STEP` | 0,1 m | `ActorMotor` | De a cuánto se barre el movimiento del tick al buscar un cable (2026-10-14) |
+| `REGRAB_CABLES` | 0xFFFD | `ActorState` | `regrab_id` que bloquea agarrarse de cualquier cable |
+| `SEGMENT` / `TUBE_SIDES` | 0,25 m / 8 | `Cable` | Largo de los tramos en que se parte el cable, y lados del tubo |
+| `LADDER_ID`, `TALL_TOP`, `PLATFORM_TOP`, `POST` | 6; 6 m; 2,5 m; 0,2 m | pista de cables | Su escalera, el alto de la plataforma de la tirolesa y de las de la comba, y el ancho de los postes |
+| `CABLE_LADDER_ID`, `CABLE_ZIPLINE_ID`, `CABLE_RETURN` | 6; 4; (16; 0; 27,5) y (9,35; 0; 27,5) | laboratorio | La escalera y el cable de la prueba `cable`, y el camino de vuelta |
 
 **El actor** (`actor.tscn`): cápsula parada de 1,8 m de alto y cápsula agachada de 1,0 m, las dos de 0,35 m de radio. Desde el 2026-10-12, una tercera forma, encogida, que arma el código: la parada, `hang_climb_tuck` más corta desde abajo (1,6 m).
 
-**Parámetros de movimiento (`ActorTuning`).** Los marcados con * los sumó la validación. Desde el 2026-10-10 son los valores del nodo Tuning de `net_lab.tscn`, en el Inspector; los de esta tabla son los que trae el script. En la escena, el usuario cambió uno: el salto desde la escalera mirando a otro lado sube a 1,2 m/s (`ladder_jump_up`), en vez de 3,5 (primero lo puso en 2):
+**Parámetros de movimiento (`ActorTuning`).** Los marcados con * los sumó la validación. Desde el 2026-10-10 son los valores del nodo Tuning de `net_lab.tscn`, en el Inspector; los de esta tabla son los que trae el script. En la escena, el usuario cambió tres: el salto desde la escalera mirando a otro lado sube a 1,2 m/s (`ladder_jump_up`), en vez de 3,5 (primero lo puso en 2); y, el 2026-10-14, el agarre del cable: 0,3 (`cable_grab_body`, en vez de 0,5) y 0,6 m (`cable_reach`, en vez de 0,4):
 
 | Parámetro | Valor |
 | --- | --- |
@@ -4025,6 +4199,14 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | Súper salto y velocidad: velocidad en el piso* | Por 1,5, caminando, corriendo y agachado (`boost_speed_scale`). La primera versión duraba 5 s (`boost_time`); se sacó el mismo día |
 | Velocidad horizontal máxima al saltar desde el piso* | 6 m/s (`jump_max_speed`, 2026-10-12); con el súper, 6,5 m/s (`boost_jump_max_speed`) |
 | Salto en el aire* | Para arriba, 4,8 m/s (`air_jump_velocity`, 2026-10-14), lo mismo que desde el piso; hacia la cámara, la velocidad que traía, pero no menos de 5 m/s (`air_jump_speed`; con el súper, por 1,5) ni más que el tope del salto |
+| Cable: ancho de la detección* | 0,4 m desde el eje del cuerpo (`cable_reach`, 2026-10-14); 0,6 en la escena |
+| Cable: qué parte del cuerpo agarra* | 0,5: de la mitad para arriba, hasta las manos (`cable_grab_body`); 0,3 en la escena |
+| Cable: inclinación desde la que se desliza* | 15° (`cable_slide_angle`) |
+| Cable: ángulo de las teclas* | 60° del cable (`cable_move_angle`) |
+| Cable: velocidad al deslizarse* | 12 m/s por el seno de la inclinación (`cable_slide_speed`): unos 5 m/s a 25° |
+| Cable: subir uno inclinado* | 0,75 m/s (`cable_climb_speed`) |
+| Cable: frenado* | 12 m/s² (`cable_brake`; 4 en la primera versión) |
+| Agarre del cable* | 3 (`cable_grip`) |
 | Aceleración en el aire | 12 m/s²; desde el punto 3 no frena a quien viene más rápido que caminando |
 | Gravedad | 9,8 m/s² |
 | Caída máxima | 40 m/s |
@@ -4041,7 +4223,7 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | Cada cuánto reintenta el cliente (`reconnect_retry`) | 1 s |
 | Cuánto sigue intentando el cliente (`reconnect_give_up`); 0 no reintenta | 60 s |
 
-**Escaleras del nivel (`Ladder`):** ancho 0,8 m; distancia del eje al centro de quien trepa 0,45 m; alcance para agarrar 0,6 m delante del eje (`reach`; era 0,9 hasta el 2026-10-10) y 0,3 m más allá de cada costado (`side_reach`; antes fijo en el código). La de la torre chica tiene 2,5 m de alto y la de la plataforma verde, 2 m. Desde el 2026-10-13, la torre de parkour suma las escaleras 3, 4 y 5. Se editan en el Inspector de cada escalera, en `net_lab_level.tscn`.
+**Escaleras del nivel (`Ladder`):** ancho 0,8 m; distancia del eje al centro de quien trepa 0,45 m; alcance para agarrar 0,6 m delante del eje (`reach`; era 0,9 hasta el 2026-10-10) y 0,3 m más allá de cada costado (`side_reach`; antes fijo en el código). La de la torre chica tiene 2,5 m de alto y la de la plataforma verde, 2 m. Desde el 2026-10-13, la torre de parkour suma las escaleras 3, 4 y 5, y desde el 2026-10-14, la pista de cables suma la 6, de 6 m. Se editan en el Inspector de cada escalera, en `net_lab_level.tscn`.
 
 **Bases del nivel:**
 
@@ -4072,10 +4254,10 @@ Al correr `scenes/net_lab/net_lab.tscn` con **F6** aparece un menú con:
 
 | Tecla | Quién | Qué hace |
 | --- | --- | --- |
-| WASD | todos | Mover. En la escalera, hacia ella sube y alejarse baja. Colgado, A y D van a la izquierda y a la derecha del personaje frente a la pared, mire donde mire la cámara (punto 5), y desde el 2026-10-13 siguen de largo por las esquinas de 90°, por afuera y por adentro |
-| Espacio | todos | Saltar. En la escalera, hasta el 2026-10-10 saltaba hacia atrás; ahora, mirándola, salta derecho para arriba, 1 m más alto que desde el piso, y mirando a otro lado, hacia donde mira. Colgado, mirando a la pared salta para arriba y con W se pasa arriba del borde, y mirando a otro lado salta hacia allá y se da vuelta (punto 5; el salto para arriba y el giro, desde el 2026-10-08). Colgado de un compañero, lo mismo, mirando hacia él (punto 6). Con un compañero colgado de vos, no hace nada. Desde el 2026-10-14, cayendo sin haber saltado, salta en el aire, una vez, hacia donde mira la cámara |
+| WASD | todos | Mover. En la escalera, hacia ella sube y alejarse baja. Colgado, A y D van a la izquierda y a la derecha del personaje frente a la pared, mire donde mire la cámara (punto 5), y desde el 2026-10-13 siguen de largo por las esquinas de 90°, por afuera y por adentro. Colgado de un cable (2026-10-14), van según la cámara, como al caminar: mirando a lo largo del cable, W y S; mirándolo de costado, A y D. En uno inclinado, hacia abajo se desliza, y hacia arriba sube despacio |
+| Espacio | todos | Saltar. En la escalera, hasta el 2026-10-10 saltaba hacia atrás; ahora, mirándola, salta derecho para arriba, 1 m más alto que desde el piso, y mirando a otro lado, hacia donde mira. Colgado, mirando a la pared salta para arriba y con W se pasa arriba del borde, y mirando a otro lado salta hacia allá y se da vuelta (punto 5; el salto para arriba y el giro, desde el 2026-10-08). Colgado de un compañero, lo mismo, mirando hacia él (punto 6). Con un compañero colgado de vos, no hace nada. Desde el 2026-10-14, cayendo sin haber saltado, salta en el aire, una vez, hacia donde mira la cámara; y colgado de un cable, salta hacia donde mira la cámara |
 | Shift | todos | Correr (desde el punto 3) |
-| Ctrl | todos | Agacharse; corriendo, deslizarse (desde el punto 3); desde el 2026-10-12, soltarlo corta el deslizamiento. Colgado, se suelta; mantenido en el aire, no se agarra de ningún borde (punto 5) ni de ningún compañero (punto 6). Colgado de un compañero, se suelta. Colgado de un borde con un compañero colgado de vos, se sueltan los dos |
+| Ctrl | todos | Agacharse; corriendo, deslizarse (desde el punto 3); desde el 2026-10-12, soltarlo corta el deslizamiento. Colgado, se suelta; mantenido en el aire, no se agarra de ningún borde (punto 5) ni de ningún compañero (punto 6). Colgado de un compañero, se suelta. Colgado de un borde con un compañero colgado de vos, se sueltan los dos. Colgado de un cable, se suelta, y mantenido en el aire no se agarra de ninguno (2026-10-14) |
 | Mouse | todos | Mirar; un clic vuelve a tomar el mouse |
 | Rueda del mouse | todos | Acerca o aleja la cámara sobre la guía, de tercera persona hasta primera persona en la cabeza; 10 pasos de punta a punta (2026-10-10) |
 | Esc | todos | Suelta el mouse |
@@ -4098,6 +4280,8 @@ Al correr `scenes/net_lab/net_lab.tscn` con **F6** aparece un menú con:
 **La escalera** se agarra caminando hacia ella con el cuerpo a menos de 0,6 m de su eje (0,9 hasta el 2026-10-10). Arriba de todo, empujando hacia ella sale por arriba con un saltito.
 
 **El salto en el aire tampoco tiene tecla propia** (2026-10-14): es Espacio, cayendo, si no saltó desde que dejó el piso o algo de donde estaba agarrado. Lo gasta cualquier salto, y vuelve al tocar el piso o al agarrarse de algo.
+
+**Agarrarse de un cable tampoco tiene tecla** (2026-10-14): en el aire, se agarra solo si el cable toca la parte de arriba del cuerpo (`cable_grab_body`) o las manos, a no más de `cable_reach` del eje del cuerpo, mire donde mire la cámara, venga de donde venga y a la velocidad que sea. Colgado, sin teclas se queda quieto, aunque el cable esté inclinado.
 
 **El cuerpo gira hacia donde camina**, no hacia la cámara; así lo eligió el usuario el 2026-10-10. Cuando haya armas, al apuntar sí se va a mover en relación a la cámara (sección 14).
 
@@ -4126,13 +4310,14 @@ Los niveles de red afectan solo a la máquina donde se eligen:
 - desde el 2026-10-14, en el aire: "Salto en el aire: listo, Espacio cayendo", "listo cuando empieces a caer" o "ya saltaste: vuelve al tocar el piso o agarrarte de algo";
 - en la escalera, "Escalera N · pies a X m sobre su base", y después de soltarla, cuánto falta para poder volver a agarrarla (desde el punto 4);
 - colgado, "Colgado del borde: filo a X m de altura" y, si el borde va sobre una base, "· sobre la base N"; y después de soltar un borde, "Recién soltó un borde: no puede agarrar otro por X s" (desde el punto 5);
+- desde el 2026-10-14, colgado de un cable, "Colgado del cable N · a X m de su punta · inclinación N°" y, si pasa de 15°, "· las teclas hacia abajo te deslizan" o, deslizándose, "· te deslizás: soltá las teclas para frenar"; y después de soltarlo, "Recién soltó un cable: no puede agarrar otro por X s";
 - colgado de un compañero, "Colgado de la cintura del jugador N"; con alguien colgado, "El jugador N cuelga de tu cintura: quedás quieto · Ctrl te suelta y se caen los dos"; y después de soltarse de un compañero, "Recién se soltó de un compañero: no se puede colgar de otro por X s" (desde el punto 6);
 - desde el punto 7, "CÁMARA LENTA DEL MUNDO: al 30 % · quedan X s" mientras anda, o "Cámara lenta del mundo en X s" si está por empezar; y "CÁMARA LENTA PERSONAL: al 30 % · quedan X s del mundo". Desde el 2026-10-12 no hay personal, y la del mundo dice "al 30 % · 1 del teclado numérico la apaga" o, si ya se programó su fin, "se apaga en X s";
 - la velocidad, aclarando "(sobre la base)" si es relativa a una base;
 - "Pies en (x, y, z) · cabeza a … m de altura · base: …", con milímetros (desde el punto 3);
 - en pausa, "EN PAUSA (tick N) · G sigue · F avanza un tick";
 - arriba de todo, durante 3 s, el aviso de captura guardada;
-- la ayuda de teclas; desde el punto 5, con la línea "Colgado: A y D de costado · Espacio mirando a la pared sube, mirando a otro lado salta · Ctrl se suelta"; desde el punto 6, con "Saltando hacia un compañero colgado de un borde o en una escalera, te colgás de su cintura: ahí Espacio y Ctrl andan igual que colgado"; desde el punto 7, con "V cámara lenta del mundo, para todos" y, en el host, "B cámara lenta a los demás" en la línea de E, R y Q; desde el 2026-10-10, "rueda acerca la cámara, hasta primera persona" en la primera línea, y una línea nueva: "Escalera: Espacio mirándola salta para arriba, mirando a otro lado salta hacia allá". Desde el 2026-10-12, la V y la B pasan a "1 del teclado numérico: prende o apaga la cámara lenta del mundo, para todos · 2 del teclado numérico: prende o apaga tu súper salto y velocidad", y Ctrl dice "(corriendo: deslizarse, mientras lo mantengas)". Desde el 2026-10-14, "Cayendo sin haber saltado (te caíste, te soltaste, te empujaron): Espacio salta en el aire, una vez, hacia donde mira la cámara".
+- la ayuda de teclas; desde el punto 5, con la línea "Colgado: A y D de costado · Espacio mirando a la pared sube, mirando a otro lado salta · Ctrl se suelta"; desde el punto 6, con "Saltando hacia un compañero colgado de un borde o en una escalera, te colgás de su cintura: ahí Espacio y Ctrl andan igual que colgado"; desde el punto 7, con "V cámara lenta del mundo, para todos" y, en el host, "B cámara lenta a los demás" en la línea de E, R y Q; desde el 2026-10-10, "rueda acerca la cámara, hasta primera persona" en la primera línea, y una línea nueva: "Escalera: Espacio mirándola salta para arriba, mirando a otro lado salta hacia allá". Desde el 2026-10-12, la V y la B pasan a "1 del teclado numérico: prende o apaga la cámara lenta del mundo, para todos · 2 del teclado numérico: prende o apaga tu súper salto y velocidad", y Ctrl dice "(corriendo: deslizarse, mientras lo mantengas)". Desde el 2026-10-14, "Cayendo sin haber saltado (te caíste, te soltaste, te empujaron): Espacio salta en el aire, una vez, hacia donde mira la cámara", y "Cable: te agarrás solo · teclas según la cámara · hacia abajo en uno inclinado te deslizás, soltar frena · Espacio salta hacia donde mirás · Ctrl se suelta".
 
 **Desde el 2026-10-11, en un corte** (sección 8.11): en el cliente, "SIN NOTICIAS DEL HOST hace X s · tu personaje queda quieto hasta que vuelvan" y, cortado, "SIN CONEXIÓN CON EL HOST · reintenta solo · se rinde en N s"; en el host, por jugador cortado, "jugador N: se le cortó la conexión · queda quieto y lo espero N s más". El estado de la sesión dice cuándo vuelve ("volvió a conectarse, ahora como jugador N") y, desde el 2026-10-12, si el host no deja entrar y por qué.
 
@@ -4172,6 +4357,7 @@ Van después de `--` en la línea de comandos. Los temporizadores cuentan segund
 | `--test-input=hangcorner` | Como `hang`, pero colgado se mueve 2,5 s para cada lado: da la vuelta a las dos esquinas del bloque y vuelve (2026-10-13) |
 | `--test-input=hanginner` | Lo mismo contra el rincón de la pista de bordes: dobla por adentro, ida y vuelta (2026-10-13) |
 | `--test-input=airjump` | Ciclos: sube la escalera de la torre chica, camina hacia +x hasta caerse por el costado y, a los 0,25 s de caer, gira la cámara hacia −z y salta en el aire sin teclas (2026-10-14) |
+| `--test-input=cable` | Ciclos en la tirolesa de la pista de cables: sube la escalera 6, camina hasta caerse por el borde y agarrarse, se desliza con W mirando hacia abajo (a los 40 ticks suelta W 30 ticks y frena), sube 1,5 s con S y se suelta con Ctrl; vuelve por detrás de la plataforma (2026-10-14) |
 | `--test-input=crouchjump` | Frente a la pared de medidas, salta y se agacha a los 10 ticks del salto (punto 3) |
 | `--test-input=ladder` | Va a la escalera de la torre, se agarra y sube y baja entre 0,5 y 2 m; si la suelta, vuelve (punto 4) |
 | `--test-input=laddertop` | Sube la escalera hasta arriba y sale al techo de la torre (punto 4) |
@@ -4235,9 +4421,10 @@ Después:
 - "reconexión: el cliente volvió N veces (N intentos en el último corte, …, quieto sin noticias del host N veces); en el host, N jugadores volvieron y N no volvieron a tiempo", y con relevo, "relevo de prueba: N paquetes pasaron, N se tiraron en los cortes" (2026-10-11). Cada corte y cada vuelta se imprimen cuando pasan;
 - en el host, por jugador, las afirmaciones rechazadas también por `datos_imposibles` (2026-10-12);
 - con `hangcorner` y `hanginner`, la línea de `hang` suma "N esquinas dobladas (N por adentro)" (2026-10-13);
-- con `airjump`, "salto en el aire: N saltos" (2026-10-14).
+- con `airjump`, "salto en el aire: N saltos" (2026-10-14);
+- con `cable`, "cable: N agarres, N frenadas a mitad de camino, N bajadas hasta la punta, subió X m en total; tramo N" (2026-10-14).
 
-**Prueba de repetición:** `--scene res://scenes/net_lab/actor_replay_test.tscn -- --rate=N` (o `--rate=varying`). Sale con 0 si todas las repeticiones coinciden e imprime la huella de la pasada en vivo. Desde el punto 3 también imprime cuántos ticks pasó agachado y cuántos de ellos pidiendo pararse sin lugar; desde el punto 5, los ticks colgado; desde el punto 7, los ticks con cámara lenta; desde el 2026-10-12, los ticks con el súper prendido y los ticks encogido; y desde el 2026-10-14, cuántos de los saltos fueron en el aire.
+**Prueba de repetición:** `--scene res://scenes/net_lab/actor_replay_test.tscn -- --rate=N` (o `--rate=varying`). Sale con 0 si todas las repeticiones coinciden e imprime la huella de la pasada en vivo. Desde el punto 3 también imprime cuántos ticks pasó agachado y cuántos de ellos pidiendo pararse sin lugar; desde el punto 5, los ticks colgado; desde el punto 7, los ticks con cámara lenta; desde el 2026-10-12, los ticks con el súper prendido y los ticks encogido; y desde el 2026-10-14, cuántos de los saltos fueron en el aire y los ticks en un cable.
 
 **Barrido de Hanging** (punto 5): `--scene res://scenes/net_lab/hang_sweep_test.tscn`. Imprime cada caso, una tabla por borde, las salidas, los cuatro criterios y el resumen con teclas y sin teclas. Desde el salto para arriba, también prueba dos formas de subir (W desde el salto y W recién arriba) e imprime hasta dónde llegan los pies sobre el filo. Sale con 0 si se cumplen los cuatro criterios. Con `-- --detalle=borde,vel,llegada,ángulo,lateral,objetivo,teclas` (por ejemplo `--detalle=curvo,6,-12.0,0,0.6,colgarse,empuja`) imprime ese caso tick a tick. Tarda unos minutos.
 
@@ -4267,12 +4454,13 @@ Desde el 2026-10-10, todo se ve también en el editor. Antes, lo que arman los s
 | Rincón en L (2026-10-13) | Fila 2 de la pista de bordes, al final, a la derecha de "paredes al costado": un bloque de 2,4 m con un ala hacia donde se aparece en su punta derecha. Cartel "rincón: colgado, A y D doblan la esquina por adentro" | cara en z = −18, de x = 26,3 a 28,7; el ala, de x = 27,7 a 28,7, hasta z = −16 |
 | Columna cuadrada (2026-10-13) | Fila 3 de la pista de bordes, a la derecha del muro alto. Cartel "columna: colgado, A y D dan la vuelta entera" | 1,6 × 1,6 m y 2,4 m de alto; cara en z = −26, de x = 19,7 a 21,3 |
 | Torre de parkour (2026-10-13, sección 8.15) | Adelante a la izquierda, en la esquina del piso, a unos 30 m; pasando la plataforma con escalera y el ascensor. Es lo más alto del nivel; el recorrido empieza por los escalones, del lado que da hacia donde se aparece | centro en (−19; 0; −19); núcleo de 6 × 6 m y 12 m de alto; terrazas hasta 5,5 m del centro |
+| Pista de cables (2026-10-14, sección 8.19) | Detrás y a la derecha, más allá de la torre chica: cuatro cables en fila, cada uno con su cartel. El plano, el de 10°, el de comba entre dos plataformas y la tirolesa, que baja desde una plataforma de 6 m con escalera | origen en (14; 0; 10); los cables salen de x = 14 hacia +x, en z = 10 (plano, a 2,9 m), z = 14 (a 10°), z = 19 (comba, de 3,6 m) y z = 24 (tirolesa, de 7,5 a 2,84 m); la escalera en (11; 0; 24) |
 
 ---
 
 ## 11. Todas las pruebas y sus resultados
 
-Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente como dos procesos por localhost. Las de dos PC corrieron entre esta PC y la notebook, por Wi-Fi. En la columna "Paso", P2 a P7 son los puntos de la validación (sección 8), "Esc" es el escalón, y "8.10" a "8.18" son las secciones de lo que siguió a la validación.
+Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente como dos procesos por localhost. Las de dos PC corrieron entre esta PC y la notebook, por Wi-Fi. En la columna "Paso", P2 a P7 son los puntos de la validación (sección 8), "Esc" es el escalón, y "8.10" a "8.19" son las secciones de lo que siguió a la validación.
 
 | Paso | Prueba | Resultado |
 | --- | --- | --- |
@@ -4468,6 +4656,14 @@ Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente c
 | 8.17 | Dos PC | El salto sale cayendo y después dice "ya saltaste"; 0 correcciones |
 | 8.18 | El súper con internet mala en el cliente, cinco veces, por el contador y por la tecla | En el cliente se prende al tick siguiente (~15 ms); en el host, en el mismo tick, ~0,2 s después en tiempo real |
 | 8.18 | La cámara lenta: quién aprieta y con qué red | El cliente sin red simulada: 6 ticks. El cliente con internet mala: 15 a 19. El host con el cliente con internet mala: 19 y 20. 0 correcciones |
+| 8.19 | Cables, primera versión, sin red (`diag_cables.gd`) | Las 28 comprobaciones |
+| 8.19 | La pista de cables en el nivel (`diag_cables_nivel.gd`) | No la toca nada, ni la balsa moviéndose; la escalera 6 y los cuatro cables, registrados |
+| 8.19 | El input rehecho en el host (`diag_input_redondeo.gd`), 20.000 direcciones al azar | 197 cambiaban; con el arreglo, 0 |
+| 8.19 | En red, `cable`, sin red simulada, con internet mala y con otro mirando, en las tres versiones | 0 correcciones. En la primera corrida, 140 adoptadas, por el redondeo del input; después del arreglo, 0 |
+| 8.19 | El rediseño (48 comprobaciones) y la segunda vuelta (58), sin red | Todas: se agarra cayendo a 40 m/s y cruzando el cable a 60 m/s; quieto en cualquier inclinación; deslizarse y frenar; las teclas según la cámara; el alto de la detección. Con los valores de la escena (0,3 y 0,6), 58 de 58 |
+| 8.19 | Regresiones: colgarse, compañero, túnel, escalera, salto en el aire, esquinas y barrido | Igual que antes |
+| 8.19 | Repetición, a 60 y con el ritmo variando | Coincide. Huella `0da3362442e559bf` con la primera versión, `38e9023ca7f8b080` con el agarre nuevo (el súper salto se agarra del cable plano, 34 ticks) y `9c40e65ecd396f6a` con los valores de la escena (29 ticks) |
+| 8.19 | Dos PC | Primera versión: "se mueve correctamente, no como tenia pensado". Rediseño: dos cambios más. Segunda vuelta, también con +200 ms: "todo funciona correctamente", con 0 correcciones en la notebook |
 
 ---
 
@@ -4537,7 +4733,7 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - **Un nodo escrito a mano en un `.tscn`, sin `unique_id`,** lo carga bien el editor de Godot 4.7, y al guardar le agrega su `unique_id`.
 - **La cámara hija de un `SpringArm3D` con el resorte en diagonal** mira hacia donde apunta el resorte. Fijándole cada cuadro la orientación del rig (`global_basis`) en `_process`, mira hacia adelante y sigue en la punta del resorte.
 
-**Comprobados del 2026-10-10 a la noche al 2026-10-14 (secciones 8.11 a 8.18):**
+**Comprobados del 2026-10-10 a la noche al 2026-10-14 (secciones 8.11 a 8.19):**
 
 - **El delta del cuadro cambia el redondeo de la posición.** `move_and_slide()` mueve velocidad × `delta`, y el actor le pasa velocidad × (`dt` / `delta`): el resultado no es exactamente velocidad × `dt`, y la posición es float32. Corrido el mismo tick en un cuadro normal y en uno con `time_scale` 0,3, 37 de 4.000 estados en el aire cayeron en otro paso de 0,1 mm. Con un choque o el snap al piso manda Godot, y ahí no se vio.
 - **`time_scale` vale desde la iteración siguiente.** Cuando Godot se atrasa (una carga pesada), corre varios cuadros de física seguidos con el `time_scale` leído al empezar la iteración. Un diagnóstico que carga algo pesado en `_ready` tiene que esperar unos 120 cuadros antes de medir.
@@ -4552,6 +4748,7 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - **Una tecla simulada llega como la de verdad:** un `InputEventKey` con `physical_keycode` mandado por `Input.parse_input_event()` llega a `_unhandled_input()` y activa la acción, también sin ventana. Así se midió el 2 del numérico en la sección 8.18.
 - **Dos procesadores distintos calcularon la misma huella** del Tuning, el código y el nivel, con todo número redondeado a 0,1 mm antes. El redondeo es por precaución: las piezas del nivel salen de cuentas con tangentes, que podrían diferir en el último decimal; no se vio que difirieran.
 - **Agregar cuerpos al mundo cambió en 0,1 mm un salto lejos de ellos** en la prueba de repetición, al sumar la torre de parkour (y otra vez con el rincón de la pista). Se atribuyó a Jolt y no a un cambio de comportamiento; no se investigó más.
+- **Fotos de una escena sin abrir el juego:** con Movie Maker (`--write-movie carpeta/f.png --fixed-fps 10 --resolution 960x540`) y un script `-s` que agrega el nivel y una cámara propia, Godot guarda cada cuadro como PNG. Así se vieron los tres dibujos de los cables (sección 8.19).
 
 ---
 
@@ -4688,6 +4885,18 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 | 8.16 | Las correcciones en la balsa variaban de 41 a 103 por corrida | El azar de la balsa | Comparado con el código del último commit, guardando el cambio un momento en git: lo mismo |
 | 8.17 | La prueba del salto en el aire medía mal la dirección y la altura | Giraba la cámara un tick tarde y medía la altura después del primer tick | Arreglada la prueba |
 | 8.18 (del usuario) | "el super salto/velocidad [...] se activa con retraso" | Era la cámara lenta, que espera al cliente más lejano a propósito | Medido; quedó así, en la lista de lo que depende de un buen internet |
+| 8.19 | 140 afirmaciones adoptadas en la prueba en red de los cables, sin red simulada | `ActorInput.make` no daba lo mismo al rehacer un input: redondeados, los ejes podían pasar apenas de largo 1, y el host, que rehace el input que recibe, lo achicaba otra vez | Se achica el eje más largo de a un paso hasta que el largo no pase de 1 (`a099f95`): 0 adoptadas |
+| 8.19 | `diag_cables.gd`, primera corrida: 2 fallas | De la prueba: arrancaba a 2 m de la punta del cable plano y llegaba a ella; y saltando a lo largo del cable, al caer se vuelve a agarrar | Arranca en el medio; a lo largo se espera que se vuelva a agarrar, y de costado, que no |
+| 8.19 | Errores al cargar `cable.gd` | Un texto de varias líneas como constante pide comillas triples; los ejes de los eslabones, en otro orden; una división entera; una variable que tapaba a `basis` | Arreglados |
+| 8.19 | El poste de arriba de la tirolesa tapaba el camino hacia el cable | Estaba en el borde de la plataforma | Al costado, con un brazo por encima de la cabeza que es solo dibujo |
+| 8.19 (diseño mío) | "me tiro directamente a la cadena o cuerda pero no me agarro" | El agarre era el de un borde: las manos tenían que pasar por el cable, mirándolo | Se agarra si el cable toca la parte de arriba del cuerpo, mire donde mire |
+| 8.19 (diseño mío) | En los cables inclinados se deslizaba solo, y el usuario quería poder quedarse quieto | Lo entendí así de la primera respuesta ("si supera ese valor, empieza a deslizarse") | Quieto sin teclas; deslizarse, a pedido |
+| 8.19 (error mío) | Dije que al agarrarse el cuerpo "sube de golpe" | Es al revés: baja hasta que las manos llegan al cable | Corregido en el mensaje siguiente |
+| 8.19 | La huella de la repetición cambió dos veces | Su súper salto pasa por debajo del cable plano: con el agarre nuevo se agarra, y con los valores de la escena, un poco más tarde | Es lo esperado; la prueba cuenta los ticks en un cable |
+| 8.19 | Ediciones hechas con node desde la consola dejaron saltos de línea de verdad dentro de textos de GDScript, y otras no encontraron el texto | El `\n` se interpretaba distinto según cómo se pasaba el comando | Arregladas con el editor de archivos |
+| 8.19 | Pruebas de los controles nuevos fallaban | De la prueba: en el cable de 10°, a 2 m de la punta, no se llega saltando desde el piso; y A arrancaba con el cuerpo todavía subiendo | Arregladas |
+| 8.19 | La línea de ayuda del cable se cortaba a la derecha | Muy larga | Acortada |
+| 8.19 | Con el ancho en 0,6, dos casos de la prueba ("a 60 cm no llega") quedaban justo en el borde | Medían a una distancia fija | Miden 20 cm más allá de `cable_reach` |
 
 ---
 
@@ -4792,6 +5001,8 @@ El punto 7 también fue de la última fila: un contador en el input y lo que que
 
 Lo que siguió a la validación (secciones 8.11 a 8.17): el súper, las esquinas y el salto en el aire fueron de la última fila, con 1 a 2 bytes más cada uno en el estado o en el input. Desde el 2026-10-12, una copia vieja ya no puede entrar a la partida por error: la huella de compatibilidad lo detecta y dice qué actualizar. El tope del salto fue de la primera fila (dos números en el Tuning), y el corte del deslizamiento al soltar Ctrl, de la tercera (una salida de un modo). El encogido tocó una regla compartida, la postura, y por eso pidió más pruebas: el agarre, la cámara y el dibujo.
 
+Los cables (sección 8.19) fueron de la última fila, un modo nuevo, pero sin bytes nuevos: usan los campos del ancla que ya había. Las dos PC tuvieron que actualizarse juntas. El arreglo del redondeo del input tocó una regla compartida, la cuantización, sin cambiar el formato.
+
 **Los objetos con física y los vehículos del juego** (2026-10-10, 14:01–14:10). Hablando de la balsa, el usuario preguntó qué hace Garry's Mod "para que los objetos con fisicas no hagan cagadas", porque el juego va a tener los suficientes "como para que tengan un peso en el gameplay":
 
 - **la respuesta:** Garry's Mod (Source, de 2004) no lo resuelve, lo esquiva: el servidor simula los objetos, los demás los ven unos 100 ms en el pasado, y solo se predice al propio jugador; si el jugador choca o se para sobre algo que se mueve, se corrige, como en la balsa. Los motores actuales, como Unreal 5, eligen por objeto: los que se empujan los simula el servidor, y los que controla un jugador se predicen y se recalculan;
@@ -4799,6 +5010,18 @@ Lo que siguió a la validación (secciones 8.11 a 8.17): el súper, las esquinas
 - **los vehículos:** "solo van a haber motos y autos, pero en el auto vos te quedas pegado al vehículo, tipo no podes meterte dentro y dar vueltas, pero si podes subirte arriba y que tu compañero te lleve hasta que la friccion no sea la suficiente y te caigas".
 
 Arriba del auto es el caso de la balsa, manejado por un compañero. Mientras la fricción alcance, la posición relativa al auto es predecible; lo difícil es cuándo empieza a resbalar (que lo calcule cada PC, con correcciones, o que lo decida el host, con demora). No se decidió nada: queda para cuando lleguen los vehículos, y quedan preguntas abiertas sobre las puertas, la munición y las escaleras (sección 16).
+
+**Los cables** (2026-10-14, sección 8.19). Del usuario:
+
+- agarrarse sin tecla, y con que el cable toque el cuerpo "desde la mitad de la capsula"; después pidió un valor en el Tuning para cuánto del cuerpo, y lo dejó en 0,3, y un deslizador para el ancho, que dejó en 0,6;
+- rectos o con comba, quietos;
+- Espacio y Ctrl, como en un borde;
+- quieto en cualquier inclinación;
+- deslizarse con W, mirando hacia donde baja el cable, y frenar soltando W o con S;
+- las teclas, según la cámara. Al principio eligió A y D de costado, y lo cambió después de probarlo;
+- A o D hacia abajo deslizan igual que W, y S, deslizándose, frena y después sube.
+
+Míos, avisados: Espacio siempre hacia la cámara, soltarse con la velocidad que traía, nadie colgado de un compañero que está en un cable, el ancho inicial de 0,4 m, el ángulo de 60° de las teclas, el frenado de 12 m/s², y la línea invisible con el dibujo aparte.
 
 **Forma de trabajo acordada:**
 
@@ -4903,8 +5126,11 @@ Arriba del auto es el caso de la balsa, manejado por un compañero. Mientras la 
 | `245d55a` | 2026-10-13 14:31 | feat(net-lab): parkour tower to try every movement in one route | 4 | +223 / −2 |
 | `8e5bd15` | 2026-10-13 18:47 | feat(actor): shimmy around right-angle corners while hanging | 6 | +379 / −31 |
 | `f855536` | 2026-10-14 13:48 | feat(actor): air jump when falling without having jumped | 6 | +109 / −7 |
+| `5a06178` | 2026-10-14 15:47 | docs(net): record reconnection, keypad powers, tuck, tower, corners and air jump in the history | 1 | +3.836 / −125 |
+| `a099f95` | 2026-10-14 21:06 | fix(actor): keep ActorInput.make idempotent after rounding the axes | 1 | +13 / −1 |
+| `7dd59ca` | 2026-10-14 21:06 | feat(actor): hang from cables, straight or sagging, and slide down them | 13 | +915 / −18 |
 
-Cada uno se commiteó después de la prueba en las dos PC, y se comprobó antes que los archivos eran los probados. De `project.godot` van solo las acciones del Mapa de entrada (`599628b` y `a1f9084`), nunca la línea 4.6 → 4.7.
+Cada uno, salvo el del documento, se commiteó después de la prueba en las dos PC, y se comprobó antes que los archivos eran los probados. De `project.godot` van solo las acciones del Mapa de entrada (`599628b` y `a1f9084`), nunca la línea 4.6 → 4.7.
 
 **Zips en el escritorio** para copiar el proyecto a la otra PC, hasta el escalón. Los del esqueleto pesaban 18 MB cada uno; el tamaño de los de la validación no se anotó. Hoy quedan en el Escritorio el de la escalera y el del escalón; los demás se movieron o se borraron. Desde el escalón, la notebook se actualiza con el doble clic de la sección 6.2.
 
@@ -4956,6 +5182,9 @@ Cada uno se commiteó después de la prueba en las dos PC, y se comprobó antes 
 | 2026-10-13 16:21 | Las esquinas, con el rincón girando en el lugar. Probadas a las 17:54 | Nunca se commiteó así |
 | 2026-10-13 18:11 | El rincón con su curva. Probado a las 18:46 | `8e5bd15` |
 | 2026-10-14 13:26 | El salto en el aire. Probado a las 13:43 | `f855536` |
+| 2026-10-14 18:03 | Los cables, primera versión: el agarre como un borde, A y D de costado y deslizarse solo, con el arreglo del input. Probados a las 19:19 | Nunca se commiteó así |
+| 2026-10-14 19:44 | El agarre con tocar el cuerpo y deslizarse con W. Probado a las 20:14 | Nunca se commiteó así |
+| 2026-10-14 20:30 | El alto de la detección en el Tuning y las teclas según la cámara; el ancho, como deslizador, desde las 20:55. Probados en una PC a las 20:52 y en las dos a las 21:06 | `a099f95` y `7dd59ca` |
 
 **Lo que no se tocó:** hasta el 2026-10-11, los cambios previos sin commitear de la rama vieja siguieron igual. Incluían `project.godot` (solo con el cambio de versión 4.6 → 4.7 del editor), `docs/parkour/*`, `scenes/test/*`, `scripts/player_v2/*` y `assets/models/*`. Al pasar a `net-lab` quedaron guardados en `stash@{0}` (68 archivos), sin borrar nada; en `net-lab` solo queda el cambio de `project.godot` y archivos sin seguir (sección 1).
 
@@ -4976,13 +5205,13 @@ Cada uno se commiteó después de la prueba en las dos PC, y se comprobó antes 
 - **Hanging, prueba 7:** con 5 a 10 personas, cuando haya gente.
 - ~~**Tres tandas sin correr con el arreglo del temblor** (`b7403fb`): colgarse de un compañero, la cámara lenta y entrar tarde.~~ Corridas el 2026-10-10 a la noche: 0 correcciones (sección 8.11). Queda el colgado del borde sobre un cuerpo del host sin red simulada, que dio más correcciones que antes (125 contra 88, la más grande de 0,37 m contra 0,10 m): no se vio si es el azar del borde o el arreglo. El 2026-10-13, ese mismo borde con internet mala varió de 41 a 103 correcciones entre corridas del mismo código, así que el azar alcanza para explicarlo.
 - ~~**La diferencia de 0,1 mm en el salto con cámara lenta** (sección 8.10): con el recorrido de la prueba de repetición desviado, una repetición dio una altura de 0,2275 contra 0,2274 en vivo, siempre en el salto con cámara lenta del final. Con el recorrido normal no pasa. No se investigó.~~ Resuelta el 2026-10-10 a la noche: el delta del cuadro cambiaba el redondeo de la posición (sección 8.11, `1184427`).
-- **Las pruebas usan los valores del nodo Tuning de la escena** (desde el 2026-10-10): si el usuario cambia uno, el recorrido de la prueba de repetición puede desviarse y dejar de pasar por algún lugar. Hay que mirar la línea de cobertura cada vez que se corre.
+- **Las pruebas usan los valores del nodo Tuning de la escena** (desde el 2026-10-10): si el usuario cambia uno, el recorrido de la prueba de repetición puede desviarse y dejar de pasar por algún lugar. Hay que mirar la línea de cobertura cada vez que se corre. Pasó el 2026-10-14: con el ancho del cable en 0,6, dos casos de la prueba de cables quedaban en el borde, y el súper salto de la repetición se agarra del cable más tarde (sección 8.19).
 
 **Del parkour, lo que planteó el usuario el 2026-10-12** (sección 8.13):
 
 - ~~**El combo de súper salto, velocidad y fuerza.**~~ Hecho sin la fuerza (sección 8.13). **La fuerza** queda para cuando exista la mecánica en la que actúa.
 - ~~**El doble salto.**~~ Reemplazado por el salto en el aire (sección 8.17).
-- **Agarrarse de cables,** "que sean tanto un modelo 3D o una textura larga". Falta que el usuario diga qué se hace en ellos: colgarse y avanzar con las manos, deslizarse como en una tirolesa, balancearse, o una combinación.
+- ~~**Agarrarse de cables,** "que sean tanto un modelo 3D o una textura larga". Falta que el usuario diga qué se hace en ellos: colgarse y avanzar con las manos, deslizarse como en una tirolesa, balancearse, o una combinación.~~ Hecho el 2026-10-14 (sección 8.19): según la pendiente, rectos o con comba, quietos. Balancearse no se pidió.
 - **Probar todo en varios escenarios:** la torre fue el primero (sección 8.15).
 
 **Preguntas sin respuesta del 2026-10-12:**
@@ -5069,6 +5298,13 @@ Cada uno se commiteó después de la prueba en las dos PC, y se comprobó antes 
 - **La torre** (sección 8.15): el muro del tramo 9 se sube solo desde el cajón, aunque el cartel diga "con un compañero"; quedó así a pedido.
 - **Esquinas colgado** (sección 8.16): solo de unos 90° (70° a 110°) y con el filo a la misma altura; las demás frenan como antes.
 - **Salto en el aire** (sección 8.17): el mínimo de 5 m/s hacia la cámara lo empuja aunque no se apriete nada.
+- **Cables** (sección 8.19):
+    - quietos: no se balancean ni se mueven con el peso, y no van sobre una base;
+    - un cable vertical no se agarra;
+    - el cuerpo cuelga de costado al camino, sin brazos;
+    - nadie se cuelga de un compañero que está en un cable; dos en el mismo cable no se probó;
+    - al agarrarse, el cuerpo baja hasta 0,69 m (con 0,3), con el suavizado del borde;
+    - no hay botón ni capacidad de agarre.
 - **Primera persona** (sección 8.10):
     - es solo de cámara: no hay brazos, ni balanceo de la cabeza, ni animación;
     - el cuerpo propio se oculta solo en la propia pantalla; los demás lo siguen viendo;
@@ -5089,6 +5325,7 @@ Cada uno se commiteó después de la prueba en las dos PC, y se comprobó antes 
 - **Colgarse de un compañero:** el alcance (1 m), la altura de las manos sobre sus pies (1 m), la distancia entre los dos (0,7 m), cuánto baja el agarre del de arriba (1) y la tolerancia para adoptar (0,5 m).
 - **La cámara lenta:** la escala (30 %). ~~Y las dos duraciones (3 s).~~ Ya no hay duraciones.
 - **Lo que siguió** (secciones 8.13 a 8.17): el tope del salto (6 y 6,5 m/s), el súper (1,5 m y × 1,5), el encogido (20 cm), el radio del rincón (0,4 m; el usuario probó otros y volvió a este) y el salto en el aire (4,8 y 5 m/s). Todo está en el nodo Tuning.
+- **Los cables** (sección 8.19): el ancho (0,6 m en la escena), la parte del cuerpo que agarra (0,3), la inclinación desde la que se desliza (15°), la velocidad (12 m/s por el seno), la subida (0,75 m/s), el frenado (12 m/s²) y el ángulo de las teclas (60°). Todo en el nodo Tuning.
 - **La reconexión:** el silencio para dar por cortado (5 s), la espera del host (60 s) y los reintentos del cliente (cada 1 s, hasta 60 s), en el nodo Session.
 - **La escalera** (2026-10-10): el metro de más del salto, el saltito de la salida por arriba (0,2 m y 2,5 m/s) y el volumen (0,6 m y 0,3 m a los costados). Todo está en el Inspector: los primeros en el nodo Tuning y el volumen en cada escalera.
 - **La cámara** (2026-10-10): la forma de la guía, el paso de la rueda (10 %) y la distancia a la que se oculta el cuerpo (0,5 m), en el Inspector de CameraRig.
@@ -5120,6 +5357,7 @@ Cada uno se commiteó después de la prueba en las dos PC, y se comprobó antes 
     - Hanging: doblar esquinas, y el salto para arriba encogido;
     - las capacidades: el súper salto y velocidad, que cada jugador se aplica a sí mismo y se predice, sin evento del host;
     - el salto en el aire, que el documento no tiene.
+- ~~**Los cables.**~~ Anotado el 2026-10-14, con notas en cuatro lugares, en la copia del Apéndice A y en el documento de Claude Docs (revisión 71): el modo Tirolesa en el laboratorio, el agarre sin botón con el cuerpo, la forma de la detección y la cuantización del input, que tiene que dar lo mismo al rehacerse.
 - **Cuando el esqueleto pase a ser el juego,** los ajustes que hoy aplica el laboratorio al arrancar (60 ticks, `physics_jitter_fix` en 0 e interpolación de física) van a `project.godot`.
 - **Fuera del laboratorio** quedan los demás modos anclados, los cuerpos rígidos, las demás interacciones (empujar juntos, subirse a los hombros, arrastrar y revivir), la muerte, el sistema de modificadores, Steam y NAT.
 
@@ -5194,6 +5432,13 @@ La nota de "Subir al borde" cuenta los cuatro cambios.
 - "Subir al borde": el cuerpo encogido en el salto;
 - el recorrido 5, la desconexión del que sostiene, con la reconexión;
 - el punto 7 de "Qué validaría primero": la personal se sacó.
+
+**Correcciones del 2026-10-14, con los cables** (sección 8.19). Pedidas a las 21:07: "actualiza el md y el claude doc con los cables". La copia y el documento de Claude Docs (revisión 71) suman notas en cuatro lugares, sin cambiar el texto original:
+
+- "Qué manda el cliente en cada tick": cuantizar otra vez lo ya cuantizado tiene que dar lo mismo;
+- la fila Tirolesa de la tabla de modos: en el laboratorio es el modo Cable, quieto en cualquier inclinación y con las teclas según la cámara;
+- la fila 4 de las transiciones de Aire: el cable se agarra sin botón, con tocar el cuerpo;
+- "Escalera, cable y cuerda", en "Cómo se interpretan" (sondas): la forma de la detección del cable.
 
 ### Arquitectura de movimiento co-op (Godot 4.7 + Jolt)
 
@@ -5305,6 +5550,8 @@ Un paquete no confiable que repite los últimos 4 a 8 ticks, para que perder uno
 
 - **Input:** ejes de movimiento y mirada cuantizados, botones mantenidos y un **contador de pulsaciones por botón**. Si se pierde el tick donde se apretó saltar, el contador igual subió y el host ve la pulsación.
 - **Afirmación:** lo que el cliente predijo al final del tick: modo, ancla y su parámetro, postura, posición (relativa a la base si la hay), velocidad y la **época** que ya aplicó.
+
+> **Nota (2026-10-14), input.** Cuantizar tiene que dar lo mismo si se vuelve a cuantizar. En el laboratorio, el host rehace el input que recibe, y redondeados a 1/127 los dos ejes podían quedar apenas más largos que 1: al rehacerlo, se achicaban otra vez y daban otro paso. Pasaba en 197 de 20.000 direcciones al azar y nunca con las ocho del teclado; la adopción lo tapaba, y apareció como 140 afirmaciones adoptadas en una prueba sin red simulada. Ahora el eje más largo se achica de a un paso hasta que el largo no pase de 1 (sección 8.19).
 
 La **época** es un contador por cliente. El host lo incrementa con cada evento suyo que cambia la simulación de ese cliente: un empujón, un agarre, un teleport, un cambio de escala de tiempo del mundo. Lo que el cliente puede simular por su cuenta, como pisar un trampolín o entrar a una zona de gravedad, no cambia la época.
 
@@ -5452,6 +5699,8 @@ Un solo modo activo, como en Mover de Unreal. El **agarre** es cuánta fuerza ex
 
 > **Nota (2026-10-09), fila Enganchado.** En el laboratorio, Enganchado es colgarse de la cintura de un compañero que está agarrado de un borde o de una escalera, y sí se predice. El compañero queda quieto mientras alguien cuelga de él, así que el cliente calcula la pose desde él tal como lo ve, y da lo mismo que en el host. El agarre colgado es 3; el del compañero que sostiene baja de 3 a 2. Detalle en la sección 8.8.
 
+> **Nota (2026-10-14), fila Tirolesa.** En el laboratorio es el modo Cable: colgarse de un cable recto o con comba, quieto. Usa los campos del ancla que ya había, sin bytes nuevos: el número del cable, la distancia sobre él desde su origen y dónde están las manos. Lo que pidió el usuario cambia la "rapidez por pendiente": sin teclas se queda quieto en cualquier inclinación. Las teclas van según la cámara, como al caminar, y lo mueven a lo largo del cable; en uno de más de 15°, hacia abajo se desliza, acelerando con la gravedad sobre el cable (unos 5 m/s a 25°), y hacia arriba sube a 0,75 m/s; soltando, frena. Espacio salta hacia la cámara y Ctrl se suelta, como colgado de un borde. Se predice, con 0 correcciones en red (sección 8.19).
+
 Los valores de agarre son una escala de partida, de 0 a 5, a calibrar.
 
 ##### Lo que no es un modo
@@ -5502,6 +5751,8 @@ Cada modo declara una lista corta de salidas con prioridad. Cada salida es un de
 > **Nota (2026-10-10), filas 2 y 3.** Tres cambios en el laboratorio (sección 8.10). Las manos buscan un borde o un compañero hacia la mirada, con o sin teclas: el usuario notó que podía "entrar en hanging a una saliente sin mirar al muro". Un borde cuya pose de colgado cae dentro del volumen de entrada de una escalera no se agarra, porque delante está la escalera: el volumen hace de barrera, sin colisión. Y ese volumen es más chato: 0,6 m delante del eje, en vez de 0,9.
 
 > **Nota (2026-10-14), entre las filas 1 y 2.** En el laboratorio, Aire tiene una salida más, el salto en el aire: con Espacio, bajando, y si no saltó desde que dejó el piso o algo de donde estaba agarrado. Salta una vez, tan alto como desde el piso y hacia donde mira la cámara. Lo gasta cualquier salto, y vuelve al apoyarse o al agarrarse de algo; el estado guarda si ya saltó. Antes que él va el salto normal con coyote (sección 8.17).
+
+> **Nota (2026-10-14), fila 4.** En el laboratorio, el cable se agarra sin botón: alcanza con que en el tick toque la parte de arriba del cuerpo de parado o las manos, mire donde mire la cámara. Lo pidió el usuario: "uno ve un cable y lo primero que espera es tirarse de cualquier altura y no importa donde caigas, te agarras igual". La primera versión lo agarraba como a un borde, con las manos y mirándolo, y no alcanzaba. Ctrl mantenido en el aire evita agarrarse; no hay capacidad de agarrar (sección 8.19).
 
 Hay condiciones, pero son listas planas por modo, no un árbol global. Un modo nuevo agrega su entrada en las listas de los modos desde donde se llega, y nada más. Las condiciones usan la intención de movimiento y la velocidad, no la orientación del modelo, para que primera y tercera persona simulen igual.
 
@@ -5588,6 +5839,8 @@ Todas son consultas directas al espacio, porque funcionan igual en un tick repet
 - **Escalera, cable y cuerda.** Son objetos autorados con su eje, su ancho y sus salidas; no se detectan peldaños. Se entra con intención de movimiento hacia ellos o con el botón de agarre.
 
   > **Nota (2026-10-10).** En el laboratorio, el volumen de entrada de la escalera es una caja: 0,6 m delante del eje (era 0,9) y 0,3 m más allá de cada costado, los dos ajustables en el Inspector. Ese volumen también es la barrera para los bordes de detrás. Sus salidas: saltar mirándola, derecho para arriba y 1 m más alto que desde el piso; saltar mirando a otro lado, hacia allá, sin la parte que iría contra la pared; y por arriba, un saltito sobre el borde (sección 8.10).
+
+  > **Nota (2026-10-14), cable.** En el laboratorio, el cable no tiene un volumen de agarre: es una línea, y lo que se busca es el cuerpo. La forma es un cilindro parado alrededor del eje del cuerpo, de radio `cable_reach`, desde la parte del cuerpo que agarra (`cable_grab_body`, de la cabeza para abajo) hasta las manos. Se barre a lo largo del movimiento del tick, de a 10 cm, contra el punto más cercano del cable: así no se lo atraviesa aunque se vaya a 60 m/s. El cuerpo queda colgado de las manos en el punto que tocó, así que baja de golpe lo que haya entre ese punto y las manos; por eso el alto es ajustable. El usuario dejó 0,3 (el 30 % de arriba del cuerpo) y el radio en 0,6 m. Con varios cables, gana el de número más chico (sección 8.19).
 - **Entorno.** Los volúmenes se combinan con la misma regla que los modificadores: por categoría, gana la mayor prioridad. Se leen por consulta y no por señales, por la inferencia I1.
 - **Contactos.** Producen eventos para el tick siguiente. El trampolín solo actúa si la velocidad contra la superficie supera un mínimo.
 - **Interacción.** Para otros jugadores se usa la posición guardada en su estado (o interpolada, en un cliente), no una consulta física, por la inferencia I2. El host vuelve a validar con tolerancia.
@@ -6179,6 +6432,11 @@ Estos scripts no están en el repositorio: vivieron en una carpeta temporal de l
 | `diag_salto_aire.gd` | 8.17 | El salto en el aire: 16 comprobaciones de altura, dirección, una sola vez, después de otros saltos, soltado, empujado y repetición |
 | `traza_super.ps1` | 8.18 | El súper con internet mala en pareja, con una traza temporal en `net_lab.gd`, ya sacada: el tick en que se aprieta el 2 (por el contador y por un `InputEventKey` con `Input.parse_input_event()`) y el tick en que cambia `boosted` en cada máquina |
 | `traza_lenta.ps1` | 8.18 | La demora de la cámara lenta en pareja, con una traza temporal, ya sacada: el tick en que se aprieta el 1 y el tick en que cambia la escala del mundo, apretando el cliente (sin red simulada y con internet mala) y el host |
+| `diag_cables.gd` | 8.19 | Los cables con el motor real, en cables armados en la prueba: el agarre (de cualquier altura, a 40 y a 60 m/s, de costado, solo las piernas, con Ctrl y el alto de la detección), las teclas según la cámara, quieto en cualquier inclinación, deslizarse y frenar, la comba, Ctrl, Espacio, empujones, repetir ticks y validar la pose. 58 comprobaciones; las versiones de 28 y 48 ya no están |
+| `diag_cables_nivel.gd` | 8.19 | La pista de cables en el nivel real: que no la toque nada, ni la balsa, que la escalera 6 esté registrada, y los cuatro cables con su largo |
+| `diag_input_redondeo.gd` | 8.19 | Rehacer un input ya cuantizado, como el host: cuántas de 20.000 direcciones al azar cambian |
+| `foto_cables.gd` | 8.19 | Fotos de la pista de cables con Movie Maker, desde seis lugares. Se corre con `--write-movie` (sección 12) |
+| `cable_pares.ps1` | 8.19 | La prueba `cable` en pareja: el cliente sin red simulada y con internet mala, y el host con el cliente mirando. Usa `run_pair.ps1` |
 
 El barrido de Hanging no está acá: es parte del repositorio (`scenes/net_lab/hang_sweep_test.gd`).
 
@@ -9419,7 +9677,7 @@ func _initialize() -> void:
 	quit()
 ```
 
-### Scripts de lo que siguió a la validación (secciones 8.11 a 8.18)
+### Scripts de lo que siguió a la validación (secciones 8.11 a 8.19)
 
 #### diag_delta.gd
 
@@ -12097,4 +12355,614 @@ function Pair($name, $hostExtra, $clientExtra) {
 Pair 'cliente_sin' @() @($presses)
 Pair 'cliente_mala' @() (@($presses) + $mala)
 Pair 'host_mala' @($presses) $mala
+```
+
+#### diag_cables.gd
+
+```gdscript
+extends SceneTree
+
+# Cables con el motor real, sin red: agarrarse sin tecla con tocar el cuerpo de
+# la mitad para arriba (de cualquier altura, a cualquier velocidad, mire donde
+# mire), las teclas según la cámara, quieto en cualquier inclinación,
+# deslizarse con las teclas hacia abajo, frenar soltando o pidiendo para
+# arriba, subir más lento, la comba,
+# Ctrl, Espacio, empujones, repetir ticks y la validación de la pose.
+
+class Runner extends Node:
+	var tuning: ActorTuning
+	var actor: ActorBody
+	var frame := 0
+	var failures := 0
+	var presses := 0
+	var flat: Cable
+	var gentle: Cable
+	var steep: Cable
+	var sagging: Cable
+	var low: Cable
+
+	func _ready() -> void:
+		SimClock.apply_tick_rate(SimClock.TICK_RATE)
+		tuning = ActorTuning.from_scene()
+		add_child(tuning)
+		_box(Vector3(-50, -1, -50), Vector3(50, 0, 50))
+		flat = _cable(1, Vector3(0, 2.9, 0), Vector3(8, 0, 0), 0.0)
+		gentle = _cable(2, Vector3(0, 2.9, 10), Vector3(8, 8 * tan(deg_to_rad(10.0)), 0), 0.0)
+		steep = _cable(3, Vector3(0, 7.5, 20), Vector3(10, -10 * tan(deg_to_rad(25.0)), 0), 0.0)
+		sagging = _cable(4, Vector3(0, 4.0, 30), Vector3(10, 0, 0), 1.0)
+		low = _cable(5, Vector3(0, 0.6, 40), Vector3(8, 0, 0), 0.0)
+		actor = load("res://scenes/actor/actor.tscn").instantiate()
+		add_child(actor)
+
+	func _cable(id: int, at: Vector3, end: Vector3, sag: float) -> Cable:
+		var cable := Cable.new()
+		cable.cable_id = id
+		cable.end = end
+		cable.sag = sag
+		cable.position = at
+		add_child(cable)
+		return cable
+
+	func _box(low_corner: Vector3, high: Vector3) -> void:
+		var body := StaticBody3D.new()
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = high - low_corner
+		shape.shape = box
+		body.add_child(shape)
+		body.position = (low_corner + high) * 0.5
+		add_child(body)
+
+	func _physics_process(_delta: float) -> void:
+		frame += 1
+		if frame != 5:
+			return
+		_flat_grab_and_shimmy()
+		_gentle_no_slide()
+		_steep()
+		_sag()
+		_exits()
+		_forgiving_grab()
+		_impulses()
+		_replay()
+		print("[cable] %s" % ("TODO BIEN" if failures == 0 else "%d FALLAS" % failures))
+		get_tree().quit()
+
+	## Debajo del cable plano (a lo largo de X), mirando de costado (+Z), salta
+	## sin teclas: se agarra subiendo. Las teclas van según la cámara: mirándolo
+	## de costado, A y D; mirando a lo largo, W y S, y dándose vuelta con la
+	## cámara W sigue hacia donde mira.
+	func _flat_grab_and_shimmy() -> void:
+		var s := _grab_from_floor(flat, 4.0)
+		if s == null:
+			return
+		var feet_below := actor.global_position.distance_to(flat.point_at(s.anchor_t) + Vector3.DOWN * tuning.hang_height)
+		_check("plano: la pose es hang_height debajo del cable", feet_below < 0.001, "%.4f m" % feet_below)
+		_check("plano: el cuerpo mira de costado al cable (+Z)", absf(wrapf(s.facing_yaw - PI, -PI, PI)) < 0.01, "yaw %.3f" % s.facing_yaw)
+		var start := s.anchor_t
+		for t in 120:
+			_step(s, Vector2(1, 0), 0, false, PI)
+		var moved := s.anchor_t - start
+		# Mirando a +Z, la derecha de la cámara es -X: hacia el origen del cable.
+		_check("plano: mirando de costado, D 2 s lo mueve a la derecha de la cámara, unos 3 m", moved < -2.7 and moved > -3.05, "%.3f m" % moved)
+		start = s.anchor_t
+		for t in 60:
+			_step(s, Vector2.ZERO, 0, false, PI)
+		_check("plano: sin teclas frena y queda quieto", absf(s.anchor_t - start) < 0.2 and s.velocity.length() < 0.001, "%.3f m, vel %.3f" % [s.anchor_t - start, s.velocity.length()])
+		start = s.anchor_t
+		for t in 60:
+			_step(s, Vector2(1, 0), 0, false, 0.0)
+		_check("plano: mirando del otro lado (-Z), D va para el otro lado (+X)", s.anchor_t - start > 1.2, "%.3f m" % (s.anchor_t - start))
+		start = s.anchor_t
+		for t in 60:
+			_step(s, Vector2(0, 1), 0, false, PI)
+		_check("plano: W mirando de costado no lo mueve", absf(s.anchor_t - start) < 0.1, "%.3f m" % (s.anchor_t - start))
+		start = s.anchor_t
+		for t in 60:
+			_step(s, Vector2(1, 0), 0, false, -PI * 0.5)
+		_check("plano: D mirando a lo largo no lo mueve", absf(s.anchor_t - start) < 0.1, "%.3f m" % (s.anchor_t - start))
+		start = s.anchor_t
+		for t in 60:
+			_step(s, Vector2(0, 1), 0, false, -PI * 0.5)
+		_check("plano: W mirando a lo largo (+X) avanza hacia allá", s.anchor_t - start > 1.2, "%.3f m" % (s.anchor_t - start))
+		start = s.anchor_t
+		for t in 60:
+			_step(s, Vector2(0, 1), 0, false, PI * 0.5)
+		_check("plano: dándose vuelta con la cámara (-X), la misma W va para el otro lado, sin S", s.anchor_t - start < -1.2, "%.3f m" % (s.anchor_t - start))
+		start = s.anchor_t
+		for t in 60:
+			_step(s, Vector2(0, 1), 0, false, -PI * 0.5 + deg_to_rad(50.0))
+		_check("plano: W mirando a 50° del cable también avanza", s.anchor_t - start > 1.2, "%.3f m" % (s.anchor_t - start))
+		start = s.anchor_t
+		for t in 60:
+			_step(s, Vector2(0, 1), 0, false, -PI * 0.5 + deg_to_rad(70.0))
+		_check("plano: W mirando a 70° del cable (más de cable_move_angle) no lo mueve", absf(s.anchor_t - start) < 0.1, "%.3f m" % (s.anchor_t - start))
+		_check("plano: sigue colgado", s.mode == ActorState.Mode.CABLE, ActorState.Mode.keys()[s.mode])
+
+	## Cable a 10° (sube hacia +X), menos que el ángulo de deslizarse: sin teclas
+	## no se mueve, y hacia abajo va a la velocidad de siempre, sin deslizarse.
+	func _gentle_no_slide() -> void:
+		var s := _grab_from_floor(gentle, 1.0)
+		if s == null:
+			return
+		var start := s.anchor_t
+		for t in 120:
+			_step(s, Vector2.ZERO, 0, false, PI)
+		_check("a 10°: sin teclas no se desliza", absf(s.anchor_t - start) < 0.001, "%.4f m" % (s.anchor_t - start))
+		for t in 60:
+			_step(s, Vector2(-1, 0), 0, false, PI)
+		_check("a 10°: mirando de costado, A sube a la velocidad de siempre", s.anchor_t - start > 1.2, "%.3f m en 1 s" % (s.anchor_t - start))
+		start = s.anchor_t
+		var top_speed := 0.0
+		for t in 60:
+			_step(s, Vector2(0, 1), 0, false, PI * 0.5)  # mirando a -X, hacia donde baja
+			top_speed = maxf(top_speed, s.velocity.length())
+		_check("a 10°: W mirando para abajo va a la velocidad de siempre, sin deslizarse", s.anchor_t - start < -1.2 and top_speed < tuning.shimmy_speed + 0.01,
+				"%.3f m en 1 s, %.2f m/s" % [s.anchor_t - start, top_speed])
+
+	## Cable a 25° (baja hacia +X): sin teclas se queda quieto, mire donde mire.
+	## Las teclas hacia donde baja lo deslizan, acelerando hasta
+	## cable_slide_speed × sen 25°; soltando frena, y las de para arriba frenan y
+	## después suben, más lento. Vale igual con W que con A o D.
+	func _steep() -> void:
+		var down := -PI * 0.5  # mirando a +X
+		var s := _place_on(steep, 2.0)
+		var start := s.anchor_t
+		for t in 120:
+			_step(s, Vector2.ZERO, 0, false, down)
+		_check("a 25°: sin teclas se queda quieto (mirando para abajo)", absf(s.anchor_t - start) < 0.001 and s.velocity.length() < 0.001,
+				"%.4f m" % (s.anchor_t - start))
+		for t in 60:
+			_step(s, Vector2(0, 1), 0, false, PI)
+		_check("a 25°: W mirando de costado (a 90°) no lo mueve", absf(s.anchor_t - start) < 0.001, "%.4f m" % (s.anchor_t - start))
+		for t in 60:
+			_step(s, Vector2(0, 1), 0, false, down + deg_to_rad(70.0))
+		_check("a 25°: W mirando a 70° de para abajo no lo mueve", absf(s.anchor_t - start) < 0.001, "%.4f m" % (s.anchor_t - start))
+		var top_speed := 0.0
+		for t in 90:
+			_step(s, Vector2(0, 1), 0, false, down)
+			top_speed = maxf(top_speed, s.velocity.length())
+		var expected := tuning.cable_slide_speed * sin(deg_to_rad(25.0))
+		_check("a 25°: W mirando para abajo se desliza, hasta unos %.2f m/s" % expected, s.anchor_t > start + 2.0 and absf(top_speed - expected) < 0.15,
+				"%.2f m en 1,5 s, %.2f m/s" % [s.anchor_t - start, top_speed])
+		var at := s.anchor_t
+		var ticks := 0
+		while s.velocity.length() > 0.001 and ticks < 120:
+			_step(s, Vector2.ZERO, 0, false, down)
+			ticks += 1
+		_check("a 25°: soltando W frena en menos de medio segundo y se queda", ticks <= 30 and s.mode == ActorState.Mode.CABLE,
+				"%d ticks, %.2f m" % [ticks, s.anchor_t - at])
+		at = s.anchor_t
+		for t in 60:
+			_step(s, Vector2.ZERO, 0, false, down)
+		_check("a 25°: después de frenar, quieto", absf(s.anchor_t - at) < 0.001, "%.4f m" % (s.anchor_t - at))
+		for t in 30:
+			_step(s, Vector2(0, 1), 0, false, down + deg_to_rad(50.0))
+		_check("a 25°: W mirando a 50° de para abajo también lo desliza", s.anchor_t > at + 0.2, "%.2f m" % (s.anchor_t - at))
+		var fast := s.velocity.length()
+		ticks = 0
+		while s.velocity.dot(steep.tangent_at(s.anchor_t)) > 0.0 and ticks < 120:
+			_step(s, Vector2(0, -1), 0, false, down)
+			ticks += 1
+		at = s.anchor_t
+		for t in 60:
+			_step(s, Vector2(0, -1), 0, false, down)
+		_check("a 25°: S (mirando para abajo) frena y después sube despacio", ticks <= 20 and at - s.anchor_t > 0.6 and s.velocity.length() < tuning.cable_climb_speed + 0.01,
+				"de %.2f m/s frena en %d ticks, después sube %.2f m en 1 s" % [fast, ticks, at - s.anchor_t])
+		ticks = 0
+		while s.anchor_t < steep.length() - 0.001 and ticks < 400:
+			_step(s, Vector2(0, 1), 0, false, down)
+			ticks += 1
+		_check("a 25°: con W hasta la punta de abajo, ahí se frena en seco", s.anchor_t >= steep.length() - 0.001 and s.mode == ActorState.Mode.CABLE,
+				"a %.2f m (largo %.2f) en %.2f s" % [s.anchor_t, steep.length(), ticks / 60.0])
+		_step(s, Vector2(0, 1), 0, false, down)
+		_check("a 25°: en la punta, quieto", s.velocity.length() < 0.001, "%.3f m/s" % s.velocity.length())
+		start = s.anchor_t
+		for t in 120:
+			_step(s, Vector2(0, 1), 0, false, PI * 0.5)
+		var climbed := start - s.anchor_t
+		_check("a 25°: W mirando para arriba sube, más lento (unos %.2f m/s)" % tuning.cable_climb_speed, climbed > 1.3 and climbed < 1.55,
+				"%.3f m en 2 s" % climbed)
+		# Mirando a +Z la derecha de la cámara es -X, que en este cable es hacia arriba.
+		start = s.anchor_t
+		for t in 60:
+			_step(s, Vector2(1, 0), 0, false, PI)
+		_check("a 25°: mirando de costado, D hacia arriba sube igual de lento", start - s.anchor_t > 0.6 and start - s.anchor_t < 0.78,
+				"%.3f m en 1 s" % (start - s.anchor_t))
+		for t in 30:
+			_step(s, Vector2.ZERO, 0, false, PI)
+		start = s.anchor_t
+		top_speed = 0.0
+		for t in 60:
+			_step(s, Vector2(-1, 0), 0, false, PI)
+			top_speed = maxf(top_speed, s.velocity.length())
+		_check("a 25°: mirando de costado, A hacia abajo lo desliza, igual que W", s.anchor_t - start > 1.5 and top_speed > tuning.shimmy_speed + 0.5,
+				"%.3f m en 1 s, %.2f m/s" % [s.anchor_t - start, top_speed])
+		ticks = 0
+		while s.velocity.length() > 0.001 and ticks < 120:
+			_step(s, Vector2.ZERO, 0, false, PI)
+			ticks += 1
+		_check("a 25°: soltando A frena y queda quieto", ticks <= 30, "%d ticks" % ticks)
+
+	## Cable con comba de 1 m: colgado cerca de una punta (empinado), sin teclas
+	## quieto; con W mirando hacia el medio se desliza, y donde se aplana sigue a
+	## la velocidad de siempre. Soltando, frena.
+	func _sag() -> void:
+		var s := _place_on(sagging, 0.8)
+		var slope := rad_to_deg(asin(sagging.tangent_at(0.8).y))
+		for t in 120:
+			_step(s, Vector2.ZERO, 0, false, -PI * 0.5)
+		_check("comba: cerca de la punta (%.1f°) sin teclas, quieto" % slope, absf(s.anchor_t - 0.8) < 0.001, "a %.3f m" % s.anchor_t)
+		var top_speed := 0.0
+		var middle := sagging.length() * 0.5
+		var ticks := 0
+		while s.anchor_t < middle and ticks < 400:
+			_step(s, Vector2(0, 1), 0, false, -PI * 0.5)
+			top_speed = maxf(top_speed, s.velocity.length())
+			ticks += 1
+		var at_middle := s.velocity.length()
+		_check("comba: con W mirando al medio se desliza, y donde se aplana sigue a la velocidad de siempre",
+				top_speed > tuning.shimmy_speed + 0.3 and absf(at_middle - tuning.shimmy_speed) < 0.05,
+				"velocidad máxima %.2f m/s, en el medio %.2f m/s, en %.2f s" % [top_speed, at_middle, ticks / 60.0])
+		for t in 60:
+			_step(s, Vector2.ZERO, 0, false, -PI * 0.5)
+		_check("comba: soltando W en el medio, quieto", s.velocity.length() < 0.001, "%.3f m/s" % s.velocity.length())
+
+	## Ctrl se suelta y no se vuelve a agarrar enseguida; Espacio salta hacia la
+	## cámara y se da vuelta.
+	func _exits() -> void:
+		var s := _place_on(flat, 4.0)
+		_step(s, Vector2.ZERO, ActorInput.BUTTON_CROUCH, false, PI)
+		_check("Ctrl: se suelta", s.mode == ActorState.Mode.AIR and s.regrab_id == ActorState.REGRAB_CABLES, ActorState.Mode.keys()[s.mode])
+		var got := false
+		for t in 90:
+			_step(s, Vector2.ZERO, 0, false, PI)
+			got = got or s.mode == ActorState.Mode.CABLE
+		_check("Ctrl: cae al piso sin volver a agarrarse", not got and s.mode == ActorState.Mode.GROUND, ActorState.Mode.keys()[s.mode])
+		s = _place_on(flat, 4.0)
+		_step(s, Vector2.ZERO, 0, true, -PI * 0.5)
+		var flat_speed := Vector2(s.velocity.x, s.velocity.z)
+		_check("Espacio: salta hacia la cámara (+X) y se da vuelta", s.mode == ActorState.Mode.AIR and flat_speed.x > 3.9 and s.velocity.y > 3.5
+				and absf(wrapf(s.facing_yaw + PI * 0.5, -PI, PI)) < 0.01, "vel %s" % s.velocity.snapped(Vector3.ONE * 0.01))
+		got = false
+		for t in 60:
+			_step(s, Vector2.ZERO, 0, false, -PI * 0.5)
+			got = got or s.mode == ActorState.Mode.CABLE
+		_check("Espacio a lo largo del cable: el cable sigue tocándolo y se agarra más adelante", got,
+				"en %.2f m" % s.anchor_t)
+		s = _place_on(flat, 4.0)
+		_step(s, Vector2.ZERO, 0, true, PI)
+		got = false
+		for t in 90:
+			_step(s, Vector2.ZERO, 0, false, PI)
+			got = got or s.mode == ActorState.Mode.CABLE
+		_check("Espacio hacia el costado: no se vuelve a agarrar y cae al piso", not got and s.mode == ActorState.Mode.GROUND,
+				ActorState.Mode.keys()[s.mode])
+
+	## El agarre fácil: con que el cable toque el cuerpo de la mitad para
+	## arriba, se agarra, venga de donde venga y mire donde mire.
+	func _forgiving_grab() -> void:
+		var s := _place(Vector3(4, 8, 0.2), ActorState.Mode.AIR)
+		var mode := _watch(s, Vector2.ZERO, PI, false, 180)
+		_check("cayendo de 5 m por encima del cable, a 20 cm de costado: se agarra", mode == ActorState.Mode.CABLE, ActorState.Mode.keys()[mode])
+		if mode == ActorState.Mode.CABLE:
+			var feet_below := actor.global_position.distance_to(flat.point_at(s.anchor_t) + Vector3.DOWN * tuning.hang_height)
+			_check("  y queda colgado hang_height debajo", feet_below < 0.001, "%.4f m" % feet_below)
+		s = _place(Vector3(4, 40, 0.35), ActorState.Mode.AIR, Vector3(0, -tuning.max_fall_speed, 0))
+		mode = _watch(s, Vector2.ZERO, PI, false, 180)
+		_check("cayendo a %.0f m/s (%.2f m por tick), a 35 cm de costado: se agarra" % [tuning.max_fall_speed, tuning.max_fall_speed / 60.0],
+				mode == ActorState.Mode.CABLE, ActorState.Mode.keys()[mode])
+		s = _place(Vector3(4, 1.4, 3.5), ActorState.Mode.AIR, Vector3(0, 0, -60))
+		mode = _watch(s, Vector2.ZERO, 0.0, false, 10)
+		_check("cruzando el cable de costado a 60 m/s (1 m por tick, ningún tick termina cerca): se agarra",
+				mode == ActorState.Mode.CABLE, ActorState.Mode.keys()[mode])
+		s = _place(Vector3(4, 8, tuning.cable_reach + 0.2), ActorState.Mode.AIR)
+		mode = _watch(s, Vector2.ZERO, PI, false, 180)
+		_check("cayendo a %.0f cm de costado (20 más que cable_reach): no llega" % ((tuning.cable_reach + 0.2) * 100.0), mode != ActorState.Mode.CABLE, ActorState.Mode.keys()[mode])
+		s = _place(Vector3(3, 0, 0.25), ActorState.Mode.GROUND)
+		mode = _watch(s, Vector2.ZERO, PI, true, 90)  # mirando a +Z, el cable queda detrás
+		_check("saltando al lado del cable (25 cm), mirando para el otro lado: se agarra", mode == ActorState.Mode.CABLE, ActorState.Mode.keys()[mode])
+		if mode == ActorState.Mode.CABLE:
+			_check("  y el cuerpo mira hacia donde mira la cámara (+Z)", absf(wrapf(s.facing_yaw - PI, -PI, PI)) < 0.01, "yaw %.3f" % s.facing_yaw)
+		s = _place(Vector3(3, 0, tuning.cable_reach + 0.2), ActorState.Mode.GROUND)
+		mode = _watch(s, Vector2.ZERO, 0.0, true, 90)
+		_check("saltando a %.0f cm del cable (20 más que cable_reach), mirándolo: no llega" % ((tuning.cable_reach + 0.2) * 100.0), mode != ActorState.Mode.CABLE, ActorState.Mode.keys()[mode])
+		s = _place(Vector3(3, 0, 2.5), ActorState.Mode.GROUND)
+		mode = _watch(s, Vector2(0, 1), 0.0, true, 90)
+		_check("corriendo hacia el cable desde 2,5 m y saltando: se agarra al pasar", mode == ActorState.Mode.CABLE, ActorState.Mode.keys()[mode])
+		s = _place(Vector3(3, 0, 40.1), ActorState.Mode.GROUND)
+		mode = _watch(s, Vector2.ZERO, PI, true, 90)
+		_check("cable a 60 cm del piso, saltando encima: solo le toca las piernas, no se agarra",
+				mode == ActorState.Mode.GROUND, ActorState.Mode.keys()[mode])
+		s = _place(Vector3(3, 0, 0.1), ActorState.Mode.GROUND)
+		mode = _watch(s, Vector2.ZERO, PI, true, 90, ActorInput.BUTTON_CROUCH)
+		_check("saltando debajo con Ctrl apretado: no se agarra", mode != ActorState.Mode.CABLE, ActorState.Mode.keys()[mode])
+		# cable_grab_body: qué parte del cuerpo agarra, y cuánto baja de golpe.
+		var saved_band := tuning.cable_grab_body
+		for band: float in [0.5, 0.3]:
+			tuning.cable_grab_body = band
+			var low := 1.8 * (1.0 - band)
+			s = _place(Vector3(4, 1.9, 0.6), ActorState.Mode.AIR, Vector3(0, 0, -6))
+			mode = _watch(s, Vector2.ZERO, 0.0, false, 30)
+			var expected := band >= 0.5
+			_check("con cable_grab_body %.1f (agarra desde %.2f m), cruzando con el cable 1 m arriba de los pies: %s" % [band, low, "se agarra" if expected else "no se agarra"],
+					(mode == ActorState.Mode.CABLE) == expected, ActorState.Mode.keys()[mode])
+			s = _place(Vector3(4, 8, 0.2), ActorState.Mode.AIR)
+			var drop := -1.0
+			var fall := 0.0
+			for tick in 180:
+				var before := actor.global_position.y
+				fall = -s.velocity.y * SimClock.TICK_DT
+				_step(s, Vector2.ZERO, 0, false, PI)
+				if s.mode == ActorState.Mode.CABLE:
+					drop = before - actor.global_position.y
+					break
+			var most := tuning.hang_height - low
+			_check("con cable_grab_body %.1f, cayendo desde arriba el cuerpo baja de golpe como mucho %.2f m (más lo que cae en el tick)" % [band, most],
+					s.mode == ActorState.Mode.CABLE and drop <= most + fall + 0.25 and drop >= most - 0.11,
+					"bajó %.2f m en el tick del agarre, cayendo a %.1f m/s" % [drop, fall / SimClock.TICK_DT])
+		tuning.cable_grab_body = saved_band
+
+	## Un empujón débil se lleva sobre el cable; uno fuerte lo suelta.
+	func _impulses() -> void:
+		var s := _place_on(flat, 4.0)
+		ActorMotor.apply_impulse(s, Vector3(3, 0, 3), 2, tuning)
+		_check("empujón débil: sigue colgado, con la parte sobre el cable", s.mode == ActorState.Mode.CABLE and absf(s.velocity.x - 3.0) < 0.01 and absf(s.velocity.z) < 0.01,
+				"vel %s" % s.velocity)
+		s = _place_on(flat, 4.0)
+		ActorMotor.apply_impulse(s, Vector3(3, 2, 3), 4, tuning)
+		_check("empujón fuerte: se suelta", s.mode == ActorState.Mode.AIR, ActorState.Mode.keys()[s.mode])
+
+	## Repetir los ticks de un deslizamiento con el cuerpo restaurado da los
+	## mismos bytes, y la pose se valida como una afirmación.
+	func _replay() -> void:
+		var s := _place_on(steep, 1.0)
+		for t in 20:
+			_step(s, Vector2(0, 1), 0, false, -PI * 0.5)
+		var saved := s.to_bytes()
+		var saved_presses := presses
+		var first := _run_replay(s)
+		presses = saved_presses
+		var again := ActorState.from_bytes(saved)
+		actor.state = again
+		actor.apply_state(again)
+		var second := _run_replay(again)
+		_check("repetir los ticks del deslizamiento da los mismos bytes", first == second, "")
+		var valid := ActorMotor.anchored_pose_valid(actor, again, tuning)
+		var moved := again.copy()
+		moved.position += Vector3(0.3, 0, 0)
+		var invalid := not ActorMotor.anchored_pose_valid(actor, moved, tuning)
+		var beyond := again.copy()
+		beyond.anchor_t = steep.length() + 1.0
+		_check("la pose colgado del cable se valida; corrida 30 cm o más allá de la punta, no", valid and invalid
+				and not ActorMotor.anchored_pose_valid(actor, beyond, tuning), "")
+
+	func _run_replay(s: ActorState) -> PackedByteArray:
+		for t in 60:
+			_step(s, Vector2(0, -0.4) if t > 30 else Vector2(0, 1), 0, false, -PI * 0.5)
+		return s.to_bytes()
+
+	## Debajo del cable, a `t` de su origen y 10 cm al costado, salta mirando a
+	## +Z. Devuelve el estado ya colgado, o null.
+	func _grab_from_floor(cable: Cable, t: float) -> ActorState:
+		var under := cable.point_at(t)
+		var s := _place(Vector3(under.x, 0, under.z - 0.1), ActorState.Mode.GROUND)
+		for tick in 90:
+			_step(s, Vector2.ZERO, 0, tick == 2, PI)
+			if s.mode == ActorState.Mode.CABLE:
+				_check("cable %d: saltando debajo sin teclas se agarra (al tick %d)" % [cable.cable_id, tick], true, "")
+				return s
+		_check("cable %d: saltando debajo sin teclas se agarra" % cable.cable_id, false, "modo %s" % ActorState.Mode.keys()[s.mode])
+		return null
+
+	## Corre hasta que se agarra de un cable, o vuelve al piso: devuelve el modo.
+	func _watch(s: ActorState, move: Vector2, yaw: float, jump: bool, ticks: int, buttons := 0) -> int:
+		for tick in ticks:
+			_step(s, move, buttons, jump and tick == 2, yaw)
+			if s.mode == ActorState.Mode.CABLE:
+				return s.mode
+			if tick > 10 and s.mode == ActorState.Mode.GROUND:
+				return s.mode
+		return s.mode
+
+	## Directamente colgado del cable en `t`, mirando a +Z.
+	func _place_on(cable: Cable, t: float) -> ActorState:
+		var s := _place(cable.point_at(t) + Vector3.DOWN * tuning.hang_height, ActorState.Mode.CABLE)
+		s.anchor_id = cable.cable_id
+		s.anchor_t = t
+		s.anchor_point = cable.point_at(t)
+		s.facing_yaw = PI
+		s.quantize()
+		actor.state = s
+		actor.apply_state(s)
+		return s
+
+	func _place(at: Vector3, mode: int, velocity := Vector3.ZERO) -> ActorState:
+		var s := ActorState.new()
+		s.position = at
+		s.velocity = velocity
+		s.mode = mode
+		s.on_floor = mode == ActorState.Mode.GROUND
+		s.facing_yaw = PI
+		s.quantize()
+		actor.state = s
+		actor.apply_state(s)
+		presses = 0
+		return s
+
+	func _step(s: ActorState, move: Vector2, buttons: int, press: bool, yaw: float) -> void:
+		if press:
+			presses += 1
+		ActorMotor.step(actor, s, ActorInput.make(0, move, yaw, buttons, presses), tuning, SimClock.TICK_DT)
+
+	func _check(label: String, ok: bool, detail: String) -> void:
+		print("[cable] %s %s  (%s)" % ["OK   " if ok else "FALLA", label, detail])
+		if not ok:
+			failures += 1
+
+
+func _initialize() -> void:
+	root.add_child(Runner.new())
+```
+
+#### diag_cables_nivel.gd
+
+```gdscript
+extends SceneTree
+
+# La pista de cables en el nivel real del laboratorio: que no la toque nada más (ni la
+# balsa, que se mueve), que su escalera tenga id propio y que estén los cuatro cables.
+
+var lab: Node
+var frame := 0
+var failures := 0
+
+
+func _initialize() -> void:
+	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
+	root.add_child(lab)
+
+
+func _physics_process(_delta: float) -> bool:
+	frame += 1
+	if frame == 30 or frame == 600:
+		_check_overlap()
+	if frame == 600:
+		var ids := []
+		for ladder in Ladder.all():
+			ids.append(ladder.ladder_id)
+		ids.sort()
+		_check("escaleras registradas: 1 y 2 del nivel, 3 a 5 de la torre y 6 de la pista de cables", ids == [1, 2, 3, 4, 5, 6], str(ids))
+		var cables := []
+		for cable in Cable.all():
+			cables.append([cable.cable_id, snappedf(cable.length(), 0.01)])
+		_check("cables registrados: 1 a 4", cables.size() == 4 and cables[3][0] == 4, str(cables))
+		print("[nivel] %s" % ("TODO BIEN" if failures == 0 else "%d FALLAS" % failures))
+		quit()
+	return false
+
+
+## Una caja que cubre la torre, del piso para arriba: qué cuerpos que no son
+## de la torre la tocan.
+func _check_overlap() -> void:
+	var tower: Node3D = lab.find_child("PistaDeCables", true, false)
+	if tower == null:
+		_check("la pista de cables está en el nivel", false, "")
+		return
+	var box := BoxShape3D.new()
+	box.size = Vector3(15.5, 8.45, 15.95)
+	var params := PhysicsShapeQueryParameters3D.new()
+	params.shape = box
+	params.transform = Transform3D(Basis(), tower.global_position + Vector3(4.65, 4.275, 7.625))
+	params.collision_mask = 0xFFFFFFFF
+	var others := []
+	for hit in root.get_world_3d().direct_space_state.intersect_shape(params, 64):
+		var body: Node = hit["collider"]
+		if not tower.is_ancestor_of(body):
+			others.append(str(body.get_path()))
+	_check("en el frame %d nada más toca la pista de cables" % frame, others.is_empty(), str(others))
+
+
+func _check(label: String, ok: bool, detail: String) -> void:
+	print("[nivel] %s %s  (%s)" % ["OK  " if ok else "FALLA", label, detail])
+	if not ok:
+		failures += 1
+```
+
+#### diag_input_redondeo.gd
+
+```gdscript
+extends SceneTree
+
+# ¿Rearmar un input ya cuantizado (ActorInput.make otra vez, como hace el host
+# en NetSync.input_for) da el mismo movimiento? Prueba direcciones al azar.
+
+func _initialize() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var changed := 0
+	var example := ""
+	for i in 20000:
+		var angle := rng.randf_range(-PI, PI)
+		var move := Vector2(cos(angle), sin(angle))
+		var first := ActorInput.make(0, move, 0.0, 0, 0)
+		var again := ActorInput.make(0, first.move, 0.0, 0, 0)
+		var b := StreamPeerBuffer.new()
+		first.write_to(b)
+		b.seek(0)
+		var read := ActorInput.read_from(b)
+		var host := ActorInput.make(0, read.move, 0.0, 0, 0)
+		if host.move != first.move:
+			changed += 1
+			if example == "":
+				example = "%s -> %s (largo %.5f) -> %s" % [move, first.move, first.move.length(), host.move]
+	print("[redondeo] de 20000 direcciones, cambian al rearmarlas en el host: %d   ej: %s" % [changed, example])
+	quit()
+```
+
+#### foto_cables.gd
+
+```gdscript
+extends SceneTree
+
+# Fotos de la pista de cables con Movie Maker: el nivel del laboratorio y una
+# cámara propia que pasa por varios lugares, 5 cuadros en cada uno.
+
+const VIEWS := [
+	[Vector3(6, 10, 2), Vector3(20, 3, 18)],          # toda la pista
+	[Vector3(18, 2.7, 12.2), Vector3(18, 2.9, 10)],   # tubo, cable plano
+	[Vector3(18, 3.2, 16.0), Vector3(18, 3.6, 14)],   # textura, cable a 10°
+	[Vector3(19, 2.8, 20.6), Vector3(19, 2.6, 19)],   # cadena, cable con comba
+	[Vector3(19, 5.0, 30), Vector3(18.5, 5.2, 24)],   # tirolesa
+	[Vector3(16.5, 8.4, 26.5), Vector3(14, 7.7, 24)], # arriba de la tirolesa
+]
+
+var cam: Camera3D
+var frame := 0
+
+
+func _initialize() -> void:
+	root.add_child(load("res://scenes/net_lab/net_lab_level.tscn").instantiate())
+	cam = Camera3D.new()
+	cam.fov = 60.0
+	root.add_child(cam)
+	cam.current = true
+
+
+func _process(_delta: float) -> bool:
+	var view: Array = VIEWS[mini(frame / 5, VIEWS.size() - 1)]
+	cam.global_transform = Transform3D(Basis.looking_at(view[1] - view[0], Vector3.UP), view[0])
+	frame += 1
+	return frame > VIEWS.size() * 5
+```
+
+#### cable_pares.ps1
+
+```powershell
+param([string[]]$Only = @())
+# Cables en red (--test-input=cable): la tirolesa de la pista de cables, en ciclos.
+$old = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\5d835f7b-ceb8-45f9-9209-8dc10c4704df\scratchpad"
+$sp = "C:\Users\ELCAID~1\AppData\Local\Temp\claude\C--Users-ElCaido97-Documents-tun-tun-tun-sahur\52323eb3-c36b-437d-9f5c-70bee61a1c1a\scratchpad"
+$proj = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+$common = @('--headless','--path',$proj,'-d','--scene','res://scenes/net_lab/net_lab.tscn','--')
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5','--sim-seed=22')
+
+function Show($file) {
+  Get-Content $file | Select-String -Pattern '^==== |resumen: rol=CLIENT|adopci.n del jugador|cable: [0-9]|correcciones: la|los dem.s en pantalla|SCRIPT|ERROR: res|WARNING: [A-Z]|TIMEOUT' | ForEach-Object {
+    $_.Line -replace 'ida_y_vuelta.*?saltos_de_reloj','saltos_de_reloj' -replace ' snapshots_perdidos.*$','' -replace '^\[net_lab\] ','' -replace 'm.ximo=\d+ ','' -replace 'actores=\[[^\]]*\] ','' -replace 'tick=\d+ ','' }
+}
+
+function Pair($name, $hostExtra, $clientExtra, [int]$quit = 60) {
+  if ($Only.Count -gt 0 -and -not ($Only -contains $name)) { return }
+  $hostArgs = $common + @('--host','--port=7799','--bind=127.0.0.1',"--autoquit=$($quit + 2)") + $hostExtra
+  $clientArgs = $common + @('--client','--address=127.0.0.1','--port=7799',"--autoquit=$quit") + $clientExtra
+  $file = "$sp\cable_$name.txt"
+  & "$old\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds ($quit + 40) | Out-File -Encoding utf8 $file
+  "######## $name"
+  Show $file
+}
+
+Pair 'cliente_sin' @() @('--test-input=cable')
+Pair 'cliente_mala' @() (@('--test-input=cable') + $mala)
+Pair 'observador_mala' @('--test-input=cable') $mala
 ```

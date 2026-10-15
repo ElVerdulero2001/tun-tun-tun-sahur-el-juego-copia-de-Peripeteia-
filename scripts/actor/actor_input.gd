@@ -37,7 +37,19 @@ static func make(p_tick: int, p_move: Vector2, p_look_yaw: float, p_buttons: int
 	var input := ActorInput.new()
 	input.tick = p_tick
 	var m := p_move.limit_length(1.0)
-	input.move = Vector2(roundi(m.x * AXIS_STEPS) / AXIS_STEPS, roundi(m.y * AXIS_STEPS) / AXIS_STEPS)
+	var x := roundi(m.x * AXIS_STEPS)
+	var y := roundi(m.y * AXIS_STEPS)
+	# Redondeado, el largo puede pasar apenas de 1 (0,976 y -0,236 dan 1,0045):
+	# armar el input otra vez con ese movimiento lo achicaría y daría otro paso.
+	# El host lo hace con lo que recibe, así que se achica acá el eje más
+	# largo, de a un paso, hasta que el largo no pase de 1.
+	var steps := roundi(AXIS_STEPS)
+	while x * x + y * y > steps * steps:
+		if absi(x) >= absi(y):
+			x -= signi(x)
+		else:
+			y -= signi(y)
+	input.move = Vector2(x / AXIS_STEPS, y / AXIS_STEPS)
 	input.look_yaw = ActorState.quantize_yaw(p_look_yaw)
 	input.buttons = p_buttons
 	input.jump_presses = p_jump_presses & 0xFF

@@ -1,8 +1,9 @@
 # Arquitectura de movimiento co-op y esqueleto de red: todo lo hecho hasta ahora
 
 **Proyecto:** tun-tun-tun-sahur · **Motor:** Godot 4.7.2 estable con Jolt Physics (`3d/physics_engine="Jolt Physics"` en `project.godot`).
-**Período:** del 2026-10-01 a las 20:41 al 2026-10-14 a las 21:07. Todas las horas están en hora de Argentina (UTC−3).
+**Período:** del 2026-10-01 a las 20:41 al 2026-10-15 a las 20:29. Todas las horas están en hora de Argentina (UTC−3).
 **Documento de arquitectura original:** [Arquitectura de movimiento co-op (Godot 4.7 + Jolt)](https://claude.ai/code/artifact/6760c3bf-39ed-4f2f-8d9d-23642c7ac797), en Claude Docs. Está copiado completo en el Apéndice A.
+**Guía práctica:** [`guia_del_laboratorio.md`](guia_del_laboratorio.md), para retomar el laboratorio por tareas (dónde está cada cosa, cómo probar, cómo agregar cables y escaleras, las reglas acordadas) sin leer todo este historial. Escrita el 2026-10-15.
 
 **Historial de este documento:**
 
@@ -46,13 +47,20 @@
     - la demora de la cámara lenta y la lista de mecánicas que dependen de un buen internet (sección 8.18).
 
   Primero se pidió solo este documento. Después, a las 15:41, "agrega las notas en los dos y despues hace el commit local": el documento de Claude Docs (revisión 69) y su copia en el Apéndice A suman notas en once lugares. Como en las versiones anteriores, no se borró nada; donde algo cambió, se aclara qué era antes.
-- **Esta actualización:** pedida el 2026-10-14 a las 21:07: "actualiza el md y el claude doc con los cables". Suma la sección 8.19, los cables:
+- **Décima versión:** pedida el 2026-10-14 a las 21:07, commit `3e1bd48` (22:34): "actualiza el md y el claude doc con los cables". Sumó la sección 8.19, los cables:
     - la primera versión, que se agarraba como un borde y se deslizaba sola en los cables inclinados;
     - el rediseño después de probarla: se agarra con tocar el cuerpo, y se queda quieto en cualquier inclinación;
     - la segunda vuelta: el alto de la detección en el Tuning y las teclas según la cámara;
     - un error viejo del redondeo del input, que apareció al probarlos en red.
 
   El documento de Claude Docs (revisión 71) y su copia en el Apéndice A suman notas en cuatro lugares. Los números de las pruebas se volvieron a correr con los valores que dejó el usuario en la escena. A las 22:34, "hace commit local del md": va en un commit propio, solo local.
+- **Esta actualización:** pedida el 2026-10-15 a las 20:29: "ok, actualiza los md con todo lo que se fue agregando desde la ultima actualizacion". Suma la sección 8.20, cables y escaleras para armar niveles en el editor:
+    - el cable como curva de Godot (Path3D), que se dibuja y se arrastra en el editor;
+    - los números de cables y escaleras, que salen solos de su lugar en la escena;
+    - el dibujo de la escalera con piezas: los `.glb` del larguero y del peldaño, que el código gira, estira y repite;
+    - las preguntas del usuario por el camino (cómo suavizar una curva, por qué hace falta un número, cómo hacer los modelos en Blender, qué tan robusto es) y lo que se le respondió.
+
+  El documento de Claude Docs (revisión 72) y su copia en el Apéndice A suman notas en dos lugares. El código de la sección 8.20 no tiene commit todavía. El 2026-10-16 a las 12:46, "hace commit local de los md": esta versión y la guía práctica (`guia_del_laboratorio.md`, pedida el 2026-10-15) van en un commit propio, solo local.
 
 Este documento junta todo lo que se hizo, sin recortes:
 
@@ -126,7 +134,7 @@ Este documento junta todo lo que se hizo, sin recortes:
     - la rueda del mouse mueve la cámara sobre una guía editable, de tercera persona hasta primera persona;
     - las manos buscan un borde o un compañero hacia donde mira la cámara. El cuerpo sigue girando hacia donde camina; al apuntar con armas, cuando existan, va a seguir a la cámara;
     - las pruebas de un proceso corren sin esperar al reloj: la de repetición, de 96,6 s a 9 s.
-- **Lo que siguió a la validación** (secciones 8.11 a 8.19), todo probado en las dos PC y commiteado, salvo la 8.18, que no tocó código:
+- **Lo que siguió a la validación** (secciones 8.11 a 8.20), todo probado en las dos PC y commiteado, salvo la 8.18, que no tocó código, y la 8.20, que todavía no se probó en las dos PC ni tiene commit:
     - **la diferencia de 0,1 mm** del salto con cámara lenta era un error real de determinismo: según el cuadro en que corría un tick, la posición podía caer en otro paso de 0,1 mm. Resuelto;
     - **la reconexión:** si se corta la red, el cliente reintenta solo y el host deja al jugador quieto en el mundo hasta 60 s; al volver sigue donde estaba, también si estaba colgado de un compañero;
     - **la rama propia, `net-lab`:** `main` más los commits del laboratorio, copiados con otros hashes. Lo del parkour sin commitear quedó guardado en git;
@@ -137,15 +145,16 @@ Este documento junta todo lo que se hizo, sin recortes:
     - **doblar esquinas colgado:** por afuera, en un cuarto de círculo; por adentro, en una curva de 0,4 m de radio;
     - **el salto en el aire:** cayendo sin haber saltado, Espacio salta una vez, tan alto como desde el piso y hacia donde mira la cámara;
     - **lo que depende de un buen internet:** la lista que pidió el usuario, con las correcciones de la balsa y la demora de la cámara lenta;
-    - **los cables:** rectos o con comba, dibujados como tubo, cadena o textura. Se agarran sin tecla si el cable toca la parte de arriba del cuerpo, de cualquier altura y a cualquier velocidad. Sin teclas se queda quieto en cualquier inclinación; las teclas van según la cámara, y en uno inclinado, hacia abajo se desliza. Probarlos en red sacó a la luz un error viejo del redondeo del input, que la adopción tapaba.
+    - **los cables:** rectos o con comba, dibujados como tubo, cadena o textura. Se agarran sin tecla si el cable toca la parte de arriba del cuerpo, de cualquier altura y a cualquier velocidad. Sin teclas se queda quieto en cualquier inclinación; las teclas van según la cámara, y en uno inclinado, hacia abajo se desliza. Probarlos en red sacó a la luz un error viejo del redondeo del input, que la adopción tapaba;
+    - **cables y escaleras para armar niveles:** el cable es una curva que se dibuja en el editor, con puntos y manijas; cables y escaleras se numeran solos según su lugar en la escena; y la escalera se dibuja con los `.glb` del larguero y del peldaño, que se giran, se estiran hasta el alto y el ancho, y se repiten.
 - **La notebook se actualiza con un doble clic** desde una carpeta compartida de esta PC. Reemplazó a los zips desde el escalón (sección 6.2).
-- **Treinta y ocho commits del laboratorio,** hoy en la rama `net-lab`. Los primeros 26, de esta lista, se hicieron en la rama `codex/parkour-v3-h0-lab` y el 2026-10-11 se copiaron a `net-lab` con otros hashes (la tabla de equivalencias está en la sección 15). En este resumen y en las secciones 7 y 8.1 a 8.10 van con sus hashes de la rama vieja:
+- **Treinta y nueve commits del laboratorio,** hoy en la rama `net-lab`. Los primeros 26, de esta lista, se hicieron en la rama `codex/parkour-v3-h0-lab` y el 2026-10-11 se copiaron a `net-lab` con otros hashes (la tabla de equivalencias está en la sección 15). En este resumen y en las secciones 7 y 8.1 a 8.10 van con sus hashes de la rama vieja:
     - el esqueleto de red: `d75ef67`, `9cd1936`, `7547de1` y `c0e0421`;
-    - las nueve primeras versiones de este documento y una corrección: `9caaec3`, `375d419`, `fa26986`, `048dc4d`, `2314f18`, `9e4753e`, `f86b80f`, `1988808`, `b419717` y `5a06178`;
+    - las diez primeras versiones de este documento y una corrección: `9caaec3`, `375d419`, `fa26986`, `048dc4d`, `2314f18`, `9e4753e`, `f86b80f`, `1988808`, `b419717`, `5a06178` y `3e1bd48`;
     - la validación: `600002a`, `25f7806`, `cb71b16`, `91a4433`, `b907dae` (escalón), `3cdcc91` (Hanging), `3825c2b` (salto para arriba), `bd2157b` (agarre subiendo), `f39ba70` (colgarse de un compañero, con cambio de línea), `e21d6c6` (colgado, predicho), `c408ad6` (cámara lenta), `b7403fb` (el arreglo del temblor) y `f7640fb` (la segunda vuelta de la escalera, Tuning y la primera persona);
     - después, ya en `net-lab`: `1184427` (los 0,1 mm), `97d23cc` (reconexión), `1dba5db` (copias iguales y validación), `599628b` (una sola cámara lenta), `a1f9084` (súper salto y velocidad), `7f9b3e5` (encogido), `245d55a` (torre), `8e5bd15` (esquinas), `f855536` (salto en el aire), `a099f95` (el redondeo del input) y `7dd59ca` (cables).
 
-  La novena versión de este documento es el commit 36, `5a06178`, y los cables, los 37 y 38. Esta décima versión va en un commit propio, el número 39, solo local. El usuario subió la rama vieja a GitHub cinco veces, del 2026-10-09 al 2026-10-10, y el 2026-10-10 a las 19:13 se subió desde la sesión hasta `b419717`. `net-lab` se subió el 2026-10-11 a las 20:55, hasta `e1d9eb9`. Los 12 commits siguientes son solo locales: el 2026-10-12 el usuario pidió "por ahora no hacemos push del commit, dejémoslo solo en local" (sección 15).
+  La novena versión de este documento es el commit 36, `5a06178`, y los cables, los 37 y 38. La décima versión es el commit 39, `3e1bd48`. Esta undécima versión, con la guía práctica, va en un commit propio, el número 40, solo local. El usuario subió la rama vieja a GitHub cinco veces, del 2026-10-09 al 2026-10-10, y el 2026-10-10 a las 19:13 se subió desde la sesión hasta `b419717`. `net-lab` se subió el 2026-10-11 a las 20:55, hasta `e1d9eb9`. Los 13 commits siguientes son solo locales: el 2026-10-12 el usuario pidió "por ahora no hacemos push del commit, dejémoslo solo en local" (sección 15).
 - **Cambios pendientes:** en `net-lab`, `git status` muestra solo cosas que no son del laboratorio:
     - `project.godot`, con el cambio de versión 4.6 → 4.7 que hizo el editor. Las cuatro acciones del Mapa de entrada que agregó el laboratorio sí están commiteadas;
     - archivos sin seguir: las carpetas `archive/`, `docs/parkour/`, `output/` (con la revisión de GPT) y `tmp/` (la copia del código que dejó esa revisión); `parkour_3d_godot_investigacion_arquitectura.md`; el temporal del editor `project.godot~RF78902d2f.TMP`; y 46 modelos y texturas de `assets/models/`.
@@ -212,7 +221,9 @@ Este documento junta todo lo que se hizo, sin recortes:
 | Cables, sin red (`diag_cables.gd`) | 58 comprobaciones: se agarra cayendo a 40 m/s y cruzando el cable a 60 m/s; quieto en cualquier inclinación; a 25°, con W mirando hacia abajo, hasta 5,07 m/s; frena en 23 ticks soltando W, y en 8 con S |
 | Cables en red y en dos PC | 0 correcciones y 0 adoptadas, también con internet mala; en la notebook con +200 ms, 5.357 coincidencias y 0 correcciones |
 | El input rehecho en el host | De 197 direcciones distintas, de 20.000, a 0 |
-| Repetición determinista, hoy | 5.607 repeticiones y 250.497 ticks idénticos, a 60 y con el ritmo variando; con los valores de la escena, huella `9c40e65ecd396f6a` (29 ticks en un cable) |
+| Cables como curva | Un cable en L de tres puntos se agarra y se recorre; un nodo inclinado 30° deja el cable inclinado 30°; la red, 0 correcciones |
+| Escalera con modelos `.glb` | 43 comprobaciones: largueros del alto justo y peldaños a lo ancho, también con piezas acostadas al revés y con los modelos del usuario |
+| Repetición determinista, hoy | 5.607 repeticiones y 250.497 ticks idénticos, a 60 y con el ritmo variando; huella `6d3388a155dc1673` (29 ticks en un cable) |
 
 ---
 
@@ -385,6 +396,19 @@ Este documento junta todo lo que se hizo, sin recortes:
 | 2026-10-14 20:14–20:30 | Con un dibujo: un valor en el Tuning para el alto de la detección, y las teclas "usar como referencia la direccion de la camara". Dos preguntas (20:16); hecho. |
 | 2026-10-14 20:52–21:06 | `cable_grab_body` en 0,3; la detección es un cilindro; el ancho, un deslizador (20:55), en 0,6. Prueba en las dos PC, también con +200 ms. Commits `a099f95` y `7dd59ca`. |
 | 2026-10-14 21:07–22:34 | "actualiza el md y el claude doc con los cables": esta actualización, con cuatro notas en el documento de Claude Docs (revisión 71). "hace commit local del md" (22:34). |
+| 2026-10-14 22:38–22:45 | "¿como esta compuesto un cable?" y "me parece bastante horrible tener que andar ajustando de esta manera los cables". La recomendación: la herramienta de curvas de Godot. "dale, hacelo con Path3D". |
+| 2026-10-14 22:45–23:03 | El cable como Path3D; los cuatro de la pista, convertidos con Godot cerrado (22:55). |
+| 2026-10-14 23:04–23:22 | La pantalla gris de F6 (era el nivel solo), cómo suavizar una curva, y el primer cable hecho a mano por el usuario. |
+| 2026-10-14 23:24–23:36 | Su cable repetía el número del cable plano. "dale, hacé que se numeren solos". |
+| 2026-10-15 13:24–13:25 | "¿por que necesitan tener un ID?": por la red. |
+| 2026-10-15 13:49–14:05 | Cómo agregar una escalera. "dale, hacelo igual que con los cables": se numeran solas y el dibujo se rehace. "lo probé, anda correctamente". |
+| 2026-10-15 14:05–14:23 | Un modelo propio para la escalera: las dos ideas del usuario, la recomendación, y "un apartado en el inspector donde seleccionas los .glb". Hecho. El cable quedó como está, a pedido. |
+| 2026-10-15 14:34–14:56 | El tamaño de los modelos en Blender y cómo pasarlos a Godot. |
+| 2026-10-15 16:21–16:32 | Los peldaños como láminas y errores rojos: las piezas se giran solas y una pieza que no carga ya no da error. "ya lo probe". |
+| 2026-10-15 16:35–16:36 | "¿que tan robusto es el sistema [...] para la creacion de escaleras?" |
+| 2026-10-15 20:29 | "ok, actualiza los md con todo lo que se fue agregando desde la ultima actualizacion": esta actualización. |
+| 2026-10-15 | "¿tenemos un md guia para no tener que revisar todo esta conversacion?" No del todo; "armala": `guia_del_laboratorio.md`. |
+| 2026-10-16 12:46 | "hace commit local de los md": esta versión y la guía, en un commit propio. |
 
 ---
 
@@ -1293,7 +1317,7 @@ El documento de arquitectura termina con una lista, "Qué validan las primeras p
 | 6 | Una interacción con cambio de línea: sujetar a un compañero | Hecho, probado en dos PC, como "colgarse de un compañero": commits `f39ba70` (con el cambio de línea) y `e21d6c6` (predicho, a pedido después de la primera prueba). Sección 8.8 |
 | 7 | Cámara lenta del mundo y personal | Hecho, probado en dos PC, con dos arreglos que salieron de la prueba: commits `c408ad6` (la cámara lenta, con las cámaras lentas al que se conecta tarde) y `b7403fb` (el temblor estando quieto, que venía del paso 7). Sección 8.9. La personal se sacó el 2026-10-12 (sección 8.13) |
 
-Con la lista completa, lo que siguió no es parte de ella: pedidos del usuario y pendientes técnicos (secciones 8.10 a 8.19). Los hashes de esta sección son los de la rama vieja, `codex/parkour-v3-h0-lab`. Desde el 2026-10-11 el laboratorio va en la rama `net-lab`, con los mismos commits copiados y otros hashes (sección 15).
+Con la lista completa, lo que siguió no es parte de ella: pedidos del usuario y pendientes técnicos (secciones 8.10 a 8.20). Los hashes de esta sección son los de la rama vieja, `codex/parkour-v3-h0-lab`. Desde el 2026-10-11 el laboratorio va en la rama `net-lab`, con los mismos commits copiados y otros hashes (sección 15).
 
 | Sección | Qué | Commit en `net-lab` |
 | --- | --- | --- |
@@ -1307,6 +1331,7 @@ Con la lista completa, lo que siguió no es parte de ella: pedidos del usuario y
 | 8.17 | El salto en el aire | `f855536` |
 | 8.18 | La demora de la cámara lenta y lo que depende de un buen internet | Sin código |
 | 8.19 | Los cables, y el redondeo del input | `a099f95` y `7dd59ca` |
+| 8.20 | Cables y escaleras para armar niveles en el editor | Sin commit todavía |
 
 Cada punto siguió la misma rutina:
 
@@ -3808,6 +3833,160 @@ En las capturas de la notebook con internet mala, deslizándose por la tirolesa:
 - Lo que baja el cuerpo al agarrarse (hasta 0,69 m con 0,3) se ve con el suavizado del agarre de un borde, a 1,8 m/s como máximo.
 - No hay botón de agarre ni capacidad de agarrar: Ctrl mantenido es la única forma de pasar por un cable sin agarrarse.
 
+### 8.20 Cables y escaleras para armar niveles en el editor (2026-10-14 y 2026-10-15)
+
+#### Cómo estaba el cable (22:38–22:45)
+
+> bien, ahora que tenemos los cables, explicame, ¿como esta compuesto un cable?, porque por lo que tengo entendido, lo que tenemos ahora es codigo que genera los cables, no algo que pueda ir y tocar.
+
+Era una mezcla. Cada cable era un nodo de la escena, editable en el Inspector: **End** (dónde termina, medido desde el nodo) y **Sag** (cuánto cuelga en el medio). Lo que se ve lo arma el código a partir de esos valores. Lo que sí era solo código eran los postes, las plataformas, la escalera y los carteles de la pista (`cable_course.gd`). Al explicarlo, conté también lo que no se podía hacer: el final no se arrastraba con el mouse, la forma era siempre una curva de punta a punta, e inclinar el nodo inclinaba también la comba, que colgaba "hacia abajo del nodo". A las 22:44:
+
+> ¿esta es la mejor manera de implementar un cable?, en el editor me refiero y desde mi punto de vista, porque lo que hiciste hasta ahora es para las pruebas, pero me parece bastante horrible tener que andar ajustando de esta manera los cables, y mas aun que me contas lo de que no conviene inlinarlos.
+
+La respuesta fue que no: la forma quedaba escondida detrás de números. La recomendación, mía, fue usar la herramienta de curvas de Godot, el nodo Path3D. A las 22:45: "dale, hacelo con Path3D".
+
+#### El cable como curva (22:45–23:03)
+
+- **`Cable` es un `Path3D`.** Su forma es la curva del nodo: puntos con dos manijas cada uno, que se ponen y se arrastran en el editor con las herramientas de curva de Godot. La curva se parte en tramos rectos de `curve.bake_interval` (0,2 m de entrada); el movimiento ya trabajaba con tramos, así que no cambió. **End** y **Sag** se sacaron.
+- **Un cable nuevo,** agregado en el editor, arranca recto, con dos puntos a 4 m (`NEW_LENGTH`).
+- **Una curva sin forma,** con menos de dos puntos, no se agarra y no da error (`usable()`, con un largo mínimo de 1 cm).
+- **El dibujo se rehace** cada vez que cambia la curva (la señal `curve_changed` de Path3D), así se ve en el momento mientras se arrastra un punto.
+- **Los cuatro cables de la pista** pasaron a curvas con la misma forma que tenían. Los rectos, dos puntos sin manijas. El de comba, dos puntos con las manijas a dos tercios del punto de control de la parábola: es exactamente la misma curva. El nivel se editó con Godot cerrado (22:55); antes se le pidió al usuario que, si Godot preguntaba, pusiera "No guardar", porque con el código nuevo y el nivel viejo Godot podía borrar los cables al guardar.
+- **La huella del nivel** (sección 8.12) suma la curva de cada cable: cada cuánto se parte, y cada punto con sus dos manijas.
+- **Con el tipo del cable cambiado** (de Node3D a Path3D), las pruebas sin ventana necesitaron un `--import` antes: Godot guarda una lista de clases con su tipo.
+
+| Prueba | Resultado |
+| --- | --- |
+| `diag_cables.gd`, con casos nuevos | 68 de 68. Un cable en L de tres puntos se agarra en la segunda parte; W mirando hacia la esquina llega a la esquina y frena ahí, porque la otra parte queda de costado; girando la cámara, sigue por la otra. Un nodo girado 90° e inclinado 30° deja el cable inclinado 30°. Una curva de un solo punto no se agarra. Agregarle un punto o mover uno cambia el largo en el momento |
+| La pista en el nivel (`diag_cables_nivel.gd`) | Los cuatro cables, con el mismo largo de antes: 8, 8,12, 10,26 y 11,03 m |
+| La huella con la curva (`diag_huella_curva.gd`) | 6 de 6: mover 1 cm un punto o una manija, o cambiar cada cuánto se parte, la cambia; sin tocar nada, no |
+| En red, `cable`: sin red simulada, con internet mala y con otro mirando | 0 correcciones y 0 adoptadas |
+| Repetición | La misma huella de antes, `9c40e65ecd396f6a` |
+
+#### El primer cable hecho a mano (23:04–23:22)
+
+A las 23:04, una captura con la ventana del juego en gris. F6 corre la pestaña que está adelante, y era `net_lab_level.tscn`: el nivel solo, sin cámara ni menú. El laboratorio con el menú es `net_lab.tscn`. "no digo nada, soy un boludo" (23:05); el error había sido mío, por mandarlo a abrir el nivel para editar sin avisar que para jugar se vuelve a la otra pestaña. En la captura se vio también que el editor del usuario está en inglés, y se le pasaron los nombres de los botones en inglés.
+
+A las 23:14, "como le hago para suavizar una curva?". Antes de responder se leyó el código del editor de curvas de Godot (versión 4.4): las manijas se ven y se arrastran recién con **Select Control Points**; un punto agregado con **Add Point** tiene las manijas pegadas a él, y arrastrando desde el punto se saca una; la del otro lado la acompaña en sentido contrario porque **Mirror Handle Angles** y **Mirror Handle Lengths**, en **Options**, vienen prendidos. **Add Point** sobre la curva, en vez del vacío, la parte en dos. También se puede con números, en el Inspector, en **Curve** → **Points**: queda suave si **In** es lo contrario de **Out**. Se ofreció un botón **Suavizar**; no hizo falta.
+
+A las 23:22: "hice todo manual". El usuario armó **CablePrueba1**: una curva de cuatro puntos, de unos 18 m, que baja en espiral desde 8,7 m de alto cerca del origen. En las capturas se colgó de ella en tres lugares, con 30°, 20° y 11° de inclinación, y la curva se ve suave.
+
+#### Los números solos (23:24–23:36)
+
+Revisando el nivel apareció un problema que no era del usuario: **CablePrueba1** había quedado con **Cable Id** 1, el mismo que **CablePlano**, porque todo cable nuevo arrancaba con 1. El laboratorio avisaba "Dos cables con el id 1" y se quedaba con uno solo: **CablePlano** ya no se podía agarrar. Se le propuso sacar el número del Inspector y que los cables se numeren solos. A las 23:27: "dale, hacé que se numeren solos".
+
+- **El número de un cable** (`cable_id`) ya no se exporta: es su lugar entre todos los cables, ordenados por su ruta en la escena, desde 1. La ruta se anota cuando el cable entra al árbol. Como todas las máquinas cargan el mismo nivel, a cada cable le toca el mismo número en todas.
+- **La huella del nivel** incluye ahora la ruta de cada nodo con script: si una máquina tiene un cable renombrado o movido, los números cambiarían, y la huella lo detecta.
+- **El panel** muestra el nombre del cable en vez del número ("Colgado del cable Tirolesa"). La prueba en red `cable` busca la tirolesa por su nombre.
+- **El límite:** si algún día se agregan o se sacan cables en pleno juego, los números de los que vienen después cambian.
+
+| Prueba | Resultado |
+| --- | --- |
+| `diag_cables.gd` | 71 de 71: los números van del 1 al 8, sin repetir; sacando el primero, el 2 pasa a ser el 1; al volver, vuelve a ser el 1 |
+| La pista en el nivel | Los cinco cables, del 1 al 5: CablePrueba1, CableA10, CableConComba, CablePlano y Tirolesa (en ese orden, por su ruta) |
+| En red, `cable`, en los tres casos | 0 correcciones |
+| Repetición | Coincide, con los mismos ticks en cada modo. La huella pasó a `6d3388a155dc1673` solo porque el cable plano, del que se agarra su súper salto, pasó a ser el 4 |
+
+Al probar en red apareció un aviso de Godot en el panel: la línea del cable mezclaba dos tipos de texto (`StringName` y `String`). Arreglado. También aparecieron avisos al cerrar Godot en las pruebas ("ObjectDB instances were leaked"). Se comparó con la versión anterior del cable y salen igual: lo que queda sin liberar es una malla de dibujo de depuración (`ImmediateMesh`), y en esta parte del proyecto solo la usa el autoload `debug_draw.gd`, que no es del laboratorio. No se investigó más. Un error suelto al cerrar ("Cannot get path of node") se evitó igual: los cables se ordenan por la ruta anotada al entrar al árbol, sin preguntársela a Godot en el momento de ordenar.
+
+#### Por qué un número (13:24)
+
+> por cierto, ¿por que necesitan tener un ID?
+
+Por la red. Colgado, el estado del personaje dice de qué cable cuelga y en qué parte; ese estado viaja entre las máquinas decenas de veces por segundo y cada una lo compara con lo suyo. No se puede señalar "este nodo" de una máquina a otra, porque cada una tiene su propia copia del nivel en memoria: hace falta un nombre que las dos entiendan igual, y un número es lo más corto (4 bytes). Lo mismo pasa con las escaleras, las plataformas que se mueven, la balsa y los compañeros. Antes ese número se ponía a mano; ahora sale del lugar del cable en la escena.
+
+#### Las escaleras, igual que los cables (13:49–13:59)
+
+A la pregunta de cómo agregar una escalera, se le explicó el paso a paso y los dos problemas que tenía, los mismos que los cables: el número se ponía a mano (**Ladder Id**, y del 1 al 6 ya estaban usados), y el dibujo no se actualizaba al cambiar **Height** o **Width**: se armaba una sola vez, al abrir la escena. A las 13:51: "dale, hacelo igual que con los cables".
+
+- **`ladder_id`** sale de la ruta, como el del cable. También lo usa `regrab_id`, para no volver a agarrar la misma escalera.
+- **El dibujo se rehace** al cambiar el alto o el ancho.
+- **La torre y la pista de cables** arman escaleras por código. Ahora les ponen nombre en vez de número, y antes de agregarlas, porque el número sale de la ruta: **EscaleraDeVuelta**, **EscaleraTramo4**, **EscaleraTramo8** y **EscaleraTirolesa**. Sin nombre, Godot les pone uno automático que podría no ser igual en todas las máquinas.
+- **Las pruebas del laboratorio** buscan las escaleras por nombre (**TowerLadder**, **EscaleraTirolesa**), y el panel muestra el nombre ("Escalera TowerLadder · pies a …").
+- **Los números de hoy:** 1 EscaleraTirolesa, 2 PlatformLadder, 3 EscaleraDeVuelta, 4 EscaleraTramo4, 5 EscaleraTramo8 y 6 TowerLadder, que antes era la 1.
+
+| Prueba | Resultado |
+| --- | --- |
+| Las cuatro pruebas de escalera (salidas, saltos, agarre y la barrera de los bordes de atrás), con la escalera vieja y con la nueva | Exactamente la misma salida |
+| La torre (`diag_torre.gd`) | 19 de 19 |
+| El nivel | Las seis escaleras numeradas del 1 al 6, sin repetir |
+| Repetición | La misma huella, `6d3388a155dc1673`: su recorrido trepa la escalera de la plataforma verde, que era la 2 y sigue siendo la 2 |
+| En red: la escalera con empujones fuertes e internet mala; colgarse de un compañero en la escalera; la tirolesa | Lo mismo que antes: 2 correcciones, las de los dos empujones inmediatos, y ninguna de los programados; 0 colgándose del compañero (14 veces); 0 en la tirolesa |
+
+A las 14:05: "lo probé, anda correctamente".
+
+#### El dibujo de la escalera con modelos (14:05–14:23)
+
+En el mismo mensaje: "mi única duda es como hacer para que otra modelo 3D sea la parte visual y no lo que se genera por codigo". El cable ya podía repetir un modelo a lo largo, pero pedía una malla suelta y no un `.glb`. A las 14:13:
+
+> el del cable déjalo como esta, en el juego van a ser texturas negras sin mucha gracia, así que no hace falta tocarlas. El de la escalera tengo una idea, pero vos sabras mas que yo. En el V1 lo que se usaba eran dos marker3d, uno en la punta y el otro en la base [...] aunque todo era algo asi como un tamaño fijo, nada dinamico como tenemos ahora. Lo otro que se me ocurrio es hacer algo asi como piezas individuales y despues generar la escalera con codigo. Tipo tener el modelo de los peldaños por un lado y el marco por otro, asi simplemente lo que hacemos es alargar los dos que componen el marco mientras que se usa una textura en cuadrilla, de esta manera evitamos estirarla y que quede feo. [...] Como te dije antes, vos tendras una idea mejor que las que te propuse.
+
+La respuesta fue que su segunda idea era la mejor de las dos: los marcadores atan a un tamaño fijo, y ya no hacen falta, porque el nodo de la escalera es la base y **Height** es el tope. Para que la textura no se estire, la opción Triplanar del material de Godot; y, para una escalera especial hecha a mano, una casilla para apagar el dibujo y poner el modelo entero como hijo. A las 14:19:
+
+> si, me gusta como suena, a parte de eso tener tipo un apartado en el inspector donde seleccionas los .glb que te gustan y construís la escalera. Es mucho mas practico que tener una escena con un tamaño fijo y tener que crear una nueva para cada ocasion diferente, siendo que al final tener como 145 escenas de escaleras, pero bien podes no tener ninguna y hacerlo todo desde el nodo ladder.
+
+**Cómo quedó (14:23),** el grupo **Dibujo** del Inspector de la escalera:
+
+- **Show Pieces:** apagado, la escalera no dibuja nada, para poner un modelo entero como hijo.
+- **Rail Model:** el larguero, un `.glb` o una escena. Va uno a cada lado, a **Width**, estirado hasta **Height** más 0,4 m (`RAIL_EXTRA`, lo que sobresale arriba); el de la derecha, espejado.
+- **Rung Model:** el peldaño. Va uno cada **Rung Spacing** (0,3 m, de 0,1 a 2 m), estirado solo a lo ancho.
+- **Tile Textures:** la textura no se estira con la pieza. Cada material común (`BaseMaterial3D`) se cambia por una copia con UV1 en Triplanar y en coordenadas del mundo: la textura se repite una vez por metro, según el lugar en el mundo. El original no se toca. Un material con shader propio queda como está.
+- **Las piezas** se centran por lo que ocupan, no por su origen, y van 5 cm adelante del eje (`PIECES_Z`). Si el modelo trae colisiones, se sacan. Sin modelo, para esa pieza quedan las barras provisorias de antes, del mismo tamaño.
+
+| Prueba (`diag_escalera_piezas.gd`, con piezas de prueba armadas en código: descentradas, con colisión y con material) | Resultado |
+| --- | --- |
+| Largueros, peldaños, colisiones, textura y rearmado | 24 de 24: largueros del alto justo, a cada lado y con su grosor; peldaños centrados y estirados solo a lo ancho; sin colisiones; textura en Triplanar con una copia por material y el original intacto; el dibujo se rearma al cambiar el alto y se apaga con **Show Pieces** |
+
+#### Los modelos de prueba, de Blender a Godot (14:34–14:56)
+
+A las 14:34, cómo saber si el modelo de Blender tiene el tamaño adecuado. El largo da igual, porque se estira; el grosor se respeta (las barras provisorias tienen 6 × 6 cm el larguero y 4 × 4 cm el peldaño). Una unidad de Blender es un metro; el tamaño se ve con **N** → **Item** → **Dimensions**; antes de exportar, **Ctrl+A** → **Scale**. Conviene que el larguero no tenga detalles en las puntas, porque se estiran con el resto. Con **Tile Textures** prendido no se usa el mapa UV de Blender.
+
+A las 14:55, cómo agregarlos: exportar cada pieza por separado (**File** → **Export** → **glTF 2.0**, **glTF Binary**, **Include** → **Selected Objects**, **+Y Up**) a `assets/models/stairs`, la carpeta que ya tenía las escaleras del V1; Godot los importa solo, y se arrastran desde **FileSystem** a **Rail Model** y **Rung Model**. A la notebook le llegan con `actualizar_lab.bat`, que copia todo el proyecto salvo `.godot` y `.git`.
+
+#### Los peldaños como láminas, y los errores (16:21–16:32)
+
+> te cargue una captura en la carpeta, se que algo no hice y quedo asi.
+
+En la captura, los peldaños eran láminas enormes, y había errores rojos de `ladder.gd`: "Cannot call method 'get_children' on a null value" y "Required object rp_child is null". Los dos problemas eran míos:
+
+- **Las láminas.** Los modelos del usuario, `posteparaescalera.glb` (0,2 × 1 × 0,2 m, parado) y `peladñoparaescalera.glb` (0,15 × 0,15 × 1 m, acostado sobre Z, que en Blender es el Y). Yo le había dicho que el peldaño fuera sobre X, y el código estiraba siempre X: estiró el grosor de 15 cm hasta el ancho, y el largo quedó saliendo para adelante.
+- **Los errores.** En el editor, en algún momento, instanciar una pieza devolvió nada (probablemente mientras Godot todavía importaba los `.glb`), y el código no lo contemplaba. Sin ventana, los dos modelos cargan bien.
+
+**El arreglo (16:23):** cada pieza se gira sola para que su lado más largo quede como el largo: a lo alto en el larguero y a lo ancho en el peldaño, da igual cómo esté acostada en el modelo. Si una pieza no se puede instanciar, va la provisoria, con un aviso en vez de un error.
+
+| Prueba (`diag_escalera_piezas.gd`, ampliada) | Resultado |
+| --- | --- |
+| Tres escaleras: piezas paradas como se esperaba, las mismas acostadas al revés (larguero sobre X, peldaño sobre Z) y los dos modelos del usuario | 43 de 43; las acostadas quedan igual que las paradas; con los modelos del usuario, largueros de 20 cm y peldaños de 15 cm a lo ancho |
+
+A las 16:32, "ya lo probe": en su captura (en el Escritorio, donde las guarda F12), los dos largueros y los peldaños de lado a lado, y el panel dice "Escalera Ladder · pies a 10.71 m". La escalera de prueba tiene 17,15 m de alto. Los peldaños se ven muy juntos, como una persiana, porque tienen 15 cm de grosor y van cada 30 cm: se arregla con **Rung Spacing** o con peldaños más finos.
+
+#### Qué tan robusto es (16:35)
+
+> ¿que tan robusto es el sistema que creaste para la creacion de escaleras?, porque cuando le puse un .glb con orientacion distinta a la esperada la primera vez, salieron re gruesos los peldaños [...] Despues vos hiciste que se "acomoden" solos.
+
+**Lo que maneja, comprobado:** cualquier orientación sobre los ejes, cualquier tamaño, el origen corrido, colisiones dentro del `.glb`, un `.glb` con varias mallas, y una pieza que no carga.
+
+**Dónde todavía puede salir mal:**
+
+1. una pieza girada en diagonal en Blender, sin aplicar la rotación: no se sabe cuál es su largo real;
+2. hacia dónde mira la pieza alrededor de su largo: un peldaño plano puede quedar de canto, o un larguero en L mirando para un costado (no se probó con piezas así);
+3. una pieza más gruesa que larga;
+4. los detalles en las puntas, que se estiran;
+5. la textura: con un material con shader propio se estira, y se repite cada 1 m sin poder cambiarlo;
+6. volver a exportar el `.glb`: probablemente la escalera no se actualice hasta tocar un valor o volver a abrir la escena (no se probó).
+
+La recomendación: una regla simple en Blender (pieza alineada a los ejes, con la rotación y la escala aplicadas, sin detalles en las puntas), y sumar un valor para girar la pieza sobre su largo recién cuando aparezca una que quede de canto.
+
+#### Sin commit
+
+Nada de esta sección tiene commit. Falta la prueba en las dos PC, y decidir qué hacer con los objetos de prueba del usuario en el nivel: **CablePrueba1** y la escalera de 17 m (**Ladder**). Si se quedan, en el commit van también los dos `.glb` de `assets/models/stairs`, porque el nivel los usa.
+
+#### Lo que falta y las simplificaciones
+
+- Los números de cables y escaleras cambian si se agregan o se sacan en pleno juego.
+- El cable sigue sin balancearse; un modelo propio para el cable sigue pidiendo una malla suelta, y quedó así a pedido.
+- Las piezas de la escalera: los seis puntos de la lista de arriba.
+
 ---
 
 ## 9. Estado actual del código
@@ -3823,39 +4002,39 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
 | `scripts/actor/actor_state.gd` (`ActorState`) | 224 (201) | Estado completo del actor al final de un tick: modos Suelo, Aire, Deslizamiento, Escalera, Colgado, Enganchado (colgado de un compañero) y, desde el 2026-10-14, Cable; postura (parado, agachado y, desde el 2026-10-12, encogido); base; ancla (con el punto del filo, la esquina que dobla o las manos); quién cuelga de él; reagarre; el súper salto y velocidad; si dobla un rincón; y si ya saltó. Cuantización, bytes (89; eran 51 en el esqueleto), copia y descripción. La cámara lenta personal que le quedaba se sacó el 2026-10-12 |
 | `scripts/actor/actor_input.gd` (`ActorInput`) | 96 (67) | Input de un tick, cuantizado al crearlo; 12 bytes. Botones: saltar, agacharse y correr. Contadores de pulsaciones del salto, de la cámara lenta del mundo y del súper. Desde el 2026-10-12, dice si un input que llegó por red es posible. Desde el 2026-10-14, cuantizar otra vez lo ya cuantizado da lo mismo |
 | `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 230 (155) | Parámetros de movimiento: el nodo Tuning de `net_lab.tscn`, que se edita en el Inspector; `from_scene()` lee sus valores para las pruebas |
-| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 1.479 (944) | Paso por tick en orden fijo con los siete modos, la base, la postura (con el encogido), la escalera, el escalón, el borde (con el salto para arriba y las esquinas), colgarse de un compañero y quién cuelga de quién, los impulsos con fuerza, el súper salto y velocidad, el salto en el aire, los cables y la validación de poses ancladas |
+| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 1.480 (944) | Paso por tick en orden fijo con los siete modos, la base, la postura (con el encogido), la escalera, el escalón, el borde (con el salto para arriba y las esquinas), colgarse de un compañero y quién cuelga de quién, los impulsos con fuerza, el súper salto y velocidad, el salto en el aire, los cables y la validación de poses ancladas |
 | `scripts/actor/actor_body.gd` (`ActorBody`) | 435 (316) | Cuerpo (`CharacterBody3D`): deslizar (desde el 2026-10-10, sin depender del delta del cuadro), restaurar y validar poses, las tres formas y el espacio libre, asentarse en el piso después de un escalón, presentación (con el giro suave al doblar un rincón), desvío visual, las manos sobre el filo (una en cada cara al doblar), sobre la cintura del compañero o sobre un cable, y encontrar a los demás actores |
 | `scripts/actor/edge_probe.gd` (`EdgeProbe`) | 108 | Sonda de borde: barrido de las manos, cara, superficie de arriba y filo; revalidación de un borde agarrado |
 | `scripts/actor/base_registry.gd` (`BaseRegistry`) | 79 (73) | Registro de bases por id; origen, velocidad y posición en el mundo, real y dibujada. Desde el 2026-10-12 avisa si dos bases tienen el mismo id |
 | `scripts/actor/scripted_platform.gd` (`ScriptedPlatform`) | 99 | Plataforma guionada: su pose sale del tiempo del mundo; se dibuja en el pasado cuando conviene |
 | `scripts/actor/host_raft.gd` (`HostRaft`) | 95 | Balsa que simula solo el host; en los clientes, una copia interpolada |
-| `scripts/actor/ladder.gd` (`Ladder`) | 115 (110) | Escalera autorada: eje, alto, volumen de entrada (que también es la barrera para los bordes de detrás) y dibujo, visible también en el editor. Desde el 2026-10-12 avisa si dos escaleras tienen el mismo id |
-| `scripts/actor/cable.gd` (`Cable`) | 367 (nuevo, 2026-10-14) | Cable autorado: una línea recta o con comba, partida en tramos de 25 cm, con su largo, el punto y la dirección a una distancia de su origen, y el punto más cercano a otro; el registro por número; y el dibujo (tubo, un modelo repetido o una tira con textura que mira a la cámara), visible también en el editor |
+| `scripts/actor/ladder.gd` (`Ladder`) | 302 (110) | Escalera autorada: eje, alto, volumen de entrada (que también es la barrera para los bordes de detrás) y dibujo, visible también en el editor. Del 2026-10-12 al 2026-10-15 avisaba si dos escaleras tenían el mismo id; desde el 2026-10-15 el número sale solo de su ruta en la escena, y el dibujo se arma con piezas (los modelos del larguero y del peldaño, o barras provisorias) y se rehace al cambiar un valor |
+| `scripts/actor/cable.gd` (`Cable`) | 395 (nuevo, 2026-10-14) | Cable autorado: desde el 2026-10-14 a la noche, un `Path3D` cuya curva se dibuja en el editor (antes, una línea recta o con comba hasta `end`), partida en tramos rectos, con su largo, el punto y la dirección a una distancia de su origen, y el punto más cercano a otro; el número, que sale solo de su ruta en la escena; y el dibujo (tubo, un modelo repetido o una tira con textura que mira a la cámara), visible también en el editor |
 | `scenes/actor/actor.tscn` | 60 | El actor: las formas parada y agachada, sus mallas y la "nariz". La forma encogida la arma el código al arrancar (`fit_tuck`) |
 | `scripts/net/sim_clock.gd` (`SimClock`) | 390 (367) | Reloj único: ticks, orden fijo (los colgados de un compañero al final), sincronización, adelanto del cliente por ritmo variable, plataformas colocadas para el tick siguiente, pausa y los tramos de cámara lenta del mundo (desde el 2026-10-12, también abiertos), con el tiempo del mundo y `time_scale` |
 | `scripts/net/net_session.gd` (`NetSession`) | 513 (137) | Conexión ENet, aparición con `MultiplayerSpawner`, salidas y lugares de aparición. Desde el 2026-10-11, la reconexión: la llave del cliente, el corte por silencio, la espera del host, los reintentos y el adiós al cerrar. Desde el 2026-10-12, la huella de compatibilidad al conectarse |
-| `scripts/net/sim_fingerprint.gd` (`SimFingerprint`) | 132 (nuevo, 2026-10-12) | Huella de lo que tiene que ser igual en todas las máquinas: los valores del Tuning, el código y el nivel; desde el 2026-10-14, con el lugar de cada nodo del nivel que tiene script |
+| `scripts/net/sim_fingerprint.gd` (`SimFingerprint`) | 148 (nuevo, 2026-10-12) | Huella de lo que tiene que ser igual en todas las máquinas: los valores del Tuning, el código y el nivel; desde el 2026-10-14, con el lugar de cada nodo del nivel que tiene script, y después también su ruta y la curva de cada cable |
 | `scripts/net/net_sync.gd` (`NetSync`) | 432 (374) | Transporte: inputs, afirmaciones e ida y vuelta del cliente; snapshots del host con las balsas; márgenes; eventos programados por canal confiable (empujones); anuncios de cámara lenta del mundo, a todos o al que se conecta. Desde el 2026-10-11, cuándo se escuchó a cada jugador y el input quieto después de 30 ticks sin noticias; desde el 2026-10-12, descarta los paquetes mal armados |
 | `scripts/net/link_simulator.gd` (`LinkSimulator`) | 97 | Simulador de red: demora, variación, pérdida y tirones; los mensajes confiables se demoran pero no se pierden |
 | `scripts/net/client_prediction.gd` (`ClientPrediction`) | 138 | Predicción del cliente: historial, reconciliación, esperas, suavizado, repetición desde un tick para los eventos tardíos, la corrección más grande y lo que ya afirmó para cada tick, para no corregirse hacia eso |
 | `scripts/net/claim_adoption.gd` (`ClaimAdoption`) | 132 (81) | Adopción de afirmaciones en el host, con su registro; valida las poses ancladas y, desde el 2026-10-12, que los valores sean posibles |
 | `scripts/net/remote_interpolation.gd` (`RemoteInterpolation`) | 277 (267) | Interpolación de los demás jugadores y de las balsas en el cliente, con marcos de dibujo; desde el 2026-10-11 se vacía al cortarse la conexión |
 | `scenes/net_lab/net_lab.tscn` | 142 | Escena del laboratorio, con menú y panel, el nodo Tuning, el nodo Session (con los tiempos de la reconexión) y la guía de la cámara |
-| `scenes/net_lab/net_lab_level.tscn` | 426 (389) | Nivel del laboratorio: el vagón, el ascensor, la balsa, el túnel largo, la pared de medidas, la torre chica, las dos escaleras, la pista de escalones, la pista de bordes, los dos bordes que se mueven, desde el 2026-10-13 la torre de parkour y, desde el 2026-10-14, la pista de cables, con sus cuatro cables |
-| `scenes/net_lab/net_lab.gd` | 2.084 (1.741) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, quién cuelga de quién en el host, cámara lenta del mundo, cableado de red, qué hacer al cortarse, panel, pausa, capturas, mediciones, pruebas guionadas y la divergencia inyectada |
+| `scenes/net_lab/net_lab_level.tscn` | 462 (389) | Nivel del laboratorio: el vagón, el ascensor, la balsa, el túnel largo, la pared de medidas, la torre chica, las dos escaleras, la pista de escalones, la pista de bordes, los dos bordes que se mueven, desde el 2026-10-13 la torre de parkour y, desde el 2026-10-14, la pista de cables, con sus cuatro cables. Desde el 2026-10-15 tiene también dos objetos de prueba del usuario, sin decidir si quedan: un cable hecho a mano y una escalera de 17 m con sus modelos |
+| `scenes/net_lab/net_lab.gd` | 2.099 (1.741) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, quién cuelga de quién en el host, cámara lenta del mundo, cableado de red, qué hacer al cortarse, panel, pausa, capturas, mediciones, pruebas guionadas y la divergencia inyectada |
 | `scenes/net_lab/lab_camera.gd` (`LabCamera`) | 148 (145) | Cámara de tercera a primera persona sobre una guía editable; la altura de la cabeza sigue la postura, y salta junto con ella cuando la cabeza queda fija. Desde el 2026-10-13 no sigue a un actor que ya salió del árbol |
 | `scenes/net_lab/measure_wall.gd` | 48 | Pared de medidas: rayas cada 10 cm y números cada 50 cm, visibles también en el editor |
 | `scenes/net_lab/step_course.gd` | 99 | Pista de escalones: sueltos de 10 a 40 cm y dos escaleras, una con rampa invisible; visible también en el editor |
 | `scenes/net_lab/edge_course.gd` | 223 (198) | Pista de bordes: las 11 variantes fijas, con sus carteles, el muro alto para colgarse de un compañero y, desde el 2026-10-13, un rincón en L y una columna cuadrada; visible también en el editor |
-| `scenes/net_lab/parkour_tower.gd` | 214 (nuevo, 2026-10-13) | La torre de parkour: núcleo de 6 × 6 × 12 m, terrazas, saliente, techos bajos, escaleras, hueco con pilar y nicho, y muro con cajón; visible también en el editor |
-| `scenes/net_lab/cable_course.gd` | 112 (nuevo, 2026-10-14) | La pista de cables: postes, plataformas, la escalera 6, el brazo de la tirolesa y los carteles. Los cables son nodos `Cable` de la escena; visible también en el editor |
+| `scenes/net_lab/parkour_tower.gd` | 215 (nuevo, 2026-10-13) | La torre de parkour: núcleo de 6 × 6 × 12 m, terrazas, saliente, techos bajos, escaleras, hueco con pilar y nicho, y muro con cajón; visible también en el editor |
+| `scenes/net_lab/cable_course.gd` | 113 (nuevo, 2026-10-14) | La pista de cables: postes, plataformas, la escalera 6, el brazo de la tirolesa y los carteles. Los cables son nodos `Cable` de la escena; visible también en el editor |
 | `scenes/net_lab/test_udp_relay.gd` (`TestUdpRelay`) | 51 (nuevo, 2026-10-11) | Solo para pruebas: un relevo UDP entre el cliente y el host que, cortado, no deja pasar nada, como un cable cortado |
 | `scenes/net_lab/actor_replay_test.gd` y `.tscn` | 380 + 13 (350 + 13) | Prueba de repetición determinista, a cualquier ritmo, con bases, postura (también encogido), escalera, empujones, escalones, Hanging, cámara lenta, el súper, el salto en el aire y, sin buscarlo, un cable, con los valores del nodo Tuning |
 | `scenes/net_lab/hang_sweep_test.gd` y `.tscn` | 468 + 13 (466 + 13) | Barrido de aproximaciones a los bordes, con los cuatro criterios y la altura del salto para arriba (desde el 2026-10-12, medida desde los pies de parado), con los valores del nodo Tuning |
 | `tools/net_lab/actualizar_lab.bat` y `.ps1` | 14 + 71 | El doble clic que trae el laboratorio a la notebook y lo abre (sección 6.2) |
 | Archivos `.uid` | — | Uno por script, generados por Godot |
 
-**Total:** 9.919 líneas entre scripts y escenas, sin contar `tools/` (eran 2.589 al final del esqueleto, 4.431 en la segunda versión de este documento, 5.998 en la tercera, 5.969 en la cuarta, 5.982 en la quinta, 6.649 en la sexta, 7.097 en la séptima, 7.291 en la octava y 9.012 en la novena; con el cambio de línea, en `f39ba70`, fueron 6.800, y en `c408ad6`, 7.054).
+**Total:** 10.204 líneas entre scripts y escenas, sin contar `tools/` (eran 2.589 al final del esqueleto, 4.431 en la segunda versión de este documento, 5.998 en la tercera, 5.969 en la cuarta, 5.982 en la quinta, 6.649 en la sexta, 7.097 en la séptima, 7.291 en la octava, 9.012 en la novena y 9.919 en la décima; con el cambio de línea, en `f39ba70`, fueron 6.800, y en `c408ad6`, 7.054).
 
 ### 9.2 Funciones públicas
 
@@ -3892,8 +4071,8 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
     - `visual_origin(id)`, `visual_velocity(id)` y `visual_world_position(state)`, para dibujar.
 - **`ScriptedPlatform`:** `pose_at(world_ticks)`, `pose_at_tick(tick)` y `velocity_at_tick(tick)` (desde el punto 7: la pose sale del tiempo del mundo, y hasta entonces `pose_at` recibía el tick), `prepare_tick(tick)`, `base_origin()`, `base_velocity()`, `visual_origin()`, `visual_velocity()` y `distance_to(point)`.
 - **`HostRaft`:** `become_copy()`, `place_copy(next_origin, current_origin, next_velocity)`, `base_origin()` y `base_velocity()`.
-- **`Ladder`:** `find(id)`, `all()` y, desde el 2026-10-10, `any_at(feet)` (si unos pies caen en el volumen de alguna escalera), estáticas; `up()`, `outward()`, `pose_at(t)` y `height_for(feet)`.
-- **`Cable`** (2026-10-14): `find(id)` y `all()`, estáticas; `length()`, `point_at(t)`, `tangent_at(t)` y `closest(point)`.
+- **`Ladder`:** `find(id)`, `all()` y, desde el 2026-10-10, `any_at(feet)` (si unos pies caen en el volumen de alguna escalera), estáticas; `up()`, `outward()`, `pose_at(t)` y `height_for(feet)`. Desde el 2026-10-15, `ladder_id` ya no se pone: se lee, y sale de su lugar entre todas las escaleras; `all()` viene en orden de número.
+- **`Cable`** (2026-10-14): `find(id)` y `all()`, estáticas; `length()`, `point_at(t)`, `tangent_at(t)` y `closest(point)`. Desde que es un `Path3D`, también `usable()`: si la curva tiene forma. `cable_id` ya no se pone: se lee, y sale de su lugar entre todos los cables.
 - **`ActorTuning`** (2026-10-10): `from_scene(path)`, estática: un nodo con los valores del nodo Tuning de `net_lab.tscn`, leídos del archivo sin instanciarla. Lo usan las pruebas.
 - **`LabCamera`:** `start_capture()`, y las variables `yaw`, `pitch` y `target`.
 - **`SimClock`:**
@@ -3942,7 +4121,7 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
 | base_id | entero sin signo de 16 bits | id de red de la base, 0 sin base | punto 2 (53 bytes) |
 | stance_wanted | entero sin signo de 8 bits | postura pedida: parado = 0, agachado = 1 y, desde el 2026-10-12, encogido = 2 | punto 3 |
 | stance | entero sin signo de 8 bits | postura concedida | punto 3 |
-| anchor_id | entero sin signo de 32 bits (16 hasta el punto 6) | id del ancla. En Ladder, la escalera; en Hanging, la base que lleva el borde, 0 si es geometría fija; en Enganchado, el id de red del compañero; en Cable (2026-10-14), el número del cable | punto 4 |
+| anchor_id | entero sin signo de 32 bits (16 hasta el punto 6) | id del ancla. En Ladder, la escalera; en Hanging, la base que lleva el borde, 0 si es geometría fija; en Enganchado, el id de red del compañero; en Cable (2026-10-14), el número del cable. Los números de cables y escaleras salen solos de su lugar en la escena (sección 8.20) | punto 4 |
 | anchor_t | entero de 32 bits | 0,1 mm. En Ladder, la altura de los pies sobre la escalera. En Hanging, hasta el 2026-10-08, el avance de la subida en segundos (con el mismo paso); después, 0, y desde el 2026-10-13, doblando una esquina, cuánto giró la normal desde la cara donde empezó, en radianes, con signo. En Cable (2026-10-14), la distancia sobre el cable desde su origen, en metros | punto 4 |
 | regrab_id | entero sin signo de 16 bits | ancla bloqueada para reagarrar; 0xFFFF bloquea todos los bordes; 0xFFFE, desde el punto 6, todos los compañeros; y 0xFFFD, desde el 2026-10-14, todos los cables | punto 4 |
 | regrab_left | entero de 32 bits | 0,1 ms | punto 4 |
@@ -4143,12 +4322,14 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | `CORE`, `CORE_TOP`, `OUTER` | 3 m; 12 m; 5,5 m | torre de parkour | Medio lado y alto del núcleo, y hasta dónde salen las terrazas desde el centro (2026-10-13) |
 | `LEVEL_1` a `LEVEL_4` | 1,5; 4; 7; 9,5 m | torre de parkour | Alturas de las terrazas; la de arriba es el techo del núcleo |
 | `LOW_CLEARANCE`, `NICHE_HEIGHT`, `WALL_HEIGHT` | 1,3 m; 3,2 m; 3,6 m | torre de parkour | Alto libre de los techos bajos, del nicho y del muro del tramo 9 |
-| `LADDER_BACK_ID`, `LADDER_UP_ID`, `LADDER_TOP_ID` | 3, 4 y 5 | torre de parkour | Números de sus escaleras: la de vuelta, la del tramo 4 y la del tramo 8 |
+| ~~`LADDER_BACK_ID`, `LADDER_UP_ID`, `LADDER_TOP_ID`~~ | 3, 4 y 5 | torre de parkour | Números de sus escaleras: la de vuelta, la del tramo 4 y la del tramo 8. Desde el 2026-10-15, sus nombres: `LADDER_BACK_NAME`, `LADDER_UP_NAME` y `LADDER_TOP_NAME` (EscaleraDeVuelta, EscaleraTramo4 y EscaleraTramo8) |
 | `CABLE_SWEEP_STEP` | 0,1 m | `ActorMotor` | De a cuánto se barre el movimiento del tick al buscar un cable (2026-10-14) |
 | `REGRAB_CABLES` | 0xFFFD | `ActorState` | `regrab_id` que bloquea agarrarse de cualquier cable |
-| `SEGMENT` / `TUBE_SIDES` | 0,25 m / 8 | `Cable` | Largo de los tramos en que se parte el cable, y lados del tubo |
-| `LADDER_ID`, `TALL_TOP`, `PLATFORM_TOP`, `POST` | 6; 6 m; 2,5 m; 0,2 m | pista de cables | Su escalera, el alto de la plataforma de la tirolesa y de las de la comba, y el ancho de los postes |
-| `CABLE_LADDER_ID`, `CABLE_ZIPLINE_ID`, `CABLE_RETURN` | 6; 4; (16; 0; 27,5) y (9,35; 0; 27,5) | laboratorio | La escalera y el cable de la prueba `cable`, y el camino de vuelta |
+| ~~`SEGMENT`~~ / `TUBE_SIDES` | 0,25 m / 8 | `Cable` | Largo de los tramos en que se partía el cable (desde que es un `Path3D`, lo da la curva: `bake_interval`, 0,2 m de entrada), y lados del tubo |
+| `NEW_LENGTH` / `MIN_LENGTH` | 4 m / 0,01 m | `Cable` | Largo de un cable nuevo en el editor, y largo mínimo para poder agarrarlo (2026-10-14) |
+| `RAIL_EXTRA` / `PIECES_Z` | 0,4 m / 0,05 m | `Ladder` | Cuánto sobresalen los largueros arriba, y cuánto adelante del eje van las piezas (2026-10-15) |
+| `LADDER_ID`, `TALL_TOP`, `PLATFORM_TOP`, `POST` | 6; 6 m; 2,5 m; 0,2 m | pista de cables | Su escalera, el alto de la plataforma de la tirolesa y de las de la comba, y el ancho de los postes. Desde el 2026-10-15, en vez del número de la escalera, su nombre: `LADDER_NAME` (EscaleraTirolesa) |
+| `CABLE_LADDER_ID`, `CABLE_ZIPLINE_ID`, `CABLE_RETURN` | 6; 4; (16; 0; 27,5) y (9,35; 0; 27,5) | laboratorio | La escalera y el cable de la prueba `cable`, y el camino de vuelta. Desde el 2026-10-15, la escalera y el cable van por nombre: `CABLE_LADDER_NAME` (EscaleraTirolesa) y `CABLE_ZIPLINE_NAME` (Tirolesa); y se suma `TOWER_LADDER_NAME` (TowerLadder, la de la torre chica, para las pruebas de escalera) |
 
 **El actor** (`actor.tscn`): cápsula parada de 1,8 m de alto y cápsula agachada de 1,0 m, las dos de 0,35 m de radio. Desde el 2026-10-12, una tercera forma, encogida, que arma el código: la parada, `hang_climb_tuck` más corta desde abajo (1,6 m).
 
@@ -4223,7 +4404,7 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | Cada cuánto reintenta el cliente (`reconnect_retry`) | 1 s |
 | Cuánto sigue intentando el cliente (`reconnect_give_up`); 0 no reintenta | 60 s |
 
-**Escaleras del nivel (`Ladder`):** ancho 0,8 m; distancia del eje al centro de quien trepa 0,45 m; alcance para agarrar 0,6 m delante del eje (`reach`; era 0,9 hasta el 2026-10-10) y 0,3 m más allá de cada costado (`side_reach`; antes fijo en el código). La de la torre chica tiene 2,5 m de alto y la de la plataforma verde, 2 m. Desde el 2026-10-13, la torre de parkour suma las escaleras 3, 4 y 5, y desde el 2026-10-14, la pista de cables suma la 6, de 6 m. Se editan en el Inspector de cada escalera, en `net_lab_level.tscn`.
+**Escaleras del nivel (`Ladder`):** ancho 0,8 m; distancia del eje al centro de quien trepa 0,45 m; alcance para agarrar 0,6 m delante del eje (`reach`; era 0,9 hasta el 2026-10-10) y 0,3 m más allá de cada costado (`side_reach`; antes fijo en el código). La de la torre chica tiene 2,5 m de alto y la de la plataforma verde, 2 m. Desde el 2026-10-13, la torre de parkour suma las escaleras 3, 4 y 5, y desde el 2026-10-14, la pista de cables suma la 6, de 6 m. Se editan en el Inspector de cada escalera, en `net_lab_level.tscn`. Desde el 2026-10-15 los números salen solos de su ruta en la escena: 1 EscaleraTirolesa, 2 PlatformLadder, 3 a 5 las de la torre y 6 TowerLadder, la de la torre chica, que antes era la 1. El dibujo se arma con piezas, en el grupo **Dibujo** (sección 8.20).
 
 **Bases del nivel:**
 
@@ -4308,9 +4489,9 @@ Los niveles de red afectan solo a la máquina donde se eligen:
 - la postura: "Postura: agachado · pedida: parado (no hay lugar)" cuando el techo no deja pararse (desde el punto 3), y desde el 2026-10-12 "encogido" en el salto para arriba desde el colgado;
 - desde el 2026-10-12, "SÚPER SALTO Y VELOCIDAD: prendido · 2 del teclado numérico lo apaga";
 - desde el 2026-10-14, en el aire: "Salto en el aire: listo, Espacio cayendo", "listo cuando empieces a caer" o "ya saltaste: vuelve al tocar el piso o agarrarte de algo";
-- en la escalera, "Escalera N · pies a X m sobre su base", y después de soltarla, cuánto falta para poder volver a agarrarla (desde el punto 4);
+- en la escalera, "Escalera N · pies a X m sobre su base" (desde el 2026-10-15, con el nombre de la escalera en vez del número), y después de soltarla, cuánto falta para poder volver a agarrarla (desde el punto 4);
 - colgado, "Colgado del borde: filo a X m de altura" y, si el borde va sobre una base, "· sobre la base N"; y después de soltar un borde, "Recién soltó un borde: no puede agarrar otro por X s" (desde el punto 5);
-- desde el 2026-10-14, colgado de un cable, "Colgado del cable N · a X m de su punta · inclinación N°" y, si pasa de 15°, "· las teclas hacia abajo te deslizan" o, deslizándose, "· te deslizás: soltá las teclas para frenar"; y después de soltarlo, "Recién soltó un cable: no puede agarrar otro por X s";
+- desde el 2026-10-14, colgado de un cable, "Colgado del cable N (después, con el nombre del cable) · a X m de su punta · inclinación N°" y, si pasa de 15°, "· las teclas hacia abajo te deslizan" o, deslizándose, "· te deslizás: soltá las teclas para frenar"; y después de soltarlo, "Recién soltó un cable: no puede agarrar otro por X s";
 - colgado de un compañero, "Colgado de la cintura del jugador N"; con alguien colgado, "El jugador N cuelga de tu cintura: quedás quieto · Ctrl te suelta y se caen los dos"; y después de soltarse de un compañero, "Recién se soltó de un compañero: no se puede colgar de otro por X s" (desde el punto 6);
 - desde el punto 7, "CÁMARA LENTA DEL MUNDO: al 30 % · quedan X s" mientras anda, o "Cámara lenta del mundo en X s" si está por empezar; y "CÁMARA LENTA PERSONAL: al 30 % · quedan X s del mundo". Desde el 2026-10-12 no hay personal, y la del mundo dice "al 30 % · 1 del teclado numérico la apaga" o, si ya se programó su fin, "se apaga en X s";
 - la velocidad, aclarando "(sobre la base)" si es relativa a una base;
@@ -4455,12 +4636,13 @@ Desde el 2026-10-10, todo se ve también en el editor. Antes, lo que arman los s
 | Columna cuadrada (2026-10-13) | Fila 3 de la pista de bordes, a la derecha del muro alto. Cartel "columna: colgado, A y D dan la vuelta entera" | 1,6 × 1,6 m y 2,4 m de alto; cara en z = −26, de x = 19,7 a 21,3 |
 | Torre de parkour (2026-10-13, sección 8.15) | Adelante a la izquierda, en la esquina del piso, a unos 30 m; pasando la plataforma con escalera y el ascensor. Es lo más alto del nivel; el recorrido empieza por los escalones, del lado que da hacia donde se aparece | centro en (−19; 0; −19); núcleo de 6 × 6 m y 12 m de alto; terrazas hasta 5,5 m del centro |
 | Pista de cables (2026-10-14, sección 8.19) | Detrás y a la derecha, más allá de la torre chica: cuatro cables en fila, cada uno con su cartel. El plano, el de 10°, el de comba entre dos plataformas y la tirolesa, que baja desde una plataforma de 6 m con escalera | origen en (14; 0; 10); los cables salen de x = 14 hacia +x, en z = 10 (plano, a 2,9 m), z = 14 (a 10°), z = 19 (comba, de 3,6 m) y z = 24 (tirolesa, de 7,5 a 2,84 m); la escalera en (11; 0; 24) |
+| Objetos de prueba del usuario (2026-10-14 y 2026-10-15, sección 8.20; sin decidir si quedan) | Cerca del origen, adelante de donde se aparece: **CablePrueba1**, un cable curvo de 18 m que baja dando vuelta, y **Ladder**, una escalera de 17,15 m con los modelos de `assets/models/stairs` | el cable desde (0; 4,33; 0); la escalera en (0; 0; 0) |
 
 ---
 
 ## 11. Todas las pruebas y sus resultados
 
-Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente como dos procesos por localhost. Las de dos PC corrieron entre esta PC y la notebook, por Wi-Fi. En la columna "Paso", P2 a P7 son los puntos de la validación (sección 8), "Esc" es el escalón, y "8.10" a "8.19" son las secciones de lo que siguió a la validación.
+Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente como dos procesos por localhost. Las de dos PC corrieron entre esta PC y la notebook, por Wi-Fi. En la columna "Paso", P2 a P7 son los puntos de la validación (sección 8), "Esc" es el escalón, y "8.10" a "8.20" son las secciones de lo que siguió a la validación.
 
 | Paso | Prueba | Resultado |
 | --- | --- | --- |
@@ -4664,6 +4846,13 @@ Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente c
 | 8.19 | Regresiones: colgarse, compañero, túnel, escalera, salto en el aire, esquinas y barrido | Igual que antes |
 | 8.19 | Repetición, a 60 y con el ritmo variando | Coincide. Huella `0da3362442e559bf` con la primera versión, `38e9023ca7f8b080` con el agarre nuevo (el súper salto se agarra del cable plano, 34 ticks) y `9c40e65ecd396f6a` con los valores de la escena (29 ticks) |
 | 8.19 | Dos PC | Primera versión: "se mueve correctamente, no como tenia pensado". Rediseño: dos cambios más. Segunda vuelta, también con +200 ms: "todo funciona correctamente", con 0 correcciones en la notebook |
+| 8.20 | Cables como curva (`diag_cables.gd`, 68 y después 71) | Todas: en L de tres puntos, nodo inclinado, curva sin forma, la curva que cambia, y los números que salen solos |
+| 8.20 | La huella con la curva (`diag_huella_curva.gd`) | 6 de 6: un punto o una manija movidos 1 cm la cambian |
+| 8.20 | Cables y escaleras en el nivel | Cinco cables y seis escaleras, numerados sin repetir |
+| 8.20 | Las cuatro pruebas de escalera, con la escalera vieja y con la nueva | La misma salida |
+| 8.20 | La escalera con piezas (`diag_escalera_piezas.gd`) | 24 de 24; después, con piezas acostadas al revés y los modelos del usuario, 43 de 43 |
+| 8.20 | Torre, repetición y red (tirolesa, escalera con empujones, compañero en la escalera) | 19 de 19; la repetición coincide (`9c40e65ecd396f6a` con la curva, `6d3388a155dc1673` con los números solos); en red, lo mismo que antes |
+| 8.20 | Una PC | Su cable hecho a mano y su escalera con modelos, trepada hasta 10,7 m |
 
 ---
 
@@ -4749,6 +4938,16 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - **Dos procesadores distintos calcularon la misma huella** del Tuning, el código y el nivel, con todo número redondeado a 0,1 mm antes. El redondeo es por precaución: las piezas del nivel salen de cuentas con tangentes, que podrían diferir en el último decimal; no se vio que difirieran.
 - **Agregar cuerpos al mundo cambió en 0,1 mm un salto lejos de ellos** en la prueba de repetición, al sumar la torre de parkour (y otra vez con el rincón de la pista). Se atribuyó a Jolt y no a un cambio de comportamiento; no se investigó más.
 - **Fotos de una escena sin abrir el juego:** con Movie Maker (`--write-movie carpeta/f.png --fixed-fps 10 --resolution 960x540`) y un script `-s` que agrega el nivel y una cámara propia, Godot guarda cada cuadro como PNG. Así se vieron los tres dibujos de los cables (sección 8.19).
+
+**Comprobados el 2026-10-14 a la noche y el 2026-10-15 (sección 8.20):**
+
+- **F6 corre la pestaña que está adelante,** no la escena principal: con el nivel abierto, corre el nivel solo, sin cámara (una pantalla gris). Las capturas con F12 del laboratorio van al Escritorio.
+- **El editor de curvas de Path3D** (leído en el código de Godot 4.4): las manijas se ven y se arrastran recién con **Select Control Points**; un punto nuevo tiene las manijas pegadas a él, y arrastrando desde el punto se saca una; **Mirror Handle Angles** y **Mirror Handle Lengths**, en **Options**, vienen prendidos; **Add Point** sobre la curva la parte en dos.
+- **Una `Curve3D` en un `.tscn`** se guarda como una lista con, por cada punto, la manija de entrada, la de salida y la posición, en ese orden.
+- **Cambiar el tipo de una clase con nombre** (de `Node3D` a `Path3D`) pide un `--import` antes de las pruebas sin ventana: Godot guarda una lista de clases con su tipo.
+- **Un nodo agregado por código sin nombre** recibe uno automático que no tiene por qué ser igual en todas las máquinas; si algo depende de su ruta, hay que nombrarlo antes de agregarlo.
+- **La opción Triplanar del material común,** en coordenadas del mundo, proyecta la textura según el lugar y no según el modelo: una pieza estirada no la estira.
+- **Avisos al cerrar Godot en las pruebas** ("ObjectDB instances were leaked"): una malla de dibujo de depuración (`ImmediateMesh`) que en esta parte del proyecto solo usa el autoload `debug_draw.gd`, que no es del laboratorio. Salen igual con el código anterior.
 
 ---
 
@@ -4897,6 +5096,15 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 | 8.19 | Pruebas de los controles nuevos fallaban | De la prueba: en el cable de 10°, a 2 m de la punta, no se llega saltando desde el piso; y A arrancaba con el cuerpo todavía subiendo | Arregladas |
 | 8.19 | La línea de ayuda del cable se cortaba a la derecha | Muy larga | Acortada |
 | 8.19 | Con el ancho en 0,6, dos casos de la prueba ("a 60 cm no llega") quedaban justo en el borde | Medían a una distancia fija | Miden 20 cm más allá de `cable_reach` |
+| 8.20 (diseño mío) | "me parece bastante horrible tener que andar ajustando de esta manera los cables" | La forma estaba escondida detrás de números (End y Sag), y la comba colgaba hacia abajo del nodo | El cable como curva de Godot (Path3D) |
+| 8.20 (error mío) | Pantalla gris al apretar F6 | Le había dicho que abriera el nivel para editar, sin avisar que para jugar se vuelve a la pestaña de `net_lab.tscn` | Explicado; también los nombres de los botones en inglés, como su editor |
+| 8.20 (diseño mío) | Un cable nuevo dejó al cable plano sin poder agarrarse | Todo cable nuevo arrancaba con el número 1 | Los números salen solos de la ruta en la escena |
+| 8.20 | Un aviso de Godot en el panel | Mezclaba `StringName` y `String` en la misma línea | Arreglado |
+| 8.20 | "Cannot get path of node" al cerrar, a veces | El orden de los cables preguntaba la ruta a Godot | Se ordenan por la ruta anotada al entrar al árbol |
+| 8.20 | El dibujo de la escalera no cambiaba al cambiar el alto o el ancho | Se armaba una sola vez, al abrir la escena | Se rehace con cada cambio |
+| 8.20 (error mío) | Peldaños como láminas | Le dije que el peldaño fuera sobre X, y el código estiraba siempre X; su peldaño estaba sobre Z | Cada pieza se gira sola: su lado más largo queda como el largo |
+| 8.20 | Errores rojos de `ladder.gd` en el editor ("get_children" sobre nada) | Instanciar una pieza devolvió nada, probablemente mientras Godot importaba el `.glb` | Va la pieza provisoria, con un aviso |
+| 8.20 | Una prueba de comparación (escalera vieja contra nueva) no cambió el archivo como esperaba | `Out-File` de PowerShell 5.1 no tiene la codificación pedida | Repetida con `git show` en bash, comprobando cuál versión corría |
 
 ---
 
@@ -5023,6 +5231,8 @@ Arriba del auto es el caso de la balsa, manejado por un compañero. Mientras la 
 
 Míos, avisados: Espacio siempre hacia la cámara, soltarse con la velocidad que traía, nadie colgado de un compañero que está en un cable, el ancho inicial de 0,4 m, el ángulo de 60° de las teclas, el frenado de 12 m/s², y la línea invisible con el dibujo aparte.
 
+**Cables y escaleras para armar niveles** (2026-10-14 y 2026-10-15, sección 8.20). Del usuario: el cable como curva de Godot ("dale, hacelo con Path3D", sobre una recomendación mía); que cables y escaleras se numeren solos (propuesta mía, aceptada); el dibujo de la escalera con piezas, que fue su segunda idea, más "un apartado en el inspector donde seleccionas los .glb"; y dejar el cable como está ("en el juego van a ser texturas negras sin mucha gracia"). Míos: la casilla para apagar el dibujo y poner un modelo entero, que el código gire las piezas solo, la textura en Triplanar, y sacar las colisiones de los modelos. Ofrecido y no pedido: un botón para suavizar una curva y un valor para girar una pieza sobre su largo.
+
 **Forma de trabajo acordada:**
 
 - **Instrucciones clic por clic:** nada de argumentos ni jerga para probar. El laboratorio tiene un menú dentro del juego, y las instrucciones nombran los botones exactos ("literal no entendí una absoluta mierda", 13:45).
@@ -5129,6 +5339,7 @@ Míos, avisados: Espacio siempre hacia la cámara, soltarse con la velocidad que
 | `5a06178` | 2026-10-14 15:47 | docs(net): record reconnection, keypad powers, tuck, tower, corners and air jump in the history | 1 | +3.836 / −125 |
 | `a099f95` | 2026-10-14 21:06 | fix(actor): keep ActorInput.make idempotent after rounding the axes | 1 | +13 / −1 |
 | `7dd59ca` | 2026-10-14 21:06 | feat(actor): hang from cables, straight or sagging, and slide down them | 13 | +915 / −18 |
+| `3e1bd48` | 2026-10-14 22:34 | docs(net): record the cables and the input rounding fix in the history | 1 | +919 / −51 |
 
 Cada uno, salvo el del documento, se commiteó después de la prueba en las dos PC, y se comprobó antes que los archivos eran los probados. De `project.godot` van solo las acciones del Mapa de entrada (`599628b` y `a1f9084`), nunca la línea 4.6 → 4.7.
 
@@ -5185,6 +5396,10 @@ Cada uno, salvo el del documento, se commiteó después de la prueba en las dos 
 | 2026-10-14 18:03 | Los cables, primera versión: el agarre como un borde, A y D de costado y deslizarse solo, con el arreglo del input. Probados a las 19:19 | Nunca se commiteó así |
 | 2026-10-14 19:44 | El agarre con tocar el cuerpo y deslizarse con W. Probado a las 20:14 | Nunca se commiteó así |
 | 2026-10-14 20:30 | El alto de la detección en el Tuning y las teclas según la cámara; el ancho, como deslizador, desde las 20:55. Probados en una PC a las 20:52 y en las dos a las 21:06 | `a099f95` y `7dd59ca` |
+| 2026-10-14 23:03 | El cable como Path3D. Probado en una PC a las 23:22, con un cable hecho a mano | Sin commit |
+| 2026-10-14 23:36 | Los cables se numeran solos | Sin commit |
+| 2026-10-15 13:59 | Las escaleras se numeran solas y el dibujo se rehace. Probado en una PC a las 14:05 | Sin commit |
+| 2026-10-15 14:23 | La escalera con piezas `.glb`; a las 16:23, las piezas se giran solas. Probada en una PC a las 16:32 | Sin commit |
 
 **Lo que no se tocó:** hasta el 2026-10-11, los cambios previos sin commitear de la rama vieja siguieron igual. Incluían `project.godot` (solo con el cambio de versión 4.6 → 4.7 del editor), `docs/parkour/*`, `scenes/test/*`, `scripts/player_v2/*` y `assets/models/*`. Al pasar a `net-lab` quedaron guardados en `stash@{0}` (68 archivos), sin borrar nada; en `net-lab` solo queda el cambio de `project.godot` y archivos sin seguir (sección 1).
 
@@ -5211,7 +5426,13 @@ Cada uno, salvo el del documento, se commiteó después de la prueba en las dos 
 
 - ~~**El combo de súper salto, velocidad y fuerza.**~~ Hecho sin la fuerza (sección 8.13). **La fuerza** queda para cuando exista la mecánica en la que actúa.
 - ~~**El doble salto.**~~ Reemplazado por el salto en el aire (sección 8.17).
-- ~~**Agarrarse de cables,** "que sean tanto un modelo 3D o una textura larga". Falta que el usuario diga qué se hace en ellos: colgarse y avanzar con las manos, deslizarse como en una tirolesa, balancearse, o una combinación.~~ Hecho el 2026-10-14 (sección 8.19): según la pendiente, rectos o con comba, quietos. Balancearse no se pidió.
+- ~~**Agarrarse de cables,** "que sean tanto un modelo 3D o una textura larga". Falta que el usuario diga qué se hace en ellos: colgarse y avanzar con las manos, deslizarse como en una tirolesa, balancearse, o una combinación.~~ Hecho el 2026-10-14 (sección 8.19): según la pendiente, rectos o con comba, quietos. Balancearse no se pidió. Desde la sección 8.20, con cualquier forma, dibujada en el editor.
+
+**Lo de la sección 8.20, sin cerrar:**
+
+- **La prueba en las dos PC y el commit** de los cables como curva, los números solos y la escalera con piezas.
+- **Los objetos de prueba del usuario en el nivel** (CablePrueba1 y la escalera de 17 m): si quedan, el commit lleva también los dos `.glb` de `assets/models/stairs`.
+- **Ofrecido para cuando haga falta:** un valor para girar una pieza de la escalera sobre su largo (si un peldaño plano queda de canto) y otro para el tamaño de la textura en Triplanar.
 - **Probar todo en varios escenarios:** la torre fue el primero (sección 8.15).
 
 **Preguntas sin respuesta del 2026-10-12:**
@@ -5304,7 +5525,9 @@ Cada uno, salvo el del documento, se commiteó después de la prueba en las dos 
     - el cuerpo cuelga de costado al camino, sin brazos;
     - nadie se cuelga de un compañero que está en un cable; dos en el mismo cable no se probó;
     - al agarrarse, el cuerpo baja hasta 0,69 m (con 0,3), con el suavizado del borde;
-    - no hay botón ni capacidad de agarre.
+    - no hay botón ni capacidad de agarre;
+    - sus números, y los de las escaleras, cambian si se agregan o se sacan en pleno juego (sección 8.20).
+- **La escalera con piezas** (sección 8.20): una pieza girada en diagonal en Blender, hacia dónde mira alrededor de su largo, una pieza más gruesa que larga, los detalles en las puntas (se estiran), los materiales con shader propio (la textura se estira) y volver a exportar el `.glb` (probablemente no se actualice solo; no se probó).
 - **Primera persona** (sección 8.10):
     - es solo de cámara: no hay brazos, ni balanceo de la cabeza, ni animación;
     - el cuerpo propio se oculta solo en la propia pantalla; los demás lo siguen viendo;
@@ -5325,6 +5548,7 @@ Cada uno, salvo el del documento, se commiteó después de la prueba en las dos 
 - **Colgarse de un compañero:** el alcance (1 m), la altura de las manos sobre sus pies (1 m), la distancia entre los dos (0,7 m), cuánto baja el agarre del de arriba (1) y la tolerancia para adoptar (0,5 m).
 - **La cámara lenta:** la escala (30 %). ~~Y las dos duraciones (3 s).~~ Ya no hay duraciones.
 - **Lo que siguió** (secciones 8.13 a 8.17): el tope del salto (6 y 6,5 m/s), el súper (1,5 m y × 1,5), el encogido (20 cm), el radio del rincón (0,4 m; el usuario probó otros y volvió a este) y el salto en el aire (4,8 y 5 m/s). Todo está en el nodo Tuning.
+- **La escalera con piezas** (sección 8.20): cada cuánto va un peldaño (0,3 m), lo que sobresalen los largueros (0,4 m) y el tamaño de la textura en Triplanar (una vez por metro, fijo).
 - **Los cables** (sección 8.19): el ancho (0,6 m en la escena), la parte del cuerpo que agarra (0,3), la inclinación desde la que se desliza (15°), la velocidad (12 m/s por el seno), la subida (0,75 m/s), el frenado (12 m/s²) y el ángulo de las teclas (60°). Todo en el nodo Tuning.
 - **La reconexión:** el silencio para dar por cortado (5 s), la espera del host (60 s) y los reintentos del cliente (cada 1 s, hasta 60 s), en el nodo Session.
 - **La escalera** (2026-10-10): el metro de más del salto, el saltito de la salida por arriba (0,2 m y 2,5 m/s) y el volumen (0,6 m y 0,3 m a los costados). Todo está en el Inspector: los primeros en el nodo Tuning y el volumen en cada escalera.
@@ -5358,6 +5582,7 @@ Cada uno, salvo el del documento, se commiteó después de la prueba en las dos 
     - las capacidades: el súper salto y velocidad, que cada jugador se aplica a sí mismo y se predice, sin evento del host;
     - el salto en el aire, que el documento no tiene.
 - ~~**Los cables.**~~ Anotado el 2026-10-14, con notas en cuatro lugares, en la copia del Apéndice A y en el documento de Claude Docs (revisión 71): el modo Tirolesa en el laboratorio, el agarre sin botón con el cuerpo, la forma de la detección y la cuantización del input, que tiene que dar lo mismo al rehacerse.
+- ~~**Cables y escaleras para armar niveles.**~~ Anotado el 2026-10-15, con notas en dos lugares, en la copia del Apéndice A y en el documento de Claude Docs (revisión 72): los números que salen solos, en la tabla de "Lo que no es un modo" (la fila Ancla), y cómo se arman cables y escaleras, en "Cómo se interpretan" (sondas).
 - **Cuando el esqueleto pase a ser el juego,** los ajustes que hoy aplica el laboratorio al arrancar (60 ticks, `physics_jitter_fix` en 0 e interpolación de física) van a `project.godot`.
 - **Fuera del laboratorio** quedan los demás modos anclados, los cuerpos rígidos, las demás interacciones (empujar juntos, subirse a los hombros, arrastrar y revivir), la muerte, el sistema de modificadores, Steam y NAT.
 
@@ -5439,6 +5664,11 @@ La nota de "Subir al borde" cuenta los cuatro cambios.
 - la fila Tirolesa de la tabla de modos: en el laboratorio es el modo Cable, quieto en cualquier inclinación y con las teclas según la cámara;
 - la fila 4 de las transiciones de Aire: el cable se agarra sin botón, con tocar el cuerpo;
 - "Escalera, cable y cuerda", en "Cómo se interpretan" (sondas): la forma de la detección del cable.
+
+**Correcciones del 2026-10-15, cables y escaleras para armar niveles** (sección 8.20). Pedidas a las 20:29. La copia y el documento de Claude Docs (revisión 72) suman notas en dos lugares, sin cambiar el texto original:
+
+- "Lo que no es un modo", la fila Ancla: los números de cables y escaleras salen solos de su ruta en la escena;
+- "Escalera, cable y cuerda", en "Cómo se interpretan" (sondas): el cable es una curva que se dibuja en el editor, y la escalera se dibuja con piezas.
 
 ### Arquitectura de movimiento co-op (Godot 4.7 + Jolt)
 
@@ -5718,6 +5948,8 @@ Así se arman las acciones de la lista. **Sprint:** el modo Suelo lee el botón 
 
 > **Nota (2026-10-12).** Tres cosas del laboratorio tocan esta tabla. **Escala de tiempo:** queda solo la del mundo. La del actor, la cámara lenta personal, se probó en el punto 7 y se sacó: había sido propuesta mía, y el usuario quería una sola (sección 8.13). **Postura:** hay una tercera, encogido, que solo existe en el aire: la pide el salto para arriba desde el colgado (sección 8.14). **Súper salto y velocidad:** como no hay sistema de modificadores, es un indicador en el estado que cada jugador prende y apaga con una tecla. La pulsación viaja en el input como la del salto: su PC lo predice al instante y el host hace la misma cuenta, sin evento. Multiplica por 1,5 la velocidad en el piso y sube 1,5 m el salto desde el piso (sección 8.13).
 
+> **Nota (2026-10-15), ancla.** En el laboratorio, las escaleras y los cables no llevan un número puesto a mano: su número es su lugar entre todos, ordenados por su ruta en la escena. Como todas las máquinas cargan el mismo nivel, y la huella del nivel incluye la ruta de cada nodo, a cada uno le toca el mismo número en todas. Lo pidió el usuario después de que un cable nuevo repitió el número de otro y lo dejó sin poder agarrarse. Si algún día se agregan o se sacan en pleno juego, los números de los que vienen después cambian (sección 8.20).
+
 ##### Las siete reglas
 
 1. **Fuerza contra agarre.** Todo impulso o transición forzada trae una fuerza de 0 a 5. En los modos libres, de agarre 0, el impulso se suma a la velocidad y el movimiento decide: si sube, deja el suelo. En los demás, si la fuerza alcanza el agarre, el actor sale a la salida de respaldo con el impulso. Si no, el modo proyecta el impulso sobre lo que puede moverse y descarta el resto como balanceo visual.
@@ -5841,6 +6073,8 @@ Todas son consultas directas al espacio, porque funcionan igual en un tick repet
   > **Nota (2026-10-10).** En el laboratorio, el volumen de entrada de la escalera es una caja: 0,6 m delante del eje (era 0,9) y 0,3 m más allá de cada costado, los dos ajustables en el Inspector. Ese volumen también es la barrera para los bordes de detrás. Sus salidas: saltar mirándola, derecho para arriba y 1 m más alto que desde el piso; saltar mirando a otro lado, hacia allá, sin la parte que iría contra la pared; y por arriba, un saltito sobre el borde (sección 8.10).
 
   > **Nota (2026-10-14), cable.** En el laboratorio, el cable no tiene un volumen de agarre: es una línea, y lo que se busca es el cuerpo. La forma es un cilindro parado alrededor del eje del cuerpo, de radio `cable_reach`, desde la parte del cuerpo que agarra (`cable_grab_body`, de la cabeza para abajo) hasta las manos. Se barre a lo largo del movimiento del tick, de a 10 cm, contra el punto más cercano del cable: así no se lo atraviesa aunque se vaya a 60 m/s. El cuerpo queda colgado de las manos en el punto que tocó, así que baja de golpe lo que haya entre ese punto y las manos; por eso el alto es ajustable. El usuario dejó 0,3 (el 30 % de arriba del cuerpo) y el radio en 0,6 m. Con varios cables, gana el de número más chico (sección 8.19).
+
+  > **Nota (2026-10-15), cómo se arman.** En el laboratorio, el cable es un nodo Path3D: su forma es la curva que se dibuja en el editor, con puntos y manijas, partida en tramos rectos. Lo que se ve es lo que se agarra, y puede doblar esquinas. La escalera se dibuja con piezas: los modelos del larguero y del peldaño (archivos .glb), que el código gira, estira hasta el alto y el ancho, y repite, con la textura proyectada desde el mundo para que no se estire. Para la simulación nada de eso cuenta: la escalera sigue siendo el eje, el alto y el alcance, y el cable, su línea (sección 8.20).
 - **Entorno.** Los volúmenes se combinan con la misma regla que los modificadores: por categoría, gana la mayor prioridad. Se leen por consulta y no por señales, por la inferencia I1.
 - **Contactos.** Producen eventos para el tick siguiente. El trampolín solo actúa si la velocidad contra la superficie supera un mínimo.
 - **Interacción.** Para otros jugadores se usa la posición guardada en su estado (o interpolada, en un cliente), no una consulta física, por la inferencia I2. El host vuelve a validar con tolerancia.
@@ -6437,6 +6671,9 @@ Estos scripts no están en el repositorio: vivieron en una carpeta temporal de l
 | `diag_input_redondeo.gd` | 8.19 | Rehacer un input ya cuantizado, como el host: cuántas de 20.000 direcciones al azar cambian |
 | `foto_cables.gd` | 8.19 | Fotos de la pista de cables con Movie Maker, desde seis lugares. Se corre con `--write-movie` (sección 12) |
 | `cable_pares.ps1` | 8.19 | La prueba `cable` en pareja: el cliente sin red simulada y con internet mala, y el host con el cliente mirando. Usa `run_pair.ps1` |
+| `diag_huella_curva.gd` | 8.20 | La huella del nivel con los cables como curva: cambia si se mueve 1 cm un punto o una manija, o cada cuánto se parte la curva |
+| `diag_escalera_piezas.gd` | 8.20 | La escalera con piezas: tres escaleras (piezas paradas, acostadas al revés y los modelos del usuario), dónde quedan, cuánto miden, sin colisiones, textura en Triplanar, y el rearmado. 43 comprobaciones |
+| `diag_modelos_escalera.gd` | 8.20 | Los dos modelos del usuario: si cargan, qué nodos traen y cuánto miden en cada eje |
 
 El barrido de Hanging no está acá: es parte del repositorio (`scenes/net_lab/hang_sweep_test.gd`).
 
@@ -9677,7 +9914,7 @@ func _initialize() -> void:
 	quit()
 ```
 
-### Scripts de lo que siguió a la validación (secciones 8.11 a 8.19)
+### Scripts de lo que siguió a la validación (secciones 8.11 a 8.20)
 
 #### diag_delta.gd
 
@@ -12367,7 +12604,10 @@ extends SceneTree
 # mire), las teclas según la cámara, quieto en cualquier inclinación,
 # deslizarse con las teclas hacia abajo, frenar soltando o pidiendo para
 # arriba, subir más lento, la comba,
-# Ctrl, Espacio, empujones, repetir ticks y la validación de la pose.
+# Ctrl, Espacio, empujones, repetir ticks y la validación de la pose. Desde que
+# el cable es un Path3D, la forma sale de su curva: un cable de tres puntos en
+# L, un nodo girado e inclinado, una curva sin forma, y que el cable siga a la
+# curva cuando se la cambia.
 
 class Runner extends Node:
 	var tuning: ActorTuning
@@ -12396,12 +12636,21 @@ class Runner extends Node:
 
 	func _cable(id: int, at: Vector3, end: Vector3, sag: float) -> Cable:
 		var cable := Cable.new()
-		cable.cable_id = id
-		cable.end = end
-		cable.sag = sag
+		# Los cables se numeran solos, por su ruta: con estos nombres, el número es `id`.
+		cable.name = "Cable%d" % id
+		cable.curve = _curve(end, sag)
 		cable.position = at
 		add_child(cable)
 		return cable
+
+	## Una curva de dos puntos hasta `end`, recta o con `sag` metros de comba en
+	## el medio: una parábola, con las manijas a dos tercios del punto de control.
+	func _curve(end: Vector3, sag: float) -> Curve3D:
+		var curve := Curve3D.new()
+		var control := end * 0.5 + Vector3.DOWN * 2.0 * sag
+		curve.add_point(Vector3.ZERO, Vector3.ZERO, control * 2.0 / 3.0)
+		curve.add_point(end, (control - end) * 2.0 / 3.0, Vector3.ZERO)
+		return curve
 
 	func _box(low_corner: Vector3, high: Vector3) -> void:
 		var body := StaticBody3D.new()
@@ -12425,6 +12674,8 @@ class Runner extends Node:
 		_forgiving_grab()
 		_impulses()
 		_replay()
+		_curves()
+		_numbers()
 		print("[cable] %s" % ("TODO BIEN" if failures == 0 else "%d FALLAS" % failures))
 		get_tree().quit()
 
@@ -12715,6 +12966,88 @@ class Runner extends Node:
 
 	## Repetir los ticks de un deslizamiento con el cuerpo restaurado da los
 	## mismos bytes, y la pose se valida como una afirmación.
+	## La forma sale de la curva del nodo (Path3D): un cable de tres puntos en L,
+	## un nodo girado e inclinado, una curva sin forma y cambiar un punto.
+	func _curves() -> void:
+		# En L, a 2,9 m: 4 m hacia +X y después 4 m hacia +Z.
+		var bent := Cable.new()
+		bent.name = "Cable6"
+		var corner_curve := Curve3D.new()
+		corner_curve.add_point(Vector3.ZERO)
+		corner_curve.add_point(Vector3(4, 0, 0))
+		corner_curve.add_point(Vector3(4, 0, 4))
+		bent.curve = corner_curve
+		bent.position = Vector3(0, 2.9, 50)
+		add_child(bent)
+		_check("en L: el largo es el de las dos patas", absf(bent.length() - 8.0) < 0.01, "%.3f m" % bent.length())
+		var corner := bent.point_at(4.0)
+		_check("en L: a 4 m está la esquina", corner.distance_to(Vector3(4, 2.9, 50)) < 0.01, "%s" % corner)
+		# Saltando debajo de la segunda pata, mirando a +X (de costado a ella).
+		var under := bent.point_at(6.0)
+		var s := _place(Vector3(under.x - 0.1, 0, under.z), ActorState.Mode.GROUND)
+		var mode := _watch(s, Vector2.ZERO, -PI * 0.5, true, 90)
+		_check("en L: saltando debajo de la segunda pata, se agarra de ella", mode == ActorState.Mode.CABLE and s.anchor_id == 6 and s.anchor_t > 4.5,
+				"modo %s, a %.2f m" % [ActorState.Mode.keys()[mode], s.anchor_t])
+		if mode == ActorState.Mode.CABLE:
+			# Mirando a -Z, a lo largo de la segunda pata hacia la esquina: W lo lleva
+			# hasta la esquina, y en la primera pata, que va en X, ya no sirve.
+			for t in 120:
+				_step(s, Vector2(0, 1), 0, false, 0.0)
+			_check("en L: W mirando hacia la esquina llega a la esquina y ahí frena (la otra pata queda de costado)",
+					s.anchor_t > 3.9 and s.anchor_t < 4.05 and s.velocity.length() < 0.001, "a %.3f m" % s.anchor_t)
+			var at := s.anchor_t
+			for t in 60:
+				_step(s, Vector2(0, 1), 0, false, PI * 0.5)
+			_check("en L: girando la cámara a lo largo de la primera pata (-X), W sigue por ella", s.anchor_t < at - 1.2,
+					"de %.2f a %.2f m" % [at, s.anchor_t])
+		# Girado 90° e inclinado 30°: la curva va con el nodo, como se ve en el editor.
+		var turned := Cable.new()
+		turned.name = "Cable7"
+		var straight := Curve3D.new()
+		straight.add_point(Vector3.ZERO)
+		straight.add_point(Vector3(6, 0, 0))
+		turned.curve = straight
+		turned.position = Vector3(0, 3, 60)
+		turned.rotation = Vector3(0, PI * 0.5, deg_to_rad(30.0))
+		add_child(turned)
+		var far := turned.global_transform * Vector3(6, 0, 0)
+		_check("girado e inclinado: la punta está donde la pone el nodo", turned.point_at(turned.length()).distance_to(far) < 0.01,
+				"%s contra %s" % [turned.point_at(turned.length()), far])
+		var tilt := rad_to_deg(asin(turned.tangent_at(1.0).y))
+		_check("girado e inclinado: el cable sube los 30° del nodo", absf(tilt - 30.0) < 0.5, "%.1f°" % tilt)
+		# Un solo punto: sin forma, no se agarra y no rompe nada.
+		var empty := Cable.new()
+		empty.name = "Cable8"
+		var lonely := Curve3D.new()
+		lonely.add_point(Vector3.ZERO)
+		empty.curve = lonely
+		empty.position = Vector3(0, 2.9, 70)
+		add_child(empty)
+		s = _place(Vector3(0, 0, 70.1), ActorState.Mode.GROUND)
+		mode = _watch(s, Vector2.ZERO, PI, true, 90)
+		_check("curva de un solo punto: no se agarra", mode != ActorState.Mode.CABLE and not empty.usable(),
+				"modo %s, largo %.3f" % [ActorState.Mode.keys()[mode], empty.length()])
+		# Cambiar la curva cambia el cable en el momento, como al editarla.
+		lonely.add_point(Vector3(5, 0, 0))
+		_check("al agregarle un punto, el cable tiene forma y 5 m", empty.usable() and absf(empty.length() - 5.0) < 0.01, "%.3f m" % empty.length())
+		straight.set_point_position(1, Vector3(3, 0, 0))
+		_check("al mover el último punto, el largo sigue a la curva", absf(turned.length() - 3.0) < 0.01, "%.3f m" % turned.length())
+
+	## Los números salen solos, por la ruta de cada cable: del 1 en adelante, sin
+	## repetir, y `find()` devuelve el cable de cada número.
+	func _numbers() -> void:
+		var numbers := []
+		var found := true
+		for cable: Cable in Cable.all():
+			numbers.append(cable.cable_id)
+			found = found and Cable.find(cable.cable_id) == cable
+		_check("los cables se numeran solos, del 1 al 8, en el orden de sus nombres", numbers == [1, 2, 3, 4, 5, 6, 7, 8] and found, str(numbers))
+		var first := Cable.find(1)
+		remove_child(first)
+		_check("sacando el primero, el que era 2 pasa a ser 1", Cable.find(1) != null and Cable.find(1).name == "Cable2" and Cable.all().size() == 7, str(Cable.find(1).name if Cable.find(1) != null else "nada"))
+		add_child(first)
+		_check("al volver, vuelve a ser el 1", Cable.find(1) == first, "")
+
 	func _replay() -> void:
 		var s := _place_on(steep, 1.0)
 		for t in 20:
@@ -12811,7 +13144,8 @@ func _initialize() -> void:
 extends SceneTree
 
 # La pista de cables en el nivel real del laboratorio: que no la toque nada más (ni la
-# balsa, que se mueve), que su escalera tenga id propio y que estén los cuatro cables.
+# balsa, que se mueve), que su escalera tenga id propio y que estén sus cuatro cables,
+# numerados solos y sin repetir, junto con los demás cables del nivel.
 
 var lab: Node
 var frame := 0
@@ -12828,15 +13162,21 @@ func _physics_process(_delta: float) -> bool:
 	if frame == 30 or frame == 600:
 		_check_overlap()
 	if frame == 600:
-		var ids := []
-		for ladder in Ladder.all():
-			ids.append(ladder.ladder_id)
-		ids.sort()
-		_check("escaleras registradas: 1 y 2 del nivel, 3 a 5 de la torre y 6 de la pista de cables", ids == [1, 2, 3, 4, 5, 6], str(ids))
+		var ladders := []
+		for ladder: Ladder in Ladder.all():
+			ladders.append([ladder.ladder_id, String(ladder.name)])
+		var ladder_numbers := ladders.map(func(each: Array) -> int: return each[0])
+		var ladder_names := ladders.map(func(each: Array) -> String: return each[1])
+		var expected := ["TowerLadder", "PlatformLadder", "EscaleraDeVuelta", "EscaleraTramo4", "EscaleraTramo8", "EscaleraTirolesa"]
+		_check("escaleras numeradas solas, del 1 en adelante: las 2 del nivel, las 3 de la torre y la de la pista de cables", ladder_numbers == range(1, ladders.size() + 1)
+				and expected.all(func(each: String) -> bool: return ladder_names.has(each)), str(ladders))
 		var cables := []
 		for cable in Cable.all():
-			cables.append([cable.cable_id, snappedf(cable.length(), 0.01)])
-		_check("cables registrados: 1 a 4", cables.size() == 4 and cables[3][0] == 4, str(cables))
+			cables.append([cable.cable_id, String(cable.name), snappedf(cable.length(), 0.01)])
+		var numbers := cables.map(func(each: Array) -> int: return each[0])
+		var names := cables.map(func(each: Array) -> String: return each[1])
+		_check("cables numerados solos, del 1 en adelante, con los cuatro de la pista", numbers == range(1, cables.size() + 1)
+				and names.has("CablePlano") and names.has("CableA10") and names.has("CableConComba") and names.has("Tirolesa"), str(cables))
 		print("[nivel] %s" % ("TODO BIEN" if failures == 0 else "%d FALLAS" % failures))
 		quit()
 	return false
@@ -12965,4 +13305,257 @@ function Pair($name, $hostExtra, $clientExtra, [int]$quit = 60) {
 Pair 'cliente_sin' @() @('--test-input=cable')
 Pair 'cliente_mala' @() (@('--test-input=cable') + $mala)
 Pair 'observador_mala' @('--test-input=cable') $mala
+```
+
+#### diag_huella_curva.gd
+
+```gdscript
+extends SceneTree
+
+# La huella del nivel con los cables como Path3D: cambia si se mueve un punto
+# de una curva o una manija, o si se cambia cada cuánto se parte, y no cambia
+# si no se toca nada.
+
+var level: Node
+var frame := 0
+var failures := 0
+
+
+func _initialize() -> void:
+	level = load("res://scenes/net_lab/net_lab_level.tscn").instantiate()
+	root.add_child(level)
+
+
+func _process(_delta: float) -> bool:
+	frame += 1
+	if frame != 3:
+		return false
+	var cable: Cable = level.get_node("PistaDeCables/CableConComba")
+	var base := SimFingerprint.level_text(level)
+	_check("sin tocar nada, el mismo texto", SimFingerprint.level_text(level) == base)
+	_check("el texto trae la curva del cable con comba", base.contains("curva [0.2, (0.0, 0.0, 0.0) (0.0, 0.0, 0.0) (3.3333, -1.3333, 0.0)"))
+	var curve := cable.curve
+	var position := curve.get_point_position(1)
+	curve.set_point_position(1, position + Vector3(0, 0.01, 0))
+	_check("mover 1 cm un punto la cambia", SimFingerprint.level_text(level) != base)
+	curve.set_point_position(1, position)
+	_check("al volverlo a su lugar, vuelve a ser igual", SimFingerprint.level_text(level) == base)
+	var handle := curve.get_point_out(0)
+	curve.set_point_out(0, handle + Vector3(0, -0.01, 0))
+	_check("mover 1 cm una manija la cambia", SimFingerprint.level_text(level) != base)
+	curve.set_point_out(0, handle)
+	var interval := curve.bake_interval
+	curve.bake_interval = interval * 2.0
+	_check("cambiar cada cuánto se parte la cambia", SimFingerprint.level_text(level) != base)
+	curve.bake_interval = interval
+	print("[huella] %s" % ("TODO BIEN" if failures == 0 else "%d FALLAS" % failures))
+	quit()
+	return true
+
+
+func _check(label: String, ok: bool) -> void:
+	print("[huella] %s %s" % ["OK   " if ok else "FALLA", label])
+	if not ok:
+		failures += 1
+```
+
+#### diag_escalera_piezas.gd
+
+```gdscript
+extends SceneTree
+
+# El dibujo de la escalera con piezas. Tres escaleras:
+# - con piezas de prueba paradas como se esperaba (larguero a lo alto, peldaño
+#   a lo largo de X), descentradas, con colisión y con un material;
+# - con las mismas piezas acostadas al revés (larguero a lo largo de X, peldaño
+#   a lo largo de Z): tienen que quedar igual que las primeras;
+# - con los dos modelos del usuario (assets/models/stairs).
+# Dónde quedan, cuánto miden, que no traigan colisión, que la textura se repita
+# con una copia del material, y que se rearme al cambiar el alto o al apagar las
+# piezas.
+
+const USER_RAIL := "res://assets/models/stairs/posteparaescalera.glb"
+const USER_RUNG := "res://assets/models/stairs/peladñoparaescalera.glb"
+
+var frame := 0
+var failures := 0
+var upright: Ladder
+var turned: Ladder
+var user: Ladder
+var rail_material := StandardMaterial3D.new()
+
+
+func _initialize() -> void:
+	var rung_material := StandardMaterial3D.new()
+	upright = _ladder("EscaleraParada", Vector3(5, 1, 0),
+			_model(Vector3(0.1, 2.0, 0.08), Vector3(0.3, 1.0, 0.0), rail_material),
+			_model(Vector3(0.5, 0.05, 0.05), Vector3(-0.2, 0.0, 0.1), rung_material))
+	turned = _ladder("EscaleraAcostada", Vector3(10, 1, 0),
+			_model(Vector3(2.0, 0.1, 0.08), Vector3(1.0, 0.3, 0.0), rail_material),
+			_model(Vector3(0.05, 0.05, 0.5), Vector3(0.0, 0.1, -0.2), rung_material))
+	user = _ladder("EscaleraDelUsuario", Vector3(15, 1, 0), load(USER_RAIL), load(USER_RUNG))
+
+
+func _ladder(ladder_name: String, at: Vector3, rail: PackedScene, rung: PackedScene) -> Ladder:
+	var ladder := Ladder.new()
+	ladder.name = ladder_name
+	ladder.height = 3.0
+	ladder.width = 0.6
+	ladder.rail_model = rail
+	ladder.rung_model = rung
+	ladder.position = at
+	root.add_child(ladder)
+	return ladder
+
+
+## Una escena de prueba: una caja de `size` corrida `offset`, con `material`, y
+## un cuerpo con colisión al lado.
+func _model(size: Vector3, offset: Vector3, material: Material) -> PackedScene:
+	var scene_root := Node3D.new()
+	var mesh_instance := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	mesh.material = material
+	mesh_instance.mesh = mesh
+	mesh_instance.position = offset
+	scene_root.add_child(mesh_instance)
+	mesh_instance.owner = scene_root
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	shape.shape = BoxShape3D.new()
+	body.add_child(shape)
+	scene_root.add_child(body)
+	body.owner = scene_root
+	shape.owner = scene_root
+	var packed := PackedScene.new()
+	packed.pack(scene_root)
+	scene_root.free()
+	return packed
+
+
+func _process(_delta: float) -> bool:
+	frame += 1
+	if frame == 3:
+		_check_pieces("parada", upright, 3.0, 0.6, 0.1, 0.05)
+		_check_pieces("acostada", turned, 3.0, 0.6, 0.1, 0.05)
+		_check_pieces("del usuario", user, 3.0, 0.6, 0.2, 0.15)
+		_check("  el material original no se tocó", not rail_material.uv1_triplanar, "")
+		upright.height = 2.0
+	elif frame == 6:
+		_check_pieces("parada, con el alto cambiado", upright, 2.0, 0.6, 0.1, 0.05)
+		upright.show_pieces = false
+	elif frame == 9:
+		_check("apagando las piezas, no dibuja nada", _meshes(upright).is_empty(), "%d mallas" % _meshes(upright).size())
+		print("[piezas] %s" % ("TODO BIEN" if failures == 0 else "%d FALLAS" % failures))
+		quit()
+	return false
+
+
+func _check_pieces(label: String, ladder: Ladder, height: float, width: float, rail_thick: float, rung_thick: float) -> void:
+	var rails := []
+	var rungs := []
+	for mesh_instance: MeshInstance3D in _meshes(ladder):
+		var box: AABB = mesh_instance.global_transform * mesh_instance.get_aabb()
+		if box.size.y > 1.0:
+			rails.append(box)
+		else:
+			rungs.append(box)
+	var base := ladder.global_position
+	var top := height + Ladder.RAIL_EXTRA
+	_check("%s, alto %.1f: dos largueros" % [label, height], rails.size() == 2, "%d" % rails.size())
+	for box: AABB in rails:
+		_check("  larguero parado de %.2f m, desde el pie" % top, absf(box.size.y - top) < 0.001 and absf(box.position.y - base.y) < 0.001,
+				"alto %.3f, abajo en %.3f" % [box.size.y, box.position.y - base.y])
+		_check("  a un costado (x = ±%.2f), de %.2f m de grosor" % [width * 0.5, rail_thick],
+				absf(absf(box.get_center().x - base.x) - width * 0.5) < 0.001 and absf(box.size.x - rail_thick) < 0.001,
+				"centro %.3f, grosor %.3f" % [box.get_center().x - base.x, box.size.x])
+	var expected := 0
+	var y := ladder.rung_spacing
+	while y < top - 0.05:
+		expected += 1
+		y += ladder.rung_spacing
+	_check("  %d peldaños, cada %.2f m" % [expected, ladder.rung_spacing], rungs.size() == expected, "%d" % rungs.size())
+	var wide := true
+	var thin := true
+	var sample := ""
+	for box: AABB in rungs:
+		wide = wide and absf(box.size.x - width) < 0.001 and absf(box.get_center().x - base.x) < 0.001
+		thin = thin and absf(box.size.y - rung_thick) < 0.001 and absf(box.size.z - rung_thick) < 0.001
+		sample = "%s" % box.size.snapped(Vector3.ONE * 0.001)
+	_check("  peldaños a lo ancho (%.2f m) y centrados" % width, wide, sample)
+	_check("  peldaños de %.2f m de grosor, sin estirarse" % rung_thick, thin, sample)
+	_check("  sin colisiones del modelo", _bodies(ladder) == 0, "%d cuerpos" % _bodies(ladder))
+	var tiled := true
+	for mesh_instance: MeshInstance3D in _meshes(ladder):
+		var material := mesh_instance.get_active_material(0) as BaseMaterial3D
+		tiled = tiled and material != null and material.uv1_triplanar and material.uv1_world_triplanar
+	_check("  la textura se repite (Triplanar en el mundo)", tiled, "")
+
+
+func _meshes(node: Node) -> Array:
+	var found := []
+	for child in node.get_children():
+		if child.is_queued_for_deletion():
+			continue
+		if child is MeshInstance3D:
+			found.append(child)
+		found.append_array(_meshes(child))
+	return found
+
+
+func _bodies(node: Node) -> int:
+	var count := 0
+	for child in node.get_children():
+		if child is CollisionObject3D:
+			count += 1
+		count += _bodies(child)
+	return count
+
+
+func _check(label: String, ok: bool, detail: String) -> void:
+	print("[piezas] %s %s  (%s)" % ["OK   " if ok else "FALLA", label, detail])
+	if not ok:
+		failures += 1
+```
+
+#### diag_modelos_escalera.gd
+
+```gdscript
+extends SceneTree
+
+# Los modelos de la escalera del usuario: si se pueden instanciar, qué nodos
+# traen, y cuánto miden en cada eje.
+
+const MODELS := [
+	"res://assets/models/stairs/posteparaescalera.glb",
+	"res://assets/models/stairs/peladñoparaescalera.glb",
+]
+
+
+func _initialize() -> void:
+	for path: String in MODELS:
+		var scene := load(path) as PackedScene
+		print("[modelo] %s: %s" % [path.get_file(), "cargado" if scene != null else "NO CARGA"])
+		if scene == null:
+			continue
+		var instance := scene.instantiate()
+		print("[modelo]   instancia: %s" % (instance.get_class() if instance != null else "null"))
+		if instance == null:
+			continue
+		_describe(instance, "    ", Transform3D.IDENTITY)
+		instance.free()
+	quit()
+
+
+func _describe(node: Node, indent: String, to_root: Transform3D) -> void:
+	var extra := ""
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		var box: AABB = to_root * (node as MeshInstance3D).get_aabb()
+		extra = "  caja: desde %s, tamaño %s" % [box.position.snapped(Vector3.ONE * 0.001), box.size.snapped(Vector3.ONE * 0.001)]
+		var material := (node as MeshInstance3D).get_active_material(0)
+		extra += "  material: %s" % (material.get_class() if material != null else "ninguno")
+	print("[modelo] %s%s (%s)%s" % [indent, node.name, node.get_class(), extra])
+	for child in node.get_children():
+		var next := to_root * (child as Node3D).transform if child is Node3D else to_root
+		_describe(child, indent + "  ", next)
 ```

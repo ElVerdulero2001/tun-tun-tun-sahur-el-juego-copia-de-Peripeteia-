@@ -611,10 +611,9 @@ static func anchored_pose_valid(body: ActorBody, state: ActorState, tuning: Acto
 static func _try_grab_ladder(body: ActorBody, state: ActorState, direction: Vector3) -> bool:
 	if direction.length_squared() < 0.01:
 		return false
-	var ladders := Ladder.all()
-	ladders.sort_custom(func(a: Ladder, b: Ladder) -> bool: return a.ladder_id < b.ladder_id)
 	var feet := _standing_feet(body, state)
-	for ladder: Ladder in ladders:
+	# Ladder.all() ya viene en orden de número, igual en todas las máquinas.
+	for ladder: Ladder in Ladder.all():
 		if ladder.ladder_id == state.regrab_id:
 			continue
 		var t := ladder.height_for(feet)
@@ -1317,6 +1316,8 @@ static func cable_check(body: ActorBody, state: ActorState, direction: Vector3, 
 	var high := tuning.hang_height
 	var steps := maxi(ceili(motion.length() / CABLE_SWEEP_STEP), 1)
 	for cable: Cable in Cable.all():
+		if not cable.usable():
+			continue
 		result["cable"] = cable
 		var touched := false
 		var t := 0.0

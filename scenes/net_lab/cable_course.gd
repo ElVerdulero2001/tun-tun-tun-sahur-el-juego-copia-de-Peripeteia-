@@ -19,8 +19,9 @@ extends Node3D
 ## Todo se arma al cargar, con el mismo código en todas las máquinas. Con
 ## @tool también se arma en el editor; las piezas no se guardan en la escena.
 
-## Id de la escalera de la plataforma alta.
-const LADDER_ID := 6
+## Nombre de la escalera de la plataforma alta (el número sale solo, por la
+## ruta en la escena; el nombre va antes de agregarla).
+const LADDER_NAME := &"EscaleraTirolesa"
 const POST := 0.2
 const TALL_TOP := 6.0
 const PLATFORM_TOP := 2.5
@@ -92,7 +93,7 @@ func _box(low: Vector3, high: Vector3) -> void:
 ## La escalera de la plataforma alta, en su cara -X: se trepa desde -X.
 func _ladder(at: Vector3) -> void:
 	var ladder := Ladder.new()
-	ladder.ladder_id = LADDER_ID
+	ladder.name = LADDER_NAME
 	ladder.height = TALL_TOP
 	ladder.position = at
 	ladder.rotation.y = -PI * 0.5

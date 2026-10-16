@@ -1,27 +1,32 @@
 @tool
 class_name Cable
-extends Node3D
+extends Path3D
 
 ## Cable del que se cuelga (modo Cable, la tirolesa de la arquitectura): una
 ## línea invisible que dice dónde se agarran las manos, sin colisión. Lo que se
 ## ve va aparte y se elige en `look`: un tubo, un modelo repetido a lo largo o
 ## una textura alargada. Está quieto: no se mueve ni se hunde con el peso.
 ##
-## La forma: del origen del nodo a `end`, en coordenadas del nodo, con una
-## comba de `sag` metros hacia abajo en el medio (una parábola; con 0 es recto).
-## Sobre el cable se ubica por la distancia desde el origen, medida a lo largo
-## del cable (anchor_t del actor).
+## La forma es la curva del nodo (`curve`, de Path3D), que se dibuja en el
+## editor con las herramientas de curva: se ponen puntos, se arrastran, y con
+## las manijas de cada punto se curva el cable. Lo que se ve es lo que se
+## agarra. La curva se parte en tramos rectos de `curve.bake_interval` metros.
+## Sobre el cable se ubica por la distancia desde el primer punto, medida a lo
+## largo del cable (anchor_t del actor).
 ##
 ## Por ahora los cables están fijos: la forma se calcula una vez al entrar al
-## juego. Para que dé lo mismo en todas las máquinas, sale solo de los valores
-## exportados y del lugar del nodo.
+## juego. Para que dé lo mismo en todas las máquinas, sale solo de la curva, de
+## los valores exportados y del lugar del nodo; la huella del nivel los incluye.
+## El número de cada cable también sale solo (cable_id).
 
 enum Look { TUBE, MODEL, TEXTURE }
 
-## Largo de cada tramo recto con que se arma la curva, en metros.
-const SEGMENT := 0.25
 ## Lados del tubo.
 const TUBE_SIDES := 8
+## Un cable nuevo en el editor, sin puntos, arranca recto y de este largo.
+const NEW_LENGTH := 4.0
+## Un cable más corto que esto no se puede agarrar.
+const MIN_LENGTH := 0.01
 
 const STRIP_SHADER := """shader_type spatial;
 render_mode skip_vertex_transform, cull_disabled;
@@ -47,20 +52,19 @@ void fragment() {
 }
 """
 
-static var _cables := {}  # id -> Cable
+## Los cables que están en el juego, y si ya están en orden.
+static var _cables := []
+static var _in_order := true
 
-## Id del cable. Tiene que ser único y el mismo en todas las máquinas.
-@export var cable_id := 1
-## Dónde termina, en coordenadas del nodo. Empieza en el origen del nodo.
-@export var end := Vector3(8, 0, 0):
-	set(value):
-		end = value
-		_rebuild()
-## Cuánto cuelga en el medio, en metros. 0 = recto.
-@export_range(0.0, 10.0, 0.01, "or_greater") var sag := 0.0:
-	set(value):
-		sag = value
-		_rebuild()
+## Número del cable, desde 1: su lugar entre todos, ordenados por su ruta en la
+## escena. Sale solo, así nunca se repite, y como todas las máquinas tienen el
+## mismo nivel, a cada cable le toca el mismo número en todas. Es lo que guarda
+## el estado del actor (anchor_id). Si algún día se agregan o se sacan cables
+## en pleno juego, los números de los que vienen después cambian: ahí habría
+## que numerarlos de otra forma.
+var cable_id: int:
+	get:
+		return _ordered().find(self) + 1
 
 @export_group("Dibujo")
 ## Tubo: un cilindro a lo largo del cable. Modelo: `model` repetido a lo largo
@@ -102,50 +106,68 @@ static var _cables := {}  # id -> Cable
 		texture_length = value
 		_rebuild()
 
-## La curva en el mundo, en tramos de SEGMENT: los puntos y la distancia sobre
-## el cable hasta cada uno.
+## La curva en el mundo, en tramos rectos: los puntos y la distancia sobre el
+## cable hasta cada uno.
 var _points := PackedVector3Array()
 var _lengths := PackedFloat64Array()
 var _visual: Node3D
+## La ruta en la escena, anotada al entrar: con ella se ordenan los cables.
+var _path := ""
 
 
 static func find(id: int) -> Cable:
-	return _cables.get(id) if id != 0 else null
+	var cables := _ordered()
+	return cables[id - 1] if id >= 1 and id <= cables.size() else null
 
 
-## Los cables, de id más chico a más grande, así todas las máquinas los miran
-## en el mismo orden.
+## Los cables, de número más chico a más grande, así todas las máquinas los
+## miran en el mismo orden.
 static func all() -> Array:
-	var ids := _cables.keys()
-	ids.sort()
-	return ids.map(func(id: int) -> Cable: return _cables[id])
+	return _ordered()
+
+
+static func _ordered() -> Array:
+	if not _in_order:
+		_cables.sort_custom(func(a: Cable, b: Cable) -> bool: return a._path < b._path)
+		_in_order = true
+	return _cables
 
 
 func _enter_tree() -> void:
-	# En el editor no: con el nivel abierto en dos pestañas, cada cable está dos veces.
-	var other = _cables.get(cable_id)
-	if not Engine.is_editor_hint() and other != null and other != self and is_instance_valid(other):
-		push_warning("Dos cables con el id %d: %s y %s. Cada cable necesita un cable_id propio." % [
-				cable_id, other.get_path(), get_path()])
-	_cables[cable_id] = self
+	_path = String(get_path())
+	_cables.append(self)
+	_in_order = false
+	# Un cable recién agregado en el editor arranca con dos puntos, para verlo
+	# y tener de dónde agarrarlo.
+	if Engine.is_editor_hint() and (curve == null or curve.point_count == 0):
+		if curve == null:
+			curve = Curve3D.new()
+		curve.add_point(Vector3.ZERO)
+		curve.add_point(Vector3(NEW_LENGTH, 0.0, 0.0))
+	if not curve_changed.is_connected(_rebuild):
+		curve_changed.connect(_rebuild)
 
 
 func _exit_tree() -> void:
-	if _cables.get(cable_id) == self:
-		_cables.erase(cable_id)
+	_cables.erase(self)
 
 
 func _ready() -> void:
 	_rebuild()
 
 
-## Largo del cable, medido a lo largo de la curva.
+## Largo del cable, medido a lo largo de la curva. 0 si la curva no tiene forma.
 func length() -> float:
 	_ensure_points()
 	return _lengths[_lengths.size() - 1]
 
 
-## El punto del cable a la distancia t desde el origen, en el mundo.
+## Si se puede agarrar: una curva con largo.
+func usable() -> bool:
+	return length() >= MIN_LENGTH
+
+
+## El punto del cable a la distancia t desde el primer punto, en el mundo.
 func point_at(t: float) -> Vector3:
 	_ensure_points()
 	var i := _segment_at(t)
@@ -154,11 +176,12 @@ func point_at(t: float) -> Vector3:
 	return _points[i].lerp(_points[i + 1], weight)
 
 
-## Hacia dónde sigue el cable en la distancia t: del origen hacia `end`.
+## Hacia dónde sigue el cable en la distancia t: del primer punto hacia el último.
 func tangent_at(t: float) -> Vector3:
 	_ensure_points()
 	var i := _segment_at(t)
-	return (_points[i + 1] - _points[i]).normalized()
+	var along := _points[i + 1] - _points[i]
+	return along.normalized() if along.length_squared() > 0.0 else Vector3.RIGHT
 
 
 ## La distancia sobre el cable del punto más cercano a `point`.
@@ -177,23 +200,24 @@ func closest(point: Vector3) -> float:
 	return best
 
 
-## Los puntos de la curva en coordenadas del nodo, de punta a punta.
+## Los puntos de la curva en coordenadas del nodo, de punta a punta, cada
+## `curve.bake_interval` metros. Vacío si la curva no tiene al menos dos puntos.
 func _local_points() -> PackedVector3Array:
-	var flat := Vector2(end.x, end.z).length()
-	var count := maxi(ceili(maxf(flat, absf(end.y)) / SEGMENT), 1)
-	var points := PackedVector3Array()
-	for i in count + 1:
-		var u := float(i) / count
-		points.append(end * u + Vector3.DOWN * 4.0 * sag * u * (1.0 - u))
-	return points
+	if curve == null or curve.point_count < 2:
+		return PackedVector3Array()
+	var points := curve.get_baked_points()
+	return points if points.size() >= 2 else PackedVector3Array()
 
 
 func _ensure_points() -> void:
 	if not _points.is_empty():
 		return
-	_points = PackedVector3Array()
+	var local := _local_points()
+	if local.is_empty():
+		# Sin forma: un cable de largo 0 en el lugar del nodo, que no se agarra.
+		local = PackedVector3Array([Vector3.ZERO, Vector3.ZERO])
 	_lengths = PackedFloat64Array([0.0])
-	for point in _local_points():
+	for point in local:
 		_points.append(global_transform * point)
 	for i in range(1, _points.size()):
 		_lengths.append(_lengths[i - 1] + _points[i - 1].distance_to(_points[i]))
@@ -211,17 +235,21 @@ func _segment_at(t: float) -> int:
 	return low
 
 
-## Arma de nuevo la curva y el dibujo. Es solo dibujo, sin colisión; con @tool
-## también se ve en el editor, y no se guarda en la escena.
+## Arma de nuevo la curva y el dibujo, cada vez que cambia la curva o un valor
+## del dibujo. Es solo dibujo, sin colisión; con @tool también se ve en el
+## editor, y no se guarda en la escena.
 func _rebuild() -> void:
 	_points = PackedVector3Array()
 	if not is_inside_tree():
 		return
 	if _visual != null:
 		_visual.queue_free()
+		_visual = null
+	var points := _local_points()
+	if points.is_empty():
+		return
 	_visual = Node3D.new()
 	add_child(_visual)
-	var points := _local_points()
 	match look:
 		Look.TUBE:
 			_visual.add_child(_tube(points))

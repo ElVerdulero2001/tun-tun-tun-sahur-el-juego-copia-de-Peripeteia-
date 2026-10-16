@@ -286,10 +286,13 @@ var hang_climbs := 0
 ## detrás de la primera fila, y se llega rodeándola por x = _hang_detour_x.
 const INNER_CORNER_FACE := Vector3(26.5, 0.0, -18.0)
 ## Prueba `cable`: la escalera de la plataforma alta y la tirolesa de la pista
-## de cables, y el camino de vuelta desde abajo hasta el pie de la escalera,
-## por detrás de la plataforma.
-const CABLE_LADDER_ID := 6
-const CABLE_ZIPLINE_ID := 4
+## de cables (el nodo, por su nombre: los cables se numeran solos), y el camino
+## de vuelta desde abajo hasta el pie de la escalera, por detrás de la plataforma.
+const CABLE_LADDER_NAME := &"EscaleraTirolesa"
+## La escalera de la torre chica, la de las pruebas de escalera y de colgarse
+## de un compañero (por su nombre: las escaleras se numeran solas).
+const TOWER_LADDER_NAME := &"TowerLadder"
+const CABLE_ZIPLINE_NAME := &"Tirolesa"
 const CABLE_RETURN := [Vector3(16.0, 0.0, 27.5), Vector3(9.35, 0.0, 27.5)]
 var _hang_face := Vector3.INF
 var _hang_detour_x := 0.0
@@ -809,12 +812,20 @@ func _crouch_jump_input(tick: int) -> ActorInput:
 	return ActorInput.make(tick, Vector2.ZERO, 0.0, buttons, 1 if elapsed >= 20 else 0)
 
 
-## Prueba de escalera: va al pie de la escalera de la torre (u otra, por su id), se agarra
+## La escalera con ese nombre, o null.
+func _ladder_named(ladder_name: StringName) -> Ladder:
+	for ladder: Ladder in Ladder.all():
+		if ladder.name == ladder_name:
+			return ladder
+	return null
+
+
+## Prueba de escalera: va al pie de la escalera de la torre (u otra, por su nombre), se agarra
 ## caminando hacia ella y sube y baja entre 0,5 y 2 m. Si la suelta (un
 ## empujón fuerte), vuelve. Con `to_top`, sube hasta arriba, sale al techo de
 ## la torre y se queda ahí.
-func _ladder_input(tick: int, to_top: bool, ladder_id := 1) -> ActorInput:
-	var ladder := Ladder.find(ladder_id)
+func _ladder_input(tick: int, to_top: bool, ladder_name := TOWER_LADDER_NAME) -> ActorInput:
+	var ladder := _ladder_named(ladder_name)
 	if ladder == null or not is_instance_valid(_local_actor):
 		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
 	var s := _local_actor.state
@@ -885,14 +896,17 @@ func _cable_input(tick: int) -> ActorInput:
 		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
 	var s := _local_actor.state
 	var me := BaseRegistry.world_position(s)
-	var cable := Cable.find(CABLE_ZIPLINE_ID)
+	var cable: Cable = null
+	for each: Cable in Cable.all():
+		if each.name == CABLE_ZIPLINE_NAME:
+			cable = each
 	var phase := _cable_phase
 	var input := ActorInput.make(tick, Vector2.ZERO, -PI * 0.5, 0, 0)
 	match _cable_phase:
 		0:  # sube la escalera hasta la plataforma
 			if _ladder_top_done and s.mode == ActorState.Mode.GROUND and me.y > 5.0:
 				_cable_phase = 1
-			input = _ladder_input(tick, true, CABLE_LADDER_ID)
+			input = _ladder_input(tick, true, CABLE_LADDER_NAME)
 		1:  # camina hacia +X hasta caerse por el borde y agarrarse
 			if s.mode == ActorState.Mode.CABLE:
 				cable_grabs += 1
@@ -1115,7 +1129,7 @@ func _hook_wall_input(tick: int, drop: bool) -> ActorInput:
 
 ## Prueba `ladderhold`: sube la escalera de la torre hasta 1,5 m y se queda.
 func _ladder_hold_input(tick: int) -> ActorInput:
-	var ladder := Ladder.find(1)
+	var ladder := _ladder_named(TOWER_LADDER_NAME)
 	if ladder == null or not is_instance_valid(_local_actor):
 		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
 	var s := _local_actor.state
@@ -1914,7 +1928,8 @@ func _update_hud() -> void:
 		lines.append("Postura: %s%s" % [stance_names[s.stance],
 				"   ·   pedida: %s (no hay lugar)" % stance_names[s.stance_wanted] if s.stance_wanted != s.stance else ""])
 		if s.mode == ActorState.Mode.LADDER:
-			lines.append("Escalera %d   ·   pies a %.2f m sobre su base" % [s.anchor_id, s.anchor_t])
+			var ladder := Ladder.find(s.anchor_id)
+			lines.append("Escalera %s   ·   pies a %.2f m sobre su base" % [String(ladder.name) if ladder != null else str(s.anchor_id), s.anchor_t])
 		elif s.mode == ActorState.Mode.HANGING:
 			lines.append("Colgado del borde: filo a %.2f m de altura%s" % [BaseRegistry.origin(s.anchor_id).y + s.anchor_point.y,
 					"   ·   sobre la base %d" % s.anchor_id if s.anchor_id != 0 else ""])
@@ -1923,7 +1938,7 @@ func _update_hud() -> void:
 		elif s.mode == ActorState.Mode.CABLE:
 			var cable := Cable.find(s.anchor_id)
 			var slope := absf(rad_to_deg(asin(clampf(cable.tangent_at(s.anchor_t).y, -1.0, 1.0)))) if cable != null else 0.0
-			lines.append("Colgado del cable %d   ·   a %.2f m de su punta   ·   inclinación %.0f°%s" % [s.anchor_id, s.anchor_t, slope,
+			lines.append("Colgado del cable %s   ·   a %.2f m de su punta   ·   inclinación %.0f°%s" % [String(cable.name) if cable != null else str(s.anchor_id), s.anchor_t, slope,
 					("   ·   te deslizás: soltá las teclas para frenar" if s.velocity.length() > tuning.shimmy_speed + 0.01
 					else "   ·   las teclas hacia abajo te deslizan") if slope >= rad_to_deg(tuning.cable_slide_angle) else ""])
 		elif s.regrab_left > 0.0 and s.regrab_id == ActorState.REGRAB_CABLES:

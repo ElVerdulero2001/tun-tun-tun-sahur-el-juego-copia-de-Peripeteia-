@@ -66,8 +66,8 @@ static func code_text() -> String:
 
 ## Lo que forma el nivel: cada forma de colisión con su lugar en el mundo y
 ## sus medidas, y los valores exportados y el lugar de cada nodo con script
-## (escaleras, cables, plataformas, la balsa, las pistas armadas por código). En
-## el orden del árbol.
+## (escaleras, cables, plataformas, la balsa, las pistas armadas por código),
+## con la curva de cada cable. En el orden del árbol.
 static func level_text(level: Node) -> String:
 	var text := ""
 	var pending: Array[Node] = [level]
@@ -79,12 +79,28 @@ static func level_text(level: Node) -> String:
 					_value_text(shape_node.shape)]
 		var script: Script = node.get_script()
 		if script != null:
-			text += "nodo %s\n%s" % [script.resource_path, _exports_text(node, "  ")]
+			# Con su ruta en el nivel: el número de cada cable sale de ahí.
+			text += "nodo %s %s\n%s" % [level.get_path_to(node), script.resource_path, _exports_text(node, "  ")]
 			# Dónde está: un cable o una escalera en otro lugar cambian la simulación.
 			if node is Node3D:
 				text += "  lugar %s\n" % _value_text((node as Node3D).global_transform)
+			# La forma de un cable: su curva.
+			if node is Path3D:
+				text += "  curva %s\n" % _curve_text((node as Path3D).curve)
 		pending.append_array(node.get_children())
 	return text
+
+
+## Una curva: cada cuánto se parte en tramos rectos, y cada punto con sus dos
+## manijas.
+static func _curve_text(curve: Curve3D) -> String:
+	if curve == null:
+		return "null"
+	var parts := PackedStringArray([_value_text(curve.bake_interval)])
+	for i in curve.point_count:
+		parts.append("%s %s %s" % [_value_text(curve.get_point_position(i)), _value_text(curve.get_point_in(i)),
+				_value_text(curve.get_point_out(i))])
+	return "[%s]" % ", ".join(parts)
 
 
 static func _digest(text: String) -> PackedByteArray:

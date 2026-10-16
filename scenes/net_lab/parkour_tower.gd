@@ -66,12 +66,12 @@ const PILLAR_Z := Vector2(-5.0, -4.0)
 const NICHE_X := Vector2(-0.8, 0.8)
 const NICHE_DEPTH := 1.2
 const NICHE_HEIGHT := 3.2
-## Escaleras: id de red (las del nivel usan 1 y 2) y dónde van.
-const LADDER_BACK_ID := 3
+## Escaleras: su nombre (el número sale solo, por la ruta en la escena) y dónde van.
+const LADDER_BACK_NAME := &"EscaleraDeVuelta"
 const LADDER_BACK_Z := 2.3
-const LADDER_UP_ID := 4
+const LADDER_UP_NAME := &"EscaleraTramo4"
 const LADDER_UP_X := -4.25
-const LADDER_TOP_ID := 5
+const LADDER_TOP_NAME := &"EscaleraTramo8"
 const LADDER_TOP_Z := 2.25
 ## Muro de la terraza de arriba: 3,6 m, como el muro del compañero de la pista
 ## de bordes, con un cajón de 0,6 m delante de su punta -X.
@@ -150,11 +150,11 @@ func _build_route() -> void:
 ## hacia quien llega.
 func _build_ladders() -> void:
 	# Del piso a la terraza 2, en su cara -X.
-	_ladder(LADDER_BACK_ID, Vector3(-OUTER, 0.0, LADDER_BACK_Z), -PI * 0.5, LEVEL_2)
+	_ladder(LADDER_BACK_NAME, Vector3(-OUTER, 0.0, LADDER_BACK_Z), -PI * 0.5, LEVEL_2)
 	# 4. De la terraza 2 a la 3, en la cara +Z de la terraza 3.
-	_ladder(LADDER_UP_ID, Vector3(LADDER_UP_X, LEVEL_2, -CORE), 0.0, LEVEL_3 - LEVEL_2)
+	_ladder(LADDER_UP_NAME, Vector3(LADDER_UP_X, LEVEL_2, -CORE), 0.0, LEVEL_3 - LEVEL_2)
 	# 8. De la terraza 4 a la de arriba, en la cara +X del núcleo.
-	_ladder(LADDER_TOP_ID, Vector3(CORE, LEVEL_4, LADDER_TOP_Z), PI * 0.5, CORE_TOP - LEVEL_4)
+	_ladder(LADDER_TOP_NAME, Vector3(CORE, LEVEL_4, LADDER_TOP_Z), PI * 0.5, CORE_TOP - LEVEL_4)
 
 
 func _build_labels() -> void:
@@ -191,10 +191,11 @@ func _box(low: Vector3, high: Vector3, material: Material) -> void:
 	add_child(body)
 
 
-## Una escalera con los pies en `foot`, girada `yaw` sobre Y.
-func _ladder(id: int, foot: Vector3, yaw: float, height: float) -> void:
+## Una escalera con los pies en `foot`, girada `yaw` sobre Y. El nombre va antes
+## de agregarla: de su ruta sale su número, igual en todas las máquinas.
+func _ladder(ladder_name: StringName, foot: Vector3, yaw: float, height: float) -> void:
 	var ladder := Ladder.new()
-	ladder.ladder_id = id
+	ladder.name = ladder_name
 	ladder.height = height
 	ladder.position = foot
 	ladder.rotation.y = yaw

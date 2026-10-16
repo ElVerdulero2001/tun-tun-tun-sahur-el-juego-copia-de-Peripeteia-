@@ -3,7 +3,8 @@
 # 1. Espera a que Godot esté cerrado.
 # 2. Trae de la PC host, por la carpeta compartida, solo lo que cambió. No
 #    toca la carpeta .godot de la copia, así Godot solo vuelve a preparar lo
-#    nuevo.
+#    nuevo. Después le pone a la copia la resolución de la notebook (-Ancho y
+#    -Alto, 1280 x 720): la de la PC host, 1600 x 900, no entra en su pantalla.
 # 3. Godot prepara el proyecto sin ventana (registra las clases e importa).
 # 4. Abre el editor con net_lab.tscn.
 #
@@ -14,6 +15,8 @@
 param(
 	[string]$Origen = '',
 	[string]$Destino = '',
+	[int]$Ancho = 1280,
+	[int]$Alto = 720,
 	[switch]$Prueba
 )
 
@@ -23,6 +26,24 @@ if ($Destino -eq '') {
 	$Destino = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'tun-tun-tun-sahur-lab'
 }
 $escena = 'res://scenes/net_lab/net_lab.tscn'
+
+# Pone la resolución en el project.godot de la copia (viewport_width y
+# viewport_height de [display]). Si no están, los agrega.
+function Poner-Resolucion([string]$archivo, [int]$ancho, [int]$alto) {
+	$texto = [IO.File]::ReadAllText($archivo)
+	foreach ($par in @(@('viewport_width', $ancho), @('viewport_height', $alto))) {
+		$clave = [regex]::Escape("window/size/$($par[0])")
+		$linea = "window/size/$($par[0])=$($par[1])"
+		if ($texto -match "(?m)^$clave=") {
+			$texto = $texto -replace "(?m)^$clave=[^\r\n]*", $linea
+		} elseif ($texto -match '(?m)^\[display\][ \t]*\r?$') {
+			$texto = $texto -replace '(?m)^\[display\][ \t]*(\r?)$', "[display]`$1`n`$1`n$linea`$1"
+		} else {
+			$texto = $texto.TrimEnd() + "`n`n[display]`n`n$linea`n"
+		}
+	}
+	[IO.File]::WriteAllText($archivo, $texto)
+}
 
 function Terminar([string]$texto) {
 	Write-Host ''
@@ -58,6 +79,11 @@ robocopy $origen $Destino /MIR /XD .godot .git /R:2 /W:2 /NFL /NDL /NJH /NP
 if ($LASTEXITCODE -ge 8) {
 	Terminar "La copia falló (robocopy terminó con el código $LASTEXITCODE)."
 }
+
+# Cada vez, porque robocopy vuelve a traer el project.godot de la PC host. La
+# huella de compatibilidad no mira project.godot, así que la notebook igual entra.
+Poner-Resolucion (Join-Path $Destino 'project.godot') $Ancho $Alto
+Write-Host "Resolución de la copia: $Ancho x $Alto."
 
 Write-Host ''
 Write-Host 'Godot está preparando el proyecto (la primera vez tarda más)...'

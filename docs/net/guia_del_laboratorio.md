@@ -49,7 +49,7 @@ Todo el laboratorio está en la rama `net-lab` y en estas carpetas. El resto del
 ### En las dos PC
 
 1. **En esta PC:** guardá todo (**Ctrl+S**), pestaña **net_lab**, **F6** y **Crear partida**. Arriba aparece la IP de esta PC; hasta ahora fue `192.168.1.212`.
-2. **En la notebook:** cerrá Godot y hacé doble clic en `actualizar_lab.bat`, en el Escritorio. Trae los cambios de esta PC y abre Godot con el laboratorio.
+2. **En la notebook:** cerrá Godot y hacé doble clic en `actualizar_lab.bat`, en el Escritorio. Trae los cambios de esta PC y abre Godot con el laboratorio. Desde el 2026-10-16 deja la copia de la notebook en 1280 × 720, porque los 1600 × 900 de esta PC no entran en su pantalla; esta PC no se toca. Para otra resolución, se cambian `$Ancho` y `$Alto` al principio de `tools/net_lab/actualizar_lab.ps1`.
 3. En la notebook: **F6**, escribí la IP de esta PC en el campo y tocá **Unirse**.
 
 **Si la notebook no entra** y dice "el host no te deja entrar: la copia del laboratorio de esta PC difiere en …": las dos máquinas no tienen lo mismo. Puede ser el Tuning, el código o el nivel. Guardá en esta PC, cerrá Godot en la notebook y volvé a hacer doble clic en `actualizar_lab.bat`.

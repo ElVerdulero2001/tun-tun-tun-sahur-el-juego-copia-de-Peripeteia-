@@ -327,6 +327,10 @@ var _hooked_cut_done := false
 ## colgados que se soltaron porque otro se colgó del mismo en el mismo tick.
 var hook_events := 0
 var hook_kicks := 0
+## Host: quién colgaba de quién al empezar el tick (peer -> peer del
+## compañero), y cuántas veces un compañero soltó al que colgaba de él.
+var _hooked_at_start := {}
+var hooks_released := 0
 ## Pruebas `hook` y `hookwall`: tramo, ticks en el tramo, vuelta del ciclo,
 ## pulsaciones de salto propias y lo que pasó.
 var _hook_phase := 0
@@ -1488,6 +1492,7 @@ func _on_tick_finished(tick: int) -> void:
 		_set_paused(true)
 		print("[net_lab] pausa en el tick %d: %s" % [tick, _local_actor.state.describe() if is_instance_valid(_local_actor) else "sin actor"])
 	if role == Role.HOST:
+		_mark_hooks_released()
 		for actor in _clock.sorted_actors():
 			if _is_remote(actor):
 				_adoption.consider(actor, _net_sync.claim_for(actor.owner_peer_id, tick), tuning)
@@ -1817,11 +1822,30 @@ func _step_local(input: ActorInput) -> void:
 
 
 ## Host: quién cuelga de quién (ActorMotor.assign_hooks). Corre al empezar el
-## tick, antes de mover a nadie.
+## tick, antes de mover a nadie. Anota también quién colgaba de quién al
+## empezar, para _mark_hooks_released.
 func _update_hooks() -> void:
 	var result := ActorMotor.assign_hooks(_clock.sorted_actors(), tuning)
 	hook_events += result[0]
 	hook_kicks += result[1]
+	_hooked_at_start.clear()
+	for actor in _clock.sorted_actors():
+		if actor.state.mode == ActorState.Mode.HOOKED:
+			_hooked_at_start[actor.owner_peer_id] = actor.state.anchor_id
+
+
+## Host, al terminar el tick y antes de adoptar: a quien el compañero soltó en
+## este tick (se soltó él, lo empujaron o se fue) se le sube la época, como a un
+## empujón. Su PC ve al compañero en el pasado y sigue afirmando que cuelga
+## hasta enterarse. Sin esto, si el compañero se volvía a agarrar enseguida
+## (Ctrl en la escalera), el host adoptaba esas afirmaciones atrasadas: lo
+## volvía a colgar y dejaba quieto al compañero (2026-10-17).
+func _mark_hooks_released() -> void:
+	for actor in _clock.sorted_actors():
+		var mate_id: int = _hooked_at_start.get(actor.owner_peer_id, 0)
+		if mate_id != 0 and ActorMotor.hook_released_by_mate(actor, mate_id):
+			actor.state.epoch += 1
+			hooks_released += 1
 
 
 ## Cliente: el reloj saltó de tick. Lo predicho hasta ahora ya no sirve.
@@ -2077,8 +2101,10 @@ func _update_hud() -> void:
 				world.x, world.y, world.z, world.y + _local_actor.stance_height(s.stance),
 				"%s (%d)" % [base.name, s.base_id] if base != null else "ninguna"])
 	lines.append("")
-	lines.append("WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse, mientras lo mantengas) · mouse mirar · rueda acerca la cámara, hasta primera persona · Esc suelta el mouse")
-	lines.append("Escalera: W sube y S baja, mire donde mire · al salir por arriba seguís derecho con W sola · Espacio mirándola salta para arriba y te volvés a agarrar al bajar, mirando a otro lado salta hacia allá · Ctrl te suelta: caés mientras lo tengas y al soltarlo te agarrás")
+	lines.append("WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse, mientras lo mantengas)")
+	lines.append("Mouse mirar · rueda acerca la cámara, hasta primera persona · Esc suelta el mouse")
+	lines.append("Escalera: W sube y S baja, mire donde mire · Espacio mirándola salta para arriba y te volvés a agarrar al bajar, mirando a otro lado salta hacia allá")
+	lines.append("Escalera: al salir por arriba seguís derecho con W sola · Ctrl te suelta: caés mientras lo tengas y al soltarlo te agarrás")
 	lines.append("Colgado: A y D de costado · Espacio mirando a la pared salta para arriba (con W pasás arriba), mirando a otro lado salta hacia allá · Ctrl se suelta")
 	lines.append("Cable: te agarrás solo · teclas según la cámara · hacia abajo en uno inclinado te deslizás, soltar frena · Espacio salta hacia donde mirás · Ctrl se suelta")
 	lines.append("Cayendo sin haber saltado (te caíste, te soltaste, te empujaron): Espacio salta en el aire, una vez, hacia donde mira la cámara")
@@ -2182,7 +2208,7 @@ func _print_summary_and_quit() -> void:
 	if test_input.begins_with("hookwall"):
 		print("[net_lab] compañero de arriba: tramo %d, se soltó %d veces con alguien colgado" % [_hook_phase, hook_drops])
 	if role != Role.CLIENT and (hook_events > 0 or hook_kicks > 0):
-		print("[net_lab] host: %d cambios de quién cuelga de quién, %d soltados por colgarse dos del mismo" % [hook_events, hook_kicks])
+		print("[net_lab] host: %d cambios de quién cuelga de quién, %d soltados por colgarse dos del mismo, %d soltados por el compañero (época nueva)" % [hook_events, hook_kicks, hooks_released])
 	if world_slow_requests > 0 or world_slow_on_time + world_slow_late + world_slow_too_late > 0:
 		print("[net_lab] cámara lenta del mundo: %d pedidas, %d veces prendida, %d apagada; en el cliente, %d cambios a tiempo, %d tarde (repetido desde su tick), %d demasiado tarde" % [
 			world_slow_requests, world_slow_started, world_slow_stopped, world_slow_on_time, world_slow_late, world_slow_too_late])

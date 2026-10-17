@@ -1310,6 +1310,15 @@ static func assign_hooks(actors: Array[ActorBody], tuning: ActorTuning) -> Array
 	return [changes, released]
 
 
+## Lo del host al terminar cada tick: si `actor`, que al empezarlo colgaba del
+## compañero `mate_id`, ya no cuelga porque el compañero dejó de sostenerlo (se
+## soltó, lo empujaron o se fue). Su PC ve al compañero en el pasado y sigue
+## prediciendo que cuelga hasta que le llega el snapshot: para él es un evento
+## del host, y el host le sube la época (ver net_lab.gd, _mark_hooks_released).
+static func hook_released_by_mate(actor: ActorBody, mate_id: int) -> bool:
+	return actor.state.mode != ActorState.Mode.HOOKED and not _hook_holds(actor, actor.teammate(mate_id))
+
+
 ## Sale de colgar de un compañero a Aire con una velocidad. Con `block`
 ## (soltarse, saltar, un empujón), no se puede volver a colgar de un compañero
 ## por un rato: las manos todavía están a la altura de su cintura.

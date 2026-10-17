@@ -53,6 +53,8 @@ extends Node3D
 ## --test-input=crouchjump (salta frente a la pared de medidas y se agacha
 ## en el aire), --test-input=ladder (sube y baja por la escalera de la torre)
 ## o --test-input=laddertop (la sube y sale al techo de la torre),
+## --test-input=laddertop:back (igual, pero con la cámara mirando para atrás:
+## al salir sigue con W sola, que lo lleva derecho, y después toca D),
 ## --test-input=cable (sube a la plataforma alta de la pista de cables, se
 ## agarra de la tirolesa, se desliza con W hasta abajo, frenando una vez a
 ## mitad de camino, sube un poco con S y se suelta),
@@ -62,7 +64,12 @@ extends Node3D
 ## los demás a esos segundos, inmediato o programado), --test-push-force=N
 ## (fuerza de esos empujones, de 0 a 5; 4 si no se pide), --test-schedule-ticks=N
 ## (el programado se fija N ticks adelante, para probar uno que llega tarde),
-## --test-input=ladderhold (sube la escalera de la torre a 1,5 m y se queda),
+## --test-input=ladderhold (sube la escalera de la torre a 1,5 m y se queda;
+## con ladderhold:drop, se suelta con Ctrl medio segundo después de que alguien
+## se cuelga de él, y al soltar Ctrl se vuelve a agarrar),
+## --test-input=ladderdrop (en la escalera de la torre, por turnos: se suelta
+## con Ctrl y se vuelve a agarrar solo al soltarlo; salta mirándola y se vuelve
+## a agarrar solo al bajar),
 ## --test-input=hookwall (se agarra del muro alto desde el cajón y se corre al
 ## medio; con hookwall:drop, se suelta medio segundo después de que alguien se
 ## cuelga de él), --test-input=hook:wall o hook:ladder (se cuelga del
@@ -253,6 +260,8 @@ var _crouch_jump_start := -1
 ## ya llegó arriba.
 var _ladder_direction := 1.0
 var _ladder_top_done := false
+## Prueba `laddertop:back`: tick local en que llegó arriba de la escalera.
+var _ladder_top_tick := -1
 ## Prueba `airjump`: sube la escalera de la torre, se cae por el costado y,
 ## cayendo, salta en el aire hacia donde mira la cámara. Tramo, ticks cayendo,
 ## pulsaciones de salto propias y cuántos saltos en el aire hizo.
@@ -332,6 +341,18 @@ var hook_fell_with_mate := 0
 var hook_edges_after := 0
 var hook_tops := 0
 var hook_drops := 0
+## Pruebas `ladderdrop` y `ladderhold:drop`: tramo, ticks en el tramo,
+## pulsaciones de salto propias, ticks de Ctrl que faltan y cuántas veces se
+## soltó con Ctrl, saltó mirándola y se volvió a agarrar solo después de cada cosa.
+var _ladder_drop_phase := 0
+var _ladder_drop_since := 0
+var _ladder_drop_presses := 0
+var _ladder_ctrl_left := 0
+var _ladder_dropped := false
+var ladder_drops := 0
+var ladder_drop_returns := 0
+var ladder_jumps := 0
+var ladder_jump_returns := 0
 var hook_other_grabs := 0
 ## Aviso que se muestra arriba del panel hasta _flash_until_msec.
 var _flash_text := ""
@@ -618,10 +639,12 @@ func _local_input(tick: int) -> ActorInput:
 		return _air_jump_input(tick)
 	if test_input == "cable":
 		return _cable_input(tick)
-	if test_input == "ladder" or test_input == "laddertop":
-		return _ladder_input(tick, test_input == "laddertop")
-	if test_input == "ladderhold":
-		return _ladder_hold_input(tick)
+	if test_input == "ladder" or test_input == "laddertop" or test_input == "laddertop:back":
+		return _ladder_input(tick, test_input != "ladder", TOWER_LADDER_NAME, test_input == "laddertop:back")
+	if test_input == "ladderhold" or test_input == "ladderhold:drop":
+		return _ladder_hold_input(tick, test_input == "ladderhold:drop")
+	if test_input == "ladderdrop":
+		return _ladder_drop_input(tick)
 	if test_input == "hookwall" or test_input == "hookwall:drop":
 		return _hook_wall_input(tick, test_input == "hookwall:drop")
 	if test_input.begins_with("hook:"):
@@ -824,22 +847,32 @@ func _ladder_named(ladder_name: StringName) -> Ladder:
 ## caminando hacia ella y sube y baja entre 0,5 y 2 m. Si la suelta (un
 ## empujón fuerte), vuelve. Con `to_top`, sube hasta arriba, sale al techo de
 ## la torre y se queda ahí.
-func _ladder_input(tick: int, to_top: bool, ladder_name := TOWER_LADDER_NAME) -> ActorInput:
+## Con `look_back`, trepa con la cámara mirando para atrás y, al salir por
+## arriba, sigue 30 ticks con W sola (va derecho, hacia adentro del techo),
+## toca D 6 ticks y se queda quieto.
+func _ladder_input(tick: int, to_top: bool, ladder_name := TOWER_LADDER_NAME, look_back := false) -> ActorInput:
 	var ladder := _ladder_named(ladder_name)
 	if ladder == null or not is_instance_valid(_local_actor):
 		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
 	var s := _local_actor.state
 	var facing := atan2(ladder.outward().x, ladder.outward().z)
+	var look := facing + PI if look_back else facing
 	if s.mode == ActorState.Mode.LADDER:
 		if to_top:
 			if s.anchor_t >= ladder.height - 0.01:
 				_ladder_top_done = true
-			return ActorInput.make(tick, Vector2(0, 1), facing, 0, 0)
+			return ActorInput.make(tick, Vector2(0, 1), look, 0, 0)
 		if s.anchor_t >= 2.0:
 			_ladder_direction = -1.0
 		elif s.anchor_t <= 0.5:
 			_ladder_direction = 1.0
 		return ActorInput.make(tick, Vector2(0, _ladder_direction), facing, 0, 0)
+	if to_top and _ladder_top_done and look_back:
+		if _ladder_top_tick < 0:
+			_ladder_top_tick = tick
+		var after := tick - _ladder_top_tick
+		var keys := Vector2(0, 1) if after < 30 else Vector2(1, 0) if after < 36 else Vector2.ZERO
+		return ActorInput.make(tick, keys, look, 0, 0)
 	if to_top and _ladder_top_done:
 		return ActorInput.make(tick, Vector2.ZERO, facing, 0, 0)
 	var me := BaseRegistry.world_position(s)
@@ -1128,12 +1161,36 @@ func _hook_wall_input(tick: int, drop: bool) -> ActorInput:
 
 
 ## Prueba `ladderhold`: sube la escalera de la torre hasta 1,5 m y se queda.
-func _ladder_hold_input(tick: int) -> ActorInput:
+## Con `drop`, HOOK_DROP_TICKS después de que alguien se colgó de él se suelta
+## con Ctrl 10 ticks (se caen los dos) y, al soltar Ctrl, se vuelve a agarrar.
+func _ladder_hold_input(tick: int, drop := false) -> ActorInput:
 	var ladder := _ladder_named(TOWER_LADDER_NAME)
 	if ladder == null or not is_instance_valid(_local_actor):
 		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
 	var s := _local_actor.state
 	var facing := atan2(ladder.outward().x, ladder.outward().z)
+	if _ladder_ctrl_left > 0:
+		_ladder_ctrl_left -= 1
+		return ActorInput.make(tick, Vector2.ZERO, facing, ActorInput.BUTTON_CROUCH, 0)
+	if _ladder_dropped:
+		_ladder_dropped = false
+		if s.mode == ActorState.Mode.AIR:
+			_ladder_ctrl_left = -2
+	elif _ladder_ctrl_left < 0:
+		# Dos ticks después de soltar Ctrl: tiene que estar agarrado otra vez.
+		_ladder_ctrl_left += 1
+		if _ladder_ctrl_left == 0 and s.mode == ActorState.Mode.LADDER:
+			ladder_drop_returns += 1
+	if drop and s.mode == ActorState.Mode.LADDER and s.hooked_by != 0:
+		_hook_loaded_ticks += 1
+		if _hook_loaded_ticks >= HOOK_DROP_TICKS:
+			_hook_loaded_ticks = 0
+			hook_drops += 1
+			_ladder_ctrl_left = 9
+			_ladder_dropped = true
+			return ActorInput.make(tick, Vector2.ZERO, facing, ActorInput.BUTTON_CROUCH, 0)
+	elif s.mode == ActorState.Mode.LADDER:
+		_hook_loaded_ticks = 0
 	if s.mode == ActorState.Mode.LADDER:
 		var side := 0.0
 		if s.anchor_t < 1.49:
@@ -1147,6 +1204,63 @@ func _ladder_hold_input(tick: int) -> ActorInput:
 		return ActorInput.make(tick, Vector2(0, 1), facing, 0, 0)
 	var foot := ladder.pose_at(0.0) + ladder.outward() * 1.2
 	return ActorInput.make(tick, _walk_to(me, foot), 0.0, 0, 0)
+
+
+## Prueba `ladderdrop`, en ciclos, en la escalera de la torre: sube a 2 m; con
+## Ctrl se suelta 15 ticks y, al soltarlo, se tiene que volver a agarrar solo;
+## baja a 1,5 m y salta mirándola: pasa por encima del final (2,5 m) y se tiene
+## que agarrar solo al bajar, arriba de todo.
+func _ladder_drop_input(tick: int) -> ActorInput:
+	var ladder := _ladder_named(TOWER_LADDER_NAME)
+	if ladder == null or not is_instance_valid(_local_actor):
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _ladder_drop_presses)
+	var s := _local_actor.state
+	var facing := atan2(ladder.outward().x, ladder.outward().z)
+	_ladder_drop_since += 1
+	var move := Vector2.ZERO
+	var buttons := 0
+	match _ladder_drop_phase:
+		0, 3:  # hasta la escalera, y a 2 m (para soltarse) o a 1,5 m (para saltar)
+			var target := 2.0 if _ladder_drop_phase == 0 else 1.5
+			if s.mode != ActorState.Mode.LADDER:
+				var me := BaseRegistry.world_position(s)
+				var local := ladder.global_transform.affine_inverse() * me
+				if absf(local.x) < 0.3 and local.z < 1.8 and local.y < 0.5:
+					move = Vector2(0, 1)
+				else:
+					return ActorInput.make(tick, _walk_to(me, ladder.pose_at(0.0) + ladder.outward() * 1.2), 0.0, 0, _ladder_drop_presses)
+			elif absf(s.anchor_t - target) > 0.05:
+				move = Vector2(0, signf(target - s.anchor_t))
+			elif _ladder_drop_phase == 0:
+				_set_ladder_drop_phase(1)
+				ladder_drops += 1
+				buttons = ActorInput.BUTTON_CROUCH
+			else:
+				_ladder_drop_presses = (_ladder_drop_presses + 1) & 0xFF
+				ladder_jumps += 1
+				_set_ladder_drop_phase(4)
+		1:  # con Ctrl, 15 ticks
+			if _ladder_drop_since < 15:
+				buttons = ActorInput.BUTTON_CROUCH
+			else:
+				_set_ladder_drop_phase(2)
+		2:  # soltó Ctrl: a los dos ticks tiene que estar agarrado
+			if _ladder_drop_since >= 2:
+				if s.mode == ActorState.Mode.LADDER:
+					ladder_drop_returns += 1
+				_set_ladder_drop_phase(3)
+		4:  # saltó: espera agarrarse otra vez, o el piso si falló
+			if s.mode == ActorState.Mode.LADDER and _ladder_drop_since > 2:
+				ladder_jump_returns += 1
+				_set_ladder_drop_phase(0)
+			elif s.mode == ActorState.Mode.GROUND and _ladder_drop_since > 2:
+				_set_ladder_drop_phase(0)
+	return ActorInput.make(tick, move, facing, buttons, _ladder_drop_presses)
+
+
+func _set_ladder_drop_phase(phase: int) -> void:
+	_ladder_drop_phase = phase
+	_ladder_drop_since = 0
 
 
 ## Prueba `hook:wall` o `hook:ladder`, en ciclos: espera delante del muro alto
@@ -1921,6 +2035,11 @@ func _update_hud() -> void:
 		if s.boosted:
 			lines.append("SÚPER SALTO Y VELOCIDAD: prendido   ·   2 del teclado numérico lo apaga")
 		lines.append("Modo: %s   ·   en suelo: %s   ·   época: %d" % [ActorState.Mode.keys()[s.mode], "sí" if s.on_floor else "no", s.epoch])
+		if s.ladder_return != 0:
+			var back_to := Ladder.find(s.ladder_return)
+			lines.append("Volvés solo a la escalera %s al bajar, si seguís frente a ella   ·   con Ctrl no" % (String(back_to.name) if back_to != null else str(s.ladder_return)))
+		if s.straight_out:
+			lines.append("Saliste de la escalera: vas derecho mientras sigas con W sola   ·   soltarla o tocar A, S o D lo corta")
 		if s.mode == ActorState.Mode.AIR:
 			lines.append("Salto en el aire: %s" % ("ya saltaste: vuelve al tocar el piso o agarrarte de algo" if s.jumped
 					else "listo, Espacio cayendo" if s.velocity.y <= 0.0 else "listo cuando empieces a caer"))
@@ -1959,7 +2078,7 @@ func _update_hud() -> void:
 				"%s (%d)" % [base.name, s.base_id] if base != null else "ninguna"])
 	lines.append("")
 	lines.append("WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse, mientras lo mantengas) · mouse mirar · rueda acerca la cámara, hasta primera persona · Esc suelta el mouse")
-	lines.append("Escalera: Espacio mirándola salta para arriba, mirando a otro lado salta hacia allá")
+	lines.append("Escalera: W sube y S baja, mire donde mire · al salir por arriba seguís derecho con W sola · Espacio mirándola salta para arriba y te volvés a agarrar al bajar, mirando a otro lado salta hacia allá · Ctrl te suelta: caés mientras lo tengas y al soltarlo te agarrás")
 	lines.append("Colgado: A y D de costado · Espacio mirando a la pared salta para arriba (con W pasás arriba), mirando a otro lado salta hacia allá · Ctrl se suelta")
 	lines.append("Cable: te agarrás solo · teclas según la cámara · hacia abajo en uno inclinado te deslizás, soltar frena · Espacio salta hacia donde mirás · Ctrl se suelta")
 	lines.append("Cayendo sin haber saltado (te caíste, te soltaste, te empujaron): Espacio salta en el aire, una vez, hacia donde mira la cámara")
@@ -2057,6 +2176,9 @@ func _print_summary_and_quit() -> void:
 	if test_input.begins_with("hook:"):
 		print("[net_lab] compañero: %d se colgó, %d se soltó con Ctrl, %d saltó para arriba (%d se agarró del borde después, %d llegó arriba), %d saltó hacia atrás, %d se cayó con el compañero, %d se agarró de otra cosa" % [
 			hook_grabs, hook_releases, hook_jumps_up, hook_edges_after, hook_tops, hook_jumps_away, hook_fell_with_mate, hook_other_grabs])
+	if test_input == "ladderdrop" or test_input == "ladderhold:drop":
+		print("[net_lab] escalera: se soltó %d veces con Ctrl (%d con alguien colgado) y se volvió a agarrar solo %d; saltó mirándola %d veces y se volvió a agarrar solo %d" % [
+				ladder_drops + hook_drops, hook_drops, ladder_drop_returns, ladder_jumps, ladder_jump_returns])
 	if test_input.begins_with("hookwall"):
 		print("[net_lab] compañero de arriba: tramo %d, se soltó %d veces con alguien colgado" % [_hook_phase, hook_drops])
 	if role != Role.CLIENT and (hook_events > 0 or hook_kicks > 0):
@@ -2066,7 +2188,7 @@ func _print_summary_and_quit() -> void:
 			world_slow_requests, world_slow_started, world_slow_stopped, world_slow_on_time, world_slow_late, world_slow_too_late])
 	if not SimClock.world_slow_spans().is_empty():
 		print("[net_lab] tramos de cámara lenta del mundo [inicio, fin, escala]: %s" % [SimClock.world_slow_spans()])
-	if hooked_gap_max > 0.0 or test_input.begins_with("hookwall") or test_input == "ladderhold":
+	if hooked_gap_max > 0.0 or test_input.begins_with("hookwall") or test_input.begins_with("ladderhold"):
 		print("[net_lab] el que cuelga de este jugador se dibujó a %.3f m como máximo de la pose que le da el cuerpo de este jugador" % hooked_gap_max)
 	if role == Role.CLIENT:
 		print("[net_lab] correcciones: la más grande de %.3f m" % _prediction.max_correction_meters)

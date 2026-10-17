@@ -88,7 +88,12 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	# Cada modo revisa su lista de salidas en orden de prioridad.
 	var wants_jump := state.jump_buffer_left > 0.0
 	var crouch_held := input.is_held(ActorInput.BUTTON_CROUCH)
-	var direction := _wish_direction(input)
+	# Después de salir por arriba de una escalera con W, va derecho mientras
+	# siga con W sola: soltarla o tocar A, S o D lo corta (pedido del usuario,
+	# 2026-10-16). Shift, Espacio y Ctrl no lo cortan.
+	if state.straight_out and (input.move.y <= 0.0 or input.move.x != 0.0):
+		state.straight_out = false
+	var direction := _wish_direction(input, state)
 	# El salto para arriba desde el colgado pide encogerse (etapa 7).
 	var tuck := false
 	match state.mode:
@@ -98,7 +103,8 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 			elif not state.on_floor:
 				state.mode = ActorState.Mode.AIR
 				state.coyote_left = tuning.coyote_time
-			elif _try_grab_ladder(body, state, direction):
+			elif not crouch_held and _try_grab_ladder(body, state, direction):
+				# Con Ctrl no: Ctrl suelta la escalera, y se volvería a agarrar.
 				pass
 			elif crouch_held and state.stance == ActorState.Stance.STANDING \
 					and _horizontal_speed(state) >= tuning.slide_entry_speed:
@@ -110,15 +116,16 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				_jump(state, tuning, dt)
 			elif wants_jump and not state.jumped and state.velocity.y <= 0.0:
 				_air_jump(state, input.look_yaw, tuning, dt)
-			else:
-				if not crouch_held:
-					edge = _try_grab_edge(body, state, grab_direction(input.look_yaw), tuning, dt)
-					if edge.is_empty():
-						mate = _try_hook(body, state, grab_direction(input.look_yaw), tuning, dt)
-					if edge.is_empty() and mate == null:
-						cable = _try_grab_cable(body, state, grab_direction(input.look_yaw), tuning, dt)
-				if state.mode == ActorState.Mode.AIR:
-					_try_grab_ladder(body, state, direction)
+			elif not crouch_held:
+				# Con Ctrl no se agarra de nada: así cae el que se soltó de una
+				# escalera con Ctrl, mientras lo tenga apretado.
+				edge = _try_grab_edge(body, state, grab_direction(input.look_yaw), tuning, dt)
+				if edge.is_empty():
+					mate = _try_hook(body, state, grab_direction(input.look_yaw), tuning, dt)
+				if edge.is_empty() and mate == null:
+					cable = _try_grab_cable(body, state, grab_direction(input.look_yaw), tuning, dt)
+				if state.mode == ActorState.Mode.AIR and not _try_grab_ladder(body, state, direction):
+					_return_to_ladder(body, state)
 		ActorState.Mode.SLIDE:
 			if wants_jump:
 				_jump(state, tuning, dt)
@@ -131,30 +138,44 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				state.mode = ActorState.Mode.GROUND
 		ActorState.Mode.LADDER:
 			var ladder := Ladder.find(state.anchor_id)
-			var toward := direction.dot(-ladder.outward()) if ladder != null else 0.0
+			# W sube y S baja, mire donde mire la cámara.
+			var climb := clampf(input.move.y, -1.0, 1.0)
 			if ladder == null:
 				# Invariante roto: la escalera ya no existe. Sale al respaldo.
 				_leave_anchor(state, tuning, Vector3.ZERO, false)
+			elif crouch_held:
+				# Ctrl se suelta, sin empujón: cae mientras siga con Ctrl y, al
+				# soltarlo, si sigue frente a la escalera, se vuelve a agarrar
+				# solo (pedido del usuario, 2026-10-16). Si un compañero cuelga
+				# de él, se caen los dos, como colgado de un borde.
+				var held := ladder.ladder_id
+				_leave_anchor(state, tuning, Vector3.ZERO, false)
+				state.ladder_return = held
 			elif state.hooked_by != 0:
 				# Un compañero cuelga de él: se queda quieto. Saltar no hace nada.
 				state.jump_buffer_left = 0.0
 			elif wants_jump:
 				# Mirando a la escalera salta derecho para arriba, más alto que
-				# desde el piso. Mirando a otro lado, salta hacia donde mira, sin
-				# la parte que iría contra la pared, y se da vuelta hacia allá.
+				# desde el piso, y bajando se vuelve a agarrar solo (pedido del
+				# usuario, 2026-10-16). Mirando a otro lado, salta hacia donde
+				# mira, sin la parte que iría contra la pared, y se da vuelta
+				# hacia allá.
 				var look := Vector3.FORWARD.rotated(Vector3.UP, input.look_yaw)
 				var into := look.dot(-ladder.outward())
 				if into >= cos(tuning.climb_look_angle):
+					var held := ladder.ladder_id
 					_leave_anchor(state, tuning, ladder.up() * _ladder_jump_speed(tuning, dt), true)
+					state.ladder_return = held
 				else:
 					var away := (look + ladder.outward() * maxf(into, 0.0)).normalized()
 					_leave_anchor(state, tuning, away * tuning.ladder_jump_out + ladder.up() * tuning.ladder_jump_up, true)
 					state.facing_yaw = _yaw_of(away)
 				state.jumped = true
-			elif state.anchor_t <= 0.0 and toward < -0.5:
+			elif state.anchor_t <= 0.0 and climb < -0.5:
 				_leave_anchor(state, tuning, Vector3.ZERO, false)
-			elif state.anchor_t >= ladder.height and toward > 0.5:
+			elif state.anchor_t >= ladder.height and climb > 0.5:
 				_climb_out_top(body, state, ladder, tuning, dt)
+				direction = _wish_direction(input, state)
 		ActorState.Mode.HANGING:
 			if edge.is_empty():
 				# Invariante roto: el borde ya no está o quedó fuera de alcance.
@@ -223,7 +244,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		ActorState.Mode.SLIDE:
 			_slide(state, direction, tuning, dt)
 		ActorState.Mode.LADDER:
-			_ladder(state, direction, tuning, dt)
+			_ladder(state, input.move.y, tuning, dt)
 		ActorState.Mode.HANGING:
 			edge = _hang(body, state, edge, input, tuning, dt)
 		ActorState.Mode.HOOKED:
@@ -244,9 +265,11 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	# piso o agarrarse de algo pide parado. Los modos libres mueven con
 	# move_and_slide(), sin snap en el aire; los anclados (Ladder, Hanging,
 	# Enganchado, Cable), con un barrido. En Suelo, si el movimiento chocó, la
-	# sonda de escalón prueba subirlo.
+	# sonda de escalón prueba subirlo. Con la vuelta a la escalera pendiente
+	# (ladder_return), Ctrl solo impide agarrarse: no agacha, porque agachado en
+	# el aire sube los pies y el que se suelta tiene que caer.
 	var wanted := ActorState.Stance.STANDING
-	if state.mode == ActorState.Mode.SLIDE or (crouch_held and not _is_anchored(state)):
+	if state.mode == ActorState.Mode.SLIDE or (crouch_held and not _is_anchored(state) and state.ladder_return == 0):
 		wanted = ActorState.Stance.CROUCHED
 	elif state.mode == ActorState.Mode.AIR and (tuck or state.stance == ActorState.Stance.TUCKED):
 		wanted = ActorState.Stance.TUCKED
@@ -292,6 +315,12 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	# El salto en el aire vuelve al apoyarse o agarrarse de algo.
 	if state.mode != ActorState.Mode.AIR:
 		state.jumped = false
+	# Agarrarse de algo termina el ir derecho de la salida de la escalera.
+	if _is_anchored(state):
+		state.straight_out = false
+	# La vuelta sola a la escalera es solo en el aire.
+	if state.mode != ActorState.Mode.AIR:
+		state.ladder_return = 0
 	# Apoyado sobre una base, no puede alejarse de ella hacia arriba. Al aterrizar,
 	# Godot deja en cero la velocidad vertical en el mundo; si la base baja, en su
 	# marco eso sería subir, y el actor nunca pasaría a Suelo.
@@ -304,7 +333,11 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 
 
 ## Dirección pedida en el mundo, de largo hasta 1 (los ejes pueden ser parciales).
-static func _wish_direction(input: ActorInput) -> Vector3:
+## Según la cámara, salvo yendo derecho al salir de una escalera (straight_out):
+## ahí W va hacia donde mira el cuerpo, que es hacia donde subía.
+static func _wish_direction(input: ActorInput, state: ActorState) -> Vector3:
+	if state.straight_out:
+		return Vector3.FORWARD.rotated(Vector3.UP, state.facing_yaw) * input.move.y
 	var local := Vector3(input.move.x, 0.0, -input.move.y)
 	return local.rotated(Vector3.UP, input.look_yaw)
 
@@ -606,8 +639,8 @@ static func anchored_pose_valid(body: ActorBody, state: ActorState, tuning: Acto
 ## Ladder desde Suelo o Aire: dentro del volumen de una escalera y con
 ## intención de ir hacia ella. Con varias, gana la de id más chico, así todas
 ## las máquinas eligen la misma. La que se acaba de soltar está bloqueada un rato.
-## El cuerpo va a la pose de golpe en la etapa 7; el dibujo lo alcanza como en
-## el agarre de un borde (grab_jump).
+## Con Ctrl no se llama. El cuerpo va a la pose de golpe en la etapa 7; el
+## dibujo lo alcanza como en el agarre de un borde (grab_jump).
 static func _try_grab_ladder(body: ActorBody, state: ActorState, direction: Vector3) -> bool:
 	if direction.length_squared() < 0.01:
 		return false
@@ -619,15 +652,37 @@ static func _try_grab_ladder(body: ActorBody, state: ActorState, direction: Vect
 		var t := ladder.height_for(feet)
 		if t < 0.0 or direction.dot(-ladder.outward()) < 0.5:
 			continue
-		body.grab_jump += ladder.pose_at(t) - feet
-		state.mode = ActorState.Mode.LADDER
-		state.anchor_id = ladder.ladder_id
-		state.anchor_t = t
-		state.velocity = Vector3.ZERO
-		state.jump_buffer_left = 0.0
-		state.coyote_left = 0.0
+		_grab_ladder(body, state, ladder, t, feet)
 		return true
 	return false
+
+
+## Vuelve sola, sin teclas, a la escalera que dejó saltando mirándola o con
+## Ctrl (ladder_return): bajando, frente a ella y pasado el bloqueo de
+## reagarre. Si el salto pasó por encima del final, se agarra al volver a bajar
+## hasta ella (pedido del usuario, 2026-10-16). Con Ctrl no se llama.
+static func _return_to_ladder(body: ActorBody, state: ActorState) -> bool:
+	if state.ladder_return == 0 or state.velocity.y > 0.0 or state.regrab_id == state.ladder_return:
+		return false
+	var ladder := Ladder.find(state.ladder_return)
+	if ladder == null:
+		return false
+	var feet := _standing_feet(body, state)
+	var t := ladder.height_for(feet)
+	if t < 0.0:
+		return false
+	_grab_ladder(body, state, ladder, t, feet)
+	return true
+
+
+static func _grab_ladder(body: ActorBody, state: ActorState, ladder: Ladder, t: float, feet: Vector3) -> void:
+	body.grab_jump += ladder.pose_at(t) - feet
+	state.mode = ActorState.Mode.LADDER
+	state.anchor_id = ladder.ladder_id
+	state.anchor_t = t
+	state.velocity = Vector3.ZERO
+	state.jump_buffer_left = 0.0
+	state.coyote_left = 0.0
 
 
 ## Sale de un ancla a Aire con una velocidad. Si `block`, no se la puede
@@ -644,16 +699,19 @@ static func _leave_anchor(state: ActorState, tuning: ActorTuning, velocity: Vect
 	state.coyote_left = 0.0
 
 
-## Ladder: la velocidad va sobre el eje. Empujar hacia la escalera sube y
-## alejarse baja; de costado no hace nada. Lo que llegó de afuera (un empujón
-## menor al agarre) queda proyectado sobre el eje y se va frenando. Con un
-## compañero colgado, se queda quieto.
-static func _ladder(state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> void:
+## Ladder: la velocidad va sobre el eje. W sube y S baja, mire donde mire la
+## cámara (`climb` es el eje adelante-atrás de las teclas); A y D no hacen nada.
+## Hasta el 2026-10-16 contaba hacia dónde apuntaban las teclas según la
+## cámara: hacia la escalera subía y alejándose bajaba, así que mirando para
+## atrás W bajaba. Lo que llegó de afuera (un empujón menor al agarre) queda
+## proyectado sobre el eje y se va frenando. Con un compañero colgado, se queda
+## quieto.
+static func _ladder(state: ActorState, climb: float, tuning: ActorTuning, dt: float) -> void:
 	var ladder := Ladder.find(state.anchor_id)
 	if ladder == null:
 		return
 	var along := state.velocity.dot(ladder.up())
-	var wish := clampf(direction.dot(-ladder.outward()), -1.0, 1.0) * tuning.climb_speed
+	var wish := clampf(climb, -1.0, 1.0) * tuning.climb_speed
 	along = move_toward(along, wish, tuning.climb_accel * dt)
 	if state.hooked_by != 0:
 		along = 0.0
@@ -686,7 +744,8 @@ static func _move_on_ladder(body: ActorBody, state: ActorState) -> void:
 ## test_move() (subir la altura del saltito y avanzar hasta tener el cuerpo
 ## sobre el borde); si algo lo tapa, sigue en la escalera. La escalera queda
 ## bloqueada un rato: si no, el tick siguiente, todavía en su volumen, la
-## volvería a agarrar.
+## volvería a agarrar. Desde acá va derecho (straight_out) mientras siga con W
+## sola, así mirando para atrás no vuelve hacia la escalera.
 static func _climb_out_top(body: ActorBody, state: ActorState, ladder: Ladder, tuning: ActorTuning, dt: float) -> void:
 	var rise := ladder.up() * tuning.ladder_top_hop_height
 	var over := -ladder.outward() * (ladder.standoff + body.capsule_radius())
@@ -696,6 +755,7 @@ static func _climb_out_top(body: ActorBody, state: ActorState, ladder: Ladder, t
 	# Como en _climb_jump_speed: la gravedad se aplica antes de mover.
 	var up_speed := sqrt(2.0 * tuning.gravity * tuning.ladder_top_hop_height) + tuning.gravity * dt * 0.5
 	_leave_anchor(state, tuning, ladder.up() * up_speed - ladder.outward() * tuning.ladder_top_hop_speed, true)
+	state.straight_out = true
 
 
 ## Hanging desde Aire: si grab_check() encuentra un borde que se puede agarrar,

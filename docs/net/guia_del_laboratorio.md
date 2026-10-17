@@ -74,10 +74,10 @@ En el menú, **Simular internet**, o en el juego, las teclas **1** a **5** de la
 
 | Tecla | Qué hace |
 | --- | --- |
-| WASD | Mover. Colgado de un borde, A y D de costado. Colgado de un cable, según la cámara |
-| Espacio | Saltar. Colgado o en la escalera, mirando a la pared salta para arriba; mirando a otro lado, hacia allá. Cayendo sin haber saltado, salta en el aire una vez |
+| WASD | Mover. En la escalera, W sube y S baja, mire donde mire la cámara (desde el 2026-10-16). Al salir por arriba con W, mientras sigas con W sola vas derecho hacia donde subías, mire donde mire; soltar W o tocar A, S o D lo corta, y Shift, Espacio y Ctrl no. Colgado de un borde, A y D de costado. Colgado de un cable, según la cámara |
+| Espacio | Saltar. Colgado o en la escalera, mirando a la pared salta para arriba; mirando a otro lado, hacia allá. En la escalera, el salto para arriba se vuelve a agarrar solo, sin teclas, en el punto más alto o, si pasó por encima del final, al volver a bajar hasta ella (desde el 2026-10-16). Cayendo sin haber saltado, salta en el aire una vez |
 | Shift | Correr |
-| Ctrl | Agacharse; corriendo, deslizarse. Colgado, se suelta |
+| Ctrl | Agacharse; corriendo, deslizarse. Colgado, se suelta. En la escalera, se suelta sin empujón: caés mientras lo tengas y, al soltarlo, si seguís frente a la escalera te agarrás solo; si llegaste al piso, te quedás ahí (desde el 2026-10-16). Con Ctrl no te agarrás de ninguna escalera, ni caminando hacia ella. Con alguien colgado de vos, se caen los dos |
 | Rueda del mouse | Acerca la cámara, hasta primera persona |
 | 1 del teclado numérico | Prende o apaga la cámara lenta del mundo, para todos |
 | 2 del teclado numérico | Prende o apaga el súper salto y velocidad, para vos |

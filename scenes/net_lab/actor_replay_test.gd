@@ -268,7 +268,9 @@ func _build_inputs() -> void:
 		# Escalera de la cara sur de la plataforma verde, justo delante:
 		[53, Vector2(0, 1), PI, [], 0],  # camina hacia ella, se agarra y sube un poco
 		[6, Vector2.ZERO, PI, [0], 0],  # mirándola, salta derecho para arriba, más alto que desde el piso
-		[110, Vector2.ZERO, PI, [], 0],  # pasa por encima de la plataforma y cae al pie de la escalera: el borde de arriba está detrás de la escalera y no se agarra
+		[80, Vector2.ZERO, PI, [], 0],  # pasa por encima del final de la escalera (el borde de arriba está detrás de ella y no se agarra) y, bajando, se vuelve a agarrar solo, arriba de todo
+		[60, Vector2.ZERO, PI, [], crouch],  # Ctrl lo suelta: cae al pie sin volver a agarrarse y, en el piso, se agacha
+		[10, Vector2.ZERO, PI, [], 0],  # suelta Ctrl en el piso: se para y no se agarra
 		[70, Vector2(0, 1), PI, [], 0],  # se agarra, sube y sale arriba
 		[20, Vector2.ZERO, 0.0, [], 0],  # se queda arriba de la plataforma
 		[45, Vector2(0, 1), 0.0, [], 0],  # se va por el borde, alejándose de la escalera, y cae
@@ -284,7 +286,10 @@ func _build_inputs() -> void:
 		[30, Vector2.ZERO, 0.0, [], 0],  # se queda quieto
 		# Pista de escalones, detrás de donde se aparece:
 		[30, Vector2(0, 1), PI, [], 0],  # sale por arriba de la escalera a la plataforma
-		[170, Vector2(0, 1), PI, [], 0],  # baja de la plataforma, baja la rampa y sigue
+		[169, Vector2(0, 1), PI, [], 0],  # baja de la plataforma, baja la rampa y sigue
+		# Desde que salió por arriba de la escalera va derecho con W sola, mire
+		# donde mire: para doblar con la cámara, suelta W un tick.
+		[1, Vector2.ZERO, PI, [], 0],
 		[40, Vector2(0, 1), -PI / 2.0, [], 0],  # a la derecha, para pasar por el costado de la pared de medidas
 		[100, Vector2(0, 1), PI, [], 0],  # hacia atrás, hasta delante de la pista
 		[106, Vector2(0, 1), PI / 2.0, [], 0],  # a la izquierda, por delante de los escalones sueltos

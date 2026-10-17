@@ -454,6 +454,7 @@ script = ExtResource("9_cable")
 metadata/_custom_type_script = "uid://q6gukx2dg6xy"
 
 [node name="Ladder" type="Node3D" parent="." unique_id=1138337165]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, 24)
 script = ExtResource("4_ladder")
 height = 17.15
 width = 1.0

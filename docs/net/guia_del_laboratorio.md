@@ -1,13 +1,13 @@
 # Guía del laboratorio de red
 
-Esta guía es para retomar el laboratorio después de un tiempo sin tener que leer todo el historial. Está armada por tareas: dónde está cada cosa, cómo probar, cómo agregar cables y escaleras, qué reglas acordamos y en qué sección del historial está el detalle.
+Esta guía es para retomar el laboratorio después de un tiempo sin tener que leer todo el historial. Está armada por tareas: dónde está cada cosa, cómo probar, cómo agregar cables y escaleras, cómo se cuelga uno de un compañero, qué reglas acordamos y en qué sección del historial está el detalle.
 
 - **El historial completo**, con cada decisión, prueba y error, en orden: [`arquitectura_coop_y_esqueleto_de_red.md`](arquitectura_coop_y_esqueleto_de_red.md).
 - **El diseño de la arquitectura:** [Arquitectura de movimiento co-op (Godot 4.7 + Jolt)](https://claude.ai/code/artifact/6760c3bf-39ed-4f2f-8d9d-23642c7ac797), en Claude Docs. Está copiado en el Apéndice A del historial.
 
-**Para pedirle algo a Claude en otra conversación:** "leé `docs/net/guia_del_laboratorio.md` y ayudame a …". Si hace falta más detalle, la sección 8 de esta guía dice en qué parte del historial buscarlo.
+**Para pedirle algo a Claude en otra conversación:** "leé `docs/net/guia_del_laboratorio.md` y ayudame a …". Si hace falta más detalle, la sección 9 de esta guía dice en qué parte del historial buscarlo.
 
-Escrita el 2026-10-15 y puesta al día el 2026-10-17. Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
+Escrita el 2026-10-15 y puesta al día el 2026-10-18. Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
 
 ---
 
@@ -27,7 +27,7 @@ Todo el laboratorio está en la rama `net-lab` y en estas carpetas. El resto del
 | La escalera | `scripts/actor/ladder.gd` (nodo **Ladder**) |
 | Las plataformas que se mueven y la balsa | `scripts/actor/scripted_platform.gd` y `host_raft.gd` |
 | La red: conexión, reloj, predicción, adopción | `scripts/net/` |
-| Las pistas armadas por código (bordes, escalones, torre, pista de cables) | `scenes/net_lab/edge_course.gd`, `step_course.gd`, `parkour_tower.gd`, `cable_course.gd` |
+| Las pistas armadas por código (bordes, escalones, torre, pista de cables, pista de colgarse) | `scenes/net_lab/edge_course.gd`, `step_course.gd`, `parkour_tower.gd`, `cable_course.gd`, `hook_course.gd` |
 | La cámara | `scenes/net_lab/lab_camera.gd`; sus valores, en el nodo **CameraRig** de `net_lab.tscn` |
 | El doble clic de la notebook | `tools/net_lab/actualizar_lab.bat` y `.ps1` |
 | Los modelos de escaleras | `assets/models/stairs/` |
@@ -76,10 +76,10 @@ En el menú, **Simular internet**, o en el juego, las teclas **1** a **5** de la
 
 | Tecla | Qué hace |
 | --- | --- |
-| WASD | Mover. En la escalera, W sube y S baja, mire donde mire la cámara (desde el 2026-10-16). Al salir por arriba con W, mientras sigas con W sola vas derecho hacia donde subías, mire donde mire; soltar W o tocar A, S o D lo corta, y Shift, Espacio y Ctrl no. Colgado de un borde, A y D de costado. Colgado de un cable, según la cámara |
+| WASD | Mover. En la escalera, W sube y S baja, mire donde mire la cámara (desde el 2026-10-16). Al salir por arriba con W, mientras sigas con W sola vas derecho hacia donde subías, mire donde mire; soltar W o tocar A, S o D lo corta, y Shift, Espacio y Ctrl no. Colgado de un borde, A y D de costado. Colgado de un cable, según la cámara. Colgado de un compañero, W y S suben y bajan tus manos por su cuerpo, mire donde mire, y A y D te giran alrededor de él (desde el 2026-10-18) |
 | Espacio | Saltar. Colgado o en la escalera, mirando a la pared salta para arriba; mirando a otro lado, hacia allá. En la escalera, el salto para arriba se vuelve a agarrar solo, sin teclas, en el punto más alto o, si pasó por encima del final, al volver a bajar hasta ella (desde el 2026-10-16). Cayendo sin haber saltado, salta en el aire una vez |
 | Shift | Correr |
-| Ctrl | Agacharse; corriendo, deslizarse. Colgado, se suelta. En la escalera, se suelta sin empujón: caés mientras lo tengas y, al soltarlo, si seguís frente a la escalera te agarrás solo; si llegaste al piso, te quedás ahí (desde el 2026-10-16). Con Ctrl no te agarrás de ninguna escalera, ni caminando hacia ella. Con alguien colgado de vos, se caen los dos |
+| Ctrl | Agacharse; corriendo, deslizarse. Colgado, se suelta. En la escalera, se suelta sin empujón: caés mientras lo tengas y, al soltarlo, si seguís frente a la escalera te agarrás solo; si llegaste al piso, te quedás ahí (desde el 2026-10-16). Con Ctrl no te agarrás de ninguna escalera, ni caminando hacia ella. Con alguien colgado de vos, se caen los dos. Colgado de un compañero, igual que en la escalera: caés mientras lo tengas y, al soltarlo, si seguís al alcance, te volvés a agarrar (desde el 2026-10-18) |
 | Rueda del mouse | Acerca la cámara, hasta primera persona |
 | 1 del teclado numérico | Prende o apaga la cámara lenta del mundo, para todos |
 | 2 del teclado numérico | Prende o apaga el súper salto y velocidad, para vos |
@@ -101,6 +101,8 @@ Todo valor que se pueda ajustar está en el nodo **Tuning**, no en el personaje.
 4. Si vas a probar en las dos PC, actualizá la notebook: las dos tienen que tener los mismos valores, o la notebook no entra.
 
 **Valores que cambiaste vos y no son los de fábrica:** el salto desde la escalera mirando a otro lado (**Ladder Jump Up**, 1,2), y en el grupo **Cable**, **Cable Grab Body** (0,3) y **Cable Reach** (0,6).
+
+**Para que colgarse de un compañero sea más o menos permisivo** (grupo **Compañero**, desde el 2026-10-18): **Hook Reach** (1 m: hasta qué distancia de su eje te agarrás), **Hook Min Height** y **Hook Max Height** (0 y 1,5 m: la franja de su cuerpo de la que te agarrás, y hasta donde llegan W y S), **Hook Climb Speed** y **Hook Turn Speed** (1,5 m/s) y **Hook Turn Limit** (90°: cuánto girás por lado en un borde o una escalera). Los eligió Claude; están para que los ajustes vos.
 
 Los valores de la cámara están aparte, en el nodo **CameraRig**, y pueden ser distintos en cada PC.
 
@@ -188,10 +190,44 @@ Las reglas, que decidiste vos, en la sección 8.21 del historial:
 
 ---
 
-## 6. Cómo trabajamos (reglas acordadas)
+## 6. Colgarse de un compañero
+
+Uno se agarra de un borde, una escalera o un cable, y el otro se cuelga de él. Las reglas, que decidiste vos, en las secciones 8.8 y 8.22 del historial:
+
+- **Sin tecla y sin mirarlo:** el compañero es como un cilindro. Te agarrás si tus manos pasan a no más de 1 m de su eje, entre sus pies y sus hombros, y vas a su cintura del lado por el que llegaste.
+- **Del que está en un cable,** de cualquier lado. **Del que está en un borde o una escalera,** solo por su espalda, hasta 90° para cada lado: nunca del lado de la pared o de la escalera.
+- **Colgado:** W y S suben y bajan tus manos por su cuerpo, de sus pies a sus hombros, mire donde mire; A y D te giran alrededor de él. Si algo te tapa, no te movés.
+- **El de arriba** queda quieto mientras alguien cuelga de él, aunque esté en un cable inclinado. Espacio no le hace nada, y Ctrl lo suelta y se caen los dos.
+- **Espacio** mirándolo salta para arriba; mirando a otro lado, hacia allá. **Ctrl**, como en la escalera: caés mientras lo tengas y, al soltarlo, si seguís al alcance, te volvés a agarrar.
+- **La altura importa:** colgarse desde el piso de uno en un cable pide un cable de entre 3,5 y 3,7 m, como el muro de 3,6 m. Más bajo, te agarrás del cable; más alto, no llegás de un salto.
+
+Los valores para hacerlo más o menos permisivo están en el **Tuning**, grupo **Compañero** (sección 3 de esta guía).
+
+### La pista de colgarse
+
+Para buscar si moverse alrededor del compañero sirve para atravesar paredes o pisos. Está en el oeste del nivel (nodo **PistaDeColgarse**, en x −25), con un cartel en cada estación; los cables y los bordes tienen un cajón para subirse.
+
+| N.º | Estación |
+| --- | --- |
+| 1 | Cable junto a una pared gruesa |
+| 2 | Cable cruzado por una pared de 5 cm |
+| 3 | Cable en un pasillo de 1,2 m |
+| 4 | Cable sobre un piso con un agujero |
+| 5 | Escalera contra una pared |
+| 6 | Escalera suelta, sin pared |
+| 7 | Escalera que atraviesa un piso |
+| 8 | Borde de un muro grueso |
+| 9 | Borde de una losa de 5 cm sin nada abajo |
+| 10 | Borde de una columna |
+
+En las pruebas sin red y en las tuyas, en ninguna se pudo meterse en una pared o un piso ni pasar al otro lado. Colgarse a través de una pared tampoco: los dos cuerpos quedan tocándose y no entra nada en el medio. Para cambiar las estaciones, se edita la lista en `hook_course.gd`; las piezas no se guardan en la escena.
+
+---
+
+## 7. Cómo trabajamos (reglas acordadas)
 
 - **Godot cerrado antes de que Claude toque el nivel o `project.godot`.** Si está abierto, al guardar puede pisar el cambio. Claude avisa cuando hace falta cerrarlo; si Godot pregunta si guardar, a veces la respuesta es **No guardar**, y Claude lo dice.
-- **El commit va después de la prueba en las dos PC**, y solo cuando lo pedís. Es local, en la rama `net-lab`; a GitHub se sube solo si lo pedís.
+- **El commit local va después de una prueba en las dos PC que sale bien,** sin esperar a que lo pidas (decidido el 2026-10-17: "seguí así, commit después de una prueba que sale bien"). Es local, en la rama `net-lab`; a GitHub se sube solo si lo pedís. Los md se commitean cuando lo pedís.
 - **`project.godot` nunca va entero al commit:** el editor cambió una línea de 4.6 a 4.7 que no se commitea. Solo van las acciones del Mapa de entrada del laboratorio.
 - **Los valores ajustables van en el nodo Tuning,** para que los cambies vos en el Inspector.
 - **Instrucciones clic por clic,** con los nombres exactos de los botones. Tu Godot está en inglés.
@@ -205,7 +241,7 @@ Las reglas, que decidiste vos, en la sección 8.21 del historial:
 
 ---
 
-## 7. Lo que conviene recordar
+## 8. Lo que conviene recordar
 
 - **Mecánicas que dependen de un buen internet** (se pide menos de 140 ms y poca pérdida): las correcciones de la balsa al subirse o saltar arriba, y la demora de la cámara lenta (0,1 s en la red de la casa, hasta 0,33 s con internet mala).
 - **Si se va el host, se termina la partida:** no hay migración de host. Si a un cliente se le corta la red, el host lo espera hasta 60 s.
@@ -215,12 +251,15 @@ Las reglas, que decidiste vos, en la sección 8.21 del historial:
 - **Las capturas de la notebook** también van a la carpeta de capturas.
 - **Saliendo derecho de una escalera,** girar la cámara no hace doblar: hay que soltar W o tocar A, S o D.
 - **Cuando el de arriba se suelta con alguien colgado,** el que cuelga recibe una corrección por caída, porque ve al de arriba con atraso. Es normal, también en el muro.
+- **Colgándose de uno que todavía se mueve,** el host puede adoptar diferencias de 1 mm de lo que afirma el que se cuelga, porque su PC ve al de arriba en el pasado. No hay corrección.
+- **Los números de cables y escaleras cambian si una pista nueva va antes en la escena:** con la pista de colgarse, la huella de la prueba de repetición pasó de `cb02d3f0640600f9` a `64564ccef7594dba`, sin que cambiara el movimiento.
+- **Saltar de un borde no te deja agarrarte de un cable por 0,3 s;** del cable al borde, sí (desde el 2026-10-18, para cortar el bucle entre los dos).
 
 La lista completa de pendientes y límites está en la sección 16 del historial.
 
 ---
 
-## 8. Dónde está cada tema en el historial
+## 9. Dónde está cada tema en el historial
 
 | Tema | Sección |
 | --- | --- |
@@ -231,7 +270,7 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 | Escalera y empujones | 8.3 y 8.10 |
 | El escalón | 8.4 |
 | Colgarse de un borde (Hanging) | 8.5, 8.6, 8.7, 8.14 y 8.16 |
-| Colgarse de un compañero | 8.8 |
+| Colgarse de un compañero | 8.8 y 8.22 |
 | Cámara lenta | 8.9, 8.13 y 8.18 |
 | El nodo Tuning y la primera persona | 8.10 |
 | Reconexión y la rama `net-lab` | 8.11 |
@@ -242,6 +281,7 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 | Cables: cómo se juegan | 8.19 |
 | Cables y escaleras en el editor | 8.20 |
 | La escalera: W y S, la salida por arriba, el salto y Ctrl; colgado del compañero con internet mala | 8.21 |
+| El bucle entre un cable y un borde; colgarse del compañero en un cable y como de un cilindro; la pista de colgarse | 8.22 |
 | El código hoy: archivos, funciones, formatos de red, constantes, valores del Tuning | 9 |
 | Cómo usar el laboratorio: menú, teclas, panel, pruebas, el nivel | 10 |
 | Todas las pruebas y sus resultados | 11 |
@@ -254,9 +294,9 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 
 ---
 
-## 9. Dónde quedó (2026-10-17)
+## 10. Dónde quedó (2026-10-18)
 
-- **Último commit:** el de esta guía y la duodécima versión del historial (2026-10-17), en `net-lab`. Antes, `3c3fab8` (el arreglo de colgado del compañero con internet mala y la ayuda partida) y `969c7fc` (las teclas, el salto y Ctrl de la escalera).
-- **En GitHub:** la rama `net-lab` se subió el 2026-10-17 con todos los commits, hasta el de esta guía.
+- **Último commit:** el de esta guía y la decimotercera versión del historial (2026-10-18), en `net-lab`. Antes, los cuatro del día: `9fc5d86` (el cilindro en la escalera y el borde, y la pista de colgarse), `4b4fdb6` (el cilindro en el cable), `8355cd2` (colgarse de un compañero en un cable) y `25a37f1` (el bucle entre el cable y el borde).
+- **En GitHub:** la rama `net-lab` se subió el 2026-10-18 con todos los commits, hasta el de esta guía.
 - **Sin commit:** nada del laboratorio. `project.godot` tiene la línea 4.6 → 4.7 del editor, que no se commitea.
-- **Pendientes:** la cuerda con la cámara ("no lo vamos a tocar ahora"); las pruebas de empujones al que cuelga de un compañero, que ya no llegan a colgarse (de antes, sin investigar); y el punto 4 de la revisión externa, para cuando pase al juego. La lista completa, en la sección 16 del historial.
+- **Pendientes:** seguir probando si el cilindro es muy permisivo, con más escenarios; la línea de ayuda del compañero, que se corta en la notebook después de "espalda"; la cuerda con la cámara ("no lo vamos a tocar ahora"); las pruebas de empujones al que cuelga de un compañero, que ya no llegan a colgarse (de antes, sin investigar); y el punto 4 de la revisión externa, para cuando pase al juego. La lista completa, en la sección 16 del historial.

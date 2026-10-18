@@ -2087,7 +2087,7 @@ func _update_hud() -> void:
 		elif s.regrab_left > 0.0 and s.regrab_id == ActorState.REGRAB_CABLES:
 			lines.append("Recién soltó un cable: no puede agarrar otro por %.2f s" % s.regrab_left)
 		elif s.regrab_left > 0.0 and s.regrab_id == ActorState.REGRAB_EDGES:
-			lines.append("Recién soltó un borde: no puede agarrar otro por %.2f s" % s.regrab_left)
+			lines.append("Recién soltó un borde: no puede agarrar otro ni un cable por %.2f s" % s.regrab_left)
 		elif s.regrab_left > 0.0 and s.regrab_id == ActorState.REGRAB_TEAMMATES:
 			lines.append("Recién se soltó de un compañero: no se puede colgar de otro por %.2f s" % s.regrab_left)
 		elif s.regrab_left > 0.0:

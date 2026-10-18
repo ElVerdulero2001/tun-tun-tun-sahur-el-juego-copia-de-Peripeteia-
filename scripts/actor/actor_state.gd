@@ -29,6 +29,9 @@ const YAW_STEPS := 65536
 ## Largo de to_bytes(). Lo que llega por red con otro largo se descarta.
 const BYTE_SIZE := 92
 ## regrab_id de un bloqueo de bordes (Hanging), distinto de cualquier escalera.
+## También bloquea los cables: si no, uno al alcance de las manos atrapa al
+## que salta del borde, y desde el cable el salto vuelve al borde (pedido del
+## usuario, 2026-10-18).
 const REGRAB_EDGES := 0xFFFF
 ## regrab_id de un bloqueo de compañeros (Enganchado): no se puede volver a
 ## colgar de ninguno por un rato.
@@ -85,7 +88,8 @@ var anchor_point := Vector3.ZERO
 var hooked_by := 0
 ## Bloqueo de reagarre: al soltar un ancla por un salto o un empujón, no se la
 ## puede volver a agarrar por este tiempo. Para Hanging, regrab_id vale
-## REGRAB_EDGES y bloquea todos los bordes: un borde no tiene id propio.
+## REGRAB_EDGES y bloquea todos los bordes, porque un borde no tiene id propio,
+## y también todos los cables.
 var regrab_id := 0
 var regrab_left := 0.0
 ## Súper salto y velocidad: si está prendido (la misma tecla lo prende y lo

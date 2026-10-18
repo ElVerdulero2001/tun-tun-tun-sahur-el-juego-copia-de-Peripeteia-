@@ -1151,7 +1151,8 @@ static func _move_hanging(body: ActorBody, state: ActorState, edge: Dictionary, 
 
 
 ## Sale de un borde a Aire con una velocidad y un bloqueo corto de reagarre de
-## bordes. La velocidad de la base del borde se suma en la etapa de contactos.
+## bordes y cables. La velocidad de la base del borde se suma en la etapa de
+## contactos.
 static func _leave_edge(state: ActorState, tuning: ActorTuning, velocity: Vector3) -> void:
 	state.mode = ActorState.Mode.AIR
 	state.velocity = velocity
@@ -1371,7 +1372,9 @@ static func _try_grab_cable(body: ActorBody, state: ActorState, direction: Vecto
 ## grab_check, agachado no se agarra, y encogido se mide desde los pies de parado.
 static func cable_check(body: ActorBody, state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> Dictionary:
 	var result := {"cable": null, "t": 0.0, "pose": Vector3.ZERO, "facing": Vector3.FORWARD, "why": "sin cable"}
-	if state.regrab_id == ActorState.REGRAB_CABLES or state.stance == ActorState.Stance.CROUCHED:
+	# Recién soltado un borde tampoco: ver ActorState.REGRAB_EDGES.
+	if state.regrab_id == ActorState.REGRAB_CABLES or state.regrab_id == ActorState.REGRAB_EDGES \
+			or state.stance == ActorState.Stance.CROUCHED:
 		result["why"] = "bloqueo o postura"
 		return result
 	var toward := Vector3(direction.x, 0.0, direction.z)

@@ -308,7 +308,7 @@ const CABLE_RETURN := [Vector3(16.0, 0.0, 27.5), Vector3(9.35, 0.0, 27.5)]
 const CABLE_HOLD_HEIGHT := 3.9
 ## Prueba `hook:cable`: a qué distancia del compañero salta hacia él, y por
 ## dónde pasa desde donde se aparece, para no chocar con la torre chica.
-const HOOK_CABLE_START := 1.5
+const HOOK_CABLE_START := 1.0
 const HOOK_CABLE_DETOUR := Vector3(20.0, 0.0, 9.0)
 var _hang_face := Vector3.INF
 var _hang_detour_x := 0.0
@@ -352,10 +352,17 @@ var hook_fell_with_mate := 0
 var hook_edges_after := 0
 var hook_tops := 0
 var hook_drops := 0
-## Prueba `hook:cable`: cuántas veces se colgó del frente del compañero, y
-## cuántas quedó del lado que no buscaba.
-var hook_front_grabs := 0
+## Prueba `hook:cable`: cuántas veces quedó del lado que no buscaba, cuánto
+## giró con D en total (en grados) y cuánto subió con W (en metros), y la
+## altura de las manos y el ángulo al empezar a girar.
 var hook_wrong_side := 0
+var hook_turned := 0.0
+var hook_climbed := 0.0
+var _hook_turn_from := 0.0
+var _hook_climb_from := 0.0
+## Prueba `hook:cable`: cuántas veces, después de saltar desde él, se volvió a
+## agarrar de él al caer.
+var hook_regrabs := 0
 ## Pruebas `ladderdrop` y `ladderhold:drop`: tramo, ticks en el tramo,
 ## pulsaciones de salto propias, ticks de Ctrl que faltan y cuántas veces se
 ## soltó con Ctrl, saltó mirándola y se volvió a agarrar solo después de cada cosa.
@@ -1387,11 +1394,13 @@ func _hook_input(tick: int, where: String) -> ActorInput:
 
 
 ## Prueba `hook:cable`, en ciclos: espera a que haya un compañero quieto en un
-## cable, se para a HOOK_CABLE_START de él, de su espalda o de su frente (cambia
-## en cada vuelta), salta hacia él y se cuelga de su cintura. Colgado
-## HOOK_HOLD_TICKS, por turnos como en `hook:wall`: se suelta con Ctrl, salta
-## para arriba mirándolo o salta hacia el otro lado. Si se agarra del cable, se
-## suelta con Ctrl. Después vuelve.
+## cable, se para a HOOK_CABLE_START de él, de su espalda, de su frente o de un
+## costado (cambia en cada vuelta), salta hacia él y se cuelga. Colgado gira
+## con D y sube con W, y a los HOOK_HOLD_TICKS, por turnos como en `hook:wall`,
+## se suelta con Ctrl, salta para arriba mirándolo o salta hacia el otro lado.
+## Soltándose con Ctrl, lo mantiene hasta tocar el piso; después de saltar, si
+## se vuelve a agarrar de él al caer (como en la escalera), lo cuenta y se
+## suelta igual. Si se agarra del cable, se suelta con Ctrl. Después vuelve.
 func _hook_cable_input(tick: int) -> ActorInput:
 	if not is_instance_valid(_local_actor):
 		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _hook_presses)
@@ -1401,7 +1410,8 @@ func _hook_cable_input(tick: int) -> ActorInput:
 	for each in _local_actor.teammates():
 		if each.state.mode == ActorState.Mode.CABLE:
 			mate = each
-	var front := _hook_cycle % 2 == 1
+	# Desde dónde salta, alrededor de él: su espalda, su frente y sus costados.
+	var around: float = [0.0, PI, PI * 0.5, -PI * 0.5][_hook_cycle % 4]
 	var to_mate := 0.0
 	if mate != null:
 		var to := mate.global_position - me
@@ -1414,7 +1424,7 @@ func _hook_cable_input(tick: int) -> ActorInput:
 	match _hook_phase:
 		0:  # espera al compañero quieto en el cable y va a su espalda o a su frente
 			if mate != null and mate.state.hooked_by == 0 and mate.state.velocity.length() < 0.001:
-				var out := Vector3.BACK.rotated(Vector3.UP, mate.state.facing_yaw) * (-1.0 if front else 1.0)
+				var out := Vector3.BACK.rotated(Vector3.UP, mate.state.facing_yaw + around)
 				var spot := mate.global_position + out * HOOK_CABLE_START
 				# Desde donde se aparece, primero por delante de la torre chica.
 				move = _walk_to(me, HOOK_CABLE_DETOUR if me.x < HOOK_CABLE_DETOUR.x - 0.5 and me.z < 15.0 else spot)
@@ -1427,9 +1437,7 @@ func _hook_cable_input(tick: int) -> ActorInput:
 			yaw = to_mate
 			if s.mode == ActorState.Mode.HOOKED:
 				hook_grabs += 1
-				if ActorMotor.hooked_front(s):
-					hook_front_grabs += 1
-				if ActorMotor.hooked_front(s) != front:
+				if mate == null or absf(angle_difference(around, ActorMotor.hook_angle(s, mate))) > 0.5:
 					hook_wrong_side += 1
 				_set_hook_phase(3)
 			elif s.mode == ActorState.Mode.CABLE:
@@ -1444,7 +1452,21 @@ func _hook_cable_input(tick: int) -> ActorInput:
 					hook_fell_with_mate += 1
 					print("[net_lab] compañero: se cayó con él en el tick %d, %d ticks después de colgarse (%s)" % [
 						tick, _hook_since, mate.state.describe() if mate != null else "el compañero ya no está en el cable"])
-				_set_hook_phase(6)
+				# Soltándose con Ctrl, lo mantiene hasta el piso: al soltarlo, todavía
+				# al alcance, se volvería a agarrar (como en la escalera).
+				_set_hook_phase(7 if _hook_cycle % 3 == 0 else 6)
+			elif _hook_since <= 25:
+				# Gira con D, después sube con W.
+				if _hook_since == 1 and mate != null:
+					_hook_turn_from = ActorMotor.hook_angle(s, mate)
+				move = Vector2(1, 0)
+			elif _hook_since <= 40:
+				if _hook_since == 26 and mate != null:
+					hook_turned += rad_to_deg(angle_difference(_hook_turn_from, ActorMotor.hook_angle(s, mate)))
+					_hook_climb_from = s.anchor_t
+				move = Vector2(0, 1)
+			elif _hook_since == 41:
+				hook_climbed += s.anchor_t - _hook_climb_from
 			elif _hook_since == HOOK_HOLD_TICKS:
 				match _hook_cycle % 3:
 					0:
@@ -1461,10 +1483,17 @@ func _hook_cable_input(tick: int) -> ActorInput:
 		5:  # vuelve a empezar
 			_hook_cycle += 1
 			_set_hook_phase(0)
-		6:  # en el aire o agarrado del cable: se suelta con Ctrl y espera a tocar el piso
-			if s.mode == ActorState.Mode.CABLE:
-				buttons = ActorInput.BUTTON_CROUCH
+		6:  # saltó: si se vuelve a agarrar de él, lo cuenta; de él o del cable, se suelta
+			if s.mode == ActorState.Mode.HOOKED:
+				hook_regrabs += 1
+				_set_hook_phase(7)
+			elif s.mode == ActorState.Mode.CABLE:
+				_set_hook_phase(7)
 			elif s.mode == ActorState.Mode.GROUND:
+				_set_hook_phase(5)
+		7:  # Ctrl hasta tocar el piso
+			buttons = ActorInput.BUTTON_CROUCH
+			if s.mode == ActorState.Mode.GROUND:
 				_set_hook_phase(5)
 	if phase != _hook_phase:
 		print("[net_lab] colgarse del cable: tramo %d en %s, %s" % [_hook_phase, me, s.describe()])
@@ -1672,7 +1701,7 @@ func _measure_hooked_gap() -> void:
 		if actor == _local_actor or actor.state.mode != ActorState.Mode.HOOKED \
 				or actor.state.anchor_id != _local_actor.owner_peer_id:
 			continue
-		var expected := ActorMotor.hook_pose(_local_actor, tuning, ActorMotor.hooked_front(actor.state))
+		var expected := ActorMotor.hooked_pose(actor.state, _local_actor, tuning)
 		hooked_gap_max = maxf(hooked_gap_max, actor.global_position.distance_to(expected))
 
 
@@ -2182,8 +2211,12 @@ func _update_hud() -> void:
 			lines.append("Colgado del borde: filo a %.2f m de altura%s" % [BaseRegistry.origin(s.anchor_id).y + s.anchor_point.y,
 					"   ·   sobre la base %d" % s.anchor_id if s.anchor_id != 0 else ""])
 		elif s.mode == ActorState.Mode.HOOKED:
-			lines.append("Colgado de la cintura del jugador %d, %s" % [s.anchor_id,
-					"de frente a él" if ActorMotor.hooked_front(s) else "de su espalda"])
+			var mate := _local_actor.teammate(s.anchor_id) if is_instance_valid(_local_actor) else null
+			if mate != null and mate.state.mode == ActorState.Mode.CABLE:
+				lines.append("Colgado del jugador %d, que está en un cable   ·   manos a %.2f m sobre sus pies   ·   a %.0f° de su espalda   ·   W/S suben y bajan, A/D giran alrededor" % [
+						s.anchor_id, s.anchor_t, rad_to_deg(ActorMotor.hook_angle(s, mate))])
+			else:
+				lines.append("Colgado de la cintura del jugador %d" % s.anchor_id)
 		elif s.mode == ActorState.Mode.CABLE:
 			var cable := Cable.find(s.anchor_id)
 			var slope := absf(rad_to_deg(asin(clampf(cable.tangent_at(s.anchor_t).y, -1.0, 1.0)))) if cable != null else 0.0
@@ -2215,6 +2248,7 @@ func _update_hud() -> void:
 	lines.append("Cable: te agarrás solo · teclas según la cámara · hacia abajo en uno inclinado te deslizás, soltar frena · Espacio salta hacia donde mirás · Ctrl se suelta")
 	lines.append("Cayendo sin haber saltado (te caíste, te soltaste, te empujaron): Espacio salta en el aire, una vez, hacia donde mira la cámara")
 	lines.append("Saltando hacia un compañero colgado de un borde o en una escalera, te colgás de su cintura: ahí Espacio y Ctrl andan igual que colgado")
+	lines.append("De uno en un cable te colgás de cualquier lado, tocándolo: W/S suben y bajan, A/D giran alrededor de él")
 	lines.append("1 del teclado numérico: prende o apaga la cámara lenta del mundo, para todos · 2 del teclado numérico: prende o apaga tu súper salto y velocidad")
 	if role == Role.HOST:
 		lines.append("E empuja a los demás ya · R los empuja programado · con Shift, empujón débil · Q prende o apaga la adopción")
@@ -2309,8 +2343,8 @@ func _print_summary_and_quit() -> void:
 		print("[net_lab] compañero: %d se colgó, %d se soltó con Ctrl, %d saltó para arriba (%d se agarró del borde después, %d llegó arriba), %d saltó hacia atrás, %d se cayó con el compañero, %d se agarró de otra cosa" % [
 			hook_grabs, hook_releases, hook_jumps_up, hook_edges_after, hook_tops, hook_jumps_away, hook_fell_with_mate, hook_other_grabs])
 	if test_input == "hook:cable":
-		print("[net_lab] compañero en un cable: %d vueltas, %d de su frente, %d del lado que no buscaba; tramo %d" % [
-			_hook_cycle, hook_front_grabs, hook_wrong_side, _hook_phase])
+		print("[net_lab] compañero en un cable: %d vueltas, %d del lado que no buscaba; colgado giró %.0f° con D y subió %.2f m con W, en total; %d veces se volvió a agarrar de él después de saltar; tramo %d" % [
+			_hook_cycle, hook_wrong_side, hook_turned, hook_climbed, hook_regrabs, _hook_phase])
 	if test_input == "ladderdrop" or test_input == "ladderhold:drop":
 		print("[net_lab] escalera: se soltó %d veces con Ctrl (%d con alguien colgado) y se volvió a agarrar solo %d; saltó mirándola %d veces y se volvió a agarrar solo %d" % [
 				ladder_drops + hook_drops, hook_drops, ladder_drop_returns, ladder_jumps, ladder_jump_returns])

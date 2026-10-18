@@ -140,15 +140,31 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 @export var cable_brake := 12.0
 
 @export_group("Compañero")
-## Colgarse de un compañero que está agarrado de un borde o de una escalera
-## (modo Enganchado). Las manos van a la cintura: esta altura sobre sus pies,
-## en metros. El cuerpo cuelga hang_height por debajo de las manos.
+## Colgarse de un compañero que está agarrado de un borde, de una escalera o de
+## un cable (modo Enganchado). Las manos van a la cintura: esta altura sobre
+## sus pies, en metros. El cuerpo cuelga hang_height por debajo de las manos.
 @export var hook_height := 1.0
 ## Distancia de centro a centro, de espaldas a la pared: los dos cuerpos quedan
 ## tocándose.
 @export var hook_distance := 0.7
-## Alcance: hasta dónde llega el agarre, como distancia máxima del snap.
+## Alcance: hasta dónde llega el agarre, como distancia máxima del snap. De un
+## compañero en un cable, se usa hook_cable_reach.
 @export var hook_reach := 1.0
+## De un compañero en un cable, que es como un cilindro: te agarrás de
+## cualquier lado, sin mirarlo, si tus manos pasan a no más de esto de su eje,
+## en horizontal, entre hook_min_height y hook_max_height sobre sus pies. El
+## cuerpo va a la cintura (hook_height), del lado por el que llegaste.
+@export var hook_cable_reach := 1.0
+## Colgado de un compañero en un cable: hasta dónde bajan y suben tus manos con
+## S y W, sobre sus pies (de los pies a los hombros). Es también la franja en
+## la que te agarrás.
+@export var hook_min_height := 0.0
+@export var hook_max_height := 1.5
+## Colgado de un compañero en un cable: a qué velocidad suben y bajan tus manos
+## con W y S, y a qué velocidad girás alrededor de él con A y D (sobre el
+## círculo de hook_distance), en m/s.
+@export var hook_climb_speed := 1.5
+@export var hook_turn_speed := 1.5
 
 @export_group("Cámara lenta")
 ## Escala de tiempo de la cámara lenta del mundo. La prende y la apaga

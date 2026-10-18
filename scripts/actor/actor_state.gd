@@ -71,9 +71,11 @@ var stance: int = Stance.STANDING
 ##   vale 0, salvo doblando una esquina (por afuera o por adentro, ver
 ##   corner_inside): cuánto giró la normal desde la cara
 ##   donde empezó, en radianes, con signo (ver ActorMotor._hang).
-## - Hooked: el id de red (peer) del compañero del que cuelga; anchor_t vale 0
-##   si cuelga de su espalda y -1 si cuelga de su frente, que solo se puede
-##   con el compañero en un cable (ver ActorMotor.hook_check).
+## - Hooked: el id de red (peer) del compañero del que cuelga, y la altura de
+##   las manos sobre sus pies, en metros: la cintura (hook_height) colgado de
+##   uno en un borde o una escalera; en un cable, la que dejaron W y S. De qué
+##   lado cuelga lo dice facing_yaw, que mira hacia él: mirando hacia donde
+##   mira él, de su espalda (ver ActorMotor.hook_check).
 ## - Cable: el cable, y la distancia sobre él desde su origen, en metros.
 var anchor_id := 0
 var anchor_t := 0.0

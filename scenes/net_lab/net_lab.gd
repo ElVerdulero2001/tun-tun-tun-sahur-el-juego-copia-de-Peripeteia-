@@ -303,6 +303,13 @@ const CABLE_LADDER_NAME := &"EscaleraTirolesa"
 const TOWER_LADDER_NAME := &"TowerLadder"
 const CABLE_ZIPLINE_NAME := &"Tirolesa"
 const CABLE_RETURN := [Vector3(16.0, 0.0, 27.5), Vector3(9.35, 0.0, 27.5)]
+## Prueba `cablehold`: a qué altura del cable deja de deslizarse. Frenando
+## queda un poco más abajo; desde el piso, se llega saltando a su cintura.
+const CABLE_HOLD_HEIGHT := 3.9
+## Prueba `hook:cable`: a qué distancia del compañero salta hacia él, y por
+## dónde pasa desde donde se aparece, para no chocar con la torre chica.
+const HOOK_CABLE_START := 1.5
+const HOOK_CABLE_DETOUR := Vector3(20.0, 0.0, 9.0)
 var _hang_face := Vector3.INF
 var _hang_detour_x := 0.0
 var _hang_shimmy := 30
@@ -345,6 +352,10 @@ var hook_fell_with_mate := 0
 var hook_edges_after := 0
 var hook_tops := 0
 var hook_drops := 0
+## Prueba `hook:cable`: cuántas veces se colgó del frente del compañero, y
+## cuántas quedó del lado que no buscaba.
+var hook_front_grabs := 0
+var hook_wrong_side := 0
 ## Pruebas `ladderdrop` y `ladderhold:drop`: tramo, ticks en el tramo,
 ## pulsaciones de salto propias, ticks de Ctrl que faltan y cuántas veces se
 ## soltó con Ctrl, saltó mirándola y se volvió a agarrar solo después de cada cosa.
@@ -641,8 +652,8 @@ func _local_input(tick: int) -> ActorInput:
 		return _hang_input(tick, 0)
 	if test_input == "airjump":
 		return _air_jump_input(tick)
-	if test_input == "cable":
-		return _cable_input(tick)
+	if test_input == "cable" or test_input == "cablehold":
+		return _cable_input(tick, test_input == "cablehold")
 	if test_input == "ladder" or test_input == "laddertop" or test_input == "laddertop:back":
 		return _ladder_input(tick, test_input != "ladder", TOWER_LADDER_NAME, test_input == "laddertop:back")
 	if test_input == "ladderhold" or test_input == "ladderhold:drop":
@@ -651,6 +662,8 @@ func _local_input(tick: int) -> ActorInput:
 		return _ladder_drop_input(tick)
 	if test_input == "hookwall" or test_input == "hookwall:drop":
 		return _hook_wall_input(tick, test_input == "hookwall:drop")
+	if test_input == "hook:cable":
+		return _hook_cable_input(tick)
 	if test_input.begins_with("hook:"):
 		return _hook_input(tick, test_input.trim_prefix("hook:"))
 	if test_input == "zigzag":
@@ -928,7 +941,11 @@ func _air_jump_input(tick: int) -> ActorInput:
 ## W medio segundo y frena), sube 1,5 s con S (mirando para abajo, S es para
 ## arriba), se suelta con Ctrl y vuelve a la escalera por detrás de la
 ## plataforma.
-func _cable_input(tick: int) -> ActorInput:
+##
+## Prueba `cablehold` (con `hold`): se desliza hasta que el cable queda a
+## CABLE_HOLD_HEIGHT y ahí suelta W y se queda colgado, para que otro se
+## cuelgue de él (prueba `hook:cable`).
+func _cable_input(tick: int, hold := false) -> ActorInput:
 	if not is_instance_valid(_local_actor):
 		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
 	var s := _local_actor.state
@@ -959,6 +976,9 @@ func _cable_input(tick: int) -> ActorInput:
 			if s.mode != ActorState.Mode.CABLE or cable == null:
 				_cable_phase = 4
 				_cable_waypoint = 0
+			elif hold:
+				var low_enough := s.anchor_point.y <= CABLE_HOLD_HEIGHT
+				input = ActorInput.make(tick, Vector2.ZERO if low_enough else Vector2(0, 1), -PI * 0.5, 0, 0)
 			elif _cable_ticks > 60 and s.velocity.length() < 0.001 and s.anchor_t >= cable.length() - 1.0:
 				cable_slides += 1
 				_cable_phase = 3
@@ -1366,6 +1386,91 @@ func _hook_input(tick: int, where: String) -> ActorInput:
 	return ActorInput.make(tick, move, yaw, buttons, _hook_presses)
 
 
+## Prueba `hook:cable`, en ciclos: espera a que haya un compañero quieto en un
+## cable, se para a HOOK_CABLE_START de él, de su espalda o de su frente (cambia
+## en cada vuelta), salta hacia él y se cuelga de su cintura. Colgado
+## HOOK_HOLD_TICKS, por turnos como en `hook:wall`: se suelta con Ctrl, salta
+## para arriba mirándolo o salta hacia el otro lado. Si se agarra del cable, se
+## suelta con Ctrl. Después vuelve.
+func _hook_cable_input(tick: int) -> ActorInput:
+	if not is_instance_valid(_local_actor):
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _hook_presses)
+	var s := _local_actor.state
+	var me := BaseRegistry.world_position(s)
+	var mate: ActorBody = null
+	for each in _local_actor.teammates():
+		if each.state.mode == ActorState.Mode.CABLE:
+			mate = each
+	var front := _hook_cycle % 2 == 1
+	var to_mate := 0.0
+	if mate != null:
+		var to := mate.global_position - me
+		to_mate = atan2(-to.x, -to.z)
+	_hook_since += 1
+	var move := Vector2.ZERO
+	var yaw := 0.0
+	var buttons := 0
+	var phase := _hook_phase
+	match _hook_phase:
+		0:  # espera al compañero quieto en el cable y va a su espalda o a su frente
+			if mate != null and mate.state.hooked_by == 0 and mate.state.velocity.length() < 0.001:
+				var out := Vector3.BACK.rotated(Vector3.UP, mate.state.facing_yaw) * (-1.0 if front else 1.0)
+				var spot := mate.global_position + out * HOOK_CABLE_START
+				# Desde donde se aparece, primero por delante de la torre chica.
+				move = _walk_to(me, HOOK_CABLE_DETOUR if me.x < HOOK_CABLE_DETOUR.x - 0.5 and me.z < 15.0 else spot)
+				if Vector2(me.x - spot.x, me.z - spot.z).length() < 0.15 and s.mode == ActorState.Mode.GROUND \
+						and _horizontal(s) < 0.1:
+					_hook_presses = (_hook_presses + 1) & 0xFF
+					_set_hook_phase(1)
+		1:  # en el aire, hacia él
+			move = Vector2(0, 1)
+			yaw = to_mate
+			if s.mode == ActorState.Mode.HOOKED:
+				hook_grabs += 1
+				if ActorMotor.hooked_front(s):
+					hook_front_grabs += 1
+				if ActorMotor.hooked_front(s) != front:
+					hook_wrong_side += 1
+				_set_hook_phase(3)
+			elif s.mode == ActorState.Mode.CABLE:
+				hook_other_grabs += 1
+				_set_hook_phase(6)
+			elif s.mode == ActorState.Mode.GROUND and _hook_since > 20:
+				_set_hook_phase(5)
+		3:  # colgado del compañero
+			yaw = to_mate
+			if s.mode != ActorState.Mode.HOOKED:
+				if _hook_since <= HOOK_HOLD_TICKS:
+					hook_fell_with_mate += 1
+					print("[net_lab] compañero: se cayó con él en el tick %d, %d ticks después de colgarse (%s)" % [
+						tick, _hook_since, mate.state.describe() if mate != null else "el compañero ya no está en el cable"])
+				_set_hook_phase(6)
+			elif _hook_since == HOOK_HOLD_TICKS:
+				match _hook_cycle % 3:
+					0:
+						hook_releases += 1
+					1:
+						hook_jumps_up += 1
+						_hook_presses = (_hook_presses + 1) & 0xFF
+					2:
+						hook_jumps_away += 1
+						yaw = to_mate + PI
+						_hook_presses = (_hook_presses + 1) & 0xFF
+			if _hook_cycle % 3 == 0 and _hook_since >= HOOK_HOLD_TICKS:
+				buttons = ActorInput.BUTTON_CROUCH
+		5:  # vuelve a empezar
+			_hook_cycle += 1
+			_set_hook_phase(0)
+		6:  # en el aire o agarrado del cable: se suelta con Ctrl y espera a tocar el piso
+			if s.mode == ActorState.Mode.CABLE:
+				buttons = ActorInput.BUTTON_CROUCH
+			elif s.mode == ActorState.Mode.GROUND:
+				_set_hook_phase(5)
+	if phase != _hook_phase:
+		print("[net_lab] colgarse del cable: tramo %d en %s, %s" % [_hook_phase, me, s.describe()])
+	return ActorInput.make(tick, move, yaw, buttons, _hook_presses)
+
+
 ## Prueba de desconexión con alguien colgado: imprime el estado y cierra el
 ## juego sin despedirse, como si se cortara. Con --test-cut-hooked corta la red
 ## una sola vez, en vez de cerrar.
@@ -1567,7 +1672,7 @@ func _measure_hooked_gap() -> void:
 		if actor == _local_actor or actor.state.mode != ActorState.Mode.HOOKED \
 				or actor.state.anchor_id != _local_actor.owner_peer_id:
 			continue
-		var expected := ActorMotor.hook_pose(_local_actor, tuning)
+		var expected := ActorMotor.hook_pose(_local_actor, tuning, ActorMotor.hooked_front(actor.state))
 		hooked_gap_max = maxf(hooked_gap_max, actor.global_position.distance_to(expected))
 
 
@@ -2077,7 +2182,8 @@ func _update_hud() -> void:
 			lines.append("Colgado del borde: filo a %.2f m de altura%s" % [BaseRegistry.origin(s.anchor_id).y + s.anchor_point.y,
 					"   ·   sobre la base %d" % s.anchor_id if s.anchor_id != 0 else ""])
 		elif s.mode == ActorState.Mode.HOOKED:
-			lines.append("Colgado de la cintura del jugador %d" % s.anchor_id)
+			lines.append("Colgado de la cintura del jugador %d, %s" % [s.anchor_id,
+					"de frente a él" if ActorMotor.hooked_front(s) else "de su espalda"])
 		elif s.mode == ActorState.Mode.CABLE:
 			var cable := Cable.find(s.anchor_id)
 			var slope := absf(rad_to_deg(asin(clampf(cable.tangent_at(s.anchor_t).y, -1.0, 1.0)))) if cable != null else 0.0
@@ -2190,7 +2296,7 @@ func _print_summary_and_quit() -> void:
 		print("[net_lab] relevo de prueba: %d paquetes pasaron, %d se tiraron en los cortes" % [_relay.forwarded, _relay.dropped])
 	if test_input == "airjump":
 		print("[net_lab] salto en el aire: %d saltos" % air_jumps)
-	if test_input == "cable":
+	if test_input == "cable" or test_input == "cablehold":
 		print("[net_lab] cable: %d agarres, %d frenadas a mitad de camino, %d bajadas hasta la punta, subió %.2f m en total; tramo %d" % [cable_grabs, cable_stops, cable_slides, cable_climbed, _cable_phase])
 	if test_input == "tunnel":
 		print("[net_lab] túnel: llegó al tramo %d; ticks parado bajo el techo: %d" % [_tunnel_phase, _tunnel_standing_under_roof])
@@ -2202,6 +2308,9 @@ func _print_summary_and_quit() -> void:
 	if test_input.begins_with("hook:"):
 		print("[net_lab] compañero: %d se colgó, %d se soltó con Ctrl, %d saltó para arriba (%d se agarró del borde después, %d llegó arriba), %d saltó hacia atrás, %d se cayó con el compañero, %d se agarró de otra cosa" % [
 			hook_grabs, hook_releases, hook_jumps_up, hook_edges_after, hook_tops, hook_jumps_away, hook_fell_with_mate, hook_other_grabs])
+	if test_input == "hook:cable":
+		print("[net_lab] compañero en un cable: %d vueltas, %d de su frente, %d del lado que no buscaba; tramo %d" % [
+			_hook_cycle, hook_front_grabs, hook_wrong_side, _hook_phase])
 	if test_input == "ladderdrop" or test_input == "ladderhold:drop":
 		print("[net_lab] escalera: se soltó %d veces con Ctrl (%d con alguien colgado) y se volvió a agarrar solo %d; saltó mirándola %d veces y se volvió a agarrar solo %d" % [
 				ladder_drops + hook_drops, hook_drops, ladder_drop_returns, ladder_jumps, ladder_jump_returns])

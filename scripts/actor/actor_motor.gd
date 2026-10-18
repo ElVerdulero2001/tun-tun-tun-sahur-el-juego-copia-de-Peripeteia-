@@ -212,7 +212,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				# arriba, con los pies hasta hang_climb_clearance por encima de sus
 				# manos; mirando a otro lado, salta hacia allá y se da vuelta.
 				var look := Vector3.FORWARD.rotated(Vector3.UP, input.look_yaw)
-				if look.dot(-_out_of(mate.state)) >= cos(tuning.climb_look_angle):
+				if look.dot(_toward_mate(state, mate)) >= cos(tuning.climb_look_angle):
 					_leave_hook(state, tuning, Vector3.UP * _climb_jump_speed(tuning, dt), true)
 				else:
 					_leave_hook(state, tuning, look * tuning.hang_jump_out + Vector3.UP * tuning.hang_jump_up, true)
@@ -221,8 +221,12 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		ActorState.Mode.CABLE:
 			if cable == null or crouch_held:
 				# Ctrl se suelta, o se rompió el invariante: el cable ya no existe.
-				# Sale con la velocidad que traía sobre el cable.
+				# Sale con la velocidad que traía sobre el cable. Si un compañero
+				# cuelga de él, se caen los dos, como colgado de un borde.
 				_leave_cable(state, tuning, state.velocity)
+			elif state.hooked_by != 0:
+				# Un compañero cuelga de él: se queda quieto. Saltar no hace nada.
+				state.jump_buffer_left = 0.0
 			elif wants_jump:
 				# Salta hacia donde mira la cámara, como colgado de un borde mirando a
 				# otro lado, y se da vuelta hacia allá. Se lleva la velocidad que traía
@@ -248,9 +252,9 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		ActorState.Mode.HANGING:
 			edge = _hang(body, state, edge, input, tuning, dt)
 		ActorState.Mode.HOOKED:
-			# Cuelga quieto: la pose la da el compañero.
+			# Cuelga quieto: la pose la da el compañero. Mira hacia él.
 			state.velocity = Vector3.ZERO
-			state.facing_yaw = mate.state.facing_yaw
+			state.facing_yaw = _hook_yaw(state, mate)
 		ActorState.Mode.CABLE:
 			_cable(state, cable, input, tuning, dt)
 	if state.mode == ActorState.Mode.SLIDE:
@@ -307,10 +311,11 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		if base_now != state.base_id:
 			state.velocity += BaseRegistry.velocity(state.base_id) - BaseRegistry.velocity(base_now)
 			state.base_id = base_now
-	# Solo se puede colgar alguien de un actor agarrado de un borde o de una
-	# escalera: si dejó de estarlo, ya no cuelga nadie de él. Lo calculan igual
-	# el host y el cliente, así soltarse no necesita un evento del host.
-	if state.mode != ActorState.Mode.HANGING and state.mode != ActorState.Mode.LADDER:
+	# Solo se puede colgar alguien de un actor agarrado de un borde, de una
+	# escalera o de un cable: si dejó de estarlo, ya no cuelga nadie de él. Lo
+	# calculan igual el host y el cliente, así soltarse no necesita un evento
+	# del host.
+	if not _holds_mates(state.mode):
 		state.hooked_by = 0
 	# El salto en el aire vuelve al apoyarse o agarrarse de algo.
 	if state.mode != ActorState.Mode.AIR:
@@ -594,7 +599,7 @@ static func apply_impulse(state: ActorState, impulse: Vector3, force: int, tunin
 			_leave_hook(state, tuning, impulse, true)
 		return
 	if state.mode == ActorState.Mode.CABLE:
-		if force >= tuning.cable_grip:
+		if force >= tuning.cable_grip - load_drop:
 			_leave_cable(state, tuning, state.velocity + impulse)
 		else:
 			var cable := Cable.find(state.anchor_id)
@@ -614,10 +619,13 @@ static func anchored_pose_valid(body: ActorBody, state: ActorState, tuning: Acto
 	if state.mode == ActorState.Mode.HOOKED:
 		# El compañero existe, sigue agarrado y no cuelga otro de él; la pose,
 		# cerca de la que da el compañero acá (el cliente lo vio en el pasado).
+		# Por adelante, solo de uno que está en un cable.
 		var mate := body.teammate(state.anchor_id)
 		if not _hook_holds(body, mate):
 			return false
-		return BaseRegistry.world_position(state).distance_to(hook_pose(mate, tuning)) <= HOOK_TOLERANCE
+		if hooked_front(state) and mate.state.mode != ActorState.Mode.CABLE:
+			return false
+		return BaseRegistry.world_position(state).distance_to(hook_pose(mate, tuning, hooked_front(state))) <= HOOK_TOLERANCE
 	if state.mode == ActorState.Mode.HANGING:
 		var edge := _held_edge(body, state, tuning)
 		if edge.is_empty() or absf(state.anchor_t) >= PI * 0.5:
@@ -1177,9 +1185,9 @@ static func _try_hook(body: ActorBody, state: ActorState, direction: Vector3, tu
 	var mate: ActorBody = check["anchor"]
 	state.mode = ActorState.Mode.HOOKED
 	state.anchor_id = mate.owner_peer_id
-	state.anchor_t = 0.0
+	state.anchor_t = -1.0 if check["front"] else 0.0
 	state.velocity = Vector3.ZERO
-	state.facing_yaw = mate.state.facing_yaw
+	state.facing_yaw = _hook_yaw(state, mate)
 	state.jump_buffer_left = 0.0
 	state.coyote_left = 0.0
 	body.grab_jump += check["pose"] - _standing_feet(body, state)
@@ -1191,20 +1199,25 @@ static func _try_hook(body: ActorBody, state: ActorState, direction: Vector3, tu
 ## (ver grab_direction), y tienen que pasar en este tick por la altura de la
 ## cintura del compañero (subiendo, recién cuando llegan; en el tick del salto,
 ## que todavía era Suelo, cuenta también el anterior). El compañero tiene que
-## estar agarrado de un borde o de una escalera, sin otro colgado de él. La
-## pose cabe, el camino hasta ella está libre y queda a no más de hook_reach.
-## Con varios, gana el de id más chico.
+## estar agarrado de un borde, de una escalera o de un cable, sin otro colgado
+## de él. La pose cabe, el camino hasta ella está libre y queda a no más de
+## hook_reach. Con varios, gana el de id más chico.
+##
+## Se cuelga de su espalda. Del que está en un cable, del lado del que llega:
+## de su espalda o de su frente (pedido del usuario, 2026-10-18). En un cable
+## no hay pared, y hacia dónde mira depende de la cámara al agarrarse.
 ##
 ## Del compañero se usa lo que esta máquina tiene de él: en el host, su estado
 ## de este tick; en un cliente, el que se está mostrando, que es del pasado.
-## Como el compañero está quieto, da lo mismo.
+## Como el compañero está quieto, da lo mismo. En un cable puede estar
+## moviéndose al colgarse uno de él: ahí, con internet mala, el host corrige.
 ##
-## Devuelve {anchor, pose, why}: why vacío si se puede, o por qué no (el del
-## último compañero mirado). Lo usan el motor y las pruebas. Como en
-## grab_check, agachado no se cuelga, y encogido se mide desde los pies de
-## parado.
+## Devuelve {anchor, pose, front, why}: why vacío si se puede, o por qué no (el
+## del último compañero mirado); front, si es de su frente. Lo usan el motor y
+## las pruebas. Como en grab_check, agachado no se cuelga, y encogido se mide
+## desde los pies de parado.
 static func hook_check(body: ActorBody, state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> Dictionary:
-	var result := {"anchor": null, "pose": Vector3.ZERO, "why": "sin compañero"}
+	var result := {"anchor": null, "pose": Vector3.ZERO, "front": false, "why": "sin compañero"}
 	if state.regrab_id == ActorState.REGRAB_TEAMMATES or state.stance == ActorState.Stance.CROUCHED:
 		result["why"] = "bloqueo o postura"
 		return result
@@ -1222,12 +1235,15 @@ static func hook_check(body: ActorBody, state: ActorState, direction: Vector3, t
 	for mate in body.teammates():
 		if not _hook_holds(body, mate):
 			continue
-		var pose := hook_pose(mate, tuning)
+		var front := mate.state.mode == ActorState.Mode.CABLE \
+				and (from - mate.global_position).dot(_out_of(mate.state)) < 0.0
+		var pose := hook_pose(mate, tuning, front)
 		result["anchor"] = mate
 		result["pose"] = pose
+		result["front"] = front
 		if pose.y < low or pose.y > high:
 			result["why"] = "las manos no pasan por su cintura"
-		elif toward.dot(-_out_of(mate.state)) < 0.5:
+		elif toward.dot(_out_of(mate.state) * (1.0 if front else -1.0)) < 0.5:
 			result["why"] = "intención de costado"
 		elif pose.distance_to(from) > tuning.hook_reach:
 			result["why"] = "muy lejos"
@@ -1243,9 +1259,10 @@ static func hook_check(body: ActorBody, state: ActorState, direction: Vector3, t
 
 ## Pose colgado de un compañero: las manos en su cintura, hook_height por
 ## encima de sus pies, y el cuerpo hook_distance más afuera que él, de
-## espaldas a la pared. Depende solo del compañero.
-static func hook_pose(mate: ActorBody, tuning: ActorTuning) -> Vector3:
-	return mate.global_position + _out_of(mate.state) * tuning.hook_distance \
+## espaldas a la pared; con `front` (solo en un cable), del lado de adelante.
+## Depende solo del compañero y del lado.
+static func hook_pose(mate: ActorBody, tuning: ActorTuning, front := false) -> Vector3:
+	return mate.global_position + _out_of(mate.state) * (-1.0 if front else 1.0) * tuning.hook_distance \
 			+ Vector3.UP * (tuning.hook_height - tuning.hang_height)
 
 
@@ -1254,12 +1271,33 @@ static func _out_of(state: ActorState) -> Vector3:
 	return Vector3.BACK.rotated(Vector3.UP, state.facing_yaw)
 
 
-## Si `mate` sostiene a este actor: existe, está agarrado de un borde o de una
-## escalera, y no cuelga otro de él.
+## Colgado de un compañero: si es de su frente (ver hook_check).
+static func hooked_front(state: ActorState) -> bool:
+	return state.anchor_t < 0.0
+
+
+## Colgado de un compañero: hacia él, en horizontal.
+static func _toward_mate(state: ActorState, mate: ActorBody) -> Vector3:
+	return _out_of(mate.state) * (1.0 if hooked_front(state) else -1.0)
+
+
+## Colgado de un compañero: hacia dónde mira, que es hacia él. De su espalda,
+## hacia donde mira el compañero; de su frente, al revés.
+static func _hook_yaw(state: ActorState, mate: ActorBody) -> float:
+	return mate.state.facing_yaw + (PI if hooked_front(state) else 0.0)
+
+
+## Los modos de los que se puede colgar un compañero.
+static func _holds_mates(mode: int) -> bool:
+	return mode == ActorState.Mode.HANGING or mode == ActorState.Mode.LADDER or mode == ActorState.Mode.CABLE
+
+
+## Si `mate` sostiene a este actor: existe, está agarrado de un borde, de una
+## escalera o de un cable, y no cuelga otro de él.
 static func _hook_holds(body: ActorBody, mate: ActorBody) -> bool:
 	if mate == null:
 		return false
-	if mate.state.mode != ActorState.Mode.HANGING and mate.state.mode != ActorState.Mode.LADDER:
+	if not _holds_mates(mate.state.mode):
 		return false
 	return mate.state.hooked_by == 0 or mate.state.hooked_by == body.owner_peer_id
 
@@ -1269,12 +1307,12 @@ static func _hook_holds(body: ActorBody, mate: ActorBody) -> bool:
 static func _move_hooked(body: ActorBody, state: ActorState, mate: ActorBody, tuning: ActorTuning) -> void:
 	if mate == null:
 		return
-	var pose := hook_pose(mate, tuning)
+	var pose := hook_pose(mate, tuning, hooked_front(state))
 	var motion := pose - body.global_position
 	if motion.length_squared() > 1e-12 and body.move_and_collide(motion) != null:
 		_leave_hook(state, tuning, Vector3.ZERO, true)
 		return
-	var inward := -_out_of(mate.state)
+	var inward := _toward_mate(state, mate)
 	state.anchor_point = pose + Vector3.UP * tuning.hang_height + inward * (tuning.hook_distance - body.capsule_radius())
 
 
@@ -1443,7 +1481,7 @@ static func _cable_pose(cable: Cable, t: float, tuning: ActorTuning) -> Vector3:
 ## desliza, acelerando con la gravedad sobre el cable hasta cable_slide_speed
 ## por el seno de la inclinación. Soltando las teclas o apretando las de para
 ## arriba (y si el cable se aplana) frena a cable_brake. En las puntas se frena
-## en seco.
+## en seco. Con un compañero colgado, se queda quieto.
 static func _cable(state: ActorState, cable: Cable, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
 	if cable == null:
 		return
@@ -1474,6 +1512,8 @@ static func _cable(state: ActorState, cable: Cable, input: ActorInput, tuning: A
 			# Venía deslizándose: soltó las teclas, pidió para arriba o el cable se aplanó.
 			rate = tuning.cable_brake
 	along = move_toward(along, wish, rate * dt)
+	if state.hooked_by != 0:
+		along = 0.0
 	var t := state.anchor_t + along * dt
 	var top := cable.length()
 	if t <= 0.0 or t >= top:

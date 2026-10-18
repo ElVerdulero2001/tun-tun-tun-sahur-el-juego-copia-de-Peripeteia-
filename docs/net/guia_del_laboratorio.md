@@ -7,7 +7,7 @@ Esta guía es para retomar el laboratorio después de un tiempo sin tener que le
 
 **Para pedirle algo a Claude en otra conversación:** "leé `docs/net/guia_del_laboratorio.md` y ayudame a …". Si hace falta más detalle, la sección 8 de esta guía dice en qué parte del historial buscarlo.
 
-Escrita el 2026-10-15. Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
+Escrita el 2026-10-15 y puesta al día el 2026-10-17. Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
 
 ---
 
@@ -69,6 +69,8 @@ En el menú, **Simular internet**, o en el juego, las teclas **1** a **5** de la
 ### Capturas
 
 **F12** guarda una captura del juego en el **Escritorio**. Para pasárselas a Claude, se mueven a `C:\Users\ElCaido97\Documents\otro proyecto bobo\capturas`, que es donde las busca. Si no las encuentra ahí, también mira el Escritorio.
+
+**Los videos** (grabados con OBS) van a la misma carpeta. Claude los revisa sacando imágenes con ffmpeg: el tuyo, en `C:\ffmpeg\ffmpeg-9.0.2-essentials_build\bin`, que está en tu PATH desde el 2026-10-17. Conviene un video de cada PC.
 
 ### Las teclas del laboratorio
 
@@ -163,6 +165,15 @@ En el Inspector, grupo **Dibujo**:
 
 Si dejás un modelo vacío, va una barra provisoria.
 
+### Cómo se juega
+
+Las reglas, que decidiste vos, en la sección 8.21 del historial:
+
+- **W sube y S baja,** mire donde mire la cámara; A y D no hacen nada.
+- **Saliendo por arriba con W sola,** seguís derecho hacia donde subías; soltar W o tocar A, S o D lo corta.
+- **Espacio mirándola** salta para arriba y te volvés a agarrar solo, en el punto más alto o, si pasaste el final, al volver a bajar.
+- **Ctrl** te suelta sin empujón: caés mientras lo tengas y al soltarlo te agarrás. Con Ctrl no te agarrás de ninguna escalera, y con alguien colgado de vos, se caen los dos.
+
 ### Hacer los modelos en Blender
 
 1. Una pieza por archivo: el larguero y el peldaño por separado.
@@ -188,6 +199,8 @@ Si dejás un modelo vacío, va una barra provisoria.
 - **Nada se afirma sin probarlo;** si algo sale de leer el código y no de una prueba, se dice.
 - **El doble clic de la notebook se hace cuando Claude avisa que algo está listo,** no mientras cambia archivos.
 - **Los poderes van en el teclado numérico** (1 y 2 usados; del 3 en adelante, libres), como acciones del Mapa de entrada.
+- **Todo lo que te escribe Claude va en español,** también los avisos entre pasos.
+- **Cuando Claude te nombra un archivo,** te dice qué es y si tenés que hacer algo con él.
 - **Las pruebas automáticas:** la de repetición y el barrido de bordes están en el proyecto. Las demás (`diag_*.gd` y las pruebas en pareja) Claude las arma en una carpeta temporal que se borra; están copiadas enteras en el Apéndice B del historial, para volver a correrlas.
 
 ---
@@ -200,6 +213,8 @@ Si dejás un modelo vacío, va una barra provisoria.
 - **El laboratorio no es el juego.** Antes de pasarlo al juego queda pendiente el punto 4 de la revisión externa: sacar las reglas que hoy están en `net_lab.gd` a una pieza propia (sección 8.12 del historial).
 - **El muro de 3,6 m de la torre se sube solo desde el cajón,** aunque el cartel diga "con un compañero". Quedó así a pedido.
 - **Las capturas de la notebook** también van a la carpeta de capturas.
+- **Saliendo derecho de una escalera,** girar la cámara no hace doblar: hay que soltar W o tocar A, S o D.
+- **Cuando el de arriba se suelta con alguien colgado,** el que cuelga recibe una corrección por caída, porque ve al de arriba con atraso. Es normal, también en el muro.
 
 La lista completa de pendientes y límites está en la sección 16 del historial.
 
@@ -226,6 +241,7 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 | El salto en el aire | 8.17 |
 | Cables: cómo se juegan | 8.19 |
 | Cables y escaleras en el editor | 8.20 |
+| La escalera: W y S, la salida por arriba, el salto y Ctrl; colgado del compañero con internet mala | 8.21 |
 | El código hoy: archivos, funciones, formatos de red, constantes, valores del Tuning | 9 |
 | Cómo usar el laboratorio: menú, teclas, panel, pruebas, el nivel | 10 |
 | Todas las pruebas y sus resultados | 11 |
@@ -238,8 +254,9 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 
 ---
 
-## 9. Dónde quedó (2026-10-15)
+## 9. Dónde quedó (2026-10-17)
 
-- **Último commit:** el de esta guía y la undécima versión del historial (2026-10-16), en `net-lab`, solo local. Antes, `3e1bd48`, la décima versión del historial, y `7dd59ca`, los cables.
-- **Sin commit:** el código de los cables como curva, los números solos de cables y escaleras, y la escalera con modelos (sección 8.20 del historial). Falta la prueba en las dos PC.
-- **Por decidir antes del commit:** si se quedan en el nivel tus dos objetos de prueba, **CablePrueba1** y la escalera de 17 m (**Ladder**). Si se quedan, en el commit van también los dos `.glb` de `assets/models/stairs`.
+- **Último commit:** el de esta guía y la duodécima versión del historial (2026-10-17), en `net-lab`. Antes, `3c3fab8` (el arreglo de colgado del compañero con internet mala y la ayuda partida) y `969c7fc` (las teclas, el salto y Ctrl de la escalera).
+- **En GitHub:** la rama `net-lab` se subió el 2026-10-17 con todos los commits, hasta el de esta guía.
+- **Sin commit:** nada del laboratorio. `project.godot` tiene la línea 4.6 → 4.7 del editor, que no se commitea.
+- **Pendientes:** la cuerda con la cámara ("no lo vamos a tocar ahora"); las pruebas de empujones al que cuelga de un compañero, que ya no llegan a colgarse (de antes, sin investigar); y el punto 4 de la revisión externa, para cuando pase al juego. La lista completa, en la sección 16 del historial.

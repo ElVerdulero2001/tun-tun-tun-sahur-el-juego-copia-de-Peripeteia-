@@ -2245,14 +2245,14 @@ func _update_hud() -> void:
 			var cable := Cable.find(s.anchor_id)
 			var slope := absf(rad_to_deg(asin(clampf(cable.tangent_at(s.anchor_t).y, -1.0, 1.0)))) if cable != null else 0.0
 			lines.append("Colgado del cable %s   ·   a %.2f m de su punta   ·   inclinación %.0f°%s" % [String(cable.name) if cable != null else str(s.anchor_id), s.anchor_t, slope,
-					("   ·   te deslizás: soltá las teclas para frenar" if s.velocity.length() > tuning.shimmy_speed + 0.01
+					("   ·   te deslizás: soltá las teclas para frenar" if s.velocity.length() > tuning.cable_speed + 0.01
 					else "   ·   las teclas hacia abajo te deslizan") if slope >= rad_to_deg(tuning.cable_slide_angle) else ""])
 		elif s.regrab_left > 0.0 and s.regrab_id == ActorState.REGRAB_CABLES:
-			lines.append("Recién soltó un cable: no puede agarrar otro por %.2f s" % s.regrab_left)
+			lines.append("Recién soltó un cable: no puede agarrar otro ni colgarse de un compañero por %.2f s" % s.regrab_left)
 		elif s.regrab_left > 0.0 and s.regrab_id == ActorState.REGRAB_EDGES:
 			lines.append("Recién soltó un borde: no puede agarrar otro ni un cable por %.2f s" % s.regrab_left)
 		elif s.regrab_left > 0.0 and s.regrab_id == ActorState.REGRAB_TEAMMATES:
-			lines.append("Recién se soltó de un compañero: no se puede colgar de otro por %.2f s" % s.regrab_left)
+			lines.append("Recién se soltó de un compañero: no se puede colgar de otro ni agarrar un cable por %.2f s" % s.regrab_left)
 		elif s.regrab_left > 0.0:
 			lines.append("Recién soltó la escalera %d: no la puede volver a agarrar por %.2f s" % [s.regrab_id, s.regrab_left])
 		if s.hooked_by != 0:

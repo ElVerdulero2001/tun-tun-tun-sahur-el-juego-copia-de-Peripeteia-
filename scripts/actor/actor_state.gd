@@ -34,9 +34,13 @@ const BYTE_SIZE := 92
 ## usuario, 2026-10-18).
 const REGRAB_EDGES := 0xFFFF
 ## regrab_id de un bloqueo de compañeros (Enganchado): no se puede volver a
-## colgar de ninguno por un rato.
+## colgar de ninguno por un rato. También bloquea los cables, y el de cables
+## bloquea también a los compañeros: si no, del compañero colgado de un cable
+## el salto pasa al cable, y desde el cable vuelve al compañero, una y otra vez
+## (pedido del usuario, 2026-10-19).
 const REGRAB_TEAMMATES := 0xFFFE
-## regrab_id de un bloqueo de cables: no se puede volver a agarrar de ninguno por un rato.
+## regrab_id de un bloqueo de cables: no se puede volver a agarrar de ninguno
+## por un rato, ni colgarse de un compañero (ver REGRAB_TEAMMATES).
 const REGRAB_CABLES := 0xFFFD
 
 ## Con base, relativa a ella; sin base, en el mundo. Ver BaseRegistry.world_position().

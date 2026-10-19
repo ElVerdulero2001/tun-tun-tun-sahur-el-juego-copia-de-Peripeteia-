@@ -102,9 +102,9 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 @export_group("Cable")
 ## Colgado de un cable, el cuerpo cuelga hang_height por debajo de las manos, de
 ## frente al cable. Las teclas se toman según la cámara, como caminando, y lo
-## mueven a lo largo del cable hacia donde apuntan, a shimmy_speed (grupo
-## Borde): mirando a lo largo del cable, W y S; mirándolo de costado, A y D.
-## Sin teclas se queda quieto, esté como esté inclinado el cable.
+## mueven a lo largo del cable hacia donde apuntan, a cable_speed: mirando a lo
+## largo del cable, W y S; mirándolo de costado, A y D. Sin teclas se queda
+## quieto, esté como esté inclinado el cable.
 ##
 ## Se agarra sin tecla si en un tick el cable toca la parte de arriba del
 ## cuerpo (ver cable_grab_body) o las manos, a no más de esto del eje del
@@ -119,6 +119,10 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## 1,05 m; con 0,3, hasta 0,69 m. Más chico se ve mejor pero hay que caer más
 ## justo.
 @export_range(0.0, 1.0, 0.01) var cable_grab_body := 0.5
+## Velocidad con las teclas en un cable plano o poco inclinado (menos que
+## cable_slide_angle), para los dos lados, en m/s. Hasta el 2026-10-19 era la
+## de los bordes (shimmy_speed, 1,5 m/s); el usuario la encontró lenta.
+@export var cable_speed := 3.5
 ## Si el cable está más inclinado que esto, las teclas hacia donde baja lo
 ## hacen deslizarse.
 @export_range(0.0, 89.0, 0.1, "radians_as_degrees") var cable_slide_angle := deg_to_rad(15.0)
@@ -132,8 +136,18 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## gravedad sobre el cable.
 @export var cable_slide_speed := 12.0
 ## En un cable más inclinado que cable_slide_angle, las teclas hacia arriba lo
-## suben a esta velocidad, en m/s: más lento que en uno plano.
-@export var cable_climb_speed := 0.75
+## suben a esta velocidad, en m/s: más lento que en uno plano. Hasta el
+## 2026-10-19 era 0,75 m/s; el usuario la encontró insufriblemente lenta.
+@export var cable_climb_speed := 2.0
+## Al agarrarse de un cable se conserva la velocidad que traía a lo largo del
+## cable (la caída o el salto, proyectados sobre el cable). Lo que pase de la
+## velocidad del cable hacia ese lado (cable_speed; en uno más inclinado que
+## cable_slide_angle, la de deslizarse hacia abajo o cable_climb_speed hacia
+## arriba) se va perdiendo a este ritmo, en m/s²: con 6, de 11,5 m/s a 6,8 m/s
+## en 0,8 s, unos 7 m. Después sigue como siempre: con las teclas, a la
+## velocidad del cable; sin teclas, frena. Apretando para el otro lado, frena a
+## cable_brake.
+@export var cable_carry_brake := 6.0
 ## Frenado al dejar de deslizarse (soltar las teclas, apretar las de para
 ## arriba, o que el cable se aplane), en m/s²: con 12, de 5 m/s queda quieto en
 ## unos 0,4 s. Apretando las de para arriba, después de frenar sube.

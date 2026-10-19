@@ -12,6 +12,7 @@
 [ext_resource type="PackedScene" uid="uid://cui1ya3f6g3ej" path="res://assets/models/stairs/posteparaescalera.glb" id="10_r68a5"]
 [ext_resource type="PackedScene" uid="uid://clnnefjgv8wx5" path="res://assets/models/stairs/peladñoparaescalera.glb" id="11_jwdyc"]
 [ext_resource type="Script" uid="uid://dmfjy6oed0362" path="res://scenes/net_lab/hook_course.gd" id="12_hooks"]
+[ext_resource type="PackedScene" path="res://scenes/net_lab/zona_de_servicio.tscn" id="13_zona"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_lab"]
 
@@ -466,3 +467,6 @@ metadata/_custom_type_script = "uid://dh47t75eqy4iw"
 [node name="PistaDeColgarse" type="Node3D" parent="." unique_id=1742000001]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 0)
 script = ExtResource("12_hooks")
+
+[node name="ZonaDeServicio" parent="." unique_id=1742000002 instance=ExtResource("13_zona")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -30)

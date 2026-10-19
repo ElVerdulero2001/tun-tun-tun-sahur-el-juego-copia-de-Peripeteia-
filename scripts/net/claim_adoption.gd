@@ -97,7 +97,10 @@ func _decide(actor: ActorBody, claim_bytes: PackedByteArray, stats: Dictionary, 
 ## el host, con la misma época: modos y posturas que existen, una base que
 ## existe, una velocidad cerca de la del host, tiempos dentro de su máximo, y
 ## lo que decide el host igual que en el host. Soltarse borra quién cuelga de
-## este actor, así que ahí el cliente puede tener cero.
+## este actor, así que el cliente puede tener cero si ya no está en un modo del
+## que se cuelga un compañero. Agarrado todavía, cero sería borrar al que
+## cuelga sin soltarse: que alguien se cuelgue es un evento del host
+## (ActorMotor.assign_hooks), así que con la misma época el cliente ya lo sabe.
 func _values_possible(claim: ActorState, host: ActorState, tuning: ActorTuning) -> bool:
 	if claim.mode >= ActorState.Mode.size() or claim.stance >= ActorState.Stance.size() \
 			or claim.stance_wanted >= ActorState.Stance.size():
@@ -112,7 +115,7 @@ func _values_possible(claim: ActorState, host: ActorState, tuning: ActorTuning) 
 			or not _time_within(claim.jump_buffer_left, tuning.jump_buffer_time) \
 			or not _time_within(claim.regrab_left, maxf(tuning.regrab_block_time, tuning.hang_regrab_time)):
 		return false
-	return claim.hooked_by == host.hooked_by or claim.hooked_by == 0
+	return claim.hooked_by == host.hooked_by or (claim.hooked_by == 0 and not ActorMotor.holds_mates(claim.mode))
 
 
 ## Lo más que un input que llegó tarde puede cambiar la velocidad: arrancar a

@@ -419,7 +419,8 @@ func _ready() -> void:
 	for property in test_tuning:
 		tuning.set(property, test_tuning[property])
 	# Antes del primer tick: después las plataformas y la balsa ya se movieron.
-	_session.compatibility = SimFingerprint.compute(tuning, SimFingerprint.level_text($Level))
+	_session.compatibility = SimFingerprint.compute(tuning, SimFingerprint.level_text($Level),
+			SimFingerprint.actor_text(NetSession.ACTOR_SCENE))
 	print("[net_lab] huella de compatibilidad: %s" % _session.compatibility.hex_encode())
 	_clock.actors_root = _actors
 	_clock.tuning = tuning

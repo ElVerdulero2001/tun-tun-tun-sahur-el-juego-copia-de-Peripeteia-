@@ -13,6 +13,11 @@ extends Node3D
 ## Por ahora las escaleras están fijas: no se mueven ni giran en el juego. El
 ## número de cada una sale solo (ladder_id).
 ##
+## La escala del nodo (o de uno de arriba) tiene que ser 1: el dibujo y el
+## volumen de entrada crecerían con ella, pero la pose de quien trepa no. El
+## tamaño se cambia con `height` y `width`. Escalada, avisa en el editor y al
+## correr.
+##
 ## El dibujo (grupo Dibujo del Inspector) se arma con piezas: dos largueros
 ## estirados hasta el alto y un peldaño cada `rung_spacing`, estirado hasta el
 ## ancho. Las piezas son los modelos de `rail_model` y `rung_model` (un .glb o
@@ -23,6 +28,7 @@ extends Node3D
 const RAIL_EXTRA := 0.4
 ## Las piezas van esto adelante del eje, hacia quien trepa.
 const PIECES_Z := 0.05
+const SCALED_WARNING := "La escalera está escalada (Scale distinto de 1, en ella o en un nodo de arriba): se dibuja de otro tamaño que el que se trepa. Dejá Scale en 1 y cambiá el tamaño con Height y Width."
 
 ## Las escaleras que están en el juego, y si ya están en orden.
 static var _ladders := []
@@ -137,6 +143,25 @@ func _exit_tree() -> void:
 
 func _ready() -> void:
 	_rebuild()
+	if Engine.is_editor_hint():
+		# Para que el aviso aparezca y se vaya al escalar en el editor.
+		set_notify_transform(true)
+	elif is_scaled():
+		push_warning("%s: %s" % [get_path(), SCALED_WARNING])
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSFORM_CHANGED:
+		update_configuration_warnings()
+
+
+func _get_configuration_warnings() -> PackedStringArray:
+	return [SCALED_WARNING] if is_inside_tree() and is_scaled() else []
+
+
+## Si el nodo, o uno de arriba, la escala (o la espeja).
+func is_scaled() -> bool:
+	return not global_basis.get_scale().is_equal_approx(Vector3.ONE)
 
 
 func up() -> Vector3:

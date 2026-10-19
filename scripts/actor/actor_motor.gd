@@ -319,7 +319,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	# escalera o de un cable: si dejó de estarlo, ya no cuelga nadie de él. Lo
 	# calculan igual el host y el cliente, así soltarse no necesita un evento
 	# del host.
-	if not _holds_mates(state.mode):
+	if not holds_mates(state.mode):
 		state.hooked_by = 0
 	# El salto en el aire vuelve al apoyarse o agarrarse de algo.
 	if state.mode != ActorState.Mode.AIR:
@@ -1343,7 +1343,7 @@ static func _hook_move(body: ActorBody, state: ActorState, mate: ActorBody, inpu
 
 
 ## Los modos de los que se puede colgar un compañero.
-static func _holds_mates(mode: int) -> bool:
+static func holds_mates(mode: int) -> bool:
 	return mode == ActorState.Mode.HANGING or mode == ActorState.Mode.LADDER or mode == ActorState.Mode.CABLE
 
 
@@ -1352,7 +1352,7 @@ static func _holds_mates(mode: int) -> bool:
 static func _hook_holds(body: ActorBody, mate: ActorBody) -> bool:
 	if mate == null:
 		return false
-	if not _holds_mates(mate.state.mode):
+	if not holds_mates(mate.state.mode):
 		return false
 	return mate.state.hooked_by == 0 or mate.state.hooked_by == body.owner_peer_id
 

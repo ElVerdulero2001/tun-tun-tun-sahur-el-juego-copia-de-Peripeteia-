@@ -10,7 +10,8 @@ extends Node3D
 ##    ventana corta, para probar la restauración en todas las situaciones.
 ##
 ## Cada tick repetido tiene que coincidir byte a byte con la pasada en vivo.
-## Sale con código 0 si todo coincide, 1 si algo difiere y 2 si no terminó a tiempo.
+## Sale con código 0 si todo coincide, 1 si algo difiere, 2 si no terminó a
+## tiempo y 3 si el recorrido no pasó por alguna mecánica (_missing_coverage).
 ##
 ## Con --rate=N corre todo a N ticks por segundo real, y con --rate=varying va
 ## cambiando de ritmo cada pocos ticks, como el cliente al ajustar su adelanto.
@@ -215,14 +216,36 @@ func _finish() -> void:
 	for bytes in _live:
 		hashing.update(bytes)
 	print("%s huella de la pasada en vivo: %s" % [LOG_PREFIX, hashing.finish().hex_encode().left(16)])
+	var missing := _missing_coverage()
+	if not missing.is_empty():
+		print("%s SIN COBERTURA: el recorrido no pasó por %s (¿un cambio del nivel o del Tuning lo desvió?)" % [LOG_PREFIX, ", ".join(missing)])
 	if _failure_count == 0:
-		print("%s OK: todas las repeticiones coinciden byte a byte con la pasada en vivo" % LOG_PREFIX)
-		get_tree().quit(0)
+		if missing.is_empty():
+			print("%s OK: todas las repeticiones coinciden byte a byte con la pasada en vivo" % LOG_PREFIX)
+			get_tree().quit(0)
+		else:
+			get_tree().quit(3)
 		return
 	print("%s %d repeticiones con desvío; las primeras:" % [LOG_PREFIX, _failure_count])
 	for failure in _failures:
 		print("%s FALLA %s" % [LOG_PREFIX, failure])
 	get_tree().quit(1)
+
+
+## Lo que el recorrido tiene que tocar al menos una vez. Si un cambio del nivel
+## o del Tuning lo desvía, las repeticiones pueden seguir coincidiendo sin
+## probar esa mecánica; así no pasa sin que se note.
+func _missing_coverage() -> PackedStringArray:
+	var counts := {"Suelo": _ticks_ground, "Aire": _ticks_air, "deslizarse": _ticks_slide,
+			"la escalera": _ticks_ladder, "colgarse de un borde": _ticks_hanging, "un cable": _ticks_cable,
+			"tocar una pared": _ticks_wall, "saltar": _jumps, "el salto en el aire": _air_jumps,
+			"agacharse": _ticks_crouched, "quedar agachado bajo un techo": _ticks_kept_crouched,
+			"encogerse": _ticks_tucked, "la cámara lenta": _ticks_slow, "el súper salto y velocidad": _ticks_boost}
+	var missing := PackedStringArray()
+	for mechanic: String in counts:
+		if counts[mechanic] == 0:
+			missing.append(mechanic)
+	return missing
 
 
 func _on_timeout() -> void:

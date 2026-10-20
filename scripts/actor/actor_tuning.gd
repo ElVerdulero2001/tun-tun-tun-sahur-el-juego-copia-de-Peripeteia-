@@ -62,6 +62,11 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## por encima del tope, en metros, y la velocidad hacia adentro, en m/s.
 @export var ladder_top_hop_height := 0.2
 @export var ladder_top_hop_speed := 2.5
+## Al salir por arriba con W, en tercera persona y con la cámara mirando a más
+## de este ángulo de hacia donde subía (para atrás), va derecho mientras siga
+## con W sola y la cámara así: si no, W lo llevaría de vuelta a la escalera. En
+## primera persona, o mirando hacia adelante o de costado, W va según la cámara.
+@export_range(0.0, 180.0, 0.1, "radians_as_degrees") var ladder_exit_back_angle := deg_to_rad(90.0)
 
 @export_group("Borde")
 ## Colgado: altura del filo sobre los pies, que es también la altura de las

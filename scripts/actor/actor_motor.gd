@@ -93,8 +93,11 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	var crouch_held := input.is_held(ActorInput.BUTTON_CROUCH)
 	# Después de salir por arriba de una escalera con W, va derecho mientras
 	# siga con W sola: soltarla o tocar A, S o D lo corta (pedido del usuario,
-	# 2026-10-16). Shift, Espacio y Ctrl no lo cortan.
-	if state.straight_out and (input.move.y <= 0.0 or input.move.x != 0.0):
+	# 2026-10-16). Shift, Espacio y Ctrl no lo cortan. Desde el 2026-10-20, solo
+	# en tercera persona y mirando para atrás: pasar a primera persona o girar
+	# la cámara hacia adelante también lo corta (ver straight_exit).
+	if state.straight_out and (input.move.y <= 0.0 or input.move.x != 0.0 \
+			or not straight_exit(input, state.facing_yaw, tuning)):
 		state.straight_out = false
 	var direction := _wish_direction(input, state)
 	# El salto para arriba desde el colgado pide encogerse (etapa 7).
@@ -177,7 +180,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 			elif state.anchor_t <= 0.0 and climb < -0.5:
 				_leave_anchor(state, tuning, Vector3.ZERO, false)
 			elif state.anchor_t >= ladder.height and climb > 0.5:
-				_climb_out_top(body, state, ladder, tuning, dt)
+				_climb_out_top(body, state, ladder, input, tuning, dt)
 				direction = _wish_direction(input, state)
 		ActorState.Mode.HANGING:
 			if edge.is_empty():
@@ -765,9 +768,10 @@ static func _move_on_ladder(body: ActorBody, state: ActorState) -> void:
 ## test_move() (subir la altura del saltito y avanzar hasta tener el cuerpo
 ## sobre el borde); si algo lo tapa, sigue en la escalera. La escalera queda
 ## bloqueada un rato: si no, el tick siguiente, todavía en su volumen, la
-## volvería a agarrar. Desde acá va derecho (straight_out) mientras siga con W
-## sola, así mirando para atrás no vuelve hacia la escalera.
-static func _climb_out_top(body: ActorBody, state: ActorState, ladder: Ladder, tuning: ActorTuning, dt: float) -> void:
+## volvería a agarrar. En tercera persona y mirando para atrás, desde acá va
+## derecho (straight_out) mientras siga con W sola, así no vuelve hacia la
+## escalera; si no, W va según la cámara (ver straight_exit).
+static func _climb_out_top(body: ActorBody, state: ActorState, ladder: Ladder, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
 	var rise := ladder.up() * tuning.ladder_top_hop_height
 	var over := -ladder.outward() * (ladder.standoff + body.capsule_radius())
 	var start := body.global_transform
@@ -776,7 +780,21 @@ static func _climb_out_top(body: ActorBody, state: ActorState, ladder: Ladder, t
 	# Como en _climb_jump_speed: la gravedad se aplica antes de mover.
 	var up_speed := sqrt(2.0 * tuning.gravity * tuning.ladder_top_hop_height) + tuning.gravity * dt * 0.5
 	_leave_anchor(state, tuning, ladder.up() * up_speed - ladder.outward() * tuning.ladder_top_hop_speed, true)
-	state.straight_out = true
+	state.straight_out = straight_exit(input, state.facing_yaw, tuning)
+
+
+## Si la salida por arriba de una escalera va derecho: con la cámara en
+## tercera persona y mirando a más de ladder_exit_back_angle de `ahead_yaw`,
+## hacia donde subía. Ahí W, según la cámara, lo llevaría de vuelta a la
+## escalera y se caería. En primera persona, o mirando hacia adelante o de
+## costado, W va según la cámara (pedido del usuario, 2026-10-20: la guarda
+## servía en ese caso y molestaba en los demás). Lo usan el motor y el panel.
+static func straight_exit(input: ActorInput, ahead_yaw: float, tuning: ActorTuning) -> bool:
+	if not input.is_held(ActorInput.BUTTON_THIRD_PERSON):
+		return false
+	var look := Vector3.FORWARD.rotated(Vector3.UP, input.look_yaw)
+	var ahead := Vector3.FORWARD.rotated(Vector3.UP, ahead_yaw)
+	return look.dot(ahead) < cos(tuning.ladder_exit_back_angle)
 
 
 ## Hanging desde Aire: si grab_check() encuentra un borde que se puede agarrar,

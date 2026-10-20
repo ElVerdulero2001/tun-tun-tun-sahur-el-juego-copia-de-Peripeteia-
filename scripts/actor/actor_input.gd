@@ -9,7 +9,11 @@ extends RefCounted
 const BUTTON_JUMP := 1 << 0
 const BUTTON_CROUCH := 1 << 1
 const BUTTON_RUN := 1 << 2
-const ALL_BUTTONS := BUTTON_JUMP | BUTTON_CROUCH | BUTTON_RUN
+## No es una tecla: la cámara está en tercera persona (lo bastante lejos de la
+## cabeza como para que se dibuje el cuerpo). El motor lo usa al salir por
+## arriba de una escalera (ver ActorMotor.straight_exit).
+const BUTTON_THIRD_PERSON := 1 << 3
+const ALL_BUTTONS := BUTTON_JUMP | BUTTON_CROUCH | BUTTON_RUN | BUTTON_THIRD_PERSON
 const AXIS_STEPS := 127.0
 ## Largo de write_to().
 const BYTE_SIZE := 12

@@ -53,8 +53,9 @@ extends Node3D
 ## --test-input=crouchjump (salta frente a la pared de medidas y se agacha
 ## en el aire), --test-input=ladder (sube y baja por la escalera de la torre)
 ## o --test-input=laddertop (la sube y sale al techo de la torre),
-## --test-input=laddertop:back (igual, pero con la cámara mirando para atrás:
-## al salir sigue con W sola, que lo lleva derecho, y después toca D),
+## --test-input=laddertop:back (igual, pero en tercera persona y con la cámara
+## mirando para atrás: al salir sigue con W sola, que lo lleva derecho, y
+## después toca D),
 ## --test-input=cable (sube a la plataforma alta de la pista de cables, se
 ## agarra de la tirolesa, se desliza con W hasta abajo, frenando una vez a
 ## mitad de camino, sube un poco con S y se suelta),
@@ -695,6 +696,8 @@ func _local_input(tick: int) -> ActorInput:
 
 
 ## Prueba de bases: va hasta la base pedida y se queda arriba, dando vueltas
+	if _camera.third_person():
+		buttons |= ActorInput.BUTTON_THIRD_PERSON
 ## cerca del centro y saltando cada 3 s. Si la base está más alta que los pies,
 ## salta para subirse; si está muy alta (un ascensor arriba), la espera afuera.
 func _ride_input(tick: int, base_id: int) -> ActorInput:
@@ -872,9 +875,9 @@ func _ladder_named(ladder_name: StringName) -> Ladder:
 ## caminando hacia ella y sube y baja entre 0,5 y 2 m. Si la suelta (un
 ## empujón fuerte), vuelve. Con `to_top`, sube hasta arriba, sale al techo de
 ## la torre y se queda ahí.
-## Con `look_back`, trepa con la cámara mirando para atrás y, al salir por
-## arriba, sigue 30 ticks con W sola (va derecho, hacia adentro del techo),
-## toca D 6 ticks y se queda quieto.
+## Con `look_back`, trepa en tercera persona con la cámara mirando para atrás
+## y, al salir por arriba, sigue 30 ticks con W sola (va derecho, hacia adentro
+## del techo), toca D 6 ticks y se queda quieto.
 func _ladder_input(tick: int, to_top: bool, ladder_name := TOWER_LADDER_NAME, look_back := false) -> ActorInput:
 	var ladder := _ladder_named(ladder_name)
 	if ladder == null or not is_instance_valid(_local_actor):
@@ -886,7 +889,8 @@ func _ladder_input(tick: int, to_top: bool, ladder_name := TOWER_LADDER_NAME, lo
 		if to_top:
 			if s.anchor_t >= ladder.height - 0.01:
 				_ladder_top_done = true
-			return ActorInput.make(tick, Vector2(0, 1), look, 0, 0)
+	var view := ActorInput.BUTTON_THIRD_PERSON if look_back else 0
+			return ActorInput.make(tick, Vector2(0, 1), look, view, 0)
 		if s.anchor_t >= 2.0:
 			_ladder_direction = -1.0
 		elif s.anchor_t <= 0.5:
@@ -897,7 +901,7 @@ func _ladder_input(tick: int, to_top: bool, ladder_name := TOWER_LADDER_NAME, lo
 			_ladder_top_tick = tick
 		var after := tick - _ladder_top_tick
 		var keys := Vector2(0, 1) if after < 30 else Vector2(1, 0) if after < 36 else Vector2.ZERO
-		return ActorInput.make(tick, keys, look, 0, 0)
+		return ActorInput.make(tick, keys, look, view, 0)
 	if to_top and _ladder_top_done:
 		return ActorInput.make(tick, Vector2.ZERO, facing, 0, 0)
 	var me := BaseRegistry.world_position(s)
@@ -2218,7 +2222,7 @@ func _update_hud() -> void:
 			var back_to := Ladder.find(s.ladder_return)
 			lines.append("Volvés solo a la escalera %s al bajar, si seguís frente a ella   ·   con Ctrl no" % (String(back_to.name) if back_to != null else str(s.ladder_return)))
 		if s.straight_out:
-			lines.append("Saliste de la escalera: vas derecho mientras sigas con W sola   ·   soltarla o tocar A, S o D lo corta")
+			lines.append("Saliste de la escalera mirando atrás: derecho con W sola   ·   soltar W, A, S, D o girar la cámara lo corta")
 		if s.mode == ActorState.Mode.AIR:
 			lines.append("Salto en el aire: %s" % ("ya saltaste: vuelve al tocar el piso o agarrarte de algo" if s.jumped
 					else "listo, Espacio cayendo" if s.velocity.y <= 0.0 else "listo cuando empieces a caer"))

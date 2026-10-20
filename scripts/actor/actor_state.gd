@@ -110,9 +110,10 @@ var corner_inside := false
 ## aire) desde que dejó el piso o algo de donde estaba agarrado. Cayendo sin
 ## haber saltado tiene el salto en el aire.
 var jumped := false
-## Salió por arriba de una escalera con W: mientras siga apretando W sola, va
-## derecho hacia donde subía (facing_yaw), mire donde mire la cámara. Soltar W
-## o tocar A, S o D lo corta, y también agarrarse de algo.
+## Salió por arriba de una escalera con W, en tercera persona y mirando para
+## atrás: mientras siga así y apretando W sola, va derecho hacia donde subía
+## (facing_yaw). Soltar W, tocar A, S o D, pasar a primera persona o girar la
+## cámara hacia adelante lo corta, y también agarrarse de algo.
 var straight_out := false
 ## Escalera a la que vuelve solo, o 0: la que dejó saltando mirándola o con
 ## Ctrl. Bajando frente a ella y sin Ctrl, se agarra sin teclas (si el salto

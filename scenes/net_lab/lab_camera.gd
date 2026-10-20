@@ -123,6 +123,13 @@ func _process(delta: float) -> void:
 	target.visible = _spring.get_hit_length() > hide_body_distance
 
 
+## Si está en tercera persona: sobre la guía, lo bastante lejos de la cabeza
+## como para que se dibuje el cuerpo (sin contar las paredes que acercan el
+## resorte). Viaja en el input: el motor lo usa al salir de una escalera.
+func third_person() -> bool:
+	return _spring.spring_length > hide_body_distance
+
+
 ## Pone el resorte apuntando al punto de la guía que corresponde a _zoom, y la
 ## cámara mirando hacia donde mira el rig, aunque el resorte vaya en diagonal.
 func _place_on_guide() -> void:

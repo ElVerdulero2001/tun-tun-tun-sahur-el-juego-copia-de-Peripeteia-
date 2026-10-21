@@ -142,7 +142,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 					mate = _try_hook(body, state, grab_direction(input.look_yaw), tuning, dt)
 				if edge.is_empty() and mate == null:
 					cable = _try_grab_cable(body, state, grab_direction(input.look_yaw), tuning, dt)
-				if state.mode == ActorState.Mode.AIR and not _try_grab_ladder(body, state, direction):
+				if state.mode == ActorState.Mode.AIR and not _try_grab_ladder(body, state, direction, grab_direction(input.look_yaw)):
 					_return_to_ladder(body, state)
 		ActorState.Mode.SLIDE:
 			if wants_jump:
@@ -683,7 +683,13 @@ static func anchored_pose_valid(body: ActorBody, state: ActorState, tuning: Acto
 ## acaba de soltar está bloqueada un rato. Con Ctrl no se llama. El cuerpo va a
 ## la pose de golpe en la etapa 7; el dibujo lo alcanza como en el agarre de un
 ## borde (grab_jump).
-static func _try_grab_ladder(body: ActorBody, state: ActorState, direction: Vector3) -> bool:
+static func _try_grab_ladder(body: ActorBody, state: ActorState, direction: Vector3, look := Vector3.ZERO) -> bool:
+	# Saltando para arriba desde un borde (encogido, ver tuck), sin teclas
+	# alcanza con mirar la escalera, como para agarrar un borde (pedido del
+	# usuario, 2026-10-21: colgado de una pilastra con la escalera arriba, sin
+	# W subía y volvía a caer). Con A o D no: apuntan a otro lado.
+	if direction.length_squared() < 0.01 and state.stance == ActorState.Stance.TUCKED:
+		direction = look
 	if direction.length_squared() < 0.01:
 		return false
 	var feet := _standing_feet(body, state)

@@ -7,8 +7,10 @@ extends Node3D
 ## y su pose sale de la escalera y de la altura.
 ##
 ## El eje sale del nodo hacia arriba (+Y local). Se trepa desde el lado +Z
-## local: esa cara mira hacia quien trepa. Los pies de quien está a la altura
-## t van en pose_at(t), a `standoff` delante del eje.
+## local (el frente: esa cara mira hacia quien trepa) y, si detrás hay lugar,
+## también desde el otro (ver back_open). Los pies de quien está a la altura t
+## van en pose_at(t, side), a `standoff` del eje, del lado que trepa: side es
+## 1 adelante y -1 atrás.
 ##
 ## Por ahora las escaleras están fijas: no se mueven ni giran en el juego. El
 ## número de cada una sale solo (ladder_id).
@@ -21,13 +23,23 @@ extends Node3D
 ## El dibujo (grupo Dibujo del Inspector) se arma con piezas: dos largueros
 ## estirados hasta el alto y un peldaño cada `rung_spacing`, estirado hasta el
 ## ancho. Las piezas son los modelos de `rail_model` y `rung_model` (un .glb o
-## una escena) o, sin modelo, unas provisorias. Para el juego la escalera es
-## solo el eje, el alto y el alcance: el dibujo no tiene colisión.
+## una escena) o, sin modelo, unas provisorias. Para trepar, la escalera es
+## solo el eje, el alto y el alcance. Las piezas además chocan (grupo Colisión):
+## cada una lleva una caja del tamaño de su dibujo, armada sola, en la capa de
+## las escaleras (COLLISION_LAYER), que los cuerpos tocan y las sondas de los
+## bordes no (un peldaño no es un borde para colgarse).
 
 ## Los largueros sobresalen esto por encima del alto, para agarrarse arriba.
 const RAIL_EXTRA := 0.4
 ## Las piezas van esto adelante del eje, hacia quien trepa.
 const PIECES_Z := 0.05
+## La capa de física de las piezas que chocan (la 3). Los actores la tocan al
+## moverse; las sondas de bordes y de escalones la dejan afuera (ver EdgeProbe.mask).
+const COLLISION_LAYER := 1 << 2
+## Para saber si se puede trepar por detrás: el cuerpo de quien trepa, una
+## cápsula como la del actor parado.
+const CLIMBER_RADIUS := 0.35
+const CLIMBER_HEIGHT := 1.8
 const SCALED_WARNING := "La escalera está escalada (Scale distinto de 1, en ella o en un nodo de arriba): se dibuja de otro tamaño que el que se trepa. Dejá Scale en 1 y cambiá el tamaño con Height y Width."
 
 ## Las escaleras que están en el juego, y si ya están en orden.
@@ -98,7 +110,24 @@ var ladder_id: int:
 		tile_textures = value
 		_rebuild()
 
+@export_group("Colisión")
+## Que los largueros y los peldaños choquen: quien camina o salta contra la
+## escalera se la lleva por delante en vez de atravesarla (y más adelante, los
+## disparos). Cada pieza lleva una caja del tamaño de su dibujo, armada sola,
+## hasta el alto: lo que sobresale arriba, para agarrarse al salir, no choca,
+## así se puede pasar por encima. Sin piezas (Show Pieces apagado), no hay
+## colisión: el modelo entero que pongas como hijo trae la suya, y conviene que
+## esté en la capa 3, la de las escaleras.
+@export var collides := true:
+	set(value):
+		collides = value
+		_rebuild()
+
 var _visual: Node3D
+## Si se puede trepar por detrás: se calcula la primera vez que hace falta (ver
+## back_open) y queda anotado.
+var _back_known := false
+var _back_is_open := false
 ## La ruta en la escena, anotada al entrar: con ella se ordenan las escaleras.
 var _path := ""
 
@@ -122,11 +151,11 @@ static func _ordered() -> Array:
 
 
 ## Si unos pies en `feet` están dentro del volumen de entrada de alguna
-## escalera. Ahí no se cuelga de un borde: delante de esa pared está la
-## escalera, y se trepa por ella.
+## escalera, de cualquiera de sus lados. Ahí no se cuelga de un borde: delante
+## de esa pared está la escalera, y se trepa por ella.
 static func any_at(feet: Vector3) -> bool:
 	for ladder: Ladder in _ladders:
-		if ladder.height_for(feet) >= 0.0:
+		if ladder.side_for(feet) != 0.0:
 			return true
 	return false
 
@@ -168,31 +197,79 @@ func up() -> Vector3:
 	return global_basis.y.normalized()
 
 
-## Hacia dónde mira la cara: desde la escalera hacia quien trepa.
+## Hacia dónde mira el frente: desde la escalera hacia quien trepa por
+## adelante.
 func outward() -> Vector3:
 	return global_basis.z.normalized()
 
 
-## Dónde van los pies de quien está a la altura t.
-func pose_at(t: float) -> Vector3:
-	return global_position + up() * t + outward() * standoff
+## Desde la escalera hacia quien trepa del lado `side` (1 adelante, -1 atrás).
+func face(side: float) -> Vector3:
+	return outward() * side
 
 
-## La altura sobre la escalera para unos pies en `feet`, o -1 si están fuera
-## del volumen de entrada.
-func height_for(feet: Vector3) -> float:
+## De qué lado está quien mira hacia `yaw` estando en la escalera: 1 si mira
+## hacia el frente (está adelante), -1 si mira desde atrás.
+func side_of_yaw(yaw: float) -> float:
+	return 1.0 if Vector3.FORWARD.rotated(Vector3.UP, yaw).dot(outward()) <= 0.0 else -1.0
+
+
+## Dónde van los pies de quien está a la altura t, del lado `side`.
+func pose_at(t: float, side := 1.0) -> Vector3:
+	return global_position + up() * t + face(side) * standoff
+
+
+## La altura sobre la escalera para unos pies en `feet` del lado `side`, o -1
+## si están fuera de su volumen de entrada. Atrás, solo si back_open.
+func height_for(feet: Vector3, side := 1.0) -> float:
 	var local := global_transform.affine_inverse() * feet
-	if absf(local.x) > width * 0.5 + side_reach or local.z < 0.0 or local.z > reach:
+	var ahead := local.z * side
+	if absf(local.x) > width * 0.5 + side_reach or ahead < 0.0 or ahead > reach:
 		return -1.0
 	if local.y < -0.2 or local.y > height + 0.2:
+		return -1.0
+	if side < 0.0 and not back_open():
 		return -1.0
 	return clampf(local.y, 0.0, height)
 
 
-## Arma el dibujo de nuevo cada vez que cambia el alto, el ancho o un valor del
-## grupo Dibujo: dos largueros y un peldaño cada `rung_spacing`. Es solo dibujo,
-## sin colisión. Con @tool también se dibuja en el editor; no se guarda en la
-## escena.
+## De qué lado de la escalera están unos pies dentro de su volumen de entrada:
+## 1 adelante, -1 atrás, 0 en ninguno.
+func side_for(feet: Vector3) -> float:
+	if height_for(feet, 1.0) >= 0.0:
+		return 1.0
+	if height_for(feet, -1.0) >= 0.0:
+		return -1.0
+	return 0.0
+
+
+## Si se puede trepar por detrás: si el cuerpo de quien trepa cabe detrás de
+## la escalera, al pie, sin tocar nada fijo. Una escalera contra una pared se
+## trepa solo por adelante, como siempre. Si atrás hay algo más arriba (un
+## balcón, un techo), se trepa por atrás hasta que la cabeza lo toca, y de ahí
+## se baja o se salta (pedido del usuario, 2026-10-20). Se calcula la primera
+## vez que hace falta, que es en un tick de la simulación, y queda anotado: el
+## nivel es el mismo en todas las máquinas, así que da lo mismo en todas.
+func back_open() -> bool:
+	if _back_known or not is_inside_tree():
+		return _back_is_open
+	_back_known = true
+	var space := get_world_3d().direct_space_state
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = CLIMBER_RADIUS
+	capsule.height = CLIMBER_HEIGHT
+	var params := PhysicsShapeQueryParameters3D.new()
+	params.shape = capsule
+	params.collision_mask = 1
+	params.transform = Transform3D(Basis(), pose_at(0.0, -1.0) + up() * (CLIMBER_HEIGHT * 0.5 + 0.02))
+	_back_is_open = space.intersect_shape(params, 1).is_empty()
+	return _back_is_open
+
+
+## Arma el dibujo de nuevo cada vez que cambia el alto, el ancho o un valor de
+## los grupos Dibujo o Colisión: dos largueros y un peldaño cada
+## `rung_spacing`, y su colisión. Con @tool también se arma en el editor; no se
+## guarda en la escena.
 func _rebuild() -> void:
 	if not is_inside_tree():
 		return
@@ -205,17 +282,57 @@ func _rebuild() -> void:
 	add_child(_visual)
 	var copies := {}
 	var rail_height := height + RAIL_EXTRA
+	# Lo que choca, en coordenadas de la escalera: cada larguero hasta el alto y
+	# cada peldaño que no pase del alto.
+	var solids: Array[AABB] = []
 	for side in [-1.0, 1.0]:
 		var rail := _piece(rail_model, Vector3(0.06, 1.0, 0.06), Vector3.AXIS_Y, copies)
 		var box := _bounds(rail)
 		var stretch := Vector3(-side, rail_height / maxf(box.size.y, 0.001), 1.0)
 		_place(rail, box, stretch, Vector3(side * width * 0.5, rail_height * 0.5, PIECES_Z))
+		var thick := (box.size * stretch).abs()
+		solids.append(_clipped(AABB(Vector3(side * width * 0.5 - thick.x * 0.5, 0.0, PIECES_Z - thick.z * 0.5), Vector3(thick.x, height, thick.z))))
 	var rung_y := rung_spacing
 	while rung_y < rail_height - 0.05:
 		var rung := _piece(rung_model, Vector3(1.0, 0.04, 0.04), Vector3.AXIS_X, copies)
 		var box := _bounds(rung)
-		_place(rung, box, Vector3(width / maxf(box.size.x, 0.001), 1.0, 1.0), Vector3(0.0, rung_y, PIECES_Z))
+		var stretch := Vector3(width / maxf(box.size.x, 0.001), 1.0, 1.0)
+		_place(rung, box, stretch, Vector3(0.0, rung_y, PIECES_Z))
+		if rung_y <= height:
+			var size := (box.size * stretch).abs()
+			solids.append(_clipped(AABB(Vector3(0.0, rung_y, PIECES_Z) - size * 0.5, size)))
 		rung_y += rung_spacing
+	if collides:
+		_build_collision(solids)
+
+
+## Una caja de colisión recortada en profundidad para no tocar a quien trepa,
+## de ninguno de los dos lados: queda a no más de standoff menos el radio de su
+## cuerpo (y 2 cm de margen) del eje. Los modelos pueden ser más gruesos que eso
+## (un larguero de 20 cm): el dibujo queda igual, y lo que sobra no choca.
+func _clipped(box: AABB) -> AABB:
+	var clear := maxf(standoff - CLIMBER_RADIUS - 0.02, 0.01)
+	var near := maxf(box.position.z, -clear)
+	var far := minf(box.end.z, clear)
+	return AABB(Vector3(box.position.x, box.position.y, near), Vector3(box.size.x, box.size.y, maxf(far - near, 0.01)))
+
+
+## La colisión de las piezas: un cuerpo fijo en la capa de las escaleras, con
+## una caja por cada una de `solids`. Va adentro del dibujo, así se rehace con él.
+func _build_collision(solids: Array[AABB]) -> void:
+	var body := StaticBody3D.new()
+	body.name = "Colision"
+	body.collision_layer = COLLISION_LAYER
+	body.collision_mask = 0
+	_visual.add_child(body)
+	for i in solids.size():
+		var shape := BoxShape3D.new()
+		shape.size = solids[i].size
+		var holder := CollisionShape3D.new()
+		holder.name = "Pieza%d" % i
+		holder.shape = shape
+		holder.position = solids[i].get_center()
+		body.add_child(holder)
 
 
 ## Una pieza nueva: una instancia de `model`, sin colisiones, con la textura

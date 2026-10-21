@@ -167,13 +167,14 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				# mira, sin la parte que iría contra la pared, y se da vuelta
 				# hacia allá.
 				var look := Vector3.FORWARD.rotated(Vector3.UP, input.look_yaw)
-				var into := look.dot(-ladder.outward())
+				var out := ladder.face(ladder.side_of_yaw(state.facing_yaw))
+				var into := look.dot(-out)
 				if into >= cos(tuning.climb_look_angle):
 					var held := ladder.ladder_id
 					_leave_anchor(state, tuning, ladder.up() * _ladder_jump_speed(tuning, dt), true)
 					state.ladder_return = held
 				else:
-					var away := (look + ladder.outward() * maxf(into, 0.0)).normalized()
+					var away := (look + out * maxf(into, 0.0)).normalized()
 					_leave_anchor(state, tuning, away * tuning.ladder_jump_out + ladder.up() * tuning.ladder_jump_up, true)
 					state.facing_yaw = _yaw_of(away)
 				state.jumped = true
@@ -524,7 +525,7 @@ static func _step_up(body: ActorBody, state: ActorState, start: Transform3D, wis
 	var spot := hit.get_position() + into * 0.02
 	var ray := PhysicsRayQueryParameters3D.create(
 			Vector3(spot.x, landing.y + body.capsule_radius(), spot.z),
-			Vector3(spot.x, start.origin.y, spot.z), body.collision_mask, [body.get_rid()])
+			Vector3(spot.x, start.origin.y, spot.z), EdgeProbe.mask(body), [body.get_rid()])
 	var ground := body.get_world_3d().direct_space_state.intersect_ray(ray)
 	if ground.is_empty():
 		return
@@ -657,14 +658,18 @@ static func anchored_pose_valid(body: ActorBody, state: ActorState, tuning: Acto
 	var ladder := Ladder.find(state.anchor_id)
 	if ladder == null or state.anchor_t < 0.0 or state.anchor_t > ladder.height:
 		return false
-	return BaseRegistry.world_position(state).distance_to(ladder.pose_at(state.anchor_t)) <= 0.1
+	return BaseRegistry.world_position(state).distance_to(ladder.pose_at(state.anchor_t, ladder.side_of_yaw(state.facing_yaw))) <= 0.1
 
 
-## Ladder desde Suelo o Aire: dentro del volumen de una escalera y con
-## intención de ir hacia ella. Con varias, gana la de id más chico, así todas
-## las máquinas eligen la misma. La que se acaba de soltar está bloqueada un rato.
-## Con Ctrl no se llama. El cuerpo va a la pose de golpe en la etapa 7; el
-## dibujo lo alcanza como en el agarre de un borde (grab_jump).
+## Ladder desde Suelo o Aire: dentro del volumen de una escalera, de
+## cualquiera de sus lados, y con intención de ir hacia ella. Desde atrás
+## (desde el 2026-10-20, pedido del usuario), solo si la escalera tiene lugar
+## detrás al pie (Ladder.back_open), el cuerpo cabe en la pose y el camino
+## hasta ella está libre (ver _back_blocked). Con varias,
+## gana la de id más chico, así todas las máquinas eligen la misma. La que se
+## acaba de soltar está bloqueada un rato. Con Ctrl no se llama. El cuerpo va a
+## la pose de golpe en la etapa 7; el dibujo lo alcanza como en el agarre de un
+## borde (grab_jump).
 static func _try_grab_ladder(body: ActorBody, state: ActorState, direction: Vector3) -> bool:
 	if direction.length_squared() < 0.01:
 		return false
@@ -673,15 +678,26 @@ static func _try_grab_ladder(body: ActorBody, state: ActorState, direction: Vect
 	for ladder: Ladder in Ladder.all():
 		if ladder.ladder_id == state.regrab_id:
 			continue
-		var t := ladder.height_for(feet)
-		if t < 0.0 or direction.dot(-ladder.outward()) < 0.5:
+		var side := ladder.side_for(feet)
+		if side == 0.0 or direction.dot(-ladder.face(side)) < 0.5:
 			continue
-		_grab_ladder(body, state, ladder, t, feet)
+		var t := ladder.height_for(feet, side)
+		if side < 0.0 and _back_blocked(body, ladder, t, feet):
+			continue
+		_grab_ladder(body, state, ladder, t, feet, side)
 		return true
 	return false
 
 
 ## Vuelve sola, sin teclas, a la escalera que dejó saltando mirándola o con
+## Si no se puede agarrar de la escalera por atrás a la altura t: el cuerpo no
+## cabe en la pose (debajo de un balcón, más arriba de lo que se puede trepar
+## por ese lado) o algo tapa el camino hasta ella (una pared fina).
+static func _back_blocked(body: ActorBody, ladder: Ladder, t: float, feet: Vector3) -> bool:
+	var pose := ladder.pose_at(t, -1.0)
+	return not body.stance_fits(ActorState.Stance.STANDING, pose) or body.test_move(body.global_transform, pose - feet)
+
+
 ## Ctrl (ladder_return): bajando, frente a ella y pasado el bloqueo de
 ## reagarre. Si el salto pasó por encima del final, se agarra al volver a bajar
 ## hasta ella (pedido del usuario, 2026-10-16). Con Ctrl no se llama.
@@ -692,15 +708,22 @@ static func _return_to_ladder(body: ActorBody, state: ActorState) -> bool:
 	if ladder == null:
 		return false
 	var feet := _standing_feet(body, state)
-	var t := ladder.height_for(feet)
-	if t < 0.0:
+	var side := ladder.side_for(feet)
+	if side == 0.0:
 		return false
-	_grab_ladder(body, state, ladder, t, feet)
+	var t := ladder.height_for(feet, side)
+	if side < 0.0 and _back_blocked(body, ladder, t, feet):
+		return false
+	_grab_ladder(body, state, ladder, t, feet, side)
 	return true
 
 
-static func _grab_ladder(body: ActorBody, state: ActorState, ladder: Ladder, t: float, feet: Vector3) -> void:
-	body.grab_jump += ladder.pose_at(t) - feet
+## Se agarra de la escalera del lado `side` (1 adelante, -1 atrás): el lado
+## queda en hacia dónde mira, que es hacia la escalera (facing_yaw), así no
+## hace falta otro dato en el estado ni en la red.
+static func _grab_ladder(body: ActorBody, state: ActorState, ladder: Ladder, t: float, feet: Vector3, side: float) -> void:
+	body.grab_jump += ladder.pose_at(t, side) - feet
+	state.facing_yaw = _yaw_of(-ladder.face(side))
 	state.mode = ActorState.Mode.LADDER
 	state.anchor_id = ladder.ladder_id
 	state.anchor_t = t
@@ -744,7 +767,7 @@ static func _ladder(state: ActorState, climb: float, tuning: ActorTuning, dt: fl
 		along = 0.0
 	state.anchor_t = clampf(t, 0.0, ladder.height)
 	state.velocity = ladder.up() * along
-	state.facing_yaw = _yaw_of(-ladder.outward())
+	state.facing_yaw = _yaw_of(-ladder.face(ladder.side_of_yaw(state.facing_yaw)))
 
 
 ## Etapa 7 en Ladder: un barrido hasta la pose de la altura pedida. Si algo lo
@@ -753,11 +776,12 @@ static func _move_on_ladder(body: ActorBody, state: ActorState) -> void:
 	var ladder := Ladder.find(state.anchor_id)
 	if ladder == null:
 		return
-	var motion := ladder.pose_at(state.anchor_t) - body.global_position
+	var side := ladder.side_of_yaw(state.facing_yaw)
+	var motion := ladder.pose_at(state.anchor_t, side) - body.global_position
 	if motion.length_squared() < 1e-12:
 		return
 	if body.move_and_collide(motion) != null:
-		var climbed := (body.global_position - ladder.pose_at(0.0)).dot(ladder.up())
+		var climbed := (body.global_position - ladder.pose_at(0.0, side)).dot(ladder.up())
 		state.anchor_t = clampf(climbed, 0.0, ladder.height)
 		state.velocity = Vector3.ZERO
 
@@ -773,13 +797,14 @@ static func _move_on_ladder(body: ActorBody, state: ActorState) -> void:
 ## escalera; si no, W va según la cámara (ver straight_exit).
 static func _climb_out_top(body: ActorBody, state: ActorState, ladder: Ladder, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
 	var rise := ladder.up() * tuning.ladder_top_hop_height
-	var over := -ladder.outward() * (ladder.standoff + body.capsule_radius())
+	var out := ladder.face(ladder.side_of_yaw(state.facing_yaw))
+	var over := -out * (ladder.standoff + body.capsule_radius())
 	var start := body.global_transform
 	if body.test_move(start, rise) or body.test_move(start.translated(rise), over):
 		return
 	# Como en _climb_jump_speed: la gravedad se aplica antes de mover.
 	var up_speed := sqrt(2.0 * tuning.gravity * tuning.ladder_top_hop_height) + tuning.gravity * dt * 0.5
-	_leave_anchor(state, tuning, ladder.up() * up_speed - ladder.outward() * tuning.ladder_top_hop_speed, true)
+	_leave_anchor(state, tuning, ladder.up() * up_speed - out * tuning.ladder_top_hop_speed, true)
 	state.straight_out = straight_exit(input, state.facing_yaw, tuning)
 
 
@@ -1133,7 +1158,7 @@ static func _round_corner(body: ActorBody, state: ActorState, edge: Dictionary, 
 ## Rayo de las esquinas, contra lo mismo que las manos.
 static func _corner_ray(body: ActorBody, from: Vector3, to: Vector3) -> Dictionary:
 	var hit := body.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(
-			from, to, body.collision_mask, [body.get_rid()]))
+			from, to, EdgeProbe.mask(body), [body.get_rid()]))
 	if hit.is_empty():
 		return {}
 	var flat := Vector3(hit["normal"].x, 0.0, hit["normal"].z)

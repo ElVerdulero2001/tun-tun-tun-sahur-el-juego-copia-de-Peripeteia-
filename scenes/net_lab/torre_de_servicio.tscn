@@ -1,12 +1,12 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://bv21nned2qb0n"]
 
-[ext_resource type="Texture2D" path="res://assets/textures/concrete001_256x256.jpg" id="1_crti8"]
-[ext_resource type="PackedScene" path="res://assets/models/no_collectibles/door_oxide3.glb" id="2_gi3nf"]
-[ext_resource type="Texture2D" path="res://assets/textures/mesa_fea_9_wood_256x256.webp" id="3_nyery"]
-[ext_resource type="Script" path="res://scripts/actor/ladder.gd" id="4_16qea"]
-[ext_resource type="PackedScene" path="res://assets/models/stairs/posteparaescalera.glb" id="5_ha4wc"]
-[ext_resource type="PackedScene" path="res://assets/models/stairs/peladñoparaescalera.glb" id="6_pkc1m"]
-[ext_resource type="Script" path="res://scripts/actor/cable.gd" id="7_x5vbf"]
+[ext_resource type="Texture2D" uid="uid://r5wyupe3f2oe" path="res://assets/textures/concrete001_256x256.jpg" id="1_crti8"]
+[ext_resource type="PackedScene" uid="uid://bfbjsgji3vcwb" path="res://assets/models/no_collectibles/door_oxide3.glb" id="2_gi3nf"]
+[ext_resource type="Texture2D" uid="uid://yarac3dhstbk" path="res://assets/textures/mesa_fea_9_wood_256x256.webp" id="3_nyery"]
+[ext_resource type="Script" uid="uid://dh47t75eqy4iw" path="res://scripts/actor/ladder.gd" id="4_16qea"]
+[ext_resource type="PackedScene" uid="uid://cui1ya3f6g3ej" path="res://assets/models/stairs/posteparaescalera.glb" id="5_ha4wc"]
+[ext_resource type="PackedScene" uid="uid://clnnefjgv8wx5" path="res://assets/models/stairs/peladñoparaescalera.glb" id="6_pkc1m"]
+[ext_resource type="Script" uid="uid://q6gukx2dg6xy" path="res://scripts/actor/cable.gd" id="7_x5vbf"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_fo53j"]
 size = Vector3(50, 21, 22)
@@ -2283,7 +2283,7 @@ size = Vector3(2.1999998, 2.199997, 2)
 
 [sub_resource type="Curve3D" id="Curve3D_yj5e8"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -10, -75.3, 46.1),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -10, -82.286285, 46.1),
 "tilts": PackedFloat32Array(0, 0)
 }
 point_count = 2
@@ -3917,7 +3917,7 @@ shape = SubResource("BoxShape3D_dlckr")
 material_override = SubResource("StandardMaterial3D_g14la")
 mesh = SubResource("BoxMesh_v2mh3")
 
-[node name="PuertaSala" type="Node3D" parent="PlantaTecnica/Equipos" unique_id=48128789 instance=ExtResource("2_gi3nf")]
+[node name="PuertaSala" parent="PlantaTecnica/Equipos" unique_id=48128789 instance=ExtResource("2_gi3nf")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20.95, 20, -34.12)
 
 [node name="Conducto" type="StaticBody3D" parent="PlantaTecnica/Equipos" unique_id=747103737]
@@ -4414,7 +4414,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.495001, 93.2, -53.5)
 material_override = SubResource("StandardMaterial3D_umhc8")
 mesh = SubResource("BoxMesh_3gtii")
 
-[node name="PuertaPlanta" type="Node3D" parent="TorreNorte/Cuerpo" unique_id=1846220334 instance=ExtResource("2_gi3nf")]
+[node name="PuertaPlanta" parent="TorreNorte/Cuerpo" unique_id=1846220334 instance=ExtResource("2_gi3nf")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.75, 20, -40.12)
 
 [node name="LamparaPuerta" type="MeshInstance3D" parent="TorreNorte/Cuerpo" unique_id=1157642941]
@@ -4798,7 +4798,7 @@ material_override = SubResource("StandardMaterial3D_51jtw")
 mesh = SubResource("BoxMesh_0gm0q")
 
 [node name="EscaleraDeIncendio34" type="Node3D" parent="TorreNorte/Terraza34/EscaleraDeIncendio" unique_id=186962998]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -7.6, 40, -45)
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -7.665, 40, -45)
 script = ExtResource("4_16qea")
 height = 12.0
 width = 1.0
@@ -5357,7 +5357,7 @@ material_override = SubResource("StandardMaterial3D_51jtw")
 mesh = SubResource("BoxMesh_an13r")
 
 [node name="EscaleraDeMantenimiento70" type="Node3D" parent="TorreNorte/Terraza70/EscaleraDeMantenimiento" unique_id=302854321]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.5, 76, -48.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.5, 76, -48.665)
 script = ExtResource("4_16qea")
 height = 10.0
 width = 1.0
@@ -6032,7 +6032,7 @@ shape = SubResource("BoxShape3D_3abk1")
 material_override = SubResource("StandardMaterial3D_ntqcf")
 mesh = SubResource("BoxMesh_qwfbb")
 
-[node name="PuertaAntena" type="Node3D" parent="TorreNorte/Corona/Cubierta" unique_id=657096060 instance=ExtResource("2_gi3nf")]
+[node name="PuertaAntena" parent="TorreNorte/Corona/Cubierta" unique_id=657096060 instance=ExtResource("2_gi3nf")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.15, 100, -53.92)
 
 [node name="CableDeRegreso" type="Path3D" parent="TorreNorte/Corona/Cubierta" unique_id=2123178714]
@@ -6238,10 +6238,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 57.2, -54.005)
 material_override = SubResource("StandardMaterial3D_umhc8")
 mesh = SubResource("BoxMesh_x4ams")
 
-[node name="PuertaPlanta" type="Node3D" parent="TorreDeTanques/Cuerpo" unique_id=1241370698 instance=ExtResource("2_gi3nf")]
+[node name="PuertaPlanta" parent="TorreDeTanques/Cuerpo" unique_id=1241370698 instance=ExtResource("2_gi3nf")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.45, 20, -40.12)
 
-[node name="PuertaAnden" type="Node3D" parent="TorreDeTanques/Cuerpo" unique_id=406919161 instance=ExtResource("2_gi3nf")]
+[node name="PuertaAnden" parent="TorreDeTanques/Cuerpo" unique_id=406919161 instance=ExtResource("2_gi3nf")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.92, 20, -50.5)
 
 [node name="Cartel" type="Node3D" parent="TorreDeTanques/Cuerpo" unique_id=1701991023]

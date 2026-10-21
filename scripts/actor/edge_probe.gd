@@ -30,6 +30,13 @@ const MAX_FACE_TILT := deg_to_rad(20.0)
 const HOLD_TOLERANCE := 0.1
 
 
+## Contra qué miran las sondas: lo que toca el cuerpo, menos las piezas de las
+## escaleras (Ladder.COLLISION_LAYER). Un peldaño o la punta de un larguero no
+## son un borde para colgarse, ni una esquina, ni un escalón.
+static func mask(body: ActorBody) -> int:
+	return body.collision_mask & ~Ladder.COLLISION_LAYER
+
+
 ## Dónde van las manos con los pies en `feet`, mirando hacia `toward`.
 static func hands_at(body: ActorBody, feet: Vector3, toward: Vector3, tuning: ActorTuning) -> Vector3:
 	var forward := body.capsule_radius() - HANDS_OVERLAP + HANDS_SIZE.z * 0.5
@@ -48,7 +55,7 @@ static func find(body: ActorBody, from: Vector3, to: Vector3, toward: Vector3) -
 	box.size = HANDS_SIZE
 	var params := PhysicsShapeQueryParameters3D.new()
 	params.shape = box
-	params.collision_mask = body.collision_mask
+	params.collision_mask = mask(body)
 	params.exclude = [body.get_rid()]
 	var basis := Basis.looking_at(toward, Vector3.UP)
 	params.transform = Transform3D(basis, from)
@@ -85,7 +92,7 @@ static func _edge_from_contact(body: ActorBody, contact: Vector3, toward: Vector
 	var space := body.get_world_3d().direct_space_state
 	var face_from := contact + Vector3.DOWN * FACE_DROP - toward * 0.4
 	var face := space.intersect_ray(PhysicsRayQueryParameters3D.create(
-			face_from, face_from + toward * 0.8, body.collision_mask, [body.get_rid()]))
+			face_from, face_from + toward * 0.8, mask(body), [body.get_rid()]))
 	if face.is_empty():
 		return {}
 	var normal: Vector3 = face["normal"]
@@ -96,7 +103,7 @@ static func _edge_from_contact(body: ActorBody, contact: Vector3, toward: Vector
 	var top_x := face_point - normal * TOP_INSET
 	var top_from := Vector3(top_x.x, contact.y + 0.25, top_x.z)
 	var top := space.intersect_ray(PhysicsRayQueryParameters3D.create(
-			top_from, top_from + Vector3.DOWN * 0.5, body.collision_mask, [body.get_rid()]))
+			top_from, top_from + Vector3.DOWN * 0.5, mask(body), [body.get_rid()]))
 	if top.is_empty():
 		return {}
 	if (top["normal"] as Vector3).angle_to(Vector3.UP) > MAX_TOP_ANGLE:

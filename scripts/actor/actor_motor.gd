@@ -51,6 +51,11 @@ const CORNER_PROBE := 0.1
 const CORNER_SLACK := 0.005
 ## Agarre de un cable: de a cuánto se barre el movimiento del tick, en metros.
 const CABLE_SWEEP_STEP := 0.1
+## Escalera por atrás: hasta esta altura sobre el pie se agarra parado en el
+## suelo, como de frente. Más arriba, solo si debajo de los pies no hay piso.
+const LADDER_BACK_FOOT := 0.5
+## Cuánto debajo de los pies se busca ese piso, en metros.
+const LADDER_BACK_FLOOR := 0.35
 
 
 static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
@@ -671,8 +676,9 @@ static func anchored_pose_valid(body: ActorBody, state: ActorState, tuning: Acto
 ## Ladder desde Suelo o Aire: dentro del volumen de una escalera, de
 ## cualquiera de sus lados, y con intención de ir hacia ella. Desde atrás
 ## (desde el 2026-10-20, pedido del usuario), solo si la escalera tiene lugar
-## detrás al pie (Ladder.back_open), el cuerpo cabe en la pose y el camino
-## hasta ella está libre (ver _back_blocked). Con varias,
+## detrás al pie (Ladder.back_open), el cuerpo cabe en la pose, el camino
+## hasta ella está libre y, más arriba del pie, no hay piso debajo (ver
+## _back_blocked). Con varias,
 ## gana la de id más chico, así todas las máquinas eligen la misma. La que se
 ## acaba de soltar está bloqueada un rato. Con Ctrl no se llama. El cuerpo va a
 ## la pose de golpe en la etapa 7; el dibujo lo alcanza como en el agarre de un
@@ -696,11 +702,19 @@ static func _try_grab_ladder(body: ActorBody, state: ActorState, direction: Vect
 	return false
 
 
-## Si no se puede agarrar de la escalera por atrás a la altura t: el cuerpo no
-## cabe en la pose (debajo de un balcón, más arriba de lo que se puede trepar
-## por ese lado) o algo tapa el camino hasta ella (una pared fina).
+## Si no se puede agarrar de la escalera por atrás a la altura t: más arriba
+## del pie, hay piso debajo de los pies (es el rellano al que se sale por
+## arriba, como el balcón de la escalera de la corona: ahí uno está parado al
+## lado de la escalera, no colgado de ella; pedido del usuario, 2026-10-20), el
+## cuerpo no cabe en la pose (debajo de un balcón, más arriba de lo que se
+## puede trepar por ese lado) o algo tapa el camino hasta ella (una pared fina).
 static func _back_blocked(body: ActorBody, ladder: Ladder, t: float, feet: Vector3) -> bool:
 	var pose := ladder.pose_at(t, -1.0)
+	if t > LADDER_BACK_FOOT:
+		var ray := PhysicsRayQueryParameters3D.create(pose + Vector3.UP * 0.05,
+				pose + Vector3.DOWN * LADDER_BACK_FLOOR, EdgeProbe.mask(body), [body.get_rid()])
+		if not body.get_world_3d().direct_space_state.intersect_ray(ray).is_empty():
+			return true
 	return not body.stance_fits(ActorState.Stance.STANDING, pose) or body.test_move(body.global_transform, pose - feet)
 
 

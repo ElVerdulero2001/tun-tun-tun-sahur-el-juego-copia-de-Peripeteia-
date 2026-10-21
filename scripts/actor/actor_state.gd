@@ -118,7 +118,7 @@ var straight_out := false
 ## Escalera a la que vuelve solo, o 0: la que dejó saltando mirándola o con
 ## Ctrl. Bajando frente a ella y sin Ctrl, se agarra sin teclas (si el salto
 ## pasó por encima del final, al volver a bajar hasta ella). Se borra al
-## apoyarse o agarrarse de algo.
+## apoyarse o agarrarse de algo, y con A o D (desde el 2026-10-20).
 var ladder_return := 0
 
 

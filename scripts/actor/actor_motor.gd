@@ -99,6 +99,13 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	if state.straight_out and (input.move.y <= 0.0 or input.move.x != 0.0 \
 			or not straight_exit(input, state.facing_yaw, tuning)):
 		state.straight_out = false
+	# La vuelta sola a la escalera (después de soltarse con Ctrl o del salto
+	# para arriba mirándola) se corta con A o D: moverse de costado quiere decir
+	# que se va. Vale apretada antes, en el momento o durante la caída (pedido
+	# del usuario, 2026-10-20: tocando Ctrl con A apretada, se corría un poco y
+	# se volvía a pegar).
+	if state.ladder_return != 0 and input.move.x != 0.0:
+		state.ladder_return = 0
 	var direction := _wish_direction(input, state)
 	# El salto para arriba desde el colgado pide encogerse (etapa 7).
 	var tuck := false
@@ -689,7 +696,6 @@ static func _try_grab_ladder(body: ActorBody, state: ActorState, direction: Vect
 	return false
 
 
-## Vuelve sola, sin teclas, a la escalera que dejó saltando mirándola o con
 ## Si no se puede agarrar de la escalera por atrás a la altura t: el cuerpo no
 ## cabe en la pose (debajo de un balcón, más arriba de lo que se puede trepar
 ## por ese lado) o algo tapa el camino hasta ella (una pared fina).
@@ -698,6 +704,7 @@ static func _back_blocked(body: ActorBody, ladder: Ladder, t: float, feet: Vecto
 	return not body.stance_fits(ActorState.Stance.STANDING, pose) or body.test_move(body.global_transform, pose - feet)
 
 
+## Vuelve sola, sin teclas, a la escalera que dejó saltando mirándola o con
 ## Ctrl (ladder_return): bajando, frente a ella y pasado el bloqueo de
 ## reagarre. Si el salto pasó por encima del final, se agarra al volver a bajar
 ## hasta ella (pedido del usuario, 2026-10-16). Con Ctrl no se llama.

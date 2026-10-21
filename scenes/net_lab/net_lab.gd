@@ -692,12 +692,12 @@ func _local_input(tick: int) -> ActorInput:
 		buttons |= ActorInput.BUTTON_CROUCH
 	if Input.is_action_pressed("run"):
 		buttons |= ActorInput.BUTTON_RUN
+	if _camera.third_person():
+		buttons |= ActorInput.BUTTON_THIRD_PERSON
 	return ActorInput.make(tick, move, _camera.yaw, buttons, jump_presses)
 
 
 ## Prueba de bases: va hasta la base pedida y se queda arriba, dando vueltas
-	if _camera.third_person():
-		buttons |= ActorInput.BUTTON_THIRD_PERSON
 ## cerca del centro y saltando cada 3 s. Si la base está más alta que los pies,
 ## salta para subirse; si está muy alta (un ascensor arriba), la espera afuera.
 func _ride_input(tick: int, base_id: int) -> ActorInput:
@@ -885,11 +885,11 @@ func _ladder_input(tick: int, to_top: bool, ladder_name := TOWER_LADDER_NAME, lo
 	var s := _local_actor.state
 	var facing := atan2(ladder.outward().x, ladder.outward().z)
 	var look := facing + PI if look_back else facing
+	var view := ActorInput.BUTTON_THIRD_PERSON if look_back else 0
 	if s.mode == ActorState.Mode.LADDER:
 		if to_top:
 			if s.anchor_t >= ladder.height - 0.01:
 				_ladder_top_done = true
-	var view := ActorInput.BUTTON_THIRD_PERSON if look_back else 0
 			return ActorInput.make(tick, Vector2(0, 1), look, view, 0)
 		if s.anchor_t >= 2.0:
 			_ladder_direction = -1.0
@@ -2220,7 +2220,7 @@ func _update_hud() -> void:
 		lines.append("Modo: %s   ·   en suelo: %s   ·   época: %d" % [ActorState.Mode.keys()[s.mode], "sí" if s.on_floor else "no", s.epoch])
 		if s.ladder_return != 0:
 			var back_to := Ladder.find(s.ladder_return)
-			lines.append("Volvés solo a la escalera %s al bajar, si seguís frente a ella   ·   con Ctrl no" % (String(back_to.name) if back_to != null else str(s.ladder_return)))
+			lines.append("Volvés solo a la escalera %s al bajar, frente a ella   ·   no con Ctrl; A o D la cancelan" % (String(back_to.name) if back_to != null else str(s.ladder_return)))
 		if s.straight_out:
 			lines.append("Saliste de la escalera mirando atrás: derecho con W sola   ·   soltar W, A, S, D o girar la cámara lo corta")
 		if s.mode == ActorState.Mode.AIR:

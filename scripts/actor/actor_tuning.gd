@@ -13,6 +13,15 @@ extends Node
 
 ## Escena del nodo Tuning que usa el juego.
 const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
+## Las velocidades de este nodo que el súper no multiplica (ver with_boost):
+## la terminal es la de la caída, no la de moverse.
+const NOT_BOOSTED: Array[StringName] = [&"max_fall_speed"]
+
+## La copia con el súper (with_boost), los nombres de los valores guardados y
+## los valores de los que salió.
+var _boosted: ActorTuning
+var _stored: Array[StringName] = []
+var _boosted_from: Array = []
 
 @export_group("Suelo")
 @export var walk_speed := 5.0
@@ -49,7 +58,7 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## Al saltar de la escalera mirando a otro lado (a más de climb_look_angle de
 ## ella): velocidad hacia donde mira, sin la parte que iría contra la pared, y
 ## hacia arriba, en m/s.
-@export var ladder_jump_out := 3.0
+@export var ladder_jump_out_speed := 3.0
 @export var ladder_jump_up := 3.5
 ## Al saltar de la escalera mirándola (a menos de climb_look_angle): salta
 ## derecho para arriba, y los pies suben este tanto más que en un salto desde
@@ -100,7 +109,7 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## Desplazarse colgado, en m/s.
 @export var shimmy_speed := 1.5
 ## Saltar colgado: velocidad hacia donde mira y hacia arriba, en m/s.
-@export var hang_jump_out := 4.0
+@export var hang_jump_out_speed := 4.0
 @export var hang_jump_up := 4.0
 ## Bloqueo de reagarre de bordes al soltarse o saltar, en segundos.
 @export var hang_regrab_time := 0.3
@@ -215,13 +224,16 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## numérico. Cuánto más alto llegan los pies en un salto desde el piso, en
 ## metros, además de la altura de siempre.
 @export var boost_jump_extra := 1.5
-## Por cuánto se multiplican las velocidades: en el piso (caminando, corriendo
-## y agachado), el tope del salto (jump_max_speed), el control en el aire, el
-## salto en el aire, el salto desde un cable y los tres de los cables
-## (cable_speed, cable_climb_speed y cable_slide_speed). Con 1,5: caminando
-## 7,5 m/s, corriendo 12, saltando hasta 9 y en un cable plano 5,25. Hasta el
-## 2026-10-22 el tope del salto con el súper era un valor aparte (6,5 m/s) y
-## los cables iban igual que sin él.
+## Por cuánto se multiplican todas las velocidades de moverse: las de este
+## nodo que terminan en _speed (caminando, corriendo, agachado, deslizándose,
+## en la escalera, colgado, en un cable, colgado de un compañero, el tope del
+## salto y el salto en el aire), salvo la velocidad terminal (NOT_BOOSTED), y
+## el empujón hacia afuera de los saltos desde un borde, una escalera o un
+## cable. Con 1,5: caminando 7,5 m/s, corriendo 12, trepando 3,75. Las
+## aceleraciones y la altura de los saltos no cambian (la del súper salto es
+## boost_jump_extra). Desde el 2026-10-24 vale para todo sin tocar el motor
+## (ver with_boost); antes iba velocidad por velocidad, y la escalera, el
+## colgado, el compañero y el deslizamiento quedaban igual que sin él.
 @export var boost_speed_scale := 1.5
 
 @export_group("Agarre")
@@ -283,6 +295,41 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## unlimited_fall_speed.
 func fall_limit() -> float:
 	return INF if unlimited_fall_speed else max_fall_speed
+
+
+## Los valores con los que se mueve un actor: este mismo nodo, o, con el súper
+## salto y velocidad, una copia con todas las velocidades de moverse (las que
+## terminan en _speed, salvo NOT_BOOSTED) por boost_speed_scale. El motor la
+## pide una vez por tick, así cualquier movimiento, también uno nuevo, va más
+## rápido con el súper sin tocar el motor (pedido del usuario, 2026-10-24:
+## "que todo lo que tenga una velocidad normal tambien tenga su velocidad en
+## super"). La copia se rehace si cambia algún valor de este nodo.
+func with_boost(boosted: bool) -> ActorTuning:
+	if not boosted:
+		return self
+	if _stored.is_empty():
+		for property: Dictionary in get_property_list():
+			var usage: int = property["usage"]
+			if usage & PROPERTY_USAGE_STORAGE and usage & PROPERTY_USAGE_SCRIPT_VARIABLE:
+				_stored.append(StringName(property["name"]))
+	var values := []
+	for property: StringName in _stored:
+		values.append(get(property))
+	if _boosted == null or values != _boosted_from:
+		if _boosted == null:
+			_boosted = ActorTuning.new()
+		for i in _stored.size():
+			var value: Variant = values[i]
+			if typeof(value) == TYPE_FLOAT and String(_stored[i]).ends_with("_speed") and not _stored[i] in NOT_BOOSTED:
+				value *= boost_speed_scale
+			_boosted.set(_stored[i], value)
+		_boosted_from = values
+	return _boosted
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and _boosted != null:
+		_boosted.free()
 
 
 ## Un nodo nuevo con los valores del nodo Tuning de esa escena, leídos del

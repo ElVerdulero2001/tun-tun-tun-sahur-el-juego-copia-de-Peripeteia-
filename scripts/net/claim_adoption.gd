@@ -119,13 +119,14 @@ func _values_possible(claim: ActorState, host: ActorState, tuning: ActorTuning) 
 
 
 ## Lo más que un input que llegó tarde puede cambiar la velocidad: arrancar a
-## correr (con el súper salto y velocidad, más rápido; deslizándose, hasta su
-## tope; en un cable, hasta lo más rápido que se desliza con el súper) y saltar
-## a la vez, en direcciones distintas, con el salto más alto (el de la escalera
-## o el súper salto), más un margen. Con el Tuning de partida: 18 m/s y
-## 7,2 m/s, unos 21 m/s.
+## correr, deslizarse hasta su tope o deslizarse por un cable, lo más rápido de
+## los tres con el súper salto y velocidad (with_boost), y saltar a la vez, en
+## direcciones distintas, con el salto más alto (el de la escalera o el súper
+## salto), más un margen. Con el Tuning de partida: 18 m/s y 7,2 m/s, unos
+## 21 m/s.
 static func _max_velocity_difference(tuning: ActorTuning) -> float:
-	var run := maxf(maxf(tuning.sprint_speed, tuning.cable_slide_speed) * tuning.boost_speed_scale, tuning.slide_max_speed)
+	var fast := tuning.with_boost(true)
+	var run := maxf(maxf(fast.sprint_speed, fast.cable_slide_speed), fast.slide_max_speed)
 	var dt := SimClock.TICK_DT
 	var jump := maxf(ActorMotor.floor_jump_speed(tuning, dt, maxf(tuning.ladder_jump_extra, tuning.boost_jump_extra)),
 			ActorMotor.raised_jump_speed(tuning.air_jump_velocity, tuning, dt, tuning.boost_jump_extra))

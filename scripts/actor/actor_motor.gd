@@ -99,6 +99,9 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		state.power_presses_seen = input.power_presses
 		if power_presses % 2 == 1:
 			state.boosted = not state.boosted
+	# Con el súper, desde acá todas las velocidades de moverse vienen
+	# multiplicadas (ActorTuning.with_boost).
+	tuning = tuning.with_boost(state.boosted)
 
 	# 4. Sondas: colgado, la de borde revalida cada tick el borde agarrado;
 	# colgado de un compañero, se lo busca por su id.
@@ -206,7 +209,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 					state.ladder_return = held
 				else:
 					var away := (look + out * maxf(into, 0.0)).normalized()
-					_leave_anchor(state, tuning, away * tuning.ladder_jump_out + ladder.up() * tuning.ladder_jump_up, true)
+					_leave_anchor(state, tuning, away * tuning.ladder_jump_out_speed + ladder.up() * tuning.ladder_jump_up, true)
 					state.facing_yaw = _yaw_of(away)
 				state.jumped = true
 			elif state.anchor_t <= 0.0 and climb < -0.5:
@@ -236,7 +239,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 					_leave_edge(state, tuning, Vector3.UP * _climb_jump_speed(tuning, dt))
 					tuck = true
 				else:
-					_leave_edge(state, tuning, look * tuning.hang_jump_out + Vector3.UP * tuning.hang_jump_up)
+					_leave_edge(state, tuning, look * tuning.hang_jump_out_speed + Vector3.UP * tuning.hang_jump_up)
 					state.facing_yaw = _yaw_of(look)
 				state.jumped = true
 		ActorState.Mode.HOOKED:
@@ -254,7 +257,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				if look.dot(_toward_mate(state)) >= cos(tuning.climb_look_angle):
 					_leave_hook(state, tuning, Vector3.UP * _climb_jump_speed(tuning, dt), true)
 				else:
-					_leave_hook(state, tuning, look * tuning.hang_jump_out + Vector3.UP * tuning.hang_jump_up, true)
+					_leave_hook(state, tuning, look * tuning.hang_jump_out_speed + Vector3.UP * tuning.hang_jump_up, true)
 					state.facing_yaw = _yaw_of(look)
 				state.jumped = true
 		ActorState.Mode.CABLE:
@@ -270,12 +273,12 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				# Salta hacia donde mira la cámara, como colgado de un borde mirando a
 				# otro lado, y se da vuelta hacia allá. Se lleva la velocidad que traía
 				# sobre el cable, sin pasar del tope del salto. Con el súper salto y
-				# velocidad, como el salto en el aire: sale boost_speed_scale veces más
-				# rápido y los pies suben boost_jump_extra más (pedido del usuario,
-				# 2026-10-19; hasta entonces salía igual que sin el súper).
+				# velocidad, como el salto en el aire: sale más rápido y los pies
+				# suben boost_jump_extra más (pedido del usuario, 2026-10-19; hasta
+				# entonces salía igual que sin el súper).
 				var look := Vector3.FORWARD.rotated(Vector3.UP, input.look_yaw)
-				var most := tuning.jump_max_speed * boost_scale(state, tuning)
-				var out := tuning.hang_jump_out * boost_scale(state, tuning)
+				var most := tuning.jump_max_speed
+				var out := tuning.hang_jump_out_speed
 				var up := raised_jump_speed(tuning.hang_jump_up, tuning, dt, tuning.boost_jump_extra) if state.boosted \
 						else tuning.hang_jump_up
 				var carried := Vector3(state.velocity.x, 0.0, state.velocity.z) + look * out
@@ -408,16 +411,7 @@ static func _ground_speed(state: ActorState, input: ActorInput, tuning: ActorTun
 		speed = tuning.crouch_speed
 	elif input.is_held(ActorInput.BUTTON_RUN):
 		speed = tuning.sprint_speed
-	return speed * boost_scale(state, tuning)
-
-
-## Por cuánto se multiplican las velocidades: boost_speed_scale con el súper
-## salto y velocidad, y 1 sin él. Lo usan el piso, el tope del salto, el
-## control en el aire, el salto en el aire, el salto desde un cable y los
-## cables (desde el 2026-10-22, pedido del usuario: el tope del salto con el
-## súper era un valor aparte, 6,5 m/s, y los cables iban igual que sin él).
-static func boost_scale(state: ActorState, tuning: ActorTuning) -> float:
-	return tuning.boost_speed_scale if state.boosted else 1.0
+	return speed
 
 
 static func _horizontal_speed(state: ActorState) -> float:
@@ -456,7 +450,7 @@ static func _ground(state: ActorState, wish: Vector3, tuning: ActorTuning, dt: f
 static func _air(state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> void:
 	var horizontal := Vector3(state.velocity.x, 0.0, state.velocity.z)
 	if direction.length_squared() > 0.0:
-		var wish := direction * maxf(tuning.walk_speed * boost_scale(state, tuning), horizontal.length())
+		var wish := direction * maxf(tuning.walk_speed, horizontal.length())
 		horizontal = horizontal.move_toward(wish, tuning.air_accel * dt)
 	elif direction.length_squared() == 0.0 and state.walked_off and not state.jumped:
 		horizontal = horizontal.move_toward(Vector3.ZERO, tuning.walk_off_brake * dt)
@@ -841,7 +835,7 @@ static func _leave_anchor(state: ActorState, tuning: ActorTuning, velocity: Vect
 ## quieto. Pasado el alto, si se puede salir (`exit_length`, el largo de ese tramo; ver
 ## ladder_exit_length), la altura sigue por el tramo de la salida, con las
 ## mismas teclas. Donde ese tramo va hacia el rellano, va como caminando:
-## walk_speed (por boost_speed_scale con el súper), con ground_accel y
+## walk_speed, con ground_accel y
 ## ground_decel (pedido del usuario, 2026-10-23: a climb_speed "se sienten
 ## horribles"); de vuelta a la parte que sube, otra vez a climb_speed como mucho.
 static func _ladder(state: ActorState, climb: float, exit_length: float, tuning: ActorTuning, dt: float) -> void:
@@ -854,7 +848,7 @@ static func _ladder(state: ActorState, climb: float, exit_length: float, tuning:
 	var wish := clampf(climb, -1.0, 1.0) * tuning.climb_speed
 	var rate := tuning.climb_accel
 	if walking:
-		wish = clampf(climb, -1.0, 1.0) * tuning.walk_speed * boost_scale(state, tuning)
+		wish = clampf(climb, -1.0, 1.0) * tuning.walk_speed
 		rate = tuning.ground_accel if wish != 0.0 else tuning.ground_decel
 	along = move_toward(along, wish, rate * dt)
 	if state.hooked_by != 0:
@@ -1773,15 +1767,14 @@ static func _cable_pose(cable: Cable, t: float, tuning: ActorTuning) -> Vector3:
 ## siempre (pedido del usuario, 2026-10-19).
 ##
 ## Con el súper salto y velocidad, las tres velocidades (cable_speed,
-## cable_climb_speed y cable_slide_speed) van por boost_speed_scale (pedido del
-## usuario, 2026-10-22).
+## cable_climb_speed y cable_slide_speed) vienen por boost_speed_scale (pedido
+## del usuario, 2026-10-22; desde el 2026-10-24, como todas, por with_boost).
 static func _cable(state: ActorState, cable: Cable, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
 	if cable == null:
 		return
-	var boost := boost_scale(state, tuning)
-	var cable_speed := tuning.cable_speed * boost
-	var climb_speed := tuning.cable_climb_speed * boost
-	var slide_speed := tuning.cable_slide_speed * boost
+	var cable_speed := tuning.cable_speed
+	var climb_speed := tuning.cable_climb_speed
+	var slide_speed := tuning.cable_slide_speed
 	var tangent := cable.tangent_at(state.anchor_t)
 	# Hacia dónde piden ir las teclas, según la cámara, y cuánto de eso va sobre
 	# el cable: positivo hacia la punta `end`.
@@ -1868,7 +1861,7 @@ static func _world_velocity(state: ActorState) -> Vector3:
 ## boost_speed_scale): de eso depende cuánto se avanza. Es la propia, relativa
 ## a la base si está sobre una.
 static func _jump(state: ActorState, tuning: ActorTuning, dt: float) -> void:
-	var most := tuning.jump_max_speed * boost_scale(state, tuning)
+	var most := tuning.jump_max_speed
 	var horizontal := Vector2(state.velocity.x, state.velocity.z).limit_length(most)
 	state.velocity.x = horizontal.x
 	state.velocity.z = horizontal.y
@@ -1887,8 +1880,8 @@ static func _jump(state: ActorState, tuning: ActorTuning, dt: float) -> void:
 ## horizontal que traía, pero no menos que air_jump_speed ni más que el tope
 ## del salto. El cuerpo se da vuelta hacia allá.
 static func _air_jump(state: ActorState, look_yaw: float, tuning: ActorTuning, dt: float) -> void:
-	var most := tuning.jump_max_speed * boost_scale(state, tuning)
-	var least := tuning.air_jump_speed * boost_scale(state, tuning)
+	var most := tuning.jump_max_speed
+	var least := tuning.air_jump_speed
 	var look := Vector3.FORWARD.rotated(Vector3.UP, look_yaw)
 	state.velocity = look * minf(maxf(_horizontal_speed(state), least), most)
 	state.velocity.y = raised_jump_speed(tuning.air_jump_velocity, tuning, dt, tuning.boost_jump_extra) \

@@ -5,9 +5,9 @@ Esta guía es para retomar el laboratorio después de un tiempo sin tener que le
 - **El historial completo**, con cada decisión, prueba y error, en orden: [`arquitectura_coop_y_esqueleto_de_red.md`](arquitectura_coop_y_esqueleto_de_red.md).
 - **El diseño de la arquitectura:** [Arquitectura de movimiento co-op (Godot 4.7 + Jolt)](https://claude.ai/code/artifact/6760c3bf-39ed-4f2f-8d9d-23642c7ac797), en Claude Docs. Está copiado en el Apéndice A del historial.
 
-**Para pedirle algo a Claude en otra conversación:** "leé `docs/net/guia_del_laboratorio.md` y ayudame a …". Si hace falta más detalle, la sección 10 de esta guía dice en qué parte del historial buscarlo.
+**Para pedirle algo a Claude en otra conversación:** "leé `docs/net/guia_del_laboratorio.md` y ayudame a …". Si hace falta más detalle, la sección 11 de esta guía dice en qué parte del historial buscarlo.
 
-Escrita el 2026-10-15 y puesta al día el 2026-10-22. Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
+Escrita el 2026-10-15 y puesta al día el 2026-10-22 dos veces (la segunda, a la noche, con la cuarta vuelta de la escalera, el súper, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado). Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
 
 ---
 
@@ -30,6 +30,7 @@ Todo el laboratorio está en la rama `net-lab` y en estas carpetas. El resto del
 | Las pistas armadas por código (bordes, escalones, torre, pista de cables, pista de colgarse) | `scenes/net_lab/edge_course.gd`, `step_course.gd`, `parkour_tower.gd`, `cable_course.gd`, `hook_course.gd` |
 | La zona de servicio (un pedazo de mapa con todo junto; sección 7) | `scenes/net_lab/zona_de_servicio.tscn`, nodo **ZonaDeServicio** del nivel |
 | La torre de servicio, de 20 a 100 m, sobre la zona (sección 7) | `scenes/net_lab/torre_de_servicio.tscn`, nodo **TorreDeServicio**, adentro de **ZonaDeServicio** |
+| La pista de salto agachado (sección 8) | `scenes/net_lab/crouch_jump_course.gd`, nodo **PistaDeSaltoAgachado** del nivel |
 | La cámara | `scenes/net_lab/lab_camera.gd`; sus valores, en el nodo **CameraRig** de `net_lab.tscn` |
 | El doble clic de la notebook | `tools/net_lab/actualizar_lab.bat` y `.ps1` |
 | La exportación a `.exe` para jugar a distancia (sección 2) | `export_presets.cfg` (el ajuste **Laboratorio co-op (Windows)**) y dos líneas de `project.godot`, las que terminan en `.lab_coop` |
@@ -133,6 +134,18 @@ Todo valor que se pueda ajustar está en el nodo **Tuning**, no en el personaje.
 
 **Desde el 2026-10-20,** en el grupo **Escalera**, **Ladder Exit Back Angle** (90°): desde qué ángulo la cámara cuenta como mirando para atrás al salir de una escalera. Lo eligió Claude.
 
+**Desde el 2026-10-22** (lo pediste después de tus videos; los números los eligió Claude):
+
+- **Grupo Escalera:**
+    - **Ladder Top Land** (0,4 m): al salir por arriba, dónde termina el centro del cuerpo, detrás del eje de la escalera. Reemplaza a **Ladder Top Hop Speed**, el empujón de 2,5 m/s; desde el 2026-10-23 tampoco está **Ladder Top Hop Height**: ya no hay saltito.
+    - **Ladder Top No Grab** (0,5 m): parado en el piso, en este tramo de arriba de una escalera no te agarrás.
+    - **Ladder Grab Side** (0,3 m): hasta qué distancia del centro de la escalera, de costado, te agarrás.
+- **Grupo Aire:**
+    - **Max Fall Speed** (40 m/s): la velocidad terminal. Ya estaba; con 40 se llega cayendo unos 82 m.
+    - **Unlimited Fall Speed** (casilla, apagada): prendida, no hay velocidad terminal.
+    - **Walk Off Brake** (60 m/s²): cayéndote de un borde sin haber saltado y sin apretar nada, a qué ritmo frenás en el aire; con 60, como en el piso; 0 lo apaga.
+- **Grupo Súper salto y velocidad:** **Boost Speed Scale** (1,5) multiplica solo todas las velocidades de moverse: todo valor del Tuning cuyo nombre termina en **Speed**, salvo **Max Fall Speed**. Desde el 2026-10-24 entran también la escalera (**Climb Speed**: trepás a 3,75 con el súper), colgado (**Shimmy Speed**), colgado de un compañero (**Hook Climb Speed** y **Hook Turn Speed**), el deslizamiento (los tres **Slide … Speed**) y los saltos hacia afuera desde la escalera, un borde o un compañero. No cambian las aceleraciones ni la altura de los saltos (la del súper salto es **Boost Jump Extra**). Una velocidad nueva que termine en Speed va con el súper sola, sin tocar nada más. **Ladder Jump Out** y **Hang Jump Out** ahora se llaman **Ladder Jump Out Speed** y **Hang Jump Out Speed**, con los mismos valores. **Boost Jump Max Speed** (los 6,5 m/s del tope del salto con el súper) ya no existe desde el 2026-10-22.
+
 **Valores que cambiaste vos y no son los de fábrica:** el salto desde la escalera mirando a otro lado (**Ladder Jump Up**, 1,2), y en el grupo **Cable**, **Cable Grab Body** (0,3) y **Cable Reach** (0,6).
 
 **Para que colgarse de un compañero sea más o menos permisivo** (grupo **Compañero**, desde el 2026-10-18): **Hook Reach** (1 m: hasta qué distancia de su eje te agarrás), **Hook Min Height** y **Hook Max Height** (0 y 1,5 m: la franja de su cuerpo de la que te agarrás, y hasta donde llegan W y S), **Hook Climb Speed** y **Hook Turn Speed** (1,5 m/s) y **Hook Turn Limit** (90°: cuánto girás por lado en un borde o una escalera). Los eligió Claude; están para que los ajustes vos.
@@ -179,6 +192,7 @@ Desde el 2026-10-19 (lo pediste después de probar la zona de servicio):
 - **Más rápido:** en uno plano o poco inclinado, a **Cable Speed** (3,5 m/s; antes 1,5, la de los bordes); para arriba en uno inclinado, a **Cable Climb Speed** (2 m/s; antes 0,75). Los números los eligió Claude: ajustalos vos.
 - **El impulso se conserva al agarrarte:** te quedás con la velocidad que traías a lo largo del cable. Cayendo derecho sobre uno inclinado, salís hacia donde baja; sobre uno plano, no te mueve; corriendo y saltando a lo largo de él, seguís a esa velocidad. Lo que pase de la velocidad del cable se va perdiendo a **Cable Carry Brake** (6 m/s²) y después seguís como siempre. Ejemplo: cayendo 12 m sobre la bajada de la zona de servicio (35°), te agarrás a 8,3 m/s y en unos 2 m bajás a 6,8, la de deslizarse. Se conserva la parte de la caída que va a lo largo del cable, no toda.
 - **El salto desde un cable con el súper prendido** sale como el salto en el aire con el súper: 1,5 veces más rápido y los pies suben 1,5 m más (2,3 m en vez de 0,8).
+- **Con el súper, los cables van 1,5 veces más rápido** (desde el 2026-10-22): en uno plano, 5,25 m/s; subiendo uno inclinado, 3; y deslizándote, hasta 18 por el seno de la inclinación.
 - **Del compañero al cable y del cable al compañero hay 0,3 s sin agarrarse,** como entre un borde y un cable: si no, colgado de un compañero que está en un cable, cada Espacio te pasaba del compañero al cable y del cable al compañero.
 
 ---
@@ -202,7 +216,7 @@ Una escalera es un nodo **Ladder**. Para trepar es solo un eje, un alto y un alc
 En el Inspector, grupo **Dibujo**:
 
 - **Rail Model:** el larguero (un `.glb`). Va uno a cada lado, estirado hasta el alto; el de la derecha, espejado.
-- **Rung Model:** el peldaño. Va uno cada **Rung Spacing**, estirado solo a lo ancho.
+- **Rung Model:** el peldaño. Va uno cada **Rung Spacing**, estirado solo a lo ancho, hasta el alto de la escalera: arriba solo sobresalen los largueros (desde el 2026-10-23).
 - **Tile Textures:** que la textura no se estire (la repite una vez por metro, según el lugar en el mundo; no usa el mapa UV de Blender).
 - **Show Pieces:** apagado, no dibuja nada; para poner un modelo entero, hecho a mano, como hijo de la escalera.
 
@@ -212,7 +226,7 @@ Si dejás un modelo vacío, va una barra provisoria.
 
 Desde el 2026-10-20 (lo pediste: saltando contra una escalera, uno espera chocar y no atravesarla), cada larguero y cada peldaño choca con una caja del tamaño de su dibujo. Las cajas se arman solas a partir del modelo, centradas en cada pieza: no hay que acomodar nada a mano.
 
-- **Grupo Colisión del Inspector:** **Collides** (prendido) la prende o la apaga, por escalera.
+- **Grupo Colisión del Inspector:** **Collides** (prendido) la prende o la apaga, por escalera. **Top Rung Depth** (0,16 m, desde el 2026-10-23, pedido tuyo): el grosor de la caja de colisión del peldaño de arriba, de adelante hacia atrás. Es donde quedás parado arriba de una escalera suelta: con la caja finita de los demás peldaños (4 cm en las escaleras sin modelos) te caías enseguida. Con 0,16 m aguantás corrido hasta unos 20 cm del centro (antes, 15). Hasta 0,16 no toca al que trepa; desde 0,2 lo roza, y más grueso el que sube choca con él y no termina de subir (con 0,3, en la escalera de 4 m se trababa a 2,25 m). En 0 queda como los demás. El dibujo no cambia.
 - **Se recortan de frente:** tus modelos son gruesos (largueros de 20 cm y peldaños de 15 cm), y quien trepa va a 10 cm del eje. Las cajas llegan hasta 8 cm del eje de cada lado: el dibujo queda igual y lo que sobra no choca, así nunca rozan a quien trepa.
 - **Llegan hasta el alto:** lo que sobresale arriba (los largueros siguen 40 cm, para agarrarse al salir) no choca, así se puede pasar por encima al salir.
 - **Van en su propia capa de física, la 3.** Los cuerpos chocan con ella; las manos no la toman como borde (no te colgás de un peldaño) y no se sube por los peldaños como si fueran escalones. La cámara tampoco choca con ella. Cuando haya armas, los disparos pueden mirar esa capa.
@@ -248,6 +262,14 @@ Las reglas, que decidiste vos, en la sección 8.21 del historial:
 - **Ctrl** te suelta sin empujón: caés mientras lo tengas y al soltarlo te agarrás. Con Ctrl no te agarrás de ninguna escalera, y con alguien colgado de vos, se caen los dos.
 - **Saltando para arriba desde un borde con una escalera arriba** (como las pilastras de la torre), alcanza con mirarla para agarrarte, sin W (desde el 2026-10-21; antes, sin teclas, subías y volvías a caer al borde). En el aire, en los demás casos, para agarrarte de una escalera tenés que ir hacia ella con las teclas, como siempre. Con A o D apretada no te agarrás: apuntan a otro lado.
 - **A o D cortan la vuelta sola** (pedido del 2026-10-20, después del video): si apretás A o D antes de Ctrl, al tocarlo o mientras caés con Ctrl, te soltás y no te volvés a pegar. Lo mismo en el salto para arriba: A o D en el aire y caés al costado. Con un toque corto de Ctrl sin A ni D, al soltarlo te agarrás en el acto, como siempre. Para volver a una escalera, caminá o saltá hacia ella con W.
+
+**Desde el 2026-10-22** (pedidos después de tus videos; el detalle, en la sección 8.31 del historial):
+
+- **Salir por arriba, sin saltito** (desde el 2026-10-23, después de tu video de las 15:46: "averigua la manera de quitar [el saltito], no importa como"): al llegar al tope seguís agarrado de la escalera y pasás al piso de arriba deslizándote, como si te treparas al rellano. Lo poco que sube va a la velocidad de trepar, y hacia adelante vas como caminando: 5 m/s, o 7,5 con el súper (Shift no cambia nada, como pediste). Al principio iba a la velocidad de trepar, 2,5 m/s, y "se sienten horribles". W avanza, sin teclas frenás como caminando y te quedás donde estás (también a mitad de camino), y S te devuelve a la escalera, donde bajás a la velocidad de trepar; a toques, avanzás de a poquito. El cuerpo pasa a la altura del piso de arriba (sube 2 mm, lo justo para no rozar), y al llegar (**Ladder Top Land**, 0,4 m detrás del eje) quedás parado y quieto si soltaste W antes. Con W apretada seguís caminando sin pausa, a la misma velocidad (hasta el 2026-10-23 a la noche frenaba un instante y volvía a arrancar). Si soltás W justo al llegar, frenás como caminando, unos 24 cm más adelante; en una escalera suelta quedás parado arriba, a unos 25 cm del centro. Hasta el 2026-10-23 a la noche subía 3 cm, y al terminar se notaba la bajada ("esos 3 cm se notan"). Antes, un saltito por el aire te llevaba al rellano: el 2026-10-22, a 2,5 m/s y con W empujando en el aire; después, un saltito de 20 cm que caía justo ahí. Para que no tenga que subir más, los peldaños ya no chocan por encima del alto (como los largueros): un peldaño de tus modelos justo en el alto sobresalía 7,5 cm del piso del techo de la sala de calderas.
+- **Escaleras sueltas, sin piso arriba** (como la estación 6 de la pista de colgarse y la grande del laboratorio): la salida termina con vos parado arriba de la escalera, sobre el último peldaño. Así te podés quedar parado arriba de todo. Los peldaños se dibujan solo hasta el alto (antes, el de más arriba era solo dibujo y te atravesaba, tus capturas de las 12:59 del 2026-10-23), y la caja de colisión del de arriba es más gruesa (**Top Rung Depth**, en "Colisión", arriba). En la escalera grande, el peldaño de arriba de tus modelos toca 2,5 cm la punta de abajo del cuerpo parado. Falta probarlo en las dos PC.
+- **Parado en el filo de arriba no te mete en la escalera:** en el último medio metro (**Ladder Top No Grab**), parado en el piso, no te agarrás, aunque estés asomado y aprietes W hacia ella. Para bajar por la escalera desde arriba, salí del filo y, cayendo, W hacia la escalera.
+- **De costado, solo cerca del centro:** te agarrás si estás a 30 cm o menos del centro de la escalera (**Ladder Grab Side**). Antes alcanzaba con estar en su volumen, hasta 30 cm más allá de cada larguero, y el cuerpo iba de golpe al centro: se veía arrastrado o teletransportado (tu video del andamio y el salto desde la pilastra del 34, debajo de una pata).
+- **No te traba más contra un larguero:** si algo tapa el camino hasta tu lugar en la escalera, no te agarra. Antes, agarrado de costado, el cuerpo chocaba con el larguero y quedabas colgado al lado, sin poder subir: ese era el "atascado".
 
 ### Hacer los modelos en Blender
 
@@ -326,7 +348,7 @@ Los bordes que se agarran tienen un canto de chapa ocre. Las escaleras son blanc
 
 **Otras formas:** de la terraza, en vez del cruce, la escalera a la azotea (12 m) y la tirolesa hasta el depósito (se desliza con W; Ctrl al final). Corriendo por la terraza hacia la derecha y saltando desde su punta, se llega al techo del depósito sin el cable. Si caés al pasaje, la escalera del pasaje te sube de nuevo a la pista.
 
-**Súper salto y velocidad (2 del teclado numérico):** desde la pista del depósito, corriendo en diagonal hacia la caseta, se cae directo en su techo; sin el súper, se choca con su pared. Desde el contenedor naranja se agarra el borde del depósito (6,5 m), que sin el súper no se alcanza. Desde lo más alto de cada techo no se llega a los edificios vecinos: la manzana está cerrada.
+**Súper salto y velocidad (2 del teclado numérico):** desde la pista del depósito, corriendo en diagonal hacia la caseta y saltando unos 2 m antes del filo, se cae directo en su techo (desde el 2026-10-22 el salto con el súper sale a 9 m/s y no a 6,5: saltando en el filo, pasás por encima de la caseta); sin el súper, se choca con su pared. Desde el contenedor naranja se agarra el borde del depósito (6,5 m), que sin el súper no se alcanza. Desde lo más alto de cada techo no se llega a los edificios vecinos: la manzana está cerrada.
 
 ### Con un compañero
 
@@ -383,8 +405,8 @@ El bloque que cerraba el fondo del patio (el vecino norte, 20 m) pasó a ser la 
 Agarrarse del compañero sirve para estirar el alcance hacia abajo: el que ya está arriba se cuelga, y el otro se cuelga de él. En las tres, el que llega primero hizo el recorrido normal y baja a buscar al otro.
 
 - **El callejón entre las torres (a 26 m).** A hace el tramo 2 hasta la cara este y, en vez de subir, se corre con **A** hasta el tablero eléctrico (la caja azul): dobla el rincón y la esquina y queda colgado de la cara este del tablero, arriba de los dos cajones. B sube a los cajones, salta debajo de A y se cuelga de él. Sube con **W**, gira con **D** hasta el costado de A y salta mirando la pared: queda colgado al lado. Los dos se corren con **A** hasta la columna de ventanas y suben. Desde el cajón alto, sin A, al tablero solo se llega con el súper.
-- **La escalera de incendios (de 34 a 52).** A, ya en el 52, baja por la escalera del lado este. Se agarra parado en el filo, de espaldas al vacío: **S** hasta caer y **W**. Baja con **S** y, en el final, se cae y queda colgado de la pilastra de abajo, mirando la pared. B, en la terraza del 34 y con el súper prendido, salta debajo de A y se cuelga de él. Sube, gira y salta mirando la pared: queda en la pilastra. Después, **Espacio** y **W**: los dos pasan a la escalera y suben al 52. B se saltea la Torre de Tanques entera. Sin compañero, ni con el súper se llega.
-- **La escalera de mantenimiento (de 70 a 86).** Igual que la de incendios: A baja desde el 86 por la escalera de la cara sur hasta la pilastra, y B, en el 70 y con el súper, se cuelga de él. B se saltea el hueco de ventilación.
+- **La escalera de incendios (de 34 a 52).** A, ya en el 52, baja por la escalera del lado este. Se agarra parado en el filo, de espaldas al vacío: **S** hasta caer y **W**. Baja con **S** y, en el final, se cae y queda colgado de la pilastra de abajo, mirando la pared. B, en la terraza del 34 y con el súper prendido, salta debajo de A y se cuelga de él. Sube, gira y salta mirando la pared: queda en la pilastra, al lado de A. Después A sube primero: **Espacio** y **W**, a la escalera y al 52. B se corre colgado con **A** o **D** hasta quedar debajo del centro de la escalera y hace lo mismo (desde el 2026-10-22: al lado de A queda a más de 30 cm del centro, y de ahí la escalera ya no te agarra). B se saltea la Torre de Tanques entera. Sin compañero, ni con el súper se llega.
+- **La escalera de mantenimiento (de 70 a 86).** Igual que la de incendios: A baja desde el 86 por la escalera de la cara sur hasta la pilastra, y B, en el 70 y con el súper, se cuelga de él. A sube primero y B se corre hasta el centro. B se saltea el hueco de ventilación.
 
 #### Súper salto y velocidad
 
@@ -419,10 +441,32 @@ Abrí `torre_de_servicio.tscn`. Los nodos están por edificio y tramo: **PlantaT
 - **El resto del laboratorio:** la prueba de la zona de servicio da 60 de 60, la de repetición coincide con la misma huella de antes (`46a23a75b9852601`) y el barrido de bordes cumple los cuatro criterios (ahora tarda unos 7 minutos). En dos copias en esta PC, el cliente entra con la misma huella, sin correcciones ni adopciones, con los dos quietos donde aparecen.
 - **En las dos PC** (2026-10-20): "quedo bastante lindo a construcción". Commit `b4d35cb`. Esa prueba trajo la tercera vuelta de la escalera (sección 5).
 - **Falta:** ver la cámara de verdad en el hueco y en el callejón, y cuáles de las tres rutas de a dos probaste en red (no se contó).
+- **Desde el 2026-10-22,** las rutas de a dos de las escaleras de incendios y de mantenimiento van con A primero y B corriéndose hasta el centro (arriba, en "Con un compañero"). La prueba sin red las recorre así: 70 de 70.
 
 ---
 
-## 8. Cómo trabajamos (reglas acordadas)
+## 8. La pista de salto agachado
+
+Pedida el 2026-10-22: una zona para probar saltar y agacharse en el aire. El diseño es de Claude. Agachado en el aire, la cápsula se achica desde abajo, de 1,8 a 1,0 m, con la cabeza quieta: los pies suben 0,8 m y llegás más alto que saltando parado. Agachado no te colgás de los bordes: caés arriba o chocás.
+
+**Dónde está:** al sur del piso del laboratorio, detrás de donde aparecés (date vuelta y caminá derecho unos 25 m). Tiene su propio piso, pegado al borde del piso del laboratorio. Ahí no la cruza ninguna prueba automática y no hay cables cerca.
+
+| Lugar | Qué hay | Cómo se sube |
+| --- | --- | --- |
+| Fila de adelante | Seis bloques: 1,2 · 1,4 · 1,6 · 1,8 · 2,0 · 2,2 m | Parado, el de 1,2. Agachándote en el aire, hasta el de 2,0 (justo, desde cerca). El de 2,2, ni agachándote |
+| Fila de atrás, a la izquierda | Un conducto: repisa a 1,6 m y techo a 3,0 m (1,4 m de alto) | Saltá y agachate en el aire; adentro no te podés parar: seguí agachado (con **Ctrl**) hasta el otro lado y bajá |
+| Fila de atrás, al medio | Un muro de 3,6 m con una ventana de 1,8 a 3,1 m | Saltá caminando hacia ella y agachate en el aire, en cualquier momento antes de lo más alto |
+| Fila de atrás, a la derecha | Con el súper: 2,6 · 3,0 · 3,4 m | El de 2,6, parado; los otros dos, agachándote |
+
+Cada bloque tiene su cartel. A cada cosa se entra caminando hacia el sur.
+
+**Probado sin red** (una prueba de Claude, 15 de 15): cada bloque, parado y agachado, caminando y corriendo, desde 0,8 y 1,5 m; el conducto (se entra agachado, soltando Ctrl adentro seguís agachado, se sale por atrás; parado no se entra); la ventana (agachado se pasa en 40 combinaciones de distancia, momento y velocidad; parado, en ninguna); y los bloques del súper.
+
+**Cambiarla:** las alturas y medidas son las constantes del principio de `crouch_jump_course.gd` (**BLOCK_HEIGHTS**, **BOOST_HEIGHTS**, **DUCT_FLOOR**, **DUCT_CEILING**, **WINDOW_Y** y las demás). Como las pistas, se arma por código: las piezas no se guardan en la escena. El nodo **PistaDeSaltoAgachado** se mueve en el editor.
+
+---
+
+## 9. Cómo trabajamos (reglas acordadas)
 
 - **Godot cerrado antes de que Claude toque el nivel o `project.godot`.** Si está abierto, al guardar puede pisar el cambio. Claude avisa cuando hace falta cerrarlo; si Godot pregunta si guardar, a veces la respuesta es **No guardar**, y Claude lo dice.
 - **El commit local va después de una prueba en las dos PC que sale bien,** sin esperar a que lo pidas (decidido el 2026-10-17: "seguí así, commit después de una prueba que sale bien"). Es local, en la rama `net-lab`; a GitHub se sube solo si lo pedís. Los md se commitean cuando lo pedís.
@@ -439,7 +483,7 @@ Abrí `torre_de_servicio.tscn`. Los nodos están por edificio y tramo: **PlantaT
 
 ---
 
-## 9. Lo que conviene recordar
+## 10. Lo que conviene recordar
 
 - **Mecánicas que dependen de un buen internet** (se pide menos de 140 ms y poca pérdida): las correcciones de la balsa al subirse o saltar arriba, y la demora de la cámara lenta (0,1 s en la red de la casa, hasta 0,33 s con internet mala).
 - **Si se va el host, se termina la partida:** no hay migración de host. Si a un cliente se le corta la red, el host lo espera hasta 60 s.
@@ -455,12 +499,15 @@ Abrí `torre_de_servicio.tscn`. Los nodos están por edificio y tramo: **PlantaT
 
 - **Para jugar a distancia, los dos con el mismo `.exe`** (sección 2): cada cambio de código o de valores pide exportar de nuevo y mandarlo. Si tu amigo tiene uno viejo, el host no lo deja entrar.
 - **El agarre con las manos por encima del filo** (sección 3) sigue sin commit desde el 2026-10-19: está en todas tus pruebas desde entonces, pero nunca se probó aparte.
+- **Caerse de un borde sin saltar** (desde el 2026-10-22): sin apretar nada, frenás en el aire y caés casi derecho, pegado al borde. Con las teclas apretadas seguís de largo, y saltando no cambia nada. Desde algo que se mueve (el vagón, la balsa) no frena: te llevás su velocidad. Lo que queda es la punta redonda de la cápsula resbalando por el filo al empezar a caer, unos 10 cm.
+- **El súper multiplica todo por 1,5** (desde el 2026-10-22), también el tope del salto: corriendo con el súper saltás a 9 m/s, no a 6,5. Por eso el atajo a la caseta de la zona de servicio sale saltando antes del filo.
+- **Agacharse corriendo** es el deslizamiento: de 8 m/s a 2,5 en 1,4 s, unos 7 m, y después seguís agachado a 2,5. El 2026-10-22 elegiste dejarlo así.
 
 La lista completa de pendientes y límites está en la sección 16 del historial.
 
 ---
 
-## 10. Dónde está cada tema en el historial
+## 11. Dónde está cada tema en el historial
 
 | Tema | Sección |
 | --- | --- |
@@ -491,6 +538,7 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 | La torre de servicio | 8.28 |
 | La escalera: la salida derecha en tercera persona, la colisión, los dos lados, A o D, por atrás con piso y desde un borde; los commits parciales | 8.29 |
 | Exportar y jugar a distancia | 8.30 |
+| La escalera, cuarta vuelta (salir por arriba, la punta, de costado, la traba y las sueltas); el súper; la velocidad terminal; el saltito al borde; el deslizamiento; la pista de salto agachado | 8.31 |
 | El código hoy: archivos, funciones, formatos de red, constantes, valores del Tuning | 9 |
 | Cómo usar el laboratorio: menú, teclas, panel, pruebas, el nivel | 10 |
 | Todas las pruebas y sus resultados | 11 |
@@ -503,9 +551,9 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 
 ---
 
-## 11. Dónde quedó (2026-10-22)
+## 12. Dónde quedó (2026-10-24)
 
-- **Último commit:** `2a7e78f` (2026-10-21): saltando para arriba desde un borde, mirar la escalera alcanza (sección 5), después de tu prueba en las dos PC. Todos los commits desde `b267dc9` (2026-10-19) son solo locales, en `net-lab`.
+- **Último commit:** el de esta guía y el historial (2026-10-24). Antes, `3fae993` (2026-10-24), el súper en todas las velocidades, y `1324a69` (2026-10-23 a la noche), lo del 2026-10-22 y la escalera del 2026-10-23, cada uno después de tu prueba en las dos PC.
 - **Los commits del 2026-10-19 al 2026-10-21** (secciones 8.23 a 8.29 del historial), cada uno después de tu prueba en las dos PC:
     - `b3a4f80`, los arreglos de la segunda revisión de GPT;
     - `8d7b0b9`, la zona de servicio (sección 7);
@@ -515,13 +563,16 @@ La lista completa de pendientes y límites está en la sección 16 del historial
     - `c588cfa`, las escaleras con colisión y de los dos lados, con tu tirolesa de regreso y las dos escaleras de a dos de la torre corridas 6,5 cm hacia la pared (sección 5);
     - `fccb2b0`, A o D cortan la vuelta sola (sección 5); además repara dos líneas que habían quedado fuera de lugar en `00e1d78` y `c588cfa` (en tu disco estaban bien);
     - `5469f78`, por atrás no se agarra la escalera donde hay piso debajo de los pies (sección 5);
-    - `2a7e78f`, el de arriba.
-- **En GitHub:** `net-lab` está como el 2026-10-18, en `1dfb1e3`; los 10 commits de después son solo locales.
-- **La prueba de repetición** coincide. Con lo que tenés en el disco, su huella es `c06785573be6cf66` desde las escaleras con colisión: su recorrido ahora choca con la escalerita de la plataforma. Los commits solos, sin el agarre de arriba que sigue sin commit, dan `677545182b2c476f`.
+    - `2a7e78f`, saltando para arriba desde un borde, mirar la escalera alcanza (sección 5);
+    - `1324a69`, lo del 2026-10-22 y la escalera del 2026-10-23;
+    - `3fae993`, el súper en todas las velocidades (sección 3).
+- **En GitHub:** `net-lab` subida el 2026-10-24, con este commit; hasta entonces estaba como el 2026-10-18, en `1dfb1e3`.
+- **La prueba de repetición** coincide. Con lo que tenés en el disco, su huella es `efb6d76da57d9ecd` desde el 2026-10-23 a la noche, por la salida por arriba a la altura del piso y sin pausa al terminar (su recorrido sale por arriba de la escalerita de la plataforma). El súper en todas las velocidades (2026-10-24) no la cambió: el recorrido no trepa ni se cuelga con el súper prendido. Sin el agarre con las manos por encima del filo, que sigue sin commit, da `e2f77d3eccd297c6` (lo que tiene `1324a69` solo). Un rato antes, todavía con la pausa, fue `8fef544164401d4f`. Esa tarde, con la salida hacia el rellano como caminando y 3 cm más arriba, fue `2a4b315010b9405b`. Un rato antes, con la salida sin saltito a la velocidad de trepar, fue `ccc95b9ae1765ef7`. Del 2026-10-22 al 2026-10-23 fue `025fb3508b46734d` (el súper nuevo, el freno al caerse de un borde y su salto del súper movido al tick 38); antes, `c06785573be6cf66`.
+- **Lo del 2026-10-22** (sección 8.31 del historial): la escalera sin empujón arriba, la punta, de costado y sin trabas; el súper por 1,5 en todo; la casilla de la velocidad terminal; el freno al caerse de un borde; y la pista de salto agachado. Lo probaste en las dos PC a las 20:37: "todo funciona correctamente", salvo la salida por arriba de la escalera suelta, que te dejaba caer del otro lado. Arreglada a las 20:50 (sección 5). En tu prueba del 2026-10-23 quedabas parado arriba, pero te atravesaba el peldaño de más arriba, que era solo dibujo: desde entonces los peldaños llegan solo hasta el alto. Probado sin red. El 2026-10-23, además: el grosor del peldaño de arriba (**Top Rung Depth**) y la salida por arriba sin saltito, pasando al rellano agarrado de la escalera (sección 5). Probado en las dos PC el 2026-10-23 a la noche ("perfecto, ahora funciona perfectamente") y commiteado en `1324a69`; el 2026-10-24, "hice las pruebas en red, funciona correctamente todo".
+- **Lo del 2026-10-24** (sección 8.32 del historial): el súper en todas las velocidades, también la escalera (sección 3). Probado en las dos PC, en casa ("todo funciona correctamente"), y commiteado en `3fae993`.
 - **Sin commit:**
     - la exportación para jugar a distancia (sección 2): `export_presets.cfg`, dos líneas de `project.godot` y las IP del menú, en `net_lab.gd`; falta la prueba con tu amigo;
     - el agarre con las manos por encima del filo (sección 3; en `actor_motor.gd`, `actor_body.gd`, `actor_tuning.gd` y `hang_sweep_test.gd`), del 2026-10-19;
     - F1, que oculta el panel (`net_lab.gd`), probada con teclas simuladas;
-    - los md: el historial, en su decimocuarta versión (2026-10-22, secciones 8.24 a 8.30), y esta guía;
     - `project.godot` tiene además la línea 4.6 → 4.7 del editor, que no se commitea.
-- **Pendientes:** la prueba a distancia con tu amigo; seguir probando si el cilindro es muy permisivo, con más escenarios; la cuerda con la cámara ("no lo vamos a tocar ahora"); las pruebas de empujones al que cuelga de un compañero, que ya no llegan a colgarse (de antes, sin investigar); y el punto 4 de la revisión externa, para cuando pase al juego. La lista completa, en la sección 16 del historial.
+- **Pendientes:** la prueba a distancia con tu amigo (con un `.exe` nuevo; las del 2026-10-24 fueron en casa); seguir probando si el cilindro es muy permisivo, con más escenarios; la cuerda con la cámara ("no lo vamos a tocar ahora"); las pruebas de empujones al que cuelga de un compañero, que ya no llegan a colgarse (de antes, sin investigar); y el punto 4 de la revisión externa, para cuando pase al juego. La lista completa, en la sección 16 del historial.

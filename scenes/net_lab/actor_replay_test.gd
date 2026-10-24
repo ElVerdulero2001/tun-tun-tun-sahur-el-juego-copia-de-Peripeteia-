@@ -368,7 +368,10 @@ func _build_inputs() -> void:
 		# pulsaciones en el mismo tick):
 		[20, Vector2.ZERO, 0.0, [], 0, [], 0, [0]],  # lo prende, quieto
 		[40, Vector2(0, 1), PI, [], run, [], 0],  # corre más rápido
-		[60, Vector2(0, 1), PI, [10], run, [], 0],  # salta corriendo, más alto
+		# Salta corriendo, más alto. Desde el 2026-10-22 el tope del salto con el
+		# súper es 9 m/s (antes 6,5): salta más tarde para pasar por debajo del
+		# cable plano y agarrarlo.
+		[60, Vector2(0, 1), PI, [38], run, [], 0],
 		[20, Vector2.ZERO, 0.0, [], 0, [], 0, [5, 5]],  # dos pulsaciones juntas: sigue prendido
 		[20, Vector2.ZERO, 0.0, [], 0, [], 0, [5]],  # lo apaga
 		[60, Vector2.ZERO, 0.0, [10], 0],  # salto normal

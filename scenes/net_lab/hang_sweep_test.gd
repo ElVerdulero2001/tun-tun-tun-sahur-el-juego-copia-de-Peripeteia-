@@ -197,7 +197,7 @@ func _note_tick(state: ActorState, look_yaw: float, variant: Array, result: Dict
 		return
 	var direction := ActorMotor.grab_direction(look_yaw).normalized()
 	var from := _actor.global_position
-	var fall := maxf(state.velocity.y - _tuning.gravity * TICK_DT, -_tuning.max_fall_speed)
+	var fall := maxf(state.velocity.y - _tuning.gravity * TICK_DT, -_tuning.fall_limit())
 	var motion := Vector3(state.velocity.x, fall, state.velocity.z) * TICK_DT
 	var hands_from := EdgeProbe.hands_at(_actor, from, direction, _tuning)
 	var hands_to := EdgeProbe.hands_at(_actor, from + motion, direction, _tuning)

@@ -27,7 +27,7 @@ const NORMAL_STEP := 0.0001
 const TIME_STEP := 0.0001
 const YAW_STEPS := 65536
 ## Largo de to_bytes(). Lo que llega por red con otro largo se descarta.
-const BYTE_SIZE := 92
+const BYTE_SIZE := 93
 ## regrab_id de un bloqueo de bordes (Hanging), distinto de cualquier escalera.
 ## También bloquea los cables: si no, uno al alcance de las manos atrapa al
 ## que salta del borde, y desde el cable el salto vuelve al borde (pedido del
@@ -120,6 +120,11 @@ var straight_out := false
 ## pasó por encima del final, al volver a bajar hasta ella). Se borra al
 ## apoyarse o agarrarse de algo, y con A o D (desde el 2026-10-20).
 var ladder_return := 0
+## Se cayó de un borde sin saltar (se quedó sin piso caminando o
+## deslizándose, en un piso fijo): mientras no salte, en el aire sin teclas
+## frena (desde el 2026-10-22). Se borra al apoyarse o agarrarse de algo, y
+## con un empujón.
+var walked_off := false
 
 
 func quantize() -> void:
@@ -173,6 +178,7 @@ func to_bytes() -> PackedByteArray:
 	b.put_u8(1 if jumped else 0)
 	b.put_u8(1 if straight_out else 0)
 	b.put_u16(ladder_return & 0xFFFF)
+	b.put_u8(1 if walked_off else 0)
 	return b.data_array
 
 
@@ -205,15 +211,16 @@ static func from_bytes(bytes: PackedByteArray) -> ActorState:
 	s.jumped = b.get_u8() == 1
 	s.straight_out = b.get_u8() == 1
 	s.ladder_return = b.get_u16()
+	s.walked_off = b.get_u8() == 1
 	return s
 
 
 func describe() -> String:
-	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f rincón=%s súper=%s/%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d saltó=%s derecho=%s vuelve=%d época=%d" % [
+	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f rincón=%s súper=%s/%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d saltó=%s derecho=%s vuelve=%d cayó_del_borde=%s época=%d" % [
 		Mode.keys()[mode], Stance.keys()[stance], Stance.keys()[stance_wanted], on_floor, base_id,
 		anchor_id, anchor_t, anchor_point, hooked_by, regrab_id, regrab_left, "sí" if corner_inside else "no",
 		"sí" if boosted else "no", power_presses_seen,
-		position, velocity, facing_yaw, coyote_left, jump_buffer_left, jump_presses_seen, "sí" if jumped else "no", "sí" if straight_out else "no", ladder_return, epoch,
+		position, velocity, facing_yaw, coyote_left, jump_buffer_left, jump_presses_seen, "sí" if jumped else "no", "sí" if straight_out else "no", ladder_return, "sí" if walked_off else "no", epoch,
 	]
 
 

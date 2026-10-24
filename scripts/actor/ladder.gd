@@ -30,6 +30,7 @@ extends Node3D
 ## bordes no (un peldaño no es un borde para colgarse).
 
 ## Los largueros sobresalen esto por encima del alto, para agarrarse arriba.
+## Los peldaños, no: el de más arriba es el último que no pasa del alto.
 const RAIL_EXTRA := 0.4
 ## Las piezas van esto adelante del eje, hacia quien trepa.
 const PIECES_Z := 0.05
@@ -121,6 +122,18 @@ var ladder_id: int:
 @export var collides := true:
 	set(value):
 		collides = value
+		_rebuild()
+## Grosor de la caja de colisión del peldaño de arriba, de adelante hacia
+## atrás, en metros, centrada en el eje. Es donde se queda parado el que sale
+## por arriba de una escalera suelta: con la caja finita de los demás peldaños
+## (4 cm en los provisorios), la punta redonda del cuerpo se cae enseguida.
+## El dibujo no cambia. Con el Standoff de siempre, hasta 0,16 m no toca al que
+## trepa; desde unos 0,2 m lo roza, y más grueso el que sube choca con él en el
+## último tramo y no termina de subir (con 0,3 m, en la de 4 m se trababa a
+## 2,25 m). 0: como los demás peldaños (pedido del usuario, 2026-10-23).
+@export_range(0.0, 0.6, 0.01) var top_rung_depth := 0.16:
+	set(value):
+		top_rung_depth = value
 		_rebuild()
 
 var _visual: Node3D
@@ -233,6 +246,11 @@ func height_for(feet: Vector3, side := 1.0) -> float:
 	return clampf(local.y, 0.0, height)
 
 
+## A qué distancia del eje están unos pies, de costado (a lo ancho), con signo.
+func across(feet: Vector3) -> float:
+	return (global_transform.affine_inverse() * feet).x
+
+
 ## De qué lado de la escalera están unos pies dentro de su volumen de entrada:
 ## 1 adelante, -1 atrás, 0 en ninguno.
 func side_for(feet: Vector3) -> float:
@@ -283,7 +301,10 @@ func _rebuild() -> void:
 	var copies := {}
 	var rail_height := height + RAIL_EXTRA
 	# Lo que choca, en coordenadas de la escalera: cada larguero hasta el alto y
-	# cada peldaño que no pase del alto.
+	# cada peldaño. Los peldaños llegan solo hasta el alto: hasta el 2026-10-23
+	# se dibujaban también entre el alto y la punta de los largueros, sin chocar,
+	# y parado arriba de una escalera suelta el cuerpo atravesaba el de más
+	# arriba (capturas del usuario).
 	var solids: Array[AABB] = []
 	for side in [-1.0, 1.0]:
 		var rail := _piece(rail_model, Vector3(0.06, 1.0, 0.06), Vector3.AXIS_Y, copies)
@@ -293,15 +314,22 @@ func _rebuild() -> void:
 		var thick := (box.size * stretch).abs()
 		solids.append(_clipped(AABB(Vector3(side * width * 0.5 - thick.x * 0.5, 0.0, PIECES_Z - thick.z * 0.5), Vector3(thick.x, height, thick.z))))
 	var rung_y := rung_spacing
-	while rung_y < rail_height - 0.05:
+	var top_rung := -1
+	while rung_y <= height:
 		var rung := _piece(rung_model, Vector3(1.0, 0.04, 0.04), Vector3.AXIS_X, copies)
 		var box := _bounds(rung)
 		var stretch := Vector3(width / maxf(box.size.x, 0.001), 1.0, 1.0)
 		_place(rung, box, stretch, Vector3(0.0, rung_y, PIECES_Z))
-		if rung_y <= height:
-			var size := (box.size * stretch).abs()
-			solids.append(_clipped(AABB(Vector3(0.0, rung_y, PIECES_Z) - size * 0.5, size)))
+		var size := (box.size * stretch).abs()
+		top_rung = solids.size()
+		solids.append(_below_top(_clipped(AABB(Vector3(0.0, rung_y, PIECES_Z) - size * 0.5, size))))
 		rung_y += rung_spacing
+	# El peldaño de arriba, con su grosor propio, centrado en el eje y sin
+	# recortar (ver top_rung_depth).
+	if top_rung >= 0 and top_rung_depth > 0.0:
+		var top: AABB = solids[top_rung]
+		solids[top_rung] = AABB(Vector3(top.position.x, top.position.y, -top_rung_depth * 0.5),
+				Vector3(top.size.x, top.size.y, top_rung_depth))
 	if collides:
 		_build_collision(solids)
 
@@ -315,6 +343,16 @@ func _clipped(box: AABB) -> AABB:
 	var near := maxf(box.position.z, -clear)
 	var far := minf(box.end.z, clear)
 	return AABB(Vector3(box.position.x, box.position.y, near), Vector3(box.size.x, box.size.y, maxf(far - near, 0.01)))
+
+
+## Una caja de colisión recortada para que no pase del alto, como los
+## largueros: un peldaño justo en el alto, con un modelo grueso, sobresalía
+## del piso del rellano, y la salida por arriba tenía que subir para pasarlo
+## (2026-10-23). El dibujo queda igual.
+func _below_top(box: AABB) -> AABB:
+	if box.end.y <= height:
+		return box
+	return AABB(box.position, Vector3(box.size.x, maxf(height - box.position.y, 0.01), box.size.z))
 
 
 ## La colisión de las piezas: un cuerpo fijo en la capa de las escaleras, con

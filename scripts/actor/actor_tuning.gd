@@ -58,10 +58,28 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## Al soltar un ancla por un salto o un empujón, cuánto tiempo no se la puede
 ## volver a agarrar, en segundos de tiempo del actor.
 @export var regrab_block_time := 0.4
-## Al salir por arriba, con un saltito sobre el borde: cuánto suben los pies
-## por encima del tope, en metros, y la velocidad hacia adentro, en m/s.
-@export var ladder_top_hop_height := 0.2
-@export var ladder_top_hop_speed := 2.5
+## Al salir por arriba, dónde termina: el centro del cuerpo, este tanto detrás
+## del eje de la escalera (del lado del piso), en metros. Con 0,4 queda apenas
+## pasando el filo. Desde el 2026-10-23 no hay saltito: pasado el alto, el
+## cuerpo sigue agarrado de la escalera y pasa al rellano con W (sin teclas se
+## queda, con S vuelve), y al llegar queda parado, quieto. Si ahí no hay piso
+## (una escalera suelta), termina parado arriba de la escalera, sobre el
+## peldaño de arriba. Hasta el 2026-10-22 un saltito salía a 2,5 m/s hacia
+## adentro y caía unos 0,7 m detrás del eje, más lo que empujara W en el aire;
+## después, un saltito de 0,2 m (`ladder_top_hop_height`, que se sacó) que caía
+## justo acá.
+@export_range(0.3, 1.5, 0.01) var ladder_top_land := 0.4
+## Parado en el piso, no te agarrás de una escalera en este tramo de arriba,
+## en metros: así, parado en el filo de arriba con el cuerpo asomado, W no te
+## mete en la escalera. Para bajar por ella, salí del filo y agarrate cayendo,
+## con W hacia ella. En el aire no cambia nada.
+@export_range(0.0, 2.0, 0.01) var ladder_top_no_grab := 0.5
+## Te agarrás de una escalera si el centro del cuerpo está a no más de esto de
+## su eje, de costado, en metros. El cuerpo va al centro de golpe (el dibujo
+## lo alcanza de a poco): más lejos, se lo veía arrastrado o teletransportado,
+## y podía trabarse contra un larguero. Hasta el 2026-10-22 alcanzaba con
+## estar en el volumen de la escalera, hasta 30 cm más allá de cada larguero.
+@export_range(0.0, 1.0, 0.01) var ladder_grab_side := 0.3
 ## Al salir por arriba con W, en tercera persona y con la cámara mirando a más
 ## de este ángulo de hacia donde subía (para atrás), va derecho mientras siga
 ## con W sola y la cámara así: si no, W lo llevaría de vuelta a la escalera. En
@@ -197,12 +215,14 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## numérico. Cuánto más alto llegan los pies en un salto desde el piso, en
 ## metros, además de la altura de siempre.
 @export var boost_jump_extra := 1.5
-## Por cuánto se multiplica la velocidad en el piso: caminando, corriendo y
-## agachado.
+## Por cuánto se multiplican las velocidades: en el piso (caminando, corriendo
+## y agachado), el tope del salto (jump_max_speed), el control en el aire, el
+## salto en el aire, el salto desde un cable y los tres de los cables
+## (cable_speed, cable_climb_speed y cable_slide_speed). Con 1,5: caminando
+## 7,5 m/s, corriendo 12, saltando hasta 9 y en un cable plano 5,25. Hasta el
+## 2026-10-22 el tope del salto con el súper era un valor aparte (6,5 m/s) y
+## los cables iban igual que sin él.
 @export var boost_speed_scale := 1.5
-## Como jump_max_speed (grupo Salto), pero con el súper prendido: el salto
-## dura 1,5 s en el aire, así que se avanza más o menos esto por 1,5.
-@export var boost_jump_max_speed := 6.5
 
 @export_group("Agarre")
 ## Cuánta fuerza externa resiste cada modo antes de soltarse (escala de 0 a 5).
@@ -219,7 +239,20 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## Aceleración hacia la velocidad pedida en el aire, en m/s².
 @export var air_accel := 12.0
 @export var gravity := 9.8
+## Velocidad terminal: lo más rápido que se cae, en m/s. Con 40, se llega
+## cayendo unos 82 m; desde los 100 m de la torre de servicio, el tope se
+## nota en los últimos metros.
 @export var max_fall_speed := 40.0
+## Prendido, no hay velocidad terminal: se cae cada vez más rápido, sin tope
+## (Max Fall Speed no cuenta).
+@export var unlimited_fall_speed := false
+## Cayéndote de un borde sin haber saltado (de un piso fijo, no de algo que se
+## mueve), si no apretás nada frenás en el aire a este ritmo, en m/s²: con 60,
+## como en el piso, y el último toque antes de caerte te deja caer casi
+## derecho, pegado al borde. Con las teclas apretadas seguís de largo como
+## siempre. 0 lo apaga: el toque te sigue llevando en el aire (hasta el
+## 2026-10-22 era así; pedido del usuario).
+@export var walk_off_brake := 60.0
 
 @export_group("Salto")
 @export var jump_velocity := 4.8
@@ -227,7 +260,8 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## rápido (corriendo, deslizándote), el salto sale con esta. Cuánto se avanza
 ## en un salto es más o menos esto por el tiempo en el aire (1 s en un salto
 ## normal). Bajalo y se salta menos lejos. Es la velocidad propia: sobre una
-## plataforma que se mueve, la de la plataforma se suma aparte.
+## plataforma que se mueve, la de la plataforma se suma aparte. Con el súper
+## salto y velocidad, por boost_speed_scale (9 m/s).
 @export var jump_max_speed := 6.0
 ## Salto en el aire: cayendo sin haber saltado desde que dejó el piso o algo
 ## de donde estaba agarrado (se cayó de un borde, se soltó, lo empujaron),
@@ -236,13 +270,19 @@ const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## y velocidad, los pies suben boost_jump_extra más.
 @export var air_jump_velocity := 4.8
 ## Sale hacia donde mira la cámara, con la velocidad horizontal que traía
-## pero no menos que esta, en m/s (con el súper, por boost_speed_scale), ni
-## más que el tope del salto (jump_max_speed, o boost_jump_max_speed).
+## pero no menos que esta, en m/s, ni más que el tope del salto
+## (jump_max_speed). Con el súper, los dos por boost_speed_scale.
 @export var air_jump_speed := 5.0
 ## Ventana para saltar después de dejar el piso, en segundos de tiempo del actor.
 @export var coyote_time := 0.1
 ## Cuánto se recuerda una pulsación de salto antes de tocar el piso, en segundos.
 @export var jump_buffer_time := 0.12
+
+
+## La velocidad terminal que vale: max_fall_speed, o sin tope (INF) con
+## unlimited_fall_speed.
+func fall_limit() -> float:
+	return INF if unlimited_fall_speed else max_fall_speed
 
 
 ## Un nodo nuevo con los valores del nodo Tuning de esa escena, leídos del

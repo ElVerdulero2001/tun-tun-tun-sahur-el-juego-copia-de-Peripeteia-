@@ -13,7 +13,8 @@
 [ext_resource type="PackedScene" uid="uid://clnnefjgv8wx5" path="res://assets/models/stairs/peladñoparaescalera.glb" id="11_jwdyc"]
 [ext_resource type="Script" uid="uid://dmfjy6oed0362" path="res://scenes/net_lab/hook_course.gd" id="12_hooks"]
 [ext_resource type="PackedScene" path="res://scenes/net_lab/zona_de_servicio.tscn" id="13_zona"]
-[ext_resource type="PackedScene" path="res://scenes/net_lab/torre_de_servicio.tscn" id="14_torre"]
+[ext_resource type="PackedScene" uid="uid://bv21nned2qb0n" path="res://scenes/net_lab/torre_de_servicio.tscn" id="14_torre"]
+[ext_resource type="Script" uid="uid://bd7t6mp22ijfj" path="res://scenes/net_lab/crouch_jump_course.gd" id="15_crouch"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_lab"]
 
@@ -473,3 +474,7 @@ script = ExtResource("12_hooks")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -30)
 
 [node name="TorreDeServicio" parent="ZonaDeServicio" unique_id=1742000003 instance=ExtResource("14_torre")]
+
+[node name="PistaDeSaltoAgachado" type="Node3D" parent="." unique_id=1742000004]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 31.500303)
+script = ExtResource("15_crouch")

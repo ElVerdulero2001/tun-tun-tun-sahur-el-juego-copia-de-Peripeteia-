@@ -24,6 +24,11 @@ extends Node3D
 ## prende y se apaga con el 2 del teclado numérico. Ese salto pasa por debajo
 ## del cable plano de la pista de cables y se agarra; el salto siguiente lo
 ## suelta.
+##
+## Desde el 2026-10-25 pasa también por el mantle: saltando parado frente al
+## techo del túnel corto, sube arriba de él. Para que el resto del recorrido
+## siguiera igual, en un tramo la cámara mira para otro lado y en dos se salta
+## pegado a la pared (ver los comentarios de cada tramo).
 
 const TICK_DT := 1.0 / 60.0
 const TIMEOUT_SECONDS := 400.0
@@ -61,6 +66,7 @@ var _ticks_slide := 0
 var _ticks_ladder := 0
 var _ticks_hanging := 0
 var _ticks_cable := 0
+var _ticks_mantle := 0
 ## Empujones del recorrido, por tick: [impulso, fuerza].
 var _events := {}
 var _ticks_crouched := 0
@@ -148,6 +154,8 @@ func _live_tick() -> void:
 			_ticks_hanging += 1
 		ActorState.Mode.CABLE:
 			_ticks_cable += 1
+		ActorState.Mode.MANTLE:
+			_ticks_mantle += 1
 	if _state.stance == ActorState.Stance.TUCKED:
 		_ticks_tucked += 1
 	if _state.stance == ActorState.Stance.CROUCHED:
@@ -207,7 +215,7 @@ func _replay(start: int, stop: int) -> void:
 
 func _finish() -> void:
 	_phase = Phase.DONE
-	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d colgado, %d en un cable, %d tocando pared, %d saltos (%d en el aire), altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_hanging, _ticks_cable, _ticks_wall, _jumps, _air_jumps, _max_height])
+	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d colgado, %d en un cable, %d en el mantle, %d tocando pared, %d saltos (%d en el aire), altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_hanging, _ticks_cable, _ticks_mantle, _ticks_wall, _jumps, _air_jumps, _max_height])
 	print("%s postura: %d ticks agachado, %d de ellos pidiendo pararse sin lugar; %d encogido" % [LOG_PREFIX, _ticks_crouched, _ticks_kept_crouched, _ticks_tucked])
 	print("%s cámara lenta: %d ticks; súper salto y velocidad: %d ticks" % [LOG_PREFIX, _ticks_slow, _ticks_boost])
 	print("%s %d repeticiones, %d ticks repetidos" % [LOG_PREFIX, _replays, _replayed_ticks])
@@ -238,6 +246,7 @@ func _finish() -> void:
 func _missing_coverage() -> PackedStringArray:
 	var counts := {"Suelo": _ticks_ground, "Aire": _ticks_air, "deslizarse": _ticks_slide,
 			"la escalera": _ticks_ladder, "colgarse de un borde": _ticks_hanging, "un cable": _ticks_cable,
+			"el mantle": _ticks_mantle,
 			"tocar una pared": _ticks_wall, "saltar": _jumps, "el salto en el aire": _air_jumps,
 			"agacharse": _ticks_crouched, "quedar agachado bajo un techo": _ticks_kept_crouched,
 			"encogerse": _ticks_tucked, "la cámara lenta": _ticks_slow, "el súper salto y velocidad": _ticks_boost}
@@ -257,7 +266,8 @@ func _on_timeout() -> void:
 
 ## Recorrido guionado por el laboratorio: deslizamiento hasta frenar bajo el
 ## techo del túnel largo, salida agachado, cambios de postura en el aire,
-## piso, escalón, pared, esquina, costado del túnel, rampa, caída desde la
+## piso, escalón, mantle al techo del túnel corto, pared, esquina, costado del
+## túnel, rampa, caída desde la
 ## plataforma y su escalera (agarrarse, subir, salir arriba, volver a
 ## agarrarse, saltar, y dos empujones: uno débil y uno fuerte), y la pista de
 ## escalones (uno que no se sube y las dos escaleras, subiendo y bajando). Las
@@ -280,10 +290,22 @@ func _build_inputs() -> void:
 		[450, Vector2(0, 1), 0.0, [], crouch],  # vuelve agachado por adentro del túnel
 		[10, Vector2.ZERO, 0.0, [], 0],  # se para afuera
 		[150, Vector2(0, 1), 0.0, []],  # camina hasta el escalón de 25 cm, lo sube y baja del otro lado
-		[50, Vector2(0, 1), 0.0, [0, 30]],  # salta y sigue
+		[50, Vector2(0, 1), 0.0, [0, 30]],  # salta y sigue, hasta chocar con el frente del techo del túnel corto (a 1,5 m)
+		# Desde el 2026-10-25: parado frente al techo, salta mirándolo y el
+		# mantle lo sube; se baja por delante con la cámara para atrás y queda
+		# en el piso, cerca de donde chocaba. Hasta entonces seguía de largo.
+		[20, Vector2.ZERO, 0.0, [], 0],
+		[10, Vector2.ZERO, 0.0, [0], 0],
+		[40, Vector2.ZERO, 0.0, [], 0],
+		[14, Vector2(0, 1), PI, [], 0],
+		[50, Vector2.ZERO, PI, [], 0],
 		[120, Vector2(0, 1), -PI / 2.0, []],  # gira a la derecha hasta la pared
 		[140, Vector2(0, 1), -PI / 4.0, []],  # en diagonal contra la pared, hasta la esquina
-		[90, Vector2(0, 1), PI / 2.0, [0, 25, 50, 75]],  # hacia la izquierda saltando, contra el túnel
+		# Hacia la izquierda saltando, contra el costado del túnel. Desde el
+		# 2026-10-25 con D y la cámara para atrás, que mueve igual: mirando el
+		# túnel, el mantle lo subía a su techo, y mirando hacia adelante las
+		# manos se colgaban de la pared del rincón.
+		[90, Vector2(1, 0), PI, [0, 25, 50, 75]],
 		[150, Vector2(0, 1), PI, []],  # hacia atrás, rozando el costado del escalón
 		[105, Vector2(0, 1), PI / 2.0, []],  # hacia la izquierda por el piso abierto, frente a la rampa
 		[230, Vector2(0, 1), 0.0, [150, 165, 180]],  # sube la rampa, cae de la plataforma y salta al caer
@@ -331,7 +353,10 @@ func _build_inputs() -> void:
 		[10, Vector2.ZERO, 0.0, [], 0],
 		[193, Vector2(0, 1), 0.0, [], 0],  # hacia adelante, hasta 2,2 m de la cara
 		[10, Vector2.ZERO, 0.0, [], 0],
-		[12, Vector2(0, 1), 0.0, [10], 0],  # corre hacia la cara y salta
+		# Camina hasta la cara y salta pegado a ella. Hasta el 2026-10-25 saltaba
+		# a 1,5 m de la cara y llegaba con las manos por encima del filo: ahora
+		# eso es un mantle, y no se colgaría.
+		[40, Vector2(0, 1), 0.0, [38], 0],
 		[50, Vector2(0, 1), 0.0, [], 0],  # se agarra subiendo, cuando las manos llegan al filo
 		[30, Vector2(1, 0), 0.0, [], 0],  # colgado, a la derecha
 		[30, Vector2(-1, 0), 0.0, [], 0],  # colgado, a la izquierda
@@ -341,7 +366,7 @@ func _build_inputs() -> void:
 		[30, Vector2.ZERO, 0.0, [], 0],
 		[15, Vector2(0, 1), PI, [], 0],  # se aleja un poco
 		[10, Vector2.ZERO, 0.0, [], 0],
-		[12, Vector2(0, 1), 0.0, [10], 0],  # corre y salta otra vez
+		[40, Vector2(0, 1), 0.0, [38], 0],  # camina otra vez hasta la cara y salta pegado a ella (lo mismo)
 		[50, Vector2(0, 1), 0.0, [], 0],  # se agarra
 		[5, Vector2.ZERO, 0.0, [], crouch],  # Ctrl: se suelta
 		[40, Vector2.ZERO, 0.0, [], 0],

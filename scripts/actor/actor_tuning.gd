@@ -131,6 +131,42 @@ var _boosted_from: Array = []
 ## Con 0,4 la curva es tan larga como la vuelta a una esquina por afuera.
 @export_range(0.05, 1.0, 0.01) var hang_corner_radius := 0.4
 
+@export_group("Mantle")
+## Mantle: subiendo en un salto, mirando un borde bajo (con la cámara, como para
+## colgarse), te subís solo, sin tecla: el cuerpo sube pegado al filo y pasa
+## arriba deslizándose, sin saltito, como al salir por arriba de una escalera.
+## Cayendo, nunca: te colgás como siempre. Si arriba solo cabés agachado, sube
+## agachado. Si arriba no hay dónde quedar parado (un muro finito, una
+## baranda), no hay mantle: chocás. Con Ctrl no se sube, y Ctrl a mitad de
+## camino te suelta. Lo decidiste vos el 2026-10-25; los números son de Claude.
+##
+## El filo, desde este tanto por encima de los pies, en metros. Más bajo no
+## hay mantle: es un escalón, o el salto lo pasa.
+@export_range(0.0, 2.0, 0.01) var mantle_min_height := 0.3
+## Hasta este tanto por encima de los pies, en metros. Más alto, te colgás
+## como siempre, también llegando con las manos por encima del filo (Hang
+## Reach Down). Colgado, las manos quedan a Hang Height (1,95 m). Saltando
+## desde el piso hay mantle en los muros de hasta unos 2 m; más altos, te
+## colgás. 0 apaga el mantle.
+@export_range(0.0, 2.0, 0.01) var mantle_max_height := 1.5
+## A qué velocidad sube el cuerpo hasta el filo, en m/s.
+@export var mantle_up_speed := 4.0
+## Y a qué velocidad pasa arriba, en m/s; arranca desde quieto con Ground
+## Accel. Va hacia donde apuntan las teclas, según la cámara (ver Mantle Side
+## Angle), y sin teclas, derecho hacia adentro. Con teclas, apenas el cuerpo
+## queda arriba seguís caminando hacia allá a esa velocidad.
+@export var mantle_forward_speed := 5.0
+## Pasando arriba, hasta cuánto de costado podés ir, desde derecho hacia
+## adentro: más de costado, vas en este ángulo. Con 45°, apretando solo D vas
+## en diagonal hacia la derecha y te corrés de costado lo mismo que avanzás
+## (unos 45 cm hasta quedar arriba); con 60°, casi el doble.
+@export_range(0.0, 89.0, 0.1, "radians_as_degrees") var mantle_side_angle := deg_to_rad(45.0)
+## Dónde termina sin teclas: el centro del cuerpo, este tanto detrás del filo,
+## en metros, y quedás quieto. El cuerpo mide 0,35 de radio: con 0,45 queda
+## 10 cm adentro. También es lo que tiene que tener de fondo lo de arriba para
+## que haya mantle.
+@export_range(0.35, 1.5, 0.01) var mantle_land := 0.45
+
 @export_group("Cable")
 ## Colgado de un cable, el cuerpo cuelga hang_height por debajo de las manos, de
 ## frente al cable. Las teclas se toman según la cámara, como caminando, y lo

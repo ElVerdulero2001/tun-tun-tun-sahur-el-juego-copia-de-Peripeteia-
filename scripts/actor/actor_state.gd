@@ -15,7 +15,9 @@ extends RefCounted
 
 ## HOOKED es el modo Enganchado de la arquitectura: colgado de un compañero.
 ## CABLE es colgado de un cable (la Tirolesa de la arquitectura).
-enum Mode { GROUND, AIR, SLIDE, LADDER, HANGING, HOOKED, CABLE }
+## MANTLE es subirse a un borde bajo sin colgarse (desde el 2026-10-25; hasta
+## entonces estaba fuera del alcance): ver ActorMotor.mantle_check.
+enum Mode { GROUND, AIR, SLIDE, LADDER, HANGING, HOOKED, CABLE, MANTLE }
 ## Postura: parado, agachado o encogido. Cada una tiene su forma de colisión.
 ## Encogido es parado con los pies más arriba (hang_climb_tuck): lo usa el
 ## salto para arriba desde el colgado, y solo existe en el aire.
@@ -81,11 +83,17 @@ var stance: int = Stance.STANDING
 ##   facing_yaw, que mira hacia él: mirando hacia donde mira él, de su espalda
 ##   (ver ActorMotor.hook_check).
 ## - Cable: el cable, y la distancia sobre él desde su origen, en metros.
+## - Mantle: como Hanging, la base que lleva el borde (0 si es geometría
+##   fija); anchor_t es hacia dónde mira la normal del borde (un giro, como
+##   facing_yaw), porque al pasar arriba el cuerpo mira hacia donde va y no a
+##   la pared. Cuánto subió y avanzó sale de dónde está el cuerpo respecto del
+##   filo.
 var anchor_id := 0
 var anchor_t := 0.0
-## Hanging: el punto del filo, relativo al origen de la base del ancla (en el
-## mundo si es geometría fija); doblando, la esquina. La normal del
-## borde no se guarda: es la contraria a facing_yaw, que mira a la pared.
+## Hanging y Mantle: el punto del filo, relativo al origen de la base del ancla
+## (en el mundo si es geometría fija); doblando, la esquina. Colgado, la normal
+## del borde no se guarda: es la contraria a facing_yaw, que mira a la pared (en
+## el mantle va en anchor_t).
 ## Hooked: dónde están las manos sobre el compañero, en el mundo. Cable: dónde
 ## están las manos sobre el cable, en el mundo. Los dos los usa la presentación;
 ## la simulación los vuelve a calcular cada tick.
@@ -108,7 +116,8 @@ var power_presses_seen := 0
 var corner_inside := false
 ## Si saltó (desde el piso, una escalera, un borde o un compañero, o en el
 ## aire) desde que dejó el piso o algo de donde estaba agarrado. Cayendo sin
-## haber saltado tiene el salto en el aire.
+## haber saltado tiene el salto en el aire, y desde el 2026-10-25 no hay
+## mantle (ver ActorMotor.mantle_check).
 var jumped := false
 ## Salió por arriba de una escalera con W, en tercera persona y mirando para
 ## atrás: mientras siga así y apretando W sola, va derecho hacia donde subía

@@ -7,13 +7,14 @@ extends RefCounted
 ##
 ## Sigue el orden fijo de etapas de la arquitectura. Por ahora existen los modos
 ## Suelo, Aire, Deslizamiento, Ladder, Hanging, Enganchado (HOOKED: colgado de
-## un compañero) y Cable (colgado de un cable, la Tirolesa de la arquitectura),
-## y la postura (parado, agachado o encogido). La etapa de sondas (4)
-## revalida el borde agarrado y busca al compañero del que cuelga. Las demás
-## sondas corren donde se usan: la de suelo en la de contactos, la de espacio
-## libre en la de postura, la de escalera, la de agarrar un borde y la de
-## colgarse de un compañero en la de transición, y la de escalón en la de
-## movimiento, porque necesita saber si el movimiento chocó.
+## un compañero), Cable (colgado de un cable, la Tirolesa de la arquitectura) y
+## Mantle (subirse a un borde bajo, desde el 2026-10-25), y la postura
+## (parado, agachado o encogido). La etapa de sondas (4) revalida el borde
+## agarrado (colgado o en el mantle) y busca al compañero del que cuelga. Las
+## demás sondas corren donde se usan: la de suelo en la de contactos, la de
+## espacio libre en la de postura, la de escalera, la del mantle, la de agarrar
+## un borde y la de colgarse de un compañero en la de transición, y la de
+## escalón en la de movimiento, porque necesita saber si el movimiento chocó.
 ##
 ## Colgado de un compañero, la pose sale de la del compañero en este mismo
 ## tick: el reloj mueve primero a los que no cuelgan de nadie.
@@ -70,6 +71,20 @@ const LADDER_TOP_FLOOR := 0.3
 const LADDER_EXIT_LIFT := 0.002
 ## Desde cuánto antes del alto se calcula si se puede salir, en metros.
 const LADDER_EXIT_NEAR := 0.1
+## Mantle: cuánto pasan los pies por encima del filo antes de ir hacia
+## adentro, en metros. Lo justo para pasar sin rozar, como en la salida por
+## arriba de la escalera (LADDER_EXIT_LIFT).
+const MANTLE_LIFT := 0.002
+## Para validar una afirmación en el mantle: hasta dónde delante de la cara
+## del borde puede estar el cuerpo (las manos llegan hasta 0,6 m delante del
+## centro), y el margen de las demás medidas, en metros.
+const MANTLE_REACH := 0.7
+const MANTLE_SLACK := 0.01
+## Mantle con teclas: termina apenas el centro del cuerpo queda este tanto
+## detrás del filo, con piso debajo, y de ahí camina hacia donde apuntan.
+const MANTLE_STAND := 0.1
+## Mantle: subiendo, se arrima a la pared hasta quedar a esto de ella, en metros.
+const MANTLE_WALL_GAP := 0.01
 
 
 static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
@@ -103,9 +118,10 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	# multiplicadas (ActorTuning.with_boost).
 	tuning = tuning.with_boost(state.boosted)
 
-	# 4. Sondas: colgado, la de borde revalida cada tick el borde agarrado;
-	# colgado de un compañero, se lo busca por su id.
-	var edge := _held_edge(body, state, tuning) if state.mode == ActorState.Mode.HANGING else {}
+	# 4. Sondas: colgado o en el mantle, la de borde revalida cada tick el borde
+	# agarrado; colgado de un compañero, se lo busca por su id.
+	var edge := _held_edge(body, state, tuning) if state.mode == ActorState.Mode.HANGING \
+			else _mantle_edge(body, state) if state.mode == ActorState.Mode.MANTLE else {}
 	var mate: ActorBody = body.teammate(state.anchor_id) if state.mode == ActorState.Mode.HOOKED else null
 	var cable: Cable = Cable.find(state.anchor_id) if state.mode == ActorState.Mode.CABLE else null
 
@@ -156,8 +172,12 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				_air_jump(state, input.look_yaw, tuning, dt)
 			elif not crouch_held:
 				# Con Ctrl no se agarra de nada: así cae el que se soltó de una
-				# escalera con Ctrl, mientras lo tenga apretado.
-				edge = _try_grab_edge(body, state, grab_direction(input.look_yaw), tuning, dt)
+				# escalera con Ctrl, mientras lo tenga apretado. Primero el mantle:
+				# llegando con las manos por encima de un borde bajo, sube en vez de
+				# colgarse (pedido del usuario, 2026-10-25).
+				edge = _try_mantle(body, state, grab_direction(input.look_yaw), tuning, dt)
+				if edge.is_empty():
+					edge = _try_grab_edge(body, state, grab_direction(input.look_yaw), tuning, dt)
 				if edge.is_empty():
 					mate = _try_hook(body, state, grab_direction(input.look_yaw), tuning, dt)
 				if edge.is_empty() and mate == null:
@@ -286,6 +306,14 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				_leave_cable(state, tuning, carried + Vector3.UP * up)
 				state.facing_yaw = _yaw_of(look)
 				state.jumped = true
+		ActorState.Mode.MANTLE:
+			if edge.is_empty() or crouch_held:
+				# Invariante roto (el borde ya no está), o Ctrl lo suelta, como de
+				# todo: cae. Como soltarse no es saltar, no vuelve a subir solo.
+				_leave_mantle(state, tuning, Vector3.ZERO, false)
+			elif _mantle_done(body, body.global_position, edge, input, tuning):
+				_finish_mantle(body, state, input, tuning)
+				direction = _wish_direction(input, state)
 
 	# 6. Modo: el modo activo decide la velocidad.
 	match state.mode:
@@ -306,6 +334,8 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 			_hook_move(body, state, mate, input, tuning, dt)
 		ActorState.Mode.CABLE:
 			_cable(state, cable, input, tuning, dt)
+		ActorState.Mode.MANTLE:
+			_mantle(body, state, edge, direction, tuning, dt)
 	if state.mode == ActorState.Mode.SLIDE:
 		if _horizontal_speed(state) > 0.01:
 			state.facing_yaw = _yaw_of(state.velocity)
@@ -315,17 +345,20 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	# 7. Postura y movimiento. Deslizamiento siempre pide agachado; en los modos
 	# anclados se va parado; si no, lo pide el input. Encogido (el salto para
 	# arriba desde el colgado) sigue así mientras esté en el aire: al tocar el
-	# piso o agarrarse de algo pide parado. Los modos libres mueven con
+	# piso o agarrarse de algo pide parado. En el mantle sigue la postura con
+	# que empezó (agachado si arriba solo cabe así). Los modos libres mueven con
 	# move_and_slide(), sin snap en el aire; los anclados (Ladder, Hanging,
-	# Enganchado, Cable), con un barrido. En Suelo, si el movimiento chocó, la
-	# sonda de escalón prueba subirlo. Con la vuelta a la escalera pendiente
-	# (ladder_return), Ctrl solo impide agarrarse: no agacha, porque agachado en
-	# el aire sube los pies y el que se suelta tiene que caer.
+	# Enganchado, Cable, Mantle), con un barrido. En Suelo, si el movimiento
+	# chocó, la sonda de escalón prueba subirlo. Con la vuelta a la escalera
+	# pendiente (ladder_return), Ctrl solo impide agarrarse: no agacha, porque
+	# agachado en el aire sube los pies y el que se suelta tiene que caer.
 	var wanted := ActorState.Stance.STANDING
 	if state.mode == ActorState.Mode.SLIDE or (crouch_held and not _is_anchored(state) and state.ladder_return == 0):
 		wanted = ActorState.Stance.CROUCHED
 	elif state.mode == ActorState.Mode.AIR and (tuck or state.stance == ActorState.Stance.TUCKED):
 		wanted = ActorState.Stance.TUCKED
+	elif state.mode == ActorState.Mode.MANTLE:
+		wanted = state.stance as ActorState.Stance
 	_resolve_stance(body, state, wanted)
 	if state.mode == ActorState.Mode.LADDER:
 		_move_on_ladder(body, state)
@@ -335,6 +368,8 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		_move_hooked(body, state, mate, tuning)
 	elif state.mode == ActorState.Mode.CABLE:
 		_move_on_cable(body, state, cable, tuning)
+	elif state.mode == ActorState.Mode.MANTLE:
+		_move_mantling(body, state, edge, tuning, dt)
 	else:
 		var snap := 0.0 if state.mode == ActorState.Mode.AIR else tuning.floor_snap_length
 		var start := body.global_transform
@@ -350,7 +385,9 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	# cuantizada, igual que arrancaría después de restaurar. En los modos
 	# anclados no hubo move_and_slide(): los indicadores de Godot quedaron
 	# viejos. Colgado, la base es la del borde y la velocidad propia es cero
-	# respecto de ella. Colgado de un compañero, la posición va en el mundo.
+	# respecto de ella; en el mantle también es la del borde, y la velocidad,
+	# la del mantle respecto de ella. Colgado de un compañero, la posición va en
+	# el mundo.
 	state.on_floor = body.is_on_floor() and not _is_anchored(state)
 	state.floor_normal = body.get_floor_normal() if state.on_floor else Vector3.UP
 	# Se quedó sin piso caminando o deslizándose: se cae de un borde sin saltar
@@ -360,7 +397,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		state.walked_off = state.base_id == 0
 	elif state.on_floor or _is_anchored(state):
 		state.walked_off = false
-	if state.mode == ActorState.Mode.HANGING:
+	if state.mode == ActorState.Mode.HANGING or state.mode == ActorState.Mode.MANTLE:
 		state.base_id = state.anchor_id
 	else:
 		var base_now := _probe_base(body) if state.on_floor else 0
@@ -425,7 +462,8 @@ static func _is_anchored(state: ActorState) -> bool:
 
 static func _anchored_mode(mode: int) -> bool:
 	return mode == ActorState.Mode.LADDER or mode == ActorState.Mode.HANGING \
-			or mode == ActorState.Mode.HOOKED or mode == ActorState.Mode.CABLE
+			or mode == ActorState.Mode.HOOKED or mode == ActorState.Mode.CABLE \
+			or mode == ActorState.Mode.MANTLE
 
 
 ## Orientación de una dirección horizontal: 0 mira hacia -Z.
@@ -640,9 +678,14 @@ static func _probe_base(body: ActorBody) -> int:
 ## suelta y sale a Aire con el impulso y un bloqueo de reagarre; si no, el
 ## modo lo proyecta sobre lo que puede moverse (en Ladder, sobre el eje;
 ## colgado, sobre el filo; con un compañero colgado o colgado de un compañero,
-## nada; en un cable, sobre el cable) y el resto se descarta. Con un compañero
-## colgado, el agarre es menor.
+## nada; en un cable, sobre el cable; en el mantle, nada: tiene el agarre de
+## colgado) y el resto se descarta. Con un compañero colgado, el agarre es
+## menor.
 static func apply_impulse(state: ActorState, impulse: Vector3, force: int, tuning: ActorTuning) -> void:
+	if state.mode == ActorState.Mode.MANTLE:
+		if force >= tuning.hang_grip:
+			_leave_mantle(state, tuning, impulse, true)
+		return
 	var load_drop := tuning.hook_load_grip_drop if state.hooked_by != 0 else 0
 	if state.mode == ActorState.Mode.LADDER:
 		if force >= tuning.ladder_grip - load_drop:
@@ -698,6 +741,19 @@ static func anchored_pose_valid(body: ActorBody, state: ActorState, tuning: Acto
 		if edge.is_empty() or absf(state.anchor_t) >= PI * 0.5:
 			return false
 		return BaseRegistry.world_position(state).distance_to(_hang_pose(edge, tuning)) <= 0.1
+	if state.mode == ActorState.Mode.MANTLE:
+		# El borde sigue ahí y el cuerpo está en el camino del mantle: entre lo
+		# más bajo desde donde pudo arrancar y el filo, y entre lo más lejos de
+		# la cara desde donde pudo arrancar y donde termina.
+		if not is_finite(state.anchor_t) or absf(state.anchor_t) > PI + MANTLE_SLACK:
+			return false
+		var edge := _mantle_edge(body, state)
+		if edge.is_empty():
+			return false
+		var rel := BaseRegistry.world_position(state) - (edge["point"] as Vector3)
+		var ahead := rel.dot(edge["normal"])
+		return rel.y >= -tuning.mantle_max_height - MANTLE_SLACK and rel.y <= MANTLE_LIFT + MANTLE_SLACK \
+				and ahead <= MANTLE_REACH and ahead >= -tuning.mantle_land - MANTLE_SLACK
 	if state.mode == ActorState.Mode.CABLE:
 		var cable := Cable.find(state.anchor_id)
 		if cable == null or state.anchor_t < 0.0 or state.anchor_t > cable.length() + ActorState.POSITION_STEP:
@@ -1392,6 +1448,276 @@ static func _leave_edge(state: ActorState, tuning: ActorTuning, velocity: Vector
 	state.anchor_point = Vector3.ZERO
 	state.regrab_id = ActorState.REGRAB_EDGES
 	state.regrab_left = tuning.hang_regrab_time
+	state.jump_buffer_left = 0.0
+	state.coyote_left = 0.0
+
+
+## Mantle desde Aire: si mantle_check() encuentra un borde bajo al que se
+## puede subir, entra a Mantle desde donde está, sin snap. Devuelve el borde,
+## o vacío.
+static func _try_mantle(body: ActorBody, state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> Dictionary:
+	var check := mantle_check(body, state, direction, tuning, dt)
+	if check["why"] != "":
+		return {}
+	var edge: Dictionary = check["edge"]
+	# Encogido (el salto para arriba desde el colgado), primero se para con la
+	# cabeza quieta, como en el aire: el camino se midió desde los pies de parado.
+	if state.stance == ActorState.Stance.TUCKED:
+		_change_stance(body, state, ActorState.Stance.STANDING)
+	state.mode = ActorState.Mode.MANTLE
+	state.anchor_id = edge["base"]
+	state.anchor_point = edge["point"] - BaseRegistry.origin(edge["base"])
+	# La normal del borde va en anchor_t: el cuerpo deja de mirar a la pared al
+	# pasar arriba (ver _mantle).
+	state.anchor_t = _yaw_of(edge["normal"])
+	state.corner_inside = false
+	state.velocity = Vector3.ZERO
+	state.facing_yaw = _yaw_of(-edge["normal"])
+	state.jump_buffer_left = 0.0
+	state.coyote_left = 0.0
+	# Si arriba solo cabe agachado, se agacha ya, con los pies quietos.
+	if check["stance"] != state.stance:
+		_change_stance(body, state, check["stance"])
+	return edge
+
+
+## La decisión del mantle, sin cambiar nada (pedido del usuario, 2026-10-25).
+## Solo después de saltar (jumped: desde el piso, en el aire, desde un borde,
+## una escalera, un cable o un compañero): cayéndose sin saltar (bajando de
+## espaldas, soltándose con Ctrl, por un empujón), como antes, se cuelga o cae
+## (pedido del usuario: bajando de espaldas de un borde, mirándolo, el mantle lo
+## volvía a subir). Y solo subiendo: cayendo nunca, apriete lo que apriete; se
+## cuelga como siempre (pedido del usuario, después de probarlo: cayendo con
+## los pies cerca del filo, lo subía con las manos abajo de todo, por ejemplo
+## al no apretar W en el salto para arriba desde el colgado). En el aire, las manos buscan hacia `direction` (hacia donde
+## mira la cámara, ver grab_direction) un filo entre mantle_min_height y mantle_max_height por
+## encima de los pies: barren esa franja de arriba hacia abajo, delante del
+## pecho. Subiendo, no, si el salto ya le lleva los pies arriba del filo: ahí
+## sigue y cae arriba, como saltando a un bloque bajo. El filo se toma enfrente
+## del centro del cuerpo, como en grab_check.
+## El camino que se prueba: derecho para arriba hasta que los pies pasan el filo
+## por MANTLE_LIFT, y derecho hacia adentro hasta que el centro queda
+## mantle_land detrás del filo (con teclas, después va hacia donde apuntan: ver
+## _mantle). Parado, si arriba cabe y el camino está libre; si no,
+## agachado, con los pies quietos (pedido del usuario: si arriba solo cabés
+## agachado, sube agachado). Donde termina tiene que haber piso debajo del
+## centro del cuerpo (_floor_under): en un muro finito o una baranda no hay
+## mantle, y se choca como siempre (pedido del usuario, 2026-10-25: primero
+## pasaba por encima y caía del otro lado, y en la torre de servicio la baranda
+## del pasillo del 86 lo tiraba al vacío). No se llama con Ctrl;
+## agachado no sube (como para colgarse) y encogido sí, midiendo desde los pies
+## de parado. Con los pies en el volumen de una escalera, no: se agarra la
+## escalera.
+## Devuelve {edge, stance, why}: why vacío si sube, o por qué no. Lo usan el
+## motor y las pruebas.
+static func mantle_check(body: ActorBody, state: ActorState, direction: Vector3, tuning: ActorTuning, _dt: float) -> Dictionary:
+	var result := {"edge": {}, "stance": ActorState.Stance.STANDING, "why": "sin borde"}
+	if tuning.mantle_max_height <= 0.0:
+		result["why"] = "apagado"
+		return result
+	if not state.jumped:
+		result["why"] = "no saltó"
+		return result
+	if state.velocity.y <= 0.0:
+		result["why"] = "cayendo"
+		return result
+	if state.regrab_id == ActorState.REGRAB_EDGES or state.stance == ActorState.Stance.CROUCHED:
+		result["why"] = "bloqueo o postura"
+		return result
+	if direction.length_squared() < 0.01:
+		result["why"] = "sin dirección"
+		return result
+	var toward := Vector3(direction.x, 0.0, direction.z).normalized()
+	var feet := _standing_feet(body, state)
+	if Ladder.any_at(feet):
+		result["why"] = "delante de una escalera"
+		return result
+	var hands := EdgeProbe.hands_at(body, feet, toward, tuning)
+	var high := hands + Vector3.DOWN * (tuning.hang_height - tuning.mantle_max_height)
+	var low := hands + Vector3.DOWN * (tuning.hang_height - tuning.mantle_min_height)
+	var edge := EdgeProbe.find(body, high, low, toward)
+	if edge.is_empty():
+		return result
+	var normal: Vector3 = edge["normal"]
+	var right := (-normal).cross(Vector3.UP)
+	var ahead := EdgeProbe.hold(body, edge["point"] + right * (feet - edge["point"]).dot(right), normal)
+	if not ahead.is_empty():
+		edge = ahead
+	result["edge"] = edge
+	var point: Vector3 = edge["point"]
+	var rise := point.y - feet.y
+	if toward.dot(-normal) < 0.5:
+		result["why"] = "intención de costado"
+	elif rise < tuning.mantle_min_height or rise > tuning.mantle_max_height:
+		result["why"] = "fuera de la franja"
+	elif feet.y + state.velocity.y * state.velocity.y / (2.0 * tuning.gravity) > point.y:
+		result["why"] = "subiendo, el salto pasa arriba del filo"
+	elif not body.stance_fits(ActorState.Stance.STANDING, feet):
+		# Encogido, los pies de parado no caben.
+		result["why"] = "no cabe parado"
+	else:
+		var up := Vector3.UP * (rise + MANTLE_LIFT)
+		var inward := -normal * _mantle_left(feet, edge, tuning)
+		if not _floor_under(body, feet + up + inward, tuning):
+			result["why"] = "arriba no hay piso (un muro finito)"
+			return result
+		result["why"] = "arriba no cabe o el camino está tapado"
+		for stance: int in [ActorState.Stance.STANDING, ActorState.Stance.CROUCHED]:
+			if body.stance_fits(stance, feet + up + inward) and body.stance_moves(stance, feet, up) \
+					and body.stance_moves(stance, feet + up, inward):
+				result["stance"] = stance
+				result["why"] = ""
+				break
+	return result
+
+
+## Mantle, etapa 4: el borde del mantle, revalidado con la sonda en el punto
+## guardado y con la normal guardada en anchor_t. Vacío si el borde ya no está
+## o si desapareció la base que lo llevaba.
+static func _mantle_edge(body: ActorBody, state: ActorState) -> Dictionary:
+	if state.anchor_id != 0 and BaseRegistry.find(state.anchor_id) == null:
+		return {}
+	var normal := Vector3.FORWARD.rotated(Vector3.UP, state.anchor_t)
+	return EdgeProbe.hold(body, BaseRegistry.origin(state.anchor_id) + state.anchor_point, normal)
+
+
+## Mantle, etapa 6: primero sube derecho, a mantle_up_speed, hasta que los pies
+## pasan el filo, mirando a la pared; después pasa arriba, arrancando desde
+## quieto con ground_accel hasta mantle_forward_speed, hacia donde apuntan las
+## teclas según la cámara (`direction`, ver _mantle_way) y mirando hacia
+## allá (pedido del usuario, 2026-10-25: iba siempre derecho contra la pared, y
+## recién después de medio metro se movía para donde quería). Sin teclas, derecho hacia adentro.
+static func _mantle(body: ActorBody, state: ActorState, edge: Dictionary, direction: Vector3, tuning: ActorTuning, dt: float) -> void:
+	if edge.is_empty():
+		return
+	var normal: Vector3 = edge["normal"]
+	if body.global_position.y < _mantle_top(edge) - ActorState.POSITION_STEP:
+		state.velocity = Vector3.UP * tuning.mantle_up_speed
+		state.facing_yaw = _yaw_of(-normal)
+		return
+	var way := _mantle_way(normal, direction, tuning)
+	var along := move_toward(Vector2(state.velocity.x, state.velocity.z).length(), tuning.mantle_forward_speed, tuning.ground_accel * dt)
+	state.velocity = way * along
+	state.facing_yaw = _yaw_of(way)
+
+
+## Hacia dónde pasa arriba: hacia donde apuntan las teclas, hasta
+## mantle_side_angle de costado de derecho hacia adentro (más de costado, se
+## queda en ese ángulo: con A o D solas, en diagonal hacia ese lado). Sin
+## teclas, o con teclas hacia afuera, derecho hacia adentro.
+static func _mantle_way(normal: Vector3, direction: Vector3, tuning: ActorTuning) -> Vector3:
+	var inward := -normal
+	var flat := Vector3(direction.x, 0.0, direction.z)
+	if flat.length_squared() < 0.0001 or flat.normalized().dot(inward) < -0.01:
+		return inward
+	var angle := inward.signed_angle_to(flat.normalized(), Vector3.UP)
+	return inward.rotated(Vector3.UP, clampf(angle, -tuning.mantle_side_angle, tuning.mantle_side_angle))
+
+
+## Mantle, etapa 7: un barrido hasta donde lleva la velocidad, sin pasar del
+## filo al subir ni de mantle_land al entrar. Mientras sube se arrima a la
+## pared, hasta casi tocarla, a mantle_forward_speed: así al pasar arriba le
+## queda menos camino, y en diagonal se corre menos de costado (sin eso, en un
+## bloque angosto se caía por el costado). Si hacia donde apuntan las teclas
+## algo tapa el paso, prueba derecho hacia adentro, que se probó al empezar; si
+## eso también está tapado, sale a Aire.
+static func _move_mantling(body: ActorBody, state: ActorState, edge: Dictionary, tuning: ActorTuning, dt: float) -> void:
+	if edge.is_empty():
+		return
+	var feet := body.global_position
+	var top := _mantle_top(edge)
+	var normal: Vector3 = edge["normal"]
+	var left := maxf(_mantle_left(feet, edge, tuning), 0.0)
+	var motion := Vector3.ZERO
+	if feet.y < top - ActorState.POSITION_STEP:
+		motion.y = minf(state.velocity.y * dt, top - feet.y)
+		var gap := (feet - (edge["point"] as Vector3)).dot(normal) - body.capsule_radius() - MANTLE_WALL_GAP
+		if gap > 0.0:
+			var closer := -normal * minf(gap, tuning.mantle_forward_speed * dt)
+			if not body.test_move(body.global_transform, motion + closer):
+				motion += closer
+	else:
+		motion = state.velocity * dt
+		var inward := motion.dot(-normal)
+		if inward > left:
+			motion *= left / inward
+		if motion.length_squared() > 1e-12 and body.test_move(body.global_transform, motion):
+			motion = -normal * minf(state.velocity.length() * dt, left)
+	if motion.length_squared() > 1e-12 and body.move_and_collide(motion) != null:
+		_leave_mantle(state, tuning, Vector3.ZERO, false)
+
+
+## Hasta dónde suben los pies en el mantle: el filo, más MANTLE_LIFT.
+static func _mantle_top(edge: Dictionary) -> float:
+	return (edge["point"] as Vector3).y + MANTLE_LIFT
+
+
+## Cuánto le falta al mantle hacia adentro, con los pies en `feet`: hasta que
+## el centro queda mantle_land detrás del filo.
+static func _mantle_left(feet: Vector3, edge: Dictionary, tuning: ActorTuning) -> float:
+	return (feet - (edge["point"] as Vector3)).dot(edge["normal"]) + tuning.mantle_land
+
+
+## Si el mantle llegó: los pies pasaron el filo y el centro está mantle_land
+## detrás. Con teclas, antes: apenas el centro pasa MANTLE_STAND detrás del
+## filo con piso debajo, y desde ahí camina hacia donde apuntan.
+static func _mantle_done(body: ActorBody, feet: Vector3, edge: Dictionary, input: ActorInput, tuning: ActorTuning) -> bool:
+	if feet.y < _mantle_top(edge) - ActorState.POSITION_STEP:
+		return false
+	var left := _mantle_left(feet, edge, tuning)
+	if left <= ActorState.POSITION_STEP:
+		return true
+	return input.move != Vector2.ZERO and left <= tuning.mantle_land - MANTLE_STAND \
+			and _floor_under(body, feet, tuning)
+
+
+## Terminó el mantle: queda parado (o agachado, si arriba solo cabe así) arriba,
+## como al salir por arriba de una escalera: con teclas sigue caminando a la
+## velocidad que traía, y sin teclas, quieto. El cuerpo baja en el acto hasta el
+## piso lo poco que subió para pasar (MANTLE_LIFT), y el dibujo lo acompaña
+## suave. Si ahí ya no hay piso debajo del centro del cuerpo (mantle_check lo
+## pidió al empezar, pero pudo desaparecer, como una base que se fue), sigue en
+## el aire con la velocidad que traía.
+static func _finish_mantle(body: ActorBody, state: ActorState, input: ActorInput, tuning: ActorTuning) -> void:
+	var moving := state.velocity
+	state.mode = ActorState.Mode.GROUND
+	if input.move == Vector2.ZERO:
+		state.velocity = Vector3.ZERO
+	state.anchor_id = 0
+	state.anchor_point = Vector3.ZERO
+	state.anchor_t = 0.0
+	state.jump_buffer_left = 0.0
+	state.coyote_left = 0.0
+	var before := body.global_position
+	body.settle_on_floor(tuning.floor_snap_length)
+	body.snap_jump += body.global_position - before
+	if not body.is_on_floor() or not _floor_under(body, body.global_position, tuning):
+		state.mode = ActorState.Mode.AIR
+		state.velocity = moving
+
+
+## Si debajo de unos pies hay piso caminable, hasta floor_snap_length más
+## abajo: un rayo desde el centro, como el del escalón. Con la parte redonda de
+## abajo del cuerpo sobre la arista de un muro finito, no cuenta.
+static func _floor_under(body: ActorBody, feet: Vector3, tuning: ActorTuning) -> bool:
+	var ray := PhysicsRayQueryParameters3D.create(feet + Vector3.UP * 0.05,
+			feet + Vector3.DOWN * tuning.floor_snap_length, EdgeProbe.mask(body), [body.get_rid()])
+	var hit := body.get_world_3d().direct_space_state.intersect_ray(ray)
+	return not hit.is_empty() and (hit["normal"] as Vector3).angle_to(Vector3.UP) <= body.floor_max_angle
+
+
+## Sale del mantle a Aire con una velocidad. Si `block` (un empujón), no se
+## puede agarrar de un borde ni de un cable por un rato, como al soltar un
+## borde. Sin haber saltado, de ahí no vuelve a subir solo (ver mantle_check).
+static func _leave_mantle(state: ActorState, tuning: ActorTuning, velocity: Vector3, block: bool) -> void:
+	state.mode = ActorState.Mode.AIR
+	state.velocity = velocity
+	state.anchor_id = 0
+	state.anchor_t = 0.0
+	state.anchor_point = Vector3.ZERO
+	if block:
+		state.regrab_id = ActorState.REGRAB_EDGES
+		state.regrab_left = tuning.hang_regrab_time
 	state.jump_buffer_left = 0.0
 	state.coyote_left = 0.0
 

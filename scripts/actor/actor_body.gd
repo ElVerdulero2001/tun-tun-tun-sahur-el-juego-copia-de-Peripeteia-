@@ -209,6 +209,21 @@ func stance_fits(stance: int, feet: Vector3) -> bool:
 	return get_world_3d().direct_space_state.intersect_shape(_probe_params, 1).is_empty()
 
 
+## Si la forma de `stance`, con los pies en `feet`, puede moverse `motion` sin
+## chocar: como test_move(), pero con la forma de cualquier postura y no solo
+## con la activa. Lo que ya toca al arrancar no cuenta (una pared pegada).
+## Como en stance_fits(), no cuentan el propio cuerpo ni los demás jugadores.
+func stance_moves(stance: int, feet: Vector3, motion: Vector3) -> bool:
+	var params := PhysicsShapeQueryParameters3D.new()
+	params.shape = _shapes[stance].shape
+	params.transform = Transform3D(Basis(), feet + _shapes[stance].position)
+	params.motion = motion
+	params.margin = safe_margin
+	params.collision_mask = collision_mask
+	params.exclude = [get_rid()]
+	return get_world_3d().direct_space_state.cast_motion(params)[0] >= 1.0
+
+
 ## Mueve el cuerpo con move_and_slide() avanzando exactamente dt.
 ## move_and_slide() toma el delta del frame de física por su cuenta; el factor
 ## lo compensa cuando dt es otro (escala de tiempo, ticks repetidos).
@@ -286,14 +301,16 @@ func apply_state(actor_state: ActorState) -> bool:
 ## Presentación mínima: orienta el visual y muestra la postura concedida. No
 ## escribe nada en la simulación.
 func present(actor_state: ActorState) -> void:
-	# Colgado, doblar una esquina por adentro gira el cuerpo de golpe: el dibujo
+	# Colgado, doblar una esquina por adentro gira el cuerpo de golpe, y en el
+	# mantle también, al pasar arriba hacia donde apuntan las teclas: el dibujo
 	# lo sigue a TURN_SPEED. Solo en los actores que esta máquina simula, que
 	# son los que llaman a decay_visual_offset().
-	if simulated and actor_state.mode == ActorState.Mode.HANGING and not is_nan(_presented_yaw):
+	var turning := actor_state.mode == ActorState.Mode.HANGING or actor_state.mode == ActorState.Mode.MANTLE
+	if simulated and turning and not is_nan(_presented_yaw):
 		var turned := wrapf(actor_state.facing_yaw - _presented_yaw, -PI, PI)
 		if absf(turned) > TURN_SNAP:
 			_turn_offset = wrapf(_turn_offset - turned, -PI, PI)
-	elif actor_state.mode != ActorState.Mode.HANGING:
+	elif not turning:
 		_turn_offset = 0.0
 	_presented_yaw = actor_state.facing_yaw
 	_visual.rotation.y = actor_state.facing_yaw + _turn_offset
@@ -318,13 +335,25 @@ func present(actor_state: ActorState) -> void:
 		grab_offset -= grab_jump
 		grab_jump = Vector3.ZERO
 		_visual.position = visual_offset + grab_offset
-	# Colgado: las manos sobre el filo, a los costados. Colgado de un compañero,
-	# sobre su cintura. Cuelgan del cuerpo y no del dibujo, así quedan donde
-	# agarran mientras el dibujo se acomoda.
+	# Colgado y en el mantle: las manos sobre el filo, a los costados. Colgado de
+	# un compañero, sobre su cintura. Cuelgan del cuerpo y no del dibujo, así
+	# quedan donde agarran mientras el dibujo se acomoda.
 	var holding := actor_state.mode == ActorState.Mode.HANGING or actor_state.mode == ActorState.Mode.HOOKED \
-			or actor_state.mode == ActorState.Mode.CABLE
+			or actor_state.mode == ActorState.Mode.CABLE or actor_state.mode == ActorState.Mode.MANTLE
 	for i in _hands.size():
 		_hands[i].visible = holding
+	if actor_state.mode == ActorState.Mode.MANTLE:
+		# En el mantle: las manos sobre el filo, a los costados de delante del
+		# cuerpo, y lo siguen de costado si pasa arriba en diagonal. La pared la
+		# dice anchor_t (el cuerpo puede mirar hacia otro lado).
+		var wall := -Vector3.FORWARD.rotated(Vector3.UP, actor_state.anchor_t)
+		var side := wall.cross(Vector3.UP)
+		var edge_at := BaseRegistry.origin(actor_state.anchor_id) + actor_state.anchor_point - global_position
+		edge_at -= side * edge_at.dot(side)
+		for i in _hands.size():
+			_hands[i].position = edge_at + Vector3.UP * 0.03 + wall * 0.05 + side * (0.2 if i == 0 else -0.2)
+			_hands[i].rotation.y = atan2(-wall.x, -wall.z)
+		return
 	if actor_state.mode == ActorState.Mode.CABLE:
 		# Colgado de un cable: las manos sobre el cable, una a cada lado del punto
 		# donde cuelga, siguiendo su inclinación.

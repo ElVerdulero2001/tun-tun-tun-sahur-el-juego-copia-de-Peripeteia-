@@ -317,6 +317,18 @@ var _hang_shimmy := 30
 var hang_corners := 0
 var hang_corners_inside := 0
 var _hang_turning := false
+## Prueba `hang`: a qué distancia de la cara salta, del centro del cuerpo. Hasta
+## el 2026-10-25 era 1,3 m: con el mantle, desde ahí llega con las manos por
+## encima del filo del bloque de 2 m y se sube, en vez de colgarse.
+const HANG_JUMP_DISTANCE := 0.5
+## Prueba `mantle`: tramo del ciclo, ticks en el tramo, vueltas, pulsaciones de
+## salto propias, cuántos mantles empezó y cuántos terminaron arriba.
+var _mantle_phase := 0
+var _mantle_since := 0
+var _mantle_presses := 0
+var mantle_starts := 0
+var mantle_tops := 0
+var mantle_cycles := 0
 ## Prueba `steps`: punto del recorrido al que va, ticks desde que lo empezó y
 ## la altura más alta de los pies.
 var _steps_index := 0
@@ -651,6 +663,8 @@ func _local_input(tick: int) -> ActorInput:
 		return _crouch_jump_input(tick)
 	if test_input == "hang" or test_input.begins_with("hang:"):
 		return _hang_input(tick, test_input.trim_prefix("hang:").to_int() if test_input.begins_with("hang:") else 0)
+	if test_input == "mantle" or test_input.begins_with("mantle:"):
+		return _mantle_input(tick, test_input.trim_prefix("mantle:").to_int() if test_input.begins_with("mantle:") else 0)
 	if test_input == "hangcorner":
 		_hang_shimmy = 150
 		return _hang_input(tick, 0)
@@ -1030,7 +1044,7 @@ func _cable_input(tick: int, hold := false) -> ActorInput:
 
 ## Prueba de Hanging, en ciclos, contra la cara de un bloque de 2 m de la pista
 ## de bordes (o el de una base, si se pide su id): se aleja 2,2 m de la cara,
-## corre hacia ella, salta y se agarra. Colgado se mueve a la derecha y
+## corre hacia ella, salta cerca de la cara y se agarra. Colgado se mueve a la derecha y
 ## a la izquierda y después, según la vuelta: salta para arriba mirando a la
 ## pared, aprieta W en la punta del salto para quedar arriba del borde (el
 ## bloque tiene 1 m de fondo) y se baja por delante; se suelta con Ctrl; o salta
@@ -1063,9 +1077,9 @@ func _hang_input(tick: int, base_id: int) -> ActorInput:
 				move = Vector2(signf(to.x), 0.0)
 			else:
 				move = Vector2(to.x, -to.y).limit_length(1.0)
-		1:  # corre hacia la cara y salta a 1,3 m
+		1:  # corre hacia la cara y salta cerca (HANG_JUMP_DISTANCE)
 			move = Vector2(0, 1)
-			if me.z - face.z < 1.3:
+			if me.z - face.z < HANG_JUMP_DISTANCE:
 				_hang_presses = (_hang_presses + 1) & 0xFF
 				_hang_phase = 2
 				_hang_since = 0
@@ -1124,6 +1138,62 @@ func _hang_input(tick: int, base_id: int) -> ActorInput:
 			elif s.velocity.y <= 0.0:
 				move = Vector2(0, 1)
 	return ActorInput.make(tick, move, yaw, buttons, _hang_presses)
+
+
+## Prueba del mantle (2026-10-25), en ciclos, contra la misma cara que `hang`
+## (el bloque de 2 m de la pista de bordes, o el de una base, si se pide su id):
+## se aleja 2,2 m de la cara, camina hacia ella y salta a 1,3 m; el mantle lo
+## sube arriba, una vuelta de cada dos derecho y la otra en diagonal, con D.
+## Después se da vuelta y se baja por delante.
+func _mantle_input(tick: int, base_id: int) -> ActorInput:
+	if not is_instance_valid(_local_actor):
+		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _mantle_presses)
+	var face := Vector3(13.5, 0.0, -10.0)
+	if base_id != 0:
+		var base = BaseRegistry.find(base_id)
+		if base == null:
+			return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, _mantle_presses)
+		face = base.base_origin() + Vector3(0.0, -1.0, 0.5)
+	var s := _local_actor.state
+	var me := BaseRegistry.world_position(s)
+	_mantle_since += 1
+	var move := Vector2.ZERO
+	var yaw := 0.0
+	match _mantle_phase:
+		0:  # a 2,2 m de la cara
+			var to := Vector2(face.x - me.x, face.z + 2.2 - me.z)
+			if to.length() < 0.3 and s.mode == ActorState.Mode.GROUND:
+				_mantle_phase = 1
+			elif absf(to.x) > 0.3:
+				move = Vector2(signf(to.x), 0.0)
+			else:
+				move = Vector2(to.x, -to.y).limit_length(1.0)
+		1:  # camina hacia la cara y salta a 1,3 m
+			move = Vector2(0, 1)
+			if me.z - face.z < 1.3:
+				_mantle_presses = (_mantle_presses + 1) & 0xFF
+				_mantle_phase = 2
+				_mantle_since = 0
+		2:  # en el aire: el mantle lo sube; una vuelta de cada dos, con D pasa arriba en diagonal
+			if s.mode == ActorState.Mode.MANTLE and mantle_cycles % 2 == 1:
+				move = Vector2(1, 0)
+			if s.mode == ActorState.Mode.MANTLE and _mantle_since < 1000:
+				mantle_starts += 1
+				_mantle_since = 1000
+			if s.mode == ActorState.Mode.GROUND and me.y > face.y + 1.5:
+				mantle_tops += 1
+				_mantle_phase = 3
+				_mantle_since = 0
+			elif s.mode == ActorState.Mode.GROUND and (_mantle_since > 20 and _mantle_since < 1000 or _mantle_since > 1100):
+				_mantle_phase = 0
+		3:  # arriba: se da vuelta y se baja por delante
+			yaw = PI
+			if _mantle_since > 20:
+				move = Vector2(0, 1)
+			if s.mode == ActorState.Mode.GROUND and me.y < face.y + 0.5:
+				mantle_cycles += 1
+				_mantle_phase = 0
+	return ActorInput.make(tick, move, yaw, 0, _mantle_presses)
 
 
 ## Pruebas de colgarse de un compañero. El muro alto está en la pista de bordes
@@ -2235,6 +2305,10 @@ func _update_hud() -> void:
 		elif s.mode == ActorState.Mode.HANGING:
 			lines.append("Colgado del borde: filo a %.2f m de altura%s" % [BaseRegistry.origin(s.anchor_id).y + s.anchor_point.y,
 					"   ·   sobre la base %d" % s.anchor_id if s.anchor_id != 0 else ""])
+		elif s.mode == ActorState.Mode.MANTLE:
+			lines.append("Mantle: subiendo al borde, filo a %.2f m de altura%s%s" % [BaseRegistry.origin(s.anchor_id).y + s.anchor_point.y,
+					"   ·   agachado: arriba no cabés parado" if s.stance == ActorState.Stance.CROUCHED else "",
+					"   ·   sobre la base %d" % s.anchor_id if s.anchor_id != 0 else ""])
 		elif s.mode == ActorState.Mode.HOOKED:
 			var mate := _local_actor.teammate(s.anchor_id) if is_instance_valid(_local_actor) else null
 			if mate != null:
@@ -2273,6 +2347,8 @@ func _update_hud() -> void:
 	lines.append("Escalera: W sube y S baja, mire donde mire · Espacio mirándola salta para arriba y te volvés a agarrar al bajar, mirando a otro lado salta hacia allá")
 	lines.append("Escalera: al salir por arriba seguís derecho con W sola · Ctrl te suelta: caés mientras lo tengas y al soltarlo te agarrás")
 	lines.append("Colgado: A y D de costado · Espacio mirando a la pared salta para arriba (con W pasás arriba), mirando a otro lado salta hacia allá · Ctrl se suelta")
+	lines.append("Mantle: subiendo en un salto, mirando un borde con el filo entre %.1f y %.1f m sobre tus pies, subís solo, hacia donde apuntan las teclas · Ctrl te suelta" % [
+			tuning.mantle_min_height, tuning.mantle_max_height])
 	lines.append("Cable: te agarrás solo · teclas según la cámara · hacia abajo en uno inclinado te deslizás, soltar frena · Espacio salta hacia donde mirás · Ctrl se suelta")
 	lines.append("Cayendo sin haber saltado (te caíste, te soltaste, te empujaron): Espacio salta en el aire, una vez, hacia donde mira la cámara")
 	lines.append("Compañero colgado de un borde, una escalera o un cable: tocándolo te colgás de él · Espacio y Ctrl, igual que colgado")
@@ -2367,6 +2443,8 @@ func _print_summary_and_quit() -> void:
 	if test_input == "hang" or test_input == "hangcorner" or test_input == "hanginner" or test_input.begins_with("hang:"):
 		print("[net_lab] colgar: %d agarres, %d subidas al borde, %d vueltas del ciclo, %d esquinas dobladas (%d por adentro)" % [
 				hang_grabs, hang_climbs, _hang_cycle, hang_corners, hang_corners_inside])
+	if test_input == "mantle" or test_input.begins_with("mantle:"):
+		print("[net_lab] mantle: %d empezados, %d terminaron arriba, %d vueltas bajándose por delante" % [mantle_starts, mantle_tops, mantle_cycles])
 	if test_input.begins_with("hook:"):
 		print("[net_lab] compañero: %d se colgó, %d se soltó con Ctrl, %d saltó para arriba (%d se agarró del borde después, %d llegó arriba), %d saltó hacia atrás, %d se cayó con el compañero, %d se agarró de otra cosa, %d se volvió a agarrar de él después de saltar" % [
 			hook_grabs, hook_releases, hook_jumps_up, hook_edges_after, hook_tops, hook_jumps_away, hook_fell_with_mate, hook_other_grabs, hook_regrabs])

@@ -28,6 +28,9 @@ const MAX_TOP_ANGLE := deg_to_rad(30.0)
 const MAX_FACE_TILT := deg_to_rad(20.0)
 ## Al revalidar un borde ya agarrado: cuánto puede moverse el filo encontrado.
 const HOLD_TOLERANCE := 0.1
+## Encima del filo tiene que haber lugar: se mira este tanto por encima de la
+## superficie de arriba, TOP_INSET adentro de la cara.
+const CLEAR_ABOVE := 0.05
 
 
 ## Contra qué miran las sondas: lo que toca el cuerpo, menos las piezas de las
@@ -87,7 +90,11 @@ static func hold(body: ActorBody, point: Vector3, normal: Vector3) -> Dictionary
 
 ## Con un punto que tocaron las manos y la dirección hacia la pared: la cara
 ## frontal con un rayo horizontal, la superficie de arriba con un rayo hacia
-## abajo, y el filo donde se cruzan.
+## abajo, y el filo donde se cruzan. Justo encima de esa superficie tiene que
+## haber lugar libre: si no, es la unión de dos cajas apiladas en una pared
+## lisa (el rayo de arriba arranca adentro de la de arriba, que no cuenta, y
+## pega en el techo de la de abajo), y las manos se colgaban de la pared (pedido
+## del usuario, 2026-10-27: en el núcleo de la torre de parkour, a 7 y 10,2 m).
 static func _edge_from_contact(body: ActorBody, contact: Vector3, toward: Vector3) -> Dictionary:
 	var space := body.get_world_3d().direct_space_state
 	var face_from := contact + Vector3.DOWN * FACE_DROP - toward * 0.4
@@ -110,6 +117,12 @@ static func _edge_from_contact(body: ActorBody, contact: Vector3, toward: Vector
 		return {}
 	var top_point: Vector3 = top["position"]
 	if top_point.y < face_point.y:
+		return {}
+	var above := PhysicsPointQueryParameters3D.new()
+	above.position = top_point + Vector3.UP * CLEAR_ABOVE
+	above.collision_mask = mask(body)
+	above.exclude = [body.get_rid()]
+	if not space.intersect_point(above, 1).is_empty():
 		return {}
 	var point := Vector3(face_point.x, top_point.y, face_point.z)
 	return {"point": point, "normal": normal, "base": BaseRegistry.id_of(top["collider"])}

@@ -1,9 +1,9 @@
 # Arquitectura de movimiento co-op y esqueleto de red: todo lo hecho hasta ahora
 
 **Proyecto:** tun-tun-tun-sahur · **Motor:** Godot 4.7.2 estable con Jolt Physics (`3d/physics_engine="Jolt Physics"` en `project.godot`).
-**Período:** del 2026-10-01 a las 20:41 al 2026-10-22 a las 20:54. Todas las horas están en hora de Argentina (UTC−3).
+**Período:** del 2026-10-01 a las 20:41 al 2026-10-30 a las 13:07. Todas las horas están en hora de Argentina (UTC−3).
 **Documento de arquitectura original:** [Arquitectura de movimiento co-op (Godot 4.7 + Jolt)](https://claude.ai/code/artifact/6760c3bf-39ed-4f2f-8d9d-23642c7ac797), en Claude Docs. Está copiado completo en el Apéndice A.
-**Guía práctica:** [`guia_del_laboratorio.md`](guia_del_laboratorio.md), para retomar el laboratorio por tareas (dónde está cada cosa, cómo probar, cómo agregar cables y escaleras, las reglas acordadas) sin leer todo este historial. Escrita el 2026-10-15 y puesta al día el 2026-10-22.
+**Guía práctica:** [`guia_del_laboratorio.md`](guia_del_laboratorio.md), para retomar el laboratorio por tareas (dónde está cada cosa, cómo probar, cómo agregar cables y escaleras, las reglas acordadas) sin leer todo este historial. Escrita el 2026-10-15 y puesta al día el 2026-10-30.
 
 **Historial de este documento:**
 
@@ -92,6 +92,12 @@
 
   Pone al día las secciones 1, 2 y 9 a 16, y el Apéndice B, con los scripts de esas pruebas. El documento de Claude Docs y su copia en el Apéndice A no tienen notas nuevas: se pidieron este historial y la guía. Después fueron al commit `ea636a6`, solo los dos md.
 - **Decimoquinta versión:** pedida el 2026-10-22 después de la prueba de las 20:37, "así que actualiza la guía y el historial". Suma la sección 8.31: la cuarta vuelta de la escalera (la salida sin empujón, la punta, de costado, la traba y las sueltas), el súper por 1,5 en todo, la velocidad terminal sin tope, el freno al caerse de un borde, el deslizamiento sin cambios y la pista de salto agachado. Pone al día las secciones 1, 2 y 9 a 16 (la 15, con `ea636a6`) y el Apéndice B, con los scripts de esas pruebas. Se cortó por el límite de uso a mitad de camino y se terminó al retomar, el 2026-10-23. El documento de Claude Docs y su copia en el Apéndice A no tienen notas nuevas. El 2026-10-24, después de la prueba del súper: "actualiza los md, hace commit y un push al repositorio en github". Suma también la sección 8.32 (el súper en todas las velocidades) y las pruebas del 2026-10-23 y del 2026-10-24, y va al commit 63, con la guía; `net-lab` se subió a GitHub con los 13 commits que estaban solo en local.
+- **Decimosexta versión:** pedida el 2026-10-30 a las 13:07, después de la prueba de la salida de la escalera en las dos PC: "funciona correctamente, primero actualiza los md, despues hace el commit". Suma las secciones 8.33 a 8.35, lo hecho del 2026-10-25 al 2026-10-28:
+    - el mantle, pedido el 2026-10-25, que hasta entonces estaba fuera del alcance: las decisiones del usuario, lo que cambió después de que lo probó solo y sus pruebas (sección 8.33);
+    - la unión de dos cajas apiladas, que la sonda de bordes tomaba como un filo (sección 8.34);
+    - la salida por arriba de la escalera: frenando con el cuerpo ya sobre el piso, termina (sección 8.35).
+
+  Pone al día las secciones 1, 2, 4.4 y 9 a 16, y el Apéndice B, con los scripts de esas pruebas. El documento de Claude Docs y su copia en el Apéndice A no tienen notas nuevas: se pidieron los dos md. El código de la 8.35 fue primero a su commit, `fde8f9a`, y después esta versión y la guía, a otro; los dos, solo locales.
 
 Este documento junta todo lo que se hizo, sin recortes:
 
@@ -100,7 +106,7 @@ Este documento junta todo lo que se hizo, sin recortes:
 - el plan de 8 pasos del esqueleto de red y en qué se apartó la implementación;
 - cada paso implementado, con sus archivos, decisiones, problemas, pruebas automáticas, mediciones y pruebas en dos PC reales;
 - la validación de la arquitectura, punto por punto: base propia, postura y espacio libre, escalera con empujones programados e inmediatos, el escalón, Hanging con snap, colgarse de un compañero y la cámara lenta; después, la segunda vuelta de la escalera, los valores en el Inspector y la primera persona;
-- lo que siguió a la validación: la reconexión, la rama propia, los controles de una revisión externa, los poderes del teclado numérico, el cuerpo encogido en el salto desde el colgado, la torre de parkour, doblar esquinas colgado, el salto en el aire, lo que depende de un buen internet, los cables, cables y escaleras para armar niveles, las teclas, el salto y Ctrl de la escalera, y colgarse del compañero como de un cilindro, con la pista para probarlo; una segunda revisión externa; y, del 2026-10-19 al 2026-10-21, el agarre con las manos por encima del filo, la zona de servicio y su torre de 100 m, los cables más rápidos, F1, la tercera vuelta de la escalera (colisión y los dos lados) y la exportación para jugar a distancia; y, el 2026-10-22, la cuarta vuelta de la escalera, el súper en todo, la velocidad terminal sin tope, el freno al caerse de un borde y la pista de salto agachado;
+- lo que siguió a la validación: la reconexión, la rama propia, los controles de una revisión externa, los poderes del teclado numérico, el cuerpo encogido en el salto desde el colgado, la torre de parkour, doblar esquinas colgado, el salto en el aire, lo que depende de un buen internet, los cables, cables y escaleras para armar niveles, las teclas, el salto y Ctrl de la escalera, y colgarse del compañero como de un cilindro, con la pista para probarlo; una segunda revisión externa; y, del 2026-10-19 al 2026-10-21, el agarre con las manos por encima del filo, la zona de servicio y su torre de 100 m, los cables más rápidos, F1, la tercera vuelta de la escalera (colisión y los dos lados) y la exportación para jugar a distancia; y, el 2026-10-22, la cuarta vuelta de la escalera, el súper en todo, la velocidad terminal sin tope, el freno al caerse de un borde y la pista de salto agachado; y, del 2026-10-25 al 2026-10-28, el mantle, la unión de dos cajas apiladas, que se tomaba como un filo, y frenar en la salida por arriba de la escalera;
 - el estado actual del código, los formatos de red y las constantes;
 - cómo usar el laboratorio;
 - los hechos de Godot y Jolt que se comprobaron en el camino, los errores (incluidos los míos) y cómo se arreglaron;
@@ -134,7 +140,7 @@ Este documento junta todo lo que se hizo, sin recortes:
 **Qué existe hoy:**
 
 - **La arquitectura**, escrita y revisada. El host es autoritativo. Cada cliente predice solo a su propio personaje, y el host adopta esa predicción cuando es válida y está al día con los eventos del host (la "época"). El movimiento se arma con un estado completo por actor, un paso por tick en orden fijo, un solo modo activo y siete reglas generales.
-- **Dos decisiones posteriores:** Hanging usa snap, y subir al borde desde el colgado es una salida de Hanging, no mantle. Mantle sigue fuera del alcance. Desde el 2026-10-08, esa salida es un salto para arriba con control aéreo, y no una trayectoria dentro de Hanging (sección 8.6).
+- **Dos decisiones posteriores:** Hanging usa snap, y subir al borde desde el colgado es una salida de Hanging, no mantle. Mantle siguió fuera del alcance hasta el 2026-10-25, cuando el usuario lo pidió (sección 8.33). Desde el 2026-10-08, esa salida es un salto para arriba con control aéreo, y no una trayectoria dentro de Hanging (sección 8.6).
 - **El esqueleto de red completo:** los 8 pasos del plan, más un retoque del adelanto (6b). Está implementado en carpetas nuevas (`scripts/actor/`, `scripts/net/`, `scenes/actor/`, `scenes/net_lab/`), sin tocar nada del parkour.
 - **Probado de dos formas:** con pruebas automáticas (Godot sin ventana, host y cliente como dos procesos en la misma PC) y en dos PC reales con Windows, ambas por Wi-Fi.
 - **La validación de la arquitectura, puntos 2 a 4 de su lista** (sección 8), cada uno probado en las dos PC y commiteado:
@@ -165,7 +171,7 @@ Este documento junta todo lo que se hizo, sin recortes:
     - la rueda del mouse mueve la cámara sobre una guía editable, de tercera persona hasta primera persona;
     - las manos buscan un borde o un compañero hacia donde mira la cámara. El cuerpo sigue girando hacia donde camina; al apuntar con armas, cuando existan, va a seguir a la cámara;
     - las pruebas de un proceso corren sin esperar al reloj: la de repetición, de 96,6 s a 9 s.
-- **Lo que siguió a la validación** (secciones 8.11 a 8.31), todo probado en las dos PC y commiteado, salvo la 8.18, que no tocó código, y lo que se marca sin commit:
+- **Lo que siguió a la validación** (secciones 8.11 a 8.35), todo probado en las dos PC y commiteado, salvo la 8.18, que no tocó código, y lo que se marca sin commit:
     - **la diferencia de 0,1 mm** del salto con cámara lenta era un error real de determinismo: según el cuadro en que corría un tick, la posición podía caer en otro paso de 0,1 mm. Resuelto;
     - **la reconexión:** si se corta la red, el cliente reintenta solo y el host deja al jugador quieto en el mundo hasta 60 s; al volver sigue donde estaba, también si estaba colgado de un compañero;
     - **la rama propia, `net-lab`:** `main` más los commits del laboratorio, copiados con otros hashes. Lo del parkour sin commitear quedó guardado en git;
@@ -190,14 +196,17 @@ Este documento junta todo lo que se hizo, sin recortes:
     - **el laboratorio exportado** (2026-10-21, sección 8.30; sin commit y sin probar todavía desde dos casas): un `.exe` para jugar cada uno desde su casa con Radmin VPN, con la huella entera;
     - **después de la sesión de pruebas del 2026-10-22** (sección 8.31; commit `1324a69`): la escalera sin empujón al salir por arriba y, en las sueltas, parado arriba, y desde el 2026-10-23 sin saltito: pasa al rellano agarrado de la escalera; parado en el filo de arriba no te mete en ella; de costado, solo a 0,3 m del centro, sin arrastrar ni trabarse contra un larguero; el súper por 1,5 en todo, también el tope del salto y los cables; la velocidad terminal con una casilla para sacarle el tope; cayéndose de un borde sin saltar y sin teclas, frena en el aire; el deslizamiento quedó igual, a pedido; y la pista de salto agachado. Probado en las dos PC;
     - **el súper en todas las velocidades** (2026-10-24, sección 8.32; commit `3fae993`): con un solo valor, también la escalera, colgado, el compañero y el deslizamiento, sin tocar el motor por cada una.
+    - **el mantle** (2026-10-25, sección 8.33; commit `eb473ca`): saltando hacia un borde bajo, con el filo de 0,3 a 1,5 m sobre los pies, el cuerpo sube pegado al filo y pasa arriba sin saltito, hacia donde apuntan las teclas; agachado, si arriba solo cabe así. Solo subiendo en un salto: cayendo o sin haber saltado, se cuelga o cae como antes; con Ctrl, nada; y sin piso arriba (un muro finito, una baranda), choca. Gana al colgado si arriba hay lugar;
+    - **la unión de dos cajas apiladas** (2026-10-27, sección 8.34; commit `eb473ca`): la sonda de bordes la tomaba como un filo, y uno se colgaba de una pared lisa; ahora un filo tiene que tener lugar libre encima;
+    - **la salida por arriba de la escalera** (2026-10-28, sección 8.35; commit `fde8f9a`): frenando con el cuerpo ya sobre el piso, la escalera termina y frena caminando; antes quedaba en la escalera.
 - **La notebook se actualiza con un doble clic** desde una carpeta compartida de esta PC. Reemplazó a los zips desde el escalón (sección 6.2). Desde el 2026-10-16 deja la copia de la notebook en 1280 × 720 (sección 8.21).
-- **Sesenta y tres commits del laboratorio,** hoy en la rama `net-lab`. Los primeros 26, de esta lista, se hicieron en la rama `codex/parkour-v3-h0-lab` y el 2026-10-11 se copiaron a `net-lab` con otros hashes (la tabla de equivalencias está en la sección 15). En este resumen y en las secciones 7 y 8.1 a 8.10 van con sus hashes de la rama vieja:
+- **Sesenta y seis commits del laboratorio,** hoy en la rama `net-lab`. Los primeros 26, de esta lista, se hicieron en la rama `codex/parkour-v3-h0-lab` y el 2026-10-11 se copiaron a `net-lab` con otros hashes (la tabla de equivalencias está en la sección 15). En este resumen y en las secciones 7 y 8.1 a 8.10 van con sus hashes de la rama vieja:
     - el esqueleto de red: `d75ef67`, `9cd1936`, `7547de1` y `c0e0421`;
-    - las quince versiones de este documento y una corrección: `9caaec3`, `375d419`, `fa26986`, `048dc4d`, `2314f18`, `9e4753e`, `f86b80f`, `1988808`, `b419717`, `5a06178`, `3e1bd48`, `69acc84`, `3bdb077`, `1dfb1e3`, `ea636a6` y el de esta decimoquinta;
+    - las dieciséis versiones de este documento y una corrección: `9caaec3`, `375d419`, `fa26986`, `048dc4d`, `2314f18`, `9e4753e`, `f86b80f`, `1988808`, `b419717`, `5a06178`, `3e1bd48`, `69acc84`, `3bdb077`, `1dfb1e3`, `ea636a6`, `d846680` y el de esta decimosexta;
     - la validación: `600002a`, `25f7806`, `cb71b16`, `91a4433`, `b907dae` (escalón), `3cdcc91` (Hanging), `3825c2b` (salto para arriba), `bd2157b` (agarre subiendo), `f39ba70` (colgarse de un compañero, con cambio de línea), `e21d6c6` (colgado, predicho), `c408ad6` (cámara lenta), `b7403fb` (el arreglo del temblor) y `f7640fb` (la segunda vuelta de la escalera, Tuning y la primera persona);
-    - después, ya en `net-lab`: `1184427` (los 0,1 mm), `97d23cc` (reconexión), `1dba5db` (copias iguales y validación), `599628b` (una sola cámara lenta), `a1f9084` (súper salto y velocidad), `7f9b3e5` (encogido), `245d55a` (torre), `8e5bd15` (esquinas), `f855536` (salto en el aire), `a099f95` (el redondeo del input), `7dd59ca` (cables), `9c74ca6` (cables y escaleras en el editor), `969c7fc` (las teclas, el salto y Ctrl de la escalera), `3c3fab8` (el arreglo de la adopción), `25a37f1` (el bucle entre el cable y el borde), `8355cd2` (colgarse de un compañero en un cable), `4b4fdb6` (el compañero como un cilindro, en el cable), `9fc5d86` (el cilindro en la escalera y el borde, y la pista de colgarse), `b267dc9` (la línea de ayuda del compañero, partida en dos), `b3a4f80` (la segunda revisión de GPT), `8d7b0b9` (la zona de servicio), `3d98ffe` (los cables), `b4d35cb` (la torre de servicio), `00e1d78` (la salida derecha), `c588cfa` (colisión y los dos lados), `fccb2b0` (A o D), `5469f78` (por atrás, con piso), `2a7e78f` (desde un borde), `1324a69` (la cuarta vuelta de la escalera, el súper proporcional, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado) y `3fae993` (el súper en todas las velocidades).
+    - después, ya en `net-lab`: `1184427` (los 0,1 mm), `97d23cc` (reconexión), `1dba5db` (copias iguales y validación), `599628b` (una sola cámara lenta), `a1f9084` (súper salto y velocidad), `7f9b3e5` (encogido), `245d55a` (torre), `8e5bd15` (esquinas), `f855536` (salto en el aire), `a099f95` (el redondeo del input), `7dd59ca` (cables), `9c74ca6` (cables y escaleras en el editor), `969c7fc` (las teclas, el salto y Ctrl de la escalera), `3c3fab8` (el arreglo de la adopción), `25a37f1` (el bucle entre el cable y el borde), `8355cd2` (colgarse de un compañero en un cable), `4b4fdb6` (el compañero como un cilindro, en el cable), `9fc5d86` (el cilindro en la escalera y el borde, y la pista de colgarse), `b267dc9` (la línea de ayuda del compañero, partida en dos), `b3a4f80` (la segunda revisión de GPT), `8d7b0b9` (la zona de servicio), `3d98ffe` (los cables), `b4d35cb` (la torre de servicio), `00e1d78` (la salida derecha), `c588cfa` (colisión y los dos lados), `fccb2b0` (A o D), `5469f78` (por atrás, con piso), `2a7e78f` (desde un borde), `1324a69` (la cuarta vuelta de la escalera, el súper proporcional, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado) `3fae993` (el súper en todas las velocidades), `eb473ca` (el mantle y la unión de dos cajas apiladas) y `fde8f9a` (frenando en la salida por arriba de la escalera).
 
-  La novena versión de este documento es el commit 36, `5a06178`, y los cables, los 37 y 38. La décima versión es el commit 39, `3e1bd48`, y la undécima, con la guía práctica, el 40, `69acc84`. Los cables y escaleras en el editor son el 41; la escalera, el 42; y el arreglo de la adopción, el 43. La duodécima versión, con la guía puesta al día, es el 44, `3bdb077`; lo del 2026-10-18, del 45 al 48; la decimotercera versión, con la guía, el 49, `1dfb1e3`; y la línea de ayuda partida, el 50, `b267dc9` (2026-10-19), solo local; la segunda revisión de GPT, el 51, `b3a4f80`; la zona y los cables, el 52 y el 53; la torre de servicio, el 54; y la escalera, del 55 al 59. El usuario subió la rama vieja a GitHub cinco veces, del 2026-10-09 al 2026-10-10, y el 2026-10-10 a las 19:13 se subió desde la sesión hasta `b419717`. `net-lab` se subió el 2026-10-11 a las 20:55, hasta `e1d9eb9`. Los 18 commits siguientes fueron solo locales hasta el 2026-10-17: el 2026-10-12 el usuario pidió "por ahora no hacemos push del commit, dejémoslo solo en local" (sección 15). El 2026-10-17 a las 22:25 pidió subirlos, con la duodécima versión; el 2026-10-18 a las 19:32, los cinco siguientes, con la decimotercera. El 2026-10-19, "no hagas commit ni push al git": `b267dc9` queda solo local, y el agregado a este documento, sin commit. Los nueve siguientes también son solo locales, y la decimocuarta versión y la guía fueron al commit 60, `ea636a6` (2026-10-22), también solo local. Lo de la 8.31 es el 61, `1324a69` (2026-10-23), y el súper en todo, el 62, `3fae993` (2026-10-24). Esta decimoquinta versión y la guía son el 63, y el 2026-10-24, "hace commit y un push al repositorio en github": `net-lab` se subió con los 13 commits que estaban solo en local.
+  La novena versión de este documento es el commit 36, `5a06178`, y los cables, los 37 y 38. La décima versión es el commit 39, `3e1bd48`, y la undécima, con la guía práctica, el 40, `69acc84`. Los cables y escaleras en el editor son el 41; la escalera, el 42; y el arreglo de la adopción, el 43. La duodécima versión, con la guía puesta al día, es el 44, `3bdb077`; lo del 2026-10-18, del 45 al 48; la decimotercera versión, con la guía, el 49, `1dfb1e3`; y la línea de ayuda partida, el 50, `b267dc9` (2026-10-19), solo local; la segunda revisión de GPT, el 51, `b3a4f80`; la zona y los cables, el 52 y el 53; la torre de servicio, el 54; y la escalera, del 55 al 59. El usuario subió la rama vieja a GitHub cinco veces, del 2026-10-09 al 2026-10-10, y el 2026-10-10 a las 19:13 se subió desde la sesión hasta `b419717`. `net-lab` se subió el 2026-10-11 a las 20:55, hasta `e1d9eb9`. Los 18 commits siguientes fueron solo locales hasta el 2026-10-17: el 2026-10-12 el usuario pidió "por ahora no hacemos push del commit, dejémoslo solo en local" (sección 15). El 2026-10-17 a las 22:25 pidió subirlos, con la duodécima versión; el 2026-10-18 a las 19:32, los cinco siguientes, con la decimotercera. El 2026-10-19, "no hagas commit ni push al git": `b267dc9` queda solo local, y el agregado a este documento, sin commit. Los nueve siguientes también son solo locales, y la decimocuarta versión y la guía fueron al commit 60, `ea636a6` (2026-10-22), también solo local. Lo de la 8.31 es el 61, `1324a69` (2026-10-23), y el súper en todo, el 62, `3fae993` (2026-10-24). La decimoquinta versión y la guía son el 63, `d846680`, y el 2026-10-24, "hace commit y un push al repositorio en github": `net-lab` se subió con los 13 commits que estaban solo en local. El mantle y la unión de las cajas son el 64, `eb473ca` (2026-10-28); la salida de la escalera, el 65, `fde8f9a` (2026-10-30); y esta decimosexta versión y la guía, el 66. Los tres, solo locales.
 - **Cambios pendientes:** en `net-lab`, `git status` muestra:
     - del laboratorio, sin commit: el agarre con las manos por encima del filo (sección 8.24: `actor_motor.gd`, `actor_body.gd`, `actor_tuning.gd` y `hang_sweep_test.gd`, que además imprime las salidas con `--detalle`); F1 (sección 8.27) y las IP del menú (sección 8.30), en `net_lab.gd`; el ajuste de exportación, `export_presets.cfg`, y dos líneas de `project.godot` (sección 8.30); y en `net_lab.tscn`, el uid del nivel, que agregó el editor;
     - `project.godot`, además, con el cambio de versión 4.6 → 4.7 que hizo el editor, que no se commitea. Las cuatro acciones del Mapa de entrada que agregó el laboratorio sí están commiteadas;
@@ -284,6 +293,11 @@ Este documento junta todo lo que se hizo, sin recortes:
 | El último toque antes de caerse de un borde (2026-10-22) | Con el freno en el aire: 0,16, 0,13 y 0,38 m, contra 0,36, 0,84 y 1,96 |
 | La pista de salto agachado (2026-10-22) | Parado se sube hasta 1,2 m; agachándose en el aire, hasta 2,0 (con el súper, 2,6 y 3,4); 15 de 15 |
 | Lo del 2026-10-22 en dos PC | "todo funciona correctamente", salvo la salida por arriba de la escalera suelta; arreglada después, falta probarla |
+| El mantle, caso por caso (`diag_mantle.gd`, 2026-10-25) | 42 casos: saltando parado, mantle de 1,2 a 1,9 m; cayendo, sin haber saltado, con Ctrl, de costado, sobre un muro finito o una baranda, nada; con techo bajo, agachado. Cada tick del mantle, repetido, da los mismos bytes |
+| El mantle en red | 0 correcciones, también con internet mala, en el bloque fijo y en la plataforma guionada; sobre el cuerpo que mueve el host, la más grande de 0,215 m con internet mala (colgándose de él, 0,263) |
+| El mantle en dos PC (2026-10-28) | "no encontré ningún bug o rareza relacionada con el mantle" |
+| La unión de dos cajas apiladas (`diag_costura.gd`, 2026-10-27) | Se colgaba de la pared lisa de la torre de parkour en 6 de 12 posiciones; después, en ninguna, y los bordes de verdad, igual |
+| Frenando en la salida por arriba de la escalera (`diag_salida_escalera2.gd`, 2026-10-28) | Soltando W con el cuerpo ya sobre el piso, Suelo en el mismo lugar (antes, en la escalera); colgado del borde, sigue agarrado. En red, 0 correcciones; en dos PC, "funciona correctamente" |
 
 ---
 
@@ -530,6 +544,16 @@ Este documento junta todo lo que se hizo, sin recortes:
 | 2026-10-23, a la noche | "perfecto, ahora funciona perfectamente": la prueba de la salida por arriba en las dos PC. Commit `1324a69` con el código de la 8.31, sin la 8.24, comprobado en una copia limpia. |
 | 2026-10-24 | "hice las pruebas en red, funciona correctamente todo". El súper en todas las velocidades, con un solo valor y sin tocar el motor por cada una (sección 8.32). |
 | 2026-10-24, después | "todo funciona correctamente, actualiza los md, hace commit y un push al repositorio en github"; las pruebas fueron en casa ("se hizo todo esto en la misma red"). Commit `3fae993`, esta versión y la guía, y push de `net-lab`. |
+| 2026-10-25 12:03 | "Quiero que le agregues la mecánica de mantle al proyecto, cualquier duda que salga mientras lo implementas, me lo vas preguntando." Cinco preguntas (12:06 y 12:13): "Saltando hacia el obstáculo", "Como la salida de la escalera", "Mantle: subís", "Sube agachado" y "Pasás y caés del otro lado" (sección 8.33). |
+| 2026-10-25 13:21–16:57 | Dos preguntas, respondidas a las 16:33: "Solo después de saltar" y "Que te suba". En la torre de servicio, la baranda del pasillo del 86 tiraba al vacío: "Que no se pasen" (16:57). |
+| 2026-10-25 17:08 | El mantle, con todas las pruebas sin red y en pareja, y la prueba `mantle`. |
+| 2026-10-25 19:32–19:58 | "actualiza los carteles", con una captura del aviso y un txt de lo que encontró jugando solo. El aviso, mío; una pregunta: "Cayendo nunca" (19:35); al pasar arriba, hacia donde apuntan las teclas; los carteles de la pista de salto agachado. |
+| 2026-10-25 21:27–21:30 | Siete capturas de la torre de parkour, colgado de la pared lisa del núcleo: era la unión de dos cajas apiladas (sección 8.34). |
+| 2026-10-27 13:00–13:09 | "Sí, arreglá lo de la unión de las cajas antes de la prueba en red": arreglado, y todas las pruebas otra vez. |
+| 2026-10-27 13:38 | "decime que tengo que probar en red": la lista. |
+| 2026-10-28 13:18–13:30 | La prueba en las dos PC: "no encontré ningún bug o rareza relacionada con el mantle". Commit `eb473ca` (13:29), comprobado en una copia limpia. Dos capturas de la escalera: parado sobre la plataforma, en LADDER (sección 8.35); reproducido sin red. |
+| 2026-10-28 13:45–14:08 | "Sí, cambialo": frenando en la salida por arriba con el cuerpo ya sobre el piso, termina la escalera. La prueba `laddertop:stop`. |
+| 2026-10-30 13:07 | "funciona correctamente, primero actualiza los md, despues hace el commit": esta decimosexta versión y la guía; el commit `fde8f9a` del código y otro de los md. |
 
 ---
 
@@ -647,7 +671,7 @@ En el documento quedó anotado como decisión tomada. Las pruebas pasaron a ser 
 - la subida es una fase dentro de Hanging, con su progreso medido en tiempo del actor;
 - termina en Suelo.
 
-Mantle, es decir trepar o saltar obstáculos sin colgarse, sigue fuera del alcance.
+Mantle, es decir trepar o saltar obstáculos sin colgarse, sigue fuera del alcance. Hasta el 2026-10-25: ese día el usuario lo pidió, y desde entonces hay mantle, saltando hacia un borde bajo (sección 8.33). Subir desde el colgado sigue siendo una salida de Hanging.
 
 **Agarrarse de un borde no exige intención hacia la pared** (2026-10-07, 22:20, después de probar Hanging en las dos PC). El documento pedía "intención hacia la pared" para pasar de Aire a Hanging. La primera versión de Hanging lo cumplía al pie de la letra, y sin apretar W no había agarre. El pedido fue: "Eso también hay que quitarlo, no siempre queres darle a la W para llegar a X lado". Ahora:
 
@@ -5453,6 +5477,199 @@ El barrido de bordes no se corrió: sin el súper, el motor usa el mismo nodo qu
 
 **Estado:** probado en las dos PC el 2026-10-24: "todo funciona correctamente, actualiza los md, hace commit y un push al repositorio en github". Esas pruebas fueron en casa: "se hizo todo esto en la misma red" (la prueba a distancia de la sección 8.30 sigue pendiente). Commit `3fae993`, sin la 8.24, que sigue mezclada en `actor_motor.gd` y `actor_tuning.gd`; se comprobó en una copia limpia: `diag_super.gd` sin fallas, la repetición (`e2f77d3eccd297c6`, como `1324a69`), la salida de la escalera, la zona y la torre. En el commit el súper multiplica 17 valores: `hang_drop_speed` es de la 8.24.
 
+---
+
+### 8.33 El mantle (2026-10-25 al 2026-10-28, commit `eb473ca`)
+
+El 2026-10-25 a las 12:03:
+
+> utiliza los dos md dentro de esta carpeta como contexto C:\Users\ElCaido97\Documents\tun-tun-tun-sahur\docs\net
+> Quiero que le agregues la mecánica de mantle al proyecto, cualquier duda que salga mientras lo implementas, me lo vas preguntando.
+
+Hasta ese día el mantle estaba fuera del alcance: el pedido original lo dejaba afuera ("No incluyas mantle"), y subir al borde desde el colgado había quedado como una salida de Hanging (sección 4.4).
+
+#### 1. Las decisiones del usuario (12:06 a 12:16)
+
+| Pregunta | Opciones | Eligió |
+| --- | --- | --- |
+| ¿Cómo se activa? | Saltando hacia el obstáculo; caminando contra él; las dos | **Saltando hacia el obstáculo:** en el aire, al llegar con las manos por encima del filo, sube solo, sin otra tecla. Caminando contra él, choca como siempre |
+| ¿Cómo sube el cuerpo? | Como la salida de la escalera; con un saltito | **Como la salida de la escalera:** sube pegado al filo y pasa arriba deslizándose, sin saltito |
+| Llegando en el aire con las manos por encima de un filo a la altura del pecho, hoy se cuelga. ¿Y con el mantle? | Mantle: subís; colgarte, como hoy | **Mantle: subís,** si arriba hay lugar. Se cuelga cuando el filo queda más alto (el corte, en el Tuning) |
+| Si arriba solo cabe agachado (el conducto de la pista de salto agachado) | No hay mantle; sube agachado | **Sube agachado,** y queda así hasta que haya lugar para pararse |
+| Si el obstáculo es finito (una baranda, un muro de 20 cm) y arriba no hay dónde quedar parado | No hay mantle; pasás y caés del otro lado | **Pasás y caés del otro lado.** Lo cambió a las 16:57, ver la subsección 3 |
+
+#### 2. Cómo quedó (diseño de Claude, sobre esas decisiones)
+
+- **Un modo nuevo, `MANTLE`** (el 7), anclado como el colgado: `anchor_id` es la base que lleva el borde (0 si es geometría fija) y `anchor_point`, el filo relativo a ella. Desde las 19:58, `anchor_t` guarda hacia dónde mira la normal del borde (un giro, como `facing_yaw`), porque al pasar arriba el cuerpo deja de mirar a la pared (subsección 4). Cuánto subió y cuánto avanzó sale de dónde está el cuerpo respecto del filo: no hace falta ningún campo nuevo, y el estado sigue en 93 bytes.
+- **La decisión, `mantle_check`,** sin cambiar nada, como `grab_check`: en el aire, las manos barren de arriba hacia abajo, delante del pecho y hacia donde mira la cámara, la franja de `mantle_min_height` a `mantle_max_height` sobre los pies (0,3 a 1,5 m), con la misma sonda de borde que el colgado. El filo se toma enfrente del centro del cuerpo. Después prueba el camino: derecho para arriba hasta que los pies pasan el filo por `MANTLE_LIFT` (2 mm, como la salida de la escalera), y derecho hacia adentro hasta que el centro queda `mantle_land` detrás del filo (0,45 m). Primero parado y, si arriba no cabe, agachado (`ActorBody.stance_moves`, nueva: como `test_move`, pero con la forma de cualquier postura). No hay mantle con Ctrl, agachado, delante de una escalera, ni si el salto ya le lleva los pies arriba del filo: ahí sigue y cae arriba, como saltando a un bloque bajo.
+- **Gana al colgado:** en Aire, el mantle se prueba antes que el agarre del borde. Con el filo más alto que la franja, se cuelga como siempre.
+- **En el motor:** la etapa 4 revalida el borde cada tick, como colgado (`_mantle_edge`); en la 5, si el borde ya no está o se aprieta Ctrl, se suelta y cae, y si llegó, termina en Suelo (`_finish_mantle`, con el escalón de 2 mm que baja como la salida de la escalera); en la 6, primero sube a `mantle_up_speed` (4 m/s) mirando a la pared y después pasa arriba a `mantle_forward_speed` (5 m/s), arrancando desde quieto con la aceleración del piso; en la 7, un barrido, como los demás modos anclados, con la postura con que empezó; en la 8, la base es la del borde.
+- **Un empujón** con fuerza mayor o igual al agarre del colgado (`hang_grip`) lo saca; uno menor no hace nada.
+- **El host** valida la pose como las demás ancladas (`anchored_pose_valid`): el borde sigue ahí, y el cuerpo está en el camino del mantle, entre lo más bajo desde donde pudo arrancar y el filo, y entre lo más lejos de la cara desde donde pudo arrancar (`MANTLE_REACH`, 0,7 m) y donde termina.
+- **El dibujo:** las manos sobre el filo, a los costados, como colgado.
+- **El panel:** "Mantle: subiendo al borde, filo a X m de altura", con "· agachado: arriba no cabés parado" y "· sobre la base N" cuando corresponde, y una línea de ayuda: "Mantle: subiendo en un salto, mirando un borde con el filo entre 0.3 y 1.5 m sobre tus pies, subís solo, hacia donde apuntan las teclas · Ctrl te suelta".
+- **Con el súper,** todo más rápido, sin tocar nada: los dos valores terminan en `_speed` (sección 8.32).
+
+**Los valores, en el Tuning, grupo nuevo Mantle, después de Borde.** Los números los eligió Claude; el usuario los puede cambiar en el Inspector:
+
+| Valor | Por defecto | Qué es |
+| --- | --- | --- |
+| `mantle_min_height` | 0,3 m | El filo, desde este tanto por encima de los pies. Más bajo es un escalón, o el salto lo pasa |
+| `mantle_max_height` | 1,5 m | Hasta este tanto. Más alto, se cuelga. 0 apaga el mantle |
+| `mantle_up_speed` | 4 m/s | Subiendo hasta el filo |
+| `mantle_forward_speed` | 5 m/s | Pasando arriba (desde las 19:58, hacia donde apuntan las teclas) |
+| `mantle_side_angle` | 45° | Desde las 19:58: pasando arriba, hasta cuánto de costado se puede ir |
+| `mantle_land` | 0,45 m | Dónde termina sin teclas: el centro del cuerpo, este tanto detrás del filo (10 cm adentro, con 0,35 de radio). También es lo que tiene que tener de fondo lo de arriba |
+
+Medido en la primera versión (17:08): saltando parado hay mantle en muros de hasta 1,9 m; caminando o corriendo, hasta 2,2 m; desde 2,4 m, colgado. Un mantle de 1,6 m tarda unos 0,6 s.
+
+**Otra prueba del laboratorio:** `--test-input=mantle` (y `mantle:<id>`, contra el borde de esa base): ciclos contra el bloque de 2 m de la pista de bordes; se aleja 2,2 m, camina hacia la cara, salta a 1,3 m, el mantle lo sube (una vuelta de cada dos con D, en diagonal), se da vuelta y se baja por delante. Al final imprime "mantle: N empezados, N terminaron arriba, N vueltas bajándose por delante".
+
+#### 3. Lo que se cambió antes de mostrarlo (13:21 a 17:08)
+
+**Caerse sin haber saltado.** En la primera versión, cayendo de un borde mirándolo (bajar caminando de espaldas), el mantle lo volvía a subir. Dos preguntas a las 13:21, respondidas a las 16:33:
+
+| Pregunta | Eligió |
+| --- | --- |
+| Caerte de un borde mirándolo, sin haber saltado: hoy el mantle te vuelve a subir. Antes, en un borde alto te colgabas, y en uno bajo caías al piso | **Solo después de saltar:** desde el piso, en el aire, o desde un borde, una escalera, un cable o un compañero (`state.jumped`). Cayéndose sin saltar, como antes |
+| Colgado, Espacio mirando la pared salta para arriba; antes, sin W, al bajar se volvía a colgar, y ahora el mantle lo sube | **Que te suba.** Lo deshizo "Cayendo nunca", a las 19:35 (subsección 4) |
+
+**Los muros finitos.** Sobre muros de 0,3 o 0,4 m de grosor, el mantle dejaba el cuerpo parado en la arista de atrás, con la punta redonda de la cápsula. Primero se arregló pidiendo piso debajo del centro del cuerpo al terminar (`_floor_under`, un rayo como el del escalón); si no hay, termina en el aire y cae del otro lado, como se había elegido. Pero en la torre de servicio, subiendo al pasillo del 86 por el hueco de ventilación, el mantle agarraba la baranda de afuera (1 m de alto y 6 cm de grosor) y lo tiraba al vacío. A las 16:51:
+
+> En la torre, subiendo al pasillo del 86 (hueco de ventilación) con W, el mantle agarra la baranda de afuera (1 m de alto, 6 cm de grosor) y te tira por encima, al vacío. Lo mismo pasa al saltar mirando cualquier baranda. ¿Qué querés?
+
+"**Que no se pasen**" (16:57): si donde termina el mantle no hay piso debajo del centro del cuerpo, no hay mantle, y choca como antes. `mantle_check` lo mira antes de probar el camino ("arriba no hay piso (un muro finito)").
+
+**La prueba de repetición.** Con el mantle, su recorrido se desviaba: subía al techo del túnel corto, al costado del túnel y, en dos aproximaciones al colgado, llegaba con las manos por encima del filo y subía. Se cambiaron cuatro tramos para que todo lo demás siguiera igual: en uno la cámara mira para otro lado (con D en vez de W, que mueve igual) y en dos se salta pegado a la pared. Con el mantle apagado (`mantle_max_height` en 0) dio la huella de antes, `efb6d76da57d9ecd`: no cambió nada más del movimiento. Con el mantle, `0632c924e6de2955`, y desde entonces falla si su recorrido deja de pasar por el mantle (15 mecánicas).
+
+**La prueba `hang` del laboratorio** saltaba a 1,3 m de la cara del bloque de 2 m y, con el mantle, subía en vez de colgarse. Desde entonces salta a 0,5 m (`HANG_JUMP_DISTANCE`).
+
+#### 4. Después de probarlo solo (19:32 a 19:58)
+
+A las 19:32:
+
+> actualiza los carteles. En la carpeta de capturas C:\Users\ElCaido97\Documents\otro proyecto bobo\capturas hay una que muestra un warning, tambien un txt que describe los problemas encontrados en las pruebas, pruebas que fueron jugando solo.
+
+El txt:
+
+> cuando haces mantle pero no avnazas y despues empezas a caer, al momento de estar cerca del borde y tus patas tocan o estan muy cerca del borde, el mantle se activa solo como que las manos se van hasta abajo del todo y te volves a subir. No se si es el comportamiento esperado, pero de no serlo, hay que quitarlo, porque no deberia hacer mantle, solo dejarse caer y cuando entra en la zona para hanging, se activa esa mecanica y no mantle.
+> Una cosa que note, es que el mantle no es omnidireccional, si o si se mueve en relacion a la direccion de la pared del objeto, no la camara del player. Esto queda raro, porque vos queres ir para un lado, pero la capsula primero tiene que ponerse en posicion "normal", asi que primero hace la animacion por defecto, te deja el player mirando hacia el frente y despues de moverte como medio metro, ahi recien el player se mueve para donde uno quiere.
+
+**El aviso de la captura (error mío):** en la etapa 7, `wanted = state.stance` guardaba un entero en una variable de tipo postura. Ahora `state.stance as ActorState.Stance`. Con un control a propósito (`control_aviso.gd`) se comprobó que, con `-d`, Godot muestra un aviso así; cargando el laboratorio entero con `-d`, ya no aparece ninguno.
+
+**Lo primero del txt, cayendo.** A las 19:35:
+
+> Cayendo con los pies cerca del filo, sin avanzar: lo saco y te colgás al llegar a la zona del colgado. Pero cayendo y apretando W hacia el borde, ¿hay mantle?
+
+"**Cayendo nunca**": el mantle solo mientras sube en el salto (velocidad para arriba mayor que cero), apriete lo que apriete. Cayendo se cuelga como antes, también llegando a un borde a la altura del pecho. Esto deshace "Que te suba" de las 16:33: después del salto para arriba desde el colgado, sin W, al bajar se vuelve a colgar.
+
+**Lo segundo, hacia donde se quiere.** Antes el tramo hacia adentro iba siempre derecho contra la pared, con el cuerpo mirándola, y terminaba a 0,45 m del filo. Ahora:
+
+- pasa arriba hacia donde apuntan las teclas, según la cámara, y el cuerpo mira hacia allá (el dibujo gira suave, como al doblar un rincón colgado);
+- hasta `mantle_side_angle` de costado (45°, elección de Claude): más de costado, va en ese ángulo; con D sola, en diagonal, corriéndose de costado lo mismo que avanza, unos 45 cm hasta quedar arriba;
+- con teclas termina apenas el centro queda `MANTLE_STAND` detrás del filo (0,1 m) con piso debajo, y sigue caminando hacia allá a esa velocidad, sin el medio metro forzado; sin teclas, sigue derecho hacia adentro y queda quieto a `mantle_land`;
+- subiendo, se arrima a la pared hasta quedar a `MANTLE_WALL_GAP` de ella (1 cm; elección de Claude). Sin eso, saltando desde 1,3 m y pasando en diagonal con 60°, se corría más de 1 m de costado, y en la prueba en pareja se caía por el costado del bloque de 2 m de la pista de bordes, que tiene 1 m de fondo;
+- con A o D solas, sin W, pasaba derecho: el ángulo justo de 90° contaba como "hacia atrás" (error mío). Ahora solo cuenta como hacia atrás lo que apunta más de un poco hacia afuera de la pared.
+
+**Los carteles de la pista de salto agachado,** con lo medido en la pista real (`diag_pista_mantle.gd`):
+
+- el cartel grande suma "Sin Ctrl, saltando mirando un bloque de hasta 2 m, el mantle te sube solo";
+- los bloques de 1,2 a 1,8 m: "mantle saltando o agachándote";
+- el de 2,0 m: "mantle caminando o agachándote, justo" (parado frente a él, se cuelga);
+- el de 2,2 m: "ni agachándote ni con el mantle (con el súper, sí)";
+- el conducto suma "(o saltá mirándolo: el mantle te sube agachado)";
+- la ventana suma "el mantle no: el muro es finito";
+- los bloques del súper no cambian: ahí se cuelga antes.
+
+**La prueba de repetición,** con "Cayendo nunca", volvió a su tramo 13 original, y para seguir pasando por el mantle suma un salto parado frente al techo del túnel corto: huella `560b7d53f2c117c1`, con 35 ticks en el mantle.
+
+#### 5. Las pruebas
+
+| Prueba | Resultado |
+| --- | --- |
+| Caso por caso, sin red (`diag_mantle.gd`, 42 casos) | Saltando en el lugar, mantle de 1,2 a 1,9 m (sin mantle en 0,6 y 1,0, que el salto pasa); en 2,0 y 2,2, colgado. El muro finito, la ventana y la baranda, sin mantle; el techo bajo, agachado; Ctrl y mirando de costado, sin mantle; de espaldas desde 1,5 y 3,0 m, sin mantle (al piso o colgado); en el aire y cayendo, colgado; en diagonal a 30° y 50°, hacia allá; con D sola, en diagonal. Cada tick del mantle, repetido desde el estado anterior, da los mismos bytes, y cada pose la acepta `anchored_pose_valid`: 0 fallas |
+| La pista de salto agachado (`diag_pista_mantle.gd`) | Bloques de 1,2 a 1,8 m, parado y caminando: mantle. El de 2,0, parado se cuelga y caminando sube. El de 2,2, colgado. Con Ctrl, nada. El conducto, agachado, de las dos formas. La ventana, nada. Los del súper, colgado |
+| Repetición | Coincide a 60 y variando; huella `560b7d53f2c117c1` (era `efb6d76da57d9ecd`), 35 ticks en el mantle |
+| Barrido de bordes | Los cuatro criterios: 906 de 908 capturas buscadas (99,8 %), 0 agarres no buscados de 330, 0 ticks metido en la geometría y la cámara salta 0,090 m como máximo en 50 ms |
+| Zona y torre de servicio | 60 de 60 y 70 de 70 |
+| En pareja, sin red simulada y con internet mala (200 ms, ±40 y 5 % de pérdida): `mantle`, `mantle:4` (la plataforma guionada) y el host haciendo `mantle` con el cliente mirando | 0 correcciones; todos los mantles terminaron arriba (11 o 12 por corrida), también pasando en diagonal |
+| En pareja, `mantle:5` (el cuerpo que mueve solo el host) | 11 de 11; correcciones chicas: la más grande, 0,06 m sin red simulada y 0,215 m con internet mala. Colgándose del mismo cuerpo con internet mala, 0,263 m |
+| En pareja, `hang`, `hang:4` y `hangcorner` | 0 correcciones |
+
+**Estado:** probado por el usuario en las dos PC el 2026-10-28 a las 13:18, con una lista de qué probar que pidió el 2026-10-27 ("decime que tengo que probar en red"):
+
+> hice las pruebas en red, no encontré ningún bug o rareza relacionada con el mantle, lo que si encontré, es relacionado a las escaleras.
+
+Commit `eb473ca` (13:29), junto con el arreglo de la sección 8.34. Lleva el mantle sin lo que seguía sin commit en los mismos archivos: el agarre con las manos por encima del filo (sección 8.24), F1, las IP del menú, la exportación, `project.godot` y el uid de `net_lab.tscn`. Tampoco lleva un cambio de la prueba `hang` que es de la 8.24: cayendo por delante después de subir, sigue mirando para atrás, porque mirando el bloque las manos lo agarraban desde arriba y la prueba se quedaba colgada ahí. El índice se armó con un script que cambia cada pedazo viejo del archivo del disco por el de `HEAD` (`armar_commit.js`), y el commit se comprobó en una copia limpia del índice (`git checkout-index -a --prefix=`): la repetición, `560b7d53f2c117c1` a 60 y variando; la zona, 60 de 60; la torre, 70 de 70; y `diag_mantle.gd`, igual que en el disco, salvo tres casos que arrancan en el aire con las manos por encima del filo: sin la 8.24 caen un poco más antes de colgarse, y terminan colgados en el mismo lugar.
+
+---
+
+### 8.34 La unión de dos cajas apiladas no es un filo (2026-10-25 y 2026-10-27, commit `eb473ca`)
+
+El 2026-10-25 a las 21:27, con siete capturas de la torre de parkour:
+
+> en la carpeta de capturas hay nuevas fotos, no están relacionadas con el mantle, pero es algo que note por primera vez, y supongo que es porque detrás hay un borde el cual es detectado como candidato. Fuera de lo que tienen las capturas, no hay bugs o cosas raras, el siguiente paso es probarlo en la red.
+
+En las capturas, colgado de la pared lisa del núcleo de la torre, donde no hay ningún borde.
+
+**La causa** (`diag_costura.gd`): no era un borde de detrás, sino la unión de dos cajas. El núcleo está armado con cajas apiladas: una hasta los 7 m, otras alrededor del nicho hasta 10,2 m y otra hasta los 12 m. Para encontrar la superficie de arriba del filo, la sonda tira un rayo para abajo desde 25 cm por encima de donde tocaron las manos. Ese rayo arranca adentro de la caja de arriba, y un rayo de Jolt que arranca adentro de un cuerpo no lo toca: pega en el techo de la caja de abajo. Así, la unión parecía un filo.
+
+| Dónde (`diag_costura.gd`) | Antes |
+| --- | --- |
+| Cara del saliente (+Z), manos a 7 m y a 10,2 m | Se agarra; el filo que encuentra es el techo de la caja de abajo |
+| Cara de la terraza 2 (−X), a 10,2 m | Se agarra |
+| Cara de la terraza 2, a 7 m | No, solo porque el techo bajo del tramo 3 no deja lugar para colgarse |
+
+No venía del mantle: es de la sonda de bordes (`edge_probe.gd`), y pasaba desde que existe el colgado. El mantle no sube a esas uniones, porque al pasar arriba chocaría con la caja de arriba. Puede pasar en cualquier pared armada con cajas apiladas.
+
+A las 21:30 se le explicó la causa y el arreglo posible. El 2026-10-27 a las 13:00: "Sí, arreglá lo de la unión de las cajas antes de la prueba en red."
+
+**Cómo quedó:** para que algo cuente como filo, justo encima de la superficie de arriba tiene que haber lugar libre: la sonda mira un punto `CLEAR_ABOVE` (5 cm) por encima, `TOP_INSET` adentro de la cara, y si cae adentro de algo (con la misma máscara, sin las escaleras), no es un filo. Vale para todos los agarres de bordes, el colgado, el mantle y la revalidación de un borde agarrado.
+
+| Prueba | Resultado |
+| --- | --- |
+| La torre de parkour (`diag_costura.gd`) | A 7 y a 10,2 m, en las dos caras, ya no se agarra la pared lisa (antes se agarraba en 6 de las 12 posiciones probadas: con las manos justo en la unión o 10 cm más arriba, salvo en la cara −X a 7 m). Saltando desde el saliente y desde la terraza 2, como un jugador, igual que antes: el salto no llega a la unión, y desde el saliente termina colgado de su propio filo, a 4 m, que se sigue agarrando |
+| La torre de parkour, tramo por tramo (`diag_torre.gd` de la sección 8.15) | 19 de 19 |
+| Zona y torre de servicio | 60 de 60 y 70 de 70: ninguna ruta se rompió |
+| Repetición | La misma huella, `560b7d53f2c117c1`: su recorrido no pasa por ninguna unión |
+| El mantle (`diag_mantle.gd`) y la pista de salto agachado | Los 42 casos y la pista, exactamente igual |
+| Barrido de bordes | Los cuatro criterios, con los mismos números: 906 de 908, 0 de 330, 0 ticks y 0,090 m |
+| En pareja con internet mala: colgarse del bloque fijo (`hang`), del bloque que se mueve (`hang:4`), doblando esquinas (`hangcorner`, 16 esquinas) y el mantle | 0 correcciones |
+
+**Estado:** probado en las dos PC con el mantle, el 2026-10-28, y en el mismo commit, `eb473ca`.
+
+---
+
+### 8.35 La salida por arriba de la escalera: frenando ya sobre el piso, termina (2026-10-28, commit `fde8f9a`)
+
+En el mismo mensaje de la prueba en red, el 2026-10-28 a las 13:18:
+
+> lo que si encontré, es relacionado a las escaleras. En la carpeta de capturas hay dos, donde se puede ver la capsula del player en lo que parece ser la caja, pero realmente esta en ladder. Me di cuenta de esto porque aparentemente parecia estar fuera de esta, pero no, todavia estaba en ladder. Eso es por ahora lo unico que encontre.
+
+En las dos capturas, el panel decía "Modo LADDER", en EscaleraTirolesa, con los pies a 6,76 m sobre su base, velocidad 0 y los pies en (11,312; 6,002; 24,000): parado sobre la plataforma.
+
+**La causa:** no era un error nuevo, sino la salida por arriba del 2026-10-23 (sección 8.31, subsecciones 12 a 15). Pasado el alto, el cuerpo sigue agarrado de la escalera por un tramo de unos 85 cm en EscaleraTirolesa: sube 2 mm y pasa al rellano como caminando. Sin teclas frena y se queda donde está, también a mitad de camino, todavía en la escalera. Esa parte la diseñó Claude, no el usuario. Medido sin red (`diag_salida_escalera.gd`), soltando W a distintas distancias pasado el alto:
+
+| Suelta W a | Queda |
+| --- | --- |
+| 0,2 m | En la escalera; sin piso debajo del centro del cuerpo |
+| 0,5 y 0,6 m | En la escalera, con piso debajo del centro: lo de las capturas |
+| 0,7 m o más | Sale a Suelo: llega frenando al final del tramo |
+
+A las 13:30 se le explicó, con una alternativa: si frena en ese tramo con el centro del cuerpo ya sobre el piso, que la escalera termine y quede parado ahí; si frena antes, todavía colgado del borde, que siga agarrado. A las 13:45: "Sí, cambialo".
+
+**Cómo quedó:** en la etapa 5, en la escalera, sin W ni S, en la parte de la salida que va hacia el rellano (pasados los 2 mm), y con piso debajo del centro del cuerpo (`_floor_under`, la del mantle), la escalera termina como al final del tramo (`_finish_ladder_exit`), pero con la velocidad que traía: frena como caminando. Antes de eso, colgado del borde sin piso debajo, sigue agarrado: con W termina de subir y con S vuelve a bajar. Arriba de una escalera suelta no hay piso (sus piezas no cuentan para la sonda), y ahí no cambia nada. Con un compañero colgado tampoco: ese caso se mira antes.
+
+| Prueba | Resultado |
+| --- | --- |
+| Todas las escaleras del nivel, por cada lado por el que se trepa, soltando W a 0,2, 0,4, 0,5, 0,6 y 0,7 m y al final del tramo, comparado con la regla apagada (`diag_salida_escalera2.gd`) | Cambian solo los casos con el cuerpo ya sobre el piso: de 0,4 a 0,6 m, ahora en Suelo en el mismo lugar donde antes quedaba en la escalera; a 0,7 m, frena 4,6 cm más adelante (antes paraba al final del tramo). A 0,2 m, sigue en la escalera. Las sueltas y soltando al final, igual. Los 19 lados donde el cuerpo no cabe al trepar se saltean |
+| Repetición | Un tramo nuevo al final, antes del último, para no mover nada de lo de antes: sube la escalera de la torre chica y suelta W con el cuerpo ya sobre la torre; termina en Suelo (sin el cambio, quedaba en la escalera). Coincide a 60 y variando; huella `7d3d417dd954d05b` (era `560b7d53f2c117c1`), 183 ticks en escalera |
+| Zona, torre de servicio y torre de parkour | 60 de 60, 70 de 70 y 19 de 19 |
+| En pareja con internet mala, con la prueba nueva `laddertop:stop` (como `laddertop`, pero suelta W con el cuerpo medio metro pasado el alto): el cliente trepando, y el host trepando con el cliente mirando | 0 correcciones y 0 afirmaciones adoptadas; los dos terminan en Suelo en (8; 2,5; 12,78), sobre la torre. `laddertop`, con W hasta el final, igual que antes, en (8; 2,5; 13,15). Lo que ve el cliente del host, de 6 a 9 tirones en 38 a 47 ticks medidos con y sin el cambio: viene de la internet mala, no de esto |
+
+**Estado:** probado en las dos PC el 2026-10-30 a las 13:07: "funciona correctamente, primero actualiza los md, despues hace el commit". Commit `fde8f9a` (13:26), también sin la 8.24, F1, las IP ni la exportación, comprobado en una copia limpia del índice: la repetición, `7d3d417dd954d05b` a 60 y variando; la zona, 60 de 60; la torre, 70 de 70; y la salida por arriba en todas las escaleras (`diag_salida_escalera2.gd`), igual que en el disco.
+
+
 ## 9. Estado actual del código
 
 ### 9.1 Archivos
@@ -5463,12 +5680,12 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
 
 | Archivo | Líneas | Qué hace |
 | --- | --- | --- |
-| `scripts/actor/actor_state.gd` (`ActorState`) | 258 (238) | Estado completo del actor al final de un tick: modos Suelo, Aire, Deslizamiento, Escalera, Colgado, Enganchado (colgado de un compañero) y, desde el 2026-10-14, Cable; postura (parado, agachado y, desde el 2026-10-12, encogido); base; ancla (con el punto del filo, la esquina que dobla o las manos); quién cuelga de él; reagarre; el súper salto y velocidad; si dobla un rincón; y si ya saltó. Cuantización, bytes (89; eran 51 en el esqueleto), copia y descripción. La cámara lenta personal que le quedaba se sacó el 2026-10-12. Desde el 2026-10-16, si va derecho después de salir por arriba de una escalera y a qué escalera vuelve solo; 92 bytes. Desde el 2026-10-18, colgado de un compañero, `anchor_t` es la altura de las manos sobre sus pies y `facing_yaw` dice de qué lado está; y el bloqueo de bordes bloquea también los cables. Desde el 2026-10-19, el de compañeros bloquea también los cables, y el de cables, a los compañeros. Desde el 2026-10-22, `hopping_out` (el saltito de la salida por arriba de una escalera) y `walked_off` (se cayó de un borde sin saltar); desde el 2026-10-23, sin `hopping_out` |
+| `scripts/actor/actor_state.gd` (`ActorState`) | 267 (258) | Estado completo del actor al final de un tick: modos Suelo, Aire, Deslizamiento, Escalera, Colgado, Enganchado (colgado de un compañero) y, desde el 2026-10-14, Cable; postura (parado, agachado y, desde el 2026-10-12, encogido); base; ancla (con el punto del filo, la esquina que dobla o las manos); quién cuelga de él; reagarre; el súper salto y velocidad; si dobla un rincón; y si ya saltó. Cuantización, bytes (89; eran 51 en el esqueleto), copia y descripción. La cámara lenta personal que le quedaba se sacó el 2026-10-12. Desde el 2026-10-16, si va derecho después de salir por arriba de una escalera y a qué escalera vuelve solo; 92 bytes. Desde el 2026-10-18, colgado de un compañero, `anchor_t` es la altura de las manos sobre sus pies y `facing_yaw` dice de qué lado está; y el bloqueo de bordes bloquea también los cables. Desde el 2026-10-19, el de compañeros bloquea también los cables, y el de cables, a los compañeros. Desde el 2026-10-22, `hopping_out` (el saltito de la salida por arriba de una escalera) y `walked_off` (se cayó de un borde sin saltar); desde el 2026-10-23, sin `hopping_out`. Desde el 2026-10-25, el modo Mantle, sin campos nuevos |
 | `scripts/actor/actor_input.gd` (`ActorInput`) | 100 (67) | Input de un tick, cuantizado al crearlo; 12 bytes. Botones: saltar, agacharse y correr. Contadores de pulsaciones del salto, de la cámara lenta del mundo y del súper. Desde el 2026-10-12, dice si un input que llegó por red es posible. Desde el 2026-10-14, cuantizar otra vez lo ya cuantizado da lo mismo. Desde el 2026-10-20, un cuarto botón: la cámara en tercera persona |
-| `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 362 (230) | Parámetros de movimiento: el nodo Tuning de `net_lab.tscn`, que se edita en el Inspector; `from_scene()` lee sus valores para las pruebas. Desde el 2026-10-18, en el grupo Compañero, los del cilindro. Desde el 2026-10-19, la velocidad y el impulso de los cables, y `hang_reach_down` y `hang_drop_speed` (sin commit); desde el 2026-10-20, `ladder_exit_back_angle`. Desde el 2026-10-22, `ladder_top_land`, `ladder_top_no_grab` y `ladder_grab_side` (reemplazan a `ladder_top_hop_speed`), `unlimited_fall_speed`, `walk_off_brake` y `fall_limit()`; se sacó `boost_jump_max_speed`; desde el 2026-10-23, sin `ladder_top_hop_height`; desde el 2026-10-24, `with_boost()` y `NOT_BOOSTED`, y `ladder_jump_out_speed` y `hang_jump_out_speed` (eran `ladder_jump_out` y `hang_jump_out`) |
-| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 1.914 (1.540) | Paso por tick en orden fijo con los siete modos, la base, la postura (con el encogido), la escalera, el escalón, el borde (con el salto para arriba y las esquinas), colgarse de un compañero y quién cuelga de quién, los impulsos con fuerza, el súper salto y velocidad, el salto en el aire, los cables y la validación de poses ancladas. Desde el 2026-10-16, en la escalera W y S sin la cámara, la salida derecha, la vuelta sola y Ctrl. Desde el 2026-10-18, colgarse del compañero como de un cilindro, también del que está en un cable, con W/S y A/D colgado. Desde el 2026-10-19, el impulso y el súper en los cables, y el agarre con las manos por encima del filo (sin commit). Desde el 2026-10-20, la salida derecha solo en tercera persona, la escalera de los dos lados, A o D que cortan la vuelta y, por atrás, no donde hay piso; desde el 2026-10-21, mirar la escalera saltando desde un borde. Desde el 2026-10-22, la escalera de la cuarta vuelta (salida sin empujón, la punta, de costado, el camino libre a la pose y las sueltas), `boost_scale()` en todo lo del súper y el freno al caerse de un borde. Desde el 2026-10-23, la salida por arriba sin saltito, agarrado de la escalera. Desde el 2026-10-24, con el súper, todas las velocidades por `with_boost` |
-| `scripts/actor/actor_body.gd` (`ActorBody`) | 443 (316) | Cuerpo (`CharacterBody3D`): deslizar (desde el 2026-10-10, sin depender del delta del cuadro), restaurar y validar poses, las tres formas y el espacio libre, asentarse en el piso después de un escalón, presentación (con el giro suave al doblar un rincón), desvío visual, las manos sobre el filo (una en cada cara al doblar), sobre la cintura del compañero o sobre un cable, y encontrar a los demás actores. Desde el 2026-10-19, la velocidad con que el dibujo alcanza al cuerpo después de un agarre llega con el aviso (sin commit) |
-| `scripts/actor/edge_probe.gd` (`EdgeProbe`) | 115 (108) | Sonda de borde: barrido de las manos, cara, superficie de arriba y filo; revalidación de un borde agarrado. Desde el 2026-10-20, deja afuera la capa de las escaleras (`mask`) |
+| `scripts/actor/actor_tuning.gd` (`ActorTuning`) | 398 (362) | Parámetros de movimiento: el nodo Tuning de `net_lab.tscn`, que se edita en el Inspector; `from_scene()` lee sus valores para las pruebas. Desde el 2026-10-18, en el grupo Compañero, los del cilindro. Desde el 2026-10-19, la velocidad y el impulso de los cables, y `hang_reach_down` y `hang_drop_speed` (sin commit); desde el 2026-10-20, `ladder_exit_back_angle`. Desde el 2026-10-22, `ladder_top_land`, `ladder_top_no_grab` y `ladder_grab_side` (reemplazan a `ladder_top_hop_speed`), `unlimited_fall_speed`, `walk_off_brake` y `fall_limit()`; se sacó `boost_jump_max_speed`; desde el 2026-10-23, sin `ladder_top_hop_height`; desde el 2026-10-24, `with_boost()` y `NOT_BOOSTED`, y `ladder_jump_out_speed` y `hang_jump_out_speed` (eran `ladder_jump_out` y `hang_jump_out`). Desde el 2026-10-25, el grupo Mantle |
+| `scripts/actor/actor_motor.gd` (`ActorMotor`) | 2.254 (1.914) | Paso por tick en orden fijo con los siete modos, la base, la postura (con el encogido), la escalera, el escalón, el borde (con el salto para arriba y las esquinas), colgarse de un compañero y quién cuelga de quién, los impulsos con fuerza, el súper salto y velocidad, el salto en el aire, los cables y la validación de poses ancladas. Desde el 2026-10-16, en la escalera W y S sin la cámara, la salida derecha, la vuelta sola y Ctrl. Desde el 2026-10-18, colgarse del compañero como de un cilindro, también del que está en un cable, con W/S y A/D colgado. Desde el 2026-10-19, el impulso y el súper en los cables, y el agarre con las manos por encima del filo (sin commit). Desde el 2026-10-20, la salida derecha solo en tercera persona, la escalera de los dos lados, A o D que cortan la vuelta y, por atrás, no donde hay piso; desde el 2026-10-21, mirar la escalera saltando desde un borde. Desde el 2026-10-22, la escalera de la cuarta vuelta (salida sin empujón, la punta, de costado, el camino libre a la pose y las sueltas), `boost_scale()` en todo lo del súper y el freno al caerse de un borde. Desde el 2026-10-23, la salida por arriba sin saltito, agarrado de la escalera. Desde el 2026-10-24, con el súper, todas las velocidades por `with_boost`. Desde el 2026-10-25, el mantle; desde el 2026-10-28, frenando en la salida por arriba de la escalera con piso debajo, termina |
+| `scripts/actor/actor_body.gd` (`ActorBody`) | 472 (443) | Cuerpo (`CharacterBody3D`): deslizar (desde el 2026-10-10, sin depender del delta del cuadro), restaurar y validar poses, las tres formas y el espacio libre, asentarse en el piso después de un escalón, presentación (con el giro suave al doblar un rincón), desvío visual, las manos sobre el filo (una en cada cara al doblar), sobre la cintura del compañero o sobre un cable, y encontrar a los demás actores. Desde el 2026-10-19, la velocidad con que el dibujo alcanza al cuerpo después de un agarre llega con el aviso (sin commit). Desde el 2026-10-25, `stance_moves()`, y en el mantle las manos sobre el filo y el giro suave del dibujo |
+| `scripts/actor/edge_probe.gd` (`EdgeProbe`) | 128 (115) | Sonda de borde: barrido de las manos, cara, superficie de arriba y filo; revalidación de un borde agarrado. Desde el 2026-10-20, deja afuera la capa de las escaleras (`mask`). Desde el 2026-10-27, un filo tiene que tener lugar libre encima: la unión de dos cajas apiladas ya no cuenta |
 | `scripts/actor/base_registry.gd` (`BaseRegistry`) | 79 (73) | Registro de bases por id; origen, velocidad y posición en el mundo, real y dibujada. Desde el 2026-10-12 avisa si dos bases tienen el mismo id |
 | `scripts/actor/scripted_platform.gd` (`ScriptedPlatform`) | 99 | Plataforma guionada: su pose sale del tiempo del mundo; se dibuja en el pasado cuando conviene |
 | `scripts/actor/host_raft.gd` (`HostRaft`) | 95 | Balsa que simula solo el host; en los clientes, una copia interpolada |
@@ -5485,7 +5702,7 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
 | `scripts/net/remote_interpolation.gd` (`RemoteInterpolation`) | 277 (267) | Interpolación de los demás jugadores y de las balsas en el cliente, con marcos de dibujo; desde el 2026-10-11 se vacía al cortarse la conexión |
 | `scenes/net_lab/net_lab.tscn` | 142 | Escena del laboratorio, con menú y panel, el nodo Tuning, el nodo Session (con los tiempos de la reconexión) y la guía de la cámara |
 | `scenes/net_lab/net_lab_level.tscn` | 480 (463) | Nivel del laboratorio: el vagón, el ascensor, la balsa, el túnel largo, la pared de medidas, la torre chica, las dos escaleras, la pista de escalones, la pista de bordes, los dos bordes que se mueven, desde el 2026-10-13 la torre de parkour y, desde el 2026-10-14, la pista de cables, con sus cuatro cables. Desde el 2026-10-15 tiene también dos objetos de prueba del usuario, sin decidir si quedan: un cable hecho a mano y una escalera de 17 m con sus modelos. Desde el 2026-10-16, la escalera de prueba está en (−12; 0; 24). Desde el 2026-10-18, la pista de colgarse (`PistaDeColgarse`, en x −25). Desde el 2026-10-19, la zona de servicio (`ZonaDeServicio`, última), con la torre de servicio adentro. Desde el 2026-10-22, la pista de salto agachado (`PistaDeSaltoAgachado`, en (4; 0; 31), al final del archivo) |
-| `scenes/net_lab/net_lab.gd` | 2.426 (2.221) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, quién cuelga de quién en el host, cámara lenta del mundo, cableado de red, qué hacer al cortarse, panel, pausa, capturas, mediciones, pruebas guionadas y la divergencia inyectada. Desde el 2026-10-16, las pruebas `laddertop:back`, `ladderdrop` y `ladderhold:drop`. Desde el 2026-10-18, `cablehold` y `hook:cable`, y el panel del colgado del compañero con la altura y el ángulo. Desde el 2026-10-19, F1 (sin commit); desde el 2026-10-20, el bit de tercera persona en el input; desde el 2026-10-21, las IP por conexión en el menú (sin commit) |
+| `scenes/net_lab/net_lab.gd` | 2.516 (2.426) | Script del laboratorio: roles, menú, teclas, empujones y eventos programados, quién cuelga de quién en el host, cámara lenta del mundo, cableado de red, qué hacer al cortarse, panel, pausa, capturas, mediciones, pruebas guionadas y la divergencia inyectada. Desde el 2026-10-16, las pruebas `laddertop:back`, `ladderdrop` y `ladderhold:drop`. Desde el 2026-10-18, `cablehold` y `hook:cable`, y el panel del colgado del compañero con la altura y el ángulo. Desde el 2026-10-19, F1 (sin commit); desde el 2026-10-20, el bit de tercera persona en el input; desde el 2026-10-21, las IP por conexión en el menú (sin commit). Desde el 2026-10-25, el panel y la ayuda del mantle y la prueba `mantle`; desde el 2026-10-28, `laddertop:stop` |
 | `scenes/net_lab/lab_camera.gd` (`LabCamera`) | 155 (145) | Cámara de tercera a primera persona sobre una guía editable; la altura de la cabeza sigue la postura, y salta junto con ella cuando la cabeza queda fija. Desde el 2026-10-13 no sigue a un actor que ya salió del árbol. Desde el 2026-10-20, `third_person()` |
 | `scenes/net_lab/measure_wall.gd` | 48 | Pared de medidas: rayas cada 10 cm y números cada 50 cm, visibles también en el editor |
 | `scenes/net_lab/step_course.gd` | 99 | Pista de escalones: sueltos de 10 a 40 cm y dos escaleras, una con rampa invisible; visible también en el editor |
@@ -5493,9 +5710,9 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
 | `scenes/net_lab/parkour_tower.gd` | 215 (nuevo, 2026-10-13) | La torre de parkour: núcleo de 6 × 6 × 12 m, terrazas, saliente, techos bajos, escaleras, hueco con pilar y nicho, y muro con cajón; visible también en el editor |
 | `scenes/net_lab/cable_course.gd` | 113 (nuevo, 2026-10-14) | La pista de cables: postes, plataformas, la escalera 6, el brazo de la tirolesa y los carteles. Los cables son nodos `Cable` de la escena; visible también en el editor |
 | `scenes/net_lab/hook_course.gd` | 158 (nuevo, 2026-10-18) | La pista de colgarse: diez estaciones para probar colgarse del compañero contra paredes y pisos (cuatro de cables, tres de escaleras y tres de bordes), con cajones y carteles. Los cables y las escaleras los crea el script; visible también en el editor (sección 8.22) |
-| `scenes/net_lab/crouch_jump_course.gd` | 136 (nuevo, 2026-10-22) | La pista de salto agachado: seis bloques de 1,2 a 2,2 m, un conducto con techo bajo, una ventana alta y tres bloques para el súper, con su propio piso y carteles; visible también en el editor (sección 8.31) |
+| `scenes/net_lab/crouch_jump_course.gd` | 143 (136; nuevo, 2026-10-22) | La pista de salto agachado: seis bloques de 1,2 a 2,2 m, un conducto con techo bajo, una ventana alta y tres bloques para el súper, con su propio piso y carteles; visible también en el editor (sección 8.31). Desde el 2026-10-25, los carteles dicen dónde sube el mantle |
 | `scenes/net_lab/test_udp_relay.gd` (`TestUdpRelay`) | 51 (nuevo, 2026-10-11) | Solo para pruebas: un relevo UDP entre el cliente y el host que, cortado, no deja pasar nada, como un cable cortado |
-| `scenes/net_lab/actor_replay_test.gd` y `.tscn` | 411 + 13 (385 + 13) | Prueba de repetición determinista, a cualquier ritmo, con bases, postura (también encogido), escalera, empujones, escalones, Hanging, cámara lenta, el súper, el salto en el aire y, sin buscarlo, un cable, con los valores del nodo Tuning. Desde el 2026-10-16 pasa también por la salida derecha, la vuelta a la escalera y Ctrl. Desde el 2026-10-19 falla (código 3) si el recorrido no pasa por alguna de sus 14 mecánicas. Desde el 2026-10-22, el salto con el súper sale en el tick 38 del tramo y no en el 10, para seguir pasando por debajo del cable plano |
+| `scenes/net_lab/actor_replay_test.gd` y `.tscn` | 448 + 13 (411 + 13) | Prueba de repetición determinista, a cualquier ritmo, con bases, postura (también encogido), escalera, empujones, escalones, Hanging, cámara lenta, el súper, el salto en el aire y, sin buscarlo, un cable, con los valores del nodo Tuning. Desde el 2026-10-16 pasa también por la salida derecha, la vuelta a la escalera y Ctrl. Desde el 2026-10-19 falla (código 3) si el recorrido no pasa por alguna de sus 14 mecánicas. Desde el 2026-10-22, el salto con el súper sale en el tick 38 del tramo y no en el 10, para seguir pasando por debajo del cable plano. Desde el 2026-10-25 pasa también por el mantle (15 mecánicas); desde el 2026-10-28, un tramo antes del último frena en la salida por arriba de la escalera de la torre chica |
 | `scenes/net_lab/hang_sweep_test.gd` y `.tscn` | 493 + 13 (466 + 13) | Barrido de aproximaciones a los bordes, con los cuatro criterios y la altura del salto para arriba (desde el 2026-10-12, medida desde los pies de parado), con los valores del nodo Tuning. Desde el 2026-10-19, los agarres con las manos por encima del filo van aparte en el criterio 4 (sin commit) |
 | `scenes/net_lab/zona_de_servicio.tscn` | 3.488 (nueva, 2026-10-19) | La zona de servicio: un patio entre edificios con escaleras, cables, bordes con esquinas y la ruta de a dos. Cada pieza es un `StaticBody3D` con su forma y su malla (sección 8.25) |
 | `scenes/net_lab/torre_de_servicio.tscn` | 7.367 (nueva, 2026-10-19) | La torre de servicio, hija de la zona: la Planta Técnica, la Torre Norte y la Torre de Tanques, hasta 100 m (sección 8.28) |
@@ -5530,15 +5747,16 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
     - `ladder_exit_length(body, ladder, side, tuning)` y `ladder_pose(ladder, t, side)` (2026-10-23): el largo del tramo de la salida por arriba (0 si está tapado) y dónde van los pies a una altura, también pasado el alto. Reemplazan al saltito (`_climb_out_top`, que se sacó); con ellos, las privadas `_ladder_tangent`, `_ladder_t_of` y `_finish_ladder_exit`.
     - ~~`boost_scale(state, tuning)` (2026-10-22): por cuánto se multiplican las velocidades, `boost_speed_scale` con el súper y 1 sin él. La usaban el piso, el tope del salto, el control en el aire, el salto en el aire, el salto desde un cable y los cables.~~ Se sacó el 2026-10-24: lo hace `ActorTuning.with_boost`.
     - Privadas que cambiaron el 2026-10-22: `_try_grab_ladder` recibe además `tuning` (el costado y la punta); `_back_blocked` pasó a ser `_ladder_blocked(body, ladder, t, feet, side)`, de los dos lados; y `_floor_behind_top(body, ladder, out, land)` dice si hay piso donde cae la salida por arriba.
+    - `mantle_check(body, state, direction, tuning, dt)` (2026-10-25): la decisión del mantle sin cambiar nada, con la postura (parado o agachado) y el motivo si no sube; la usan el motor y las pruebas. Con ella, las privadas `_try_mantle`, `_mantle_edge`, `_mantle`, `_mantle_way`, `_move_mantling`, `_mantle_done`, `_finish_mantle`, `_leave_mantle` y `_floor_under` (si debajo de unos pies hay piso caminable; desde el 2026-10-28 la usa también la salida por arriba de la escalera).
 - **`ActorBody`:**
     - `slide()` y `apply_state()`, que devuelve si la pose entra en el mundo;
-    - postura: `use_stance()`, `stance_height()` y `stance_fits()`. `active_stance()` se sacó el 2026-10-12: no se usaba;
+    - postura: `use_stance()`, `stance_height()` y `stance_fits()`. `active_stance()` se sacó el 2026-10-12: no se usaba. Desde el 2026-10-25, `stance_moves(stance, feet, motion)`: si la forma de cualquier postura puede hacer ese movimiento sin chocar;
     - `fit_tuck(amount)` (2026-10-12): arma la forma encogida, `amount` metros más corta desde abajo, si cambió el valor;
     - `capsule_radius()` y `settle_on_floor(snap_length)` (escalón);
     - `present()`, `seen_position()`, `smooth_from()`, `set_visual_offset()`, `decay_visual_offset()`, `teleported()` y `visual_root()`;
     - las variables `snap_jump` y `grab_jump`, por donde el motor le avisa a la presentación un snap lógico (escalón y agarre; desde el 2026-10-10, también el agarre de la escalera);
     - `teammates()` y `teammate(peer)` (punto 6): los demás actores, por id de dueño, y el de un jugador. Los actores se anotan en el grupo `actores` al nacer.
-- **`EdgeProbe`, todas estáticas** (punto 5): `hands_at(body, feet, toward, tuning)`, `find(body, from, to, toward)` y `hold(body, point, normal)`. Desde el 2026-10-20, `mask(body)`: la máscara del cuerpo sin la capa de las escaleras.
+- **`EdgeProbe`, todas estáticas** (punto 5): `hands_at(body, feet, toward, tuning)`, `find(body, from, to, toward)` y `hold(body, point, normal)`. Desde el 2026-10-20, `mask(body)`: la máscara del cuerpo sin la capa de las escaleras. Desde el 2026-10-27, `find` y `hold` no devuelven un filo sin lugar libre encima (`CLEAR_ABOVE`).
 - **`BaseRegistry`, todas estáticas:**
     - `add()`, `remove()`, `find(id)`, `all()` e `id_of(collider)`;
     - `origin(id)`, `velocity(id)` y `world_position(state)`;
@@ -5595,11 +5813,11 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
 | base_id | entero sin signo de 16 bits | id de red de la base, 0 sin base | punto 2 (53 bytes) |
 | stance_wanted | entero sin signo de 8 bits | postura pedida: parado = 0, agachado = 1 y, desde el 2026-10-12, encogido = 2 | punto 3 |
 | stance | entero sin signo de 8 bits | postura concedida | punto 3 |
-| anchor_id | entero sin signo de 32 bits (16 hasta el punto 6) | id del ancla. En Ladder, la escalera; en Hanging, la base que lleva el borde, 0 si es geometría fija; en Enganchado, el id de red del compañero; en Cable (2026-10-14), el número del cable. Los números de cables y escaleras salen solos de su lugar en la escena (sección 8.20) | punto 4 |
-| anchor_t | entero de 32 bits | 0,1 mm. En Ladder, la altura de los pies sobre la escalera. En Hanging, hasta el 2026-10-08, el avance de la subida en segundos (con el mismo paso); después, 0, y desde el 2026-10-13, doblando una esquina, cuánto giró la normal desde la cara donde empezó, en radianes, con signo. En Cable (2026-10-14), la distancia sobre el cable desde su origen, en metros. En Enganchado, desde el 2026-10-18, la altura de las manos sobre los pies del compañero (el lado lo dice `facing_yaw`, que lo mira: mirando hacia donde mira él, de su espalda); de 14:43 a 18:19 de ese día, 0 de su espalda y −1 de su frente | punto 4 |
+| anchor_id | entero sin signo de 32 bits (16 hasta el punto 6) | id del ancla. En Ladder, la escalera; en Hanging, la base que lleva el borde, 0 si es geometría fija; en Enganchado, el id de red del compañero; en Cable (2026-10-14), el número del cable; en Mantle (2026-10-25), como en Hanging, la base que lleva el borde. Los números de cables y escaleras salen solos de su lugar en la escena (sección 8.20) | punto 4 |
+| anchor_t | entero de 32 bits | 0,1 mm. En Ladder, la altura de los pies sobre la escalera. En Hanging, hasta el 2026-10-08, el avance de la subida en segundos (con el mismo paso); después, 0, y desde el 2026-10-13, doblando una esquina, cuánto giró la normal desde la cara donde empezó, en radianes, con signo. En Cable (2026-10-14), la distancia sobre el cable desde su origen, en metros. En Enganchado, desde el 2026-10-18, la altura de las manos sobre los pies del compañero (el lado lo dice `facing_yaw`, que lo mira: mirando hacia donde mira él, de su espalda); de 14:43 a 18:19 de ese día, 0 de su espalda y −1 de su frente. En Mantle (2026-10-25), hacia dónde mira la normal del borde, en radianes, como `facing_yaw` | punto 4 |
 | regrab_id | entero sin signo de 16 bits | ancla bloqueada para reagarrar; 0xFFFF bloquea todos los bordes y, desde el 2026-10-18, también todos los cables; 0xFFFE, desde el punto 6, todos los compañeros y, desde el 2026-10-19, también todos los cables; y 0xFFFD, desde el 2026-10-14, todos los cables y, desde el 2026-10-19, también todos los compañeros | punto 4 |
 | regrab_left | entero de 32 bits | 0,1 ms | punto 4 |
-| anchor_point | 3 enteros de 32 bits | 0,1 mm. En Hanging, el punto del filo relativo al origen de su base (en el mundo si es geometría fija); doblando una esquina, la esquina. En Enganchado y, desde el 2026-10-14, en Cable, dónde están las manos, en el mundo | punto 5 (79 bytes) |
+| anchor_point | 3 enteros de 32 bits | 0,1 mm. En Hanging, el punto del filo relativo al origen de su base (en el mundo si es geometría fija); doblando una esquina, la esquina. En Enganchado y, desde el 2026-10-14, en Cable, dónde están las manos, en el mundo. En Mantle (2026-10-25), el filo, como en Hanging | punto 5 (79 bytes) |
 | hooked_by | entero sin signo de 32 bits | id de red del compañero que cuelga de este actor, o 0 | punto 6 (85 bytes) |
 | ~~slow_left~~ | entero de 32 bits | 0,1 ms. Cuánto le quedaba de cámara lenta personal, en tiempo del mundo. Se sacó el 2026-10-12 (85 bytes) | punto 7 (89 bytes) |
 | boosted | entero sin signo de 8 bits | 1 si el súper salto y velocidad está prendido | 2026-10-12 |
@@ -5611,7 +5829,7 @@ Las líneas son de hoy. Entre paréntesis, las de la octava versión de este doc
 | ~~hopping_out~~ | entero sin signo de 8 bits | 1 en el saltito de la salida por arriba de una escalera: las teclas no lo empujaban en el aire. Se sacó el 2026-10-23, con el saltito | 2026-10-22 (93 bytes) |
 | walked_off | entero sin signo de 8 bits | 1 si se cayó de un borde sin saltar, de un piso fijo: mientras no salte, en el aire sin teclas frena a `walk_off_brake` | 2026-10-22 (94 bytes) |
 
-Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, Aire = 1, Deslizamiento = 2, Escalera = 3, Colgado = 4, desde el punto 6 Enganchado = 5 y, desde el 2026-10-14, Cable = 6. En Hanging la normal del borde no viaja: es la contraria a `facing_yaw`. En Ladder, desde el 2026-10-20, `facing_yaw` dice además de qué lado trepa: no hay un campo nuevo.
+Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, Aire = 1, Deslizamiento = 2, Escalera = 3, Colgado = 4, desde el punto 6 Enganchado = 5, desde el 2026-10-14, Cable = 6 y, desde el 2026-10-25, Mantle = 7. En Hanging la normal del borde no viaja: es la contraria a `facing_yaw`. En el mantle sí: va en `anchor_t`. En Ladder, desde el 2026-10-20, `facing_yaw` dice además de qué lado trepa: no hay un campo nuevo.
 
 **`ActorState` del esqueleto, 51 bytes:**
 
@@ -5647,18 +5865,19 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 1. **Tiempo:** el `dt` que recibe es el del mundo: 1/60 por la escala del mundo (desde el punto 7). Con él se descuentan coyote, memoria del salto y bloqueo de reagarre. Del punto 7 al 2026-10-12, si al actor le quedaba cámara lenta personal, eso se descontaba con ese `dt`, y después el `dt` se multiplicaba por 0,3. Desde el 2026-10-12, antes de todo, la forma encogida se arma con el valor del Tuning si cambió (`fit_tuck`).
 2. **Base:** si está sobre una base, la base lo lleva hasta donde quedó en este tick.
 3. **Eventos:** una pulsación nueva de salto se detecta porque cambió el contador. Desde el 2026-10-12, igual con el del súper: cada pulsación nueva lo prende o lo apaga, y dos entre dos ticks se anulan. Los empujones, en cambio, no se aplican acá (ver abajo).
-4. **Sondas:** colgado, la sonda de borde revalida el borde agarrado (desde el punto 5); colgado de un compañero, se lo busca por su id (desde el punto 6); colgado de un cable, el cable, por su número (2026-10-14). Las demás lecturas del entorno se hacen donde se usan: el volumen de la escalera, el agarre de un borde y el de un compañero, en la transición; el escalón, en el movimiento, porque necesita saber si el movimiento chocó.
+4. **Sondas:** colgado, la sonda de borde revalida el borde agarrado (desde el punto 5); colgado de un compañero, se lo busca por su id (desde el punto 6); colgado de un cable, el cable, por su número (2026-10-14); en el mantle, la sonda de borde revalida el borde, como colgado (2026-10-25). Las demás lecturas del entorno se hacen donde se usan: el volumen de la escalera, el agarre de un borde y el de un compañero, en la transición; el escalón, en el movimiento, porque necesita saber si el movimiento chocó.
 5. **Transición:** como máximo una por tick. Antes, desde el 2026-10-16: si va derecho después de salir por arriba de una escalera, soltar W o tocar A, S o D lo corta; si no, W lleva hacia donde mira el cuerpo. Desde el 2026-10-20, también lo cortan girar la cámara hacia adelante o pasar a primera persona; y si hay una vuelta a la escalera pendiente, A o D la borran.
     - **Suelo:** salto, caída, agarrar una escalera (desde el 2026-10-16, sin Ctrl) o deslizamiento.
-    - **Aire:** aterrizaje, salto con coyote, salto en el aire (desde el 2026-10-14: con Espacio, sin haber saltado y bajando), agarrar un borde (sin Ctrl; desde el punto 5; bajando o, desde el 2026-10-08, también subiendo), colgarse de un compañero (sin Ctrl; desde el punto 6; desde el 2026-10-18, tocando su cilindro, de cualquier lado si está en un cable y hasta 90° de su espalda si está en un borde o una escalera), agarrarse de un cable (desde el 2026-10-18, no recién soltado un borde) (sin Ctrl; desde el 2026-10-14) o agarrar una escalera (desde el 2026-10-16, sin Ctrl): con teclas hacia ella o, si vuelve a la que dejó saltando mirándola o con Ctrl, sin teclas y bajando. Desde el 2026-10-19, un borde se agarra también llegando con las manos hasta `hang_reach_down` por encima del filo (sin commit). Desde el 2026-10-20, una escalera suelta se agarra también por atrás, pero no donde hay piso debajo de los pies, salvo al pie; y desde el 2026-10-21, en el salto para arriba desde un borde, sin teclas alcanza con mirarla.
+    - **Aire:** aterrizaje, salto con coyote, salto en el aire (desde el 2026-10-14: con Espacio, sin haber saltado y bajando), agarrar un borde (sin Ctrl; desde el punto 5; bajando o, desde el 2026-10-08, también subiendo), colgarse de un compañero (sin Ctrl; desde el punto 6; desde el 2026-10-18, tocando su cilindro, de cualquier lado si está en un cable y hasta 90° de su espalda si está en un borde o una escalera), agarrarse de un cable (desde el 2026-10-18, no recién soltado un borde) (sin Ctrl; desde el 2026-10-14) o agarrar una escalera (desde el 2026-10-16, sin Ctrl): con teclas hacia ella o, si vuelve a la que dejó saltando mirándola o con Ctrl, sin teclas y bajando. Desde el 2026-10-19, un borde se agarra también llegando con las manos hasta `hang_reach_down` por encima del filo (sin commit). Desde el 2026-10-20, una escalera suelta se agarra también por atrás, pero no donde hay piso debajo de los pies, salvo al pie; y desde el 2026-10-21, en el salto para arriba desde un borde, sin teclas alcanza con mirarla. Desde el 2026-10-25, antes que el borde, el mantle: subiendo en un salto, con un filo bajo enfrente y lugar arriba (sección 8.33).
     - **Deslizamiento:** salto, caída, o fin por velocidad o, desde el 2026-10-12, por soltar Ctrl.
-    - **Escalera:** respaldo, Ctrl (desde el 2026-10-16: se suelta sin empujón), salto, salida abajo o salida arriba; desde el 2026-10-16, abajo con S y arriba con W, mire donde mire la cámara. El salto mirándola anota la escalera para volver, y la salida arriba prende el ir derecho (desde el 2026-10-16). Con un compañero colgado, solo el respaldo (desde el punto 6) y, desde el 2026-10-16, Ctrl, que suelta a los dos. Desde el 2026-10-20, la salida prende el ir derecho solo en tercera persona y mirando para atrás (`straight_exit`).
+    - **Escalera:** respaldo, Ctrl (desde el 2026-10-16: se suelta sin empujón), salto, salida abajo o salida arriba; desde el 2026-10-16, abajo con S y arriba con W, mire donde mire la cámara. El salto mirándola anota la escalera para volver, y la salida arriba prende el ir derecho (desde el 2026-10-16). Con un compañero colgado, solo el respaldo (desde el punto 6) y, desde el 2026-10-16, Ctrl, que suelta a los dos. Desde el 2026-10-20, la salida prende el ir derecho solo en tercera persona y mirando para atrás (`straight_exit`). Desde el 2026-10-28, sin W ni S en la parte de la salida que va hacia el rellano, con piso debajo del centro del cuerpo, termina, con la velocidad que traía (sección 8.35).
     - **Colgado** (desde el punto 5): respaldo si el borde ya no está; Ctrl se suelta; Espacio salta para arriba mirando a la pared, o hacia donde mira si no, y en ese caso se da vuelta hacia allá (desde el 2026-10-08, sección 8.7). Hasta el 2026-10-08, Espacio mirando a la pared empezaba la subida, y mientras subía no había otra transición (sección 8.6). Desde el 2026-10-12, el salto para arriba pide la postura encogida. Con un compañero colgado, Espacio no hace nada; Ctrl lo suelta igual (desde el punto 6).
     - **Enganchado** (desde el punto 6): respaldo si el compañero ya no lo sostiene, con la velocidad de él; Ctrl se suelta; Espacio salta para arriba mirando hacia el compañero, o hacia donde mira si no, y se da vuelta.
     - **Cable** (2026-10-14): respaldo si el cable ya no existe; Ctrl se suelta, con la velocidad que traía; Espacio salta hacia donde mira la cámara, con la velocidad del cable y el tope del salto, y se da vuelta. Desde el 2026-10-19, con el súper, sale como el salto en el aire con el súper. Desde el 2026-10-18, con un compañero colgado, Espacio no hace nada y Ctrl suelta a los dos.
-6. **Modo:** el modo activo decide la velocidad. En el suelo, con el súper, por 1,5 (desde el 2026-10-12); desde el 2026-10-24, con el súper, todas las velocidades de todos los modos, porque el tick usa el Tuning de `with_boost` desde la etapa 3. Colgado, la velocidad va a lo largo del filo y, desde el 2026-10-13, sigue doblando las esquinas: por afuera, un cuarto de círculo alrededor de la esquina; por adentro, una curva de `hang_corner_radius` (sección 8.16). Con un compañero colgado, en el borde, en la escalera y, desde el 2026-10-18, en el cable, es cero. Enganchado, es cero y mira hacia donde mira el compañero; desde el 2026-10-18 mira hacia él, W y S suben y bajan las manos y A y D giran alrededor, hasta 90° de su espalda si está en un borde o una escalera, y si el camino no está libre no se mueve (sección 8.22). En un cable (2026-10-14), la velocidad va sobre el cable: las teclas, según la cámara, lo mueven hacia donde apuntan si están a menos de `cable_move_angle` de él; en uno inclinado, hacia abajo se desliza y hacia arriba sube despacio; sin teclas, quieto (sección 8.19). Desde el 2026-10-19 va a `cable_speed` (3,5 m/s) y sube a `cable_climb_speed` (2 m/s), y al agarrarse conserva la velocidad que traía a lo largo del cable, que se pierde a `cable_carry_brake` (sección 8.26). Desde el 2026-10-22, con el súper, por 1,5 en el aire, en los cables y en el tope del salto (`boost_scale`); en el aire, cayéndose de un borde sin saltar y sin teclas, frena a `walk_off_brake` (`walked_off`) (sección 8.31).
-7. **Postura y movimiento:** se resuelve la postura. Desde el 2026-10-16, con la vuelta a la escalera pendiente, Ctrl no pide agachado. Desde el 2026-10-12, encogido sigue así mientras está en el aire; al tocar el piso pide parado (con los pies fijos, o agachado si un techo no deja) y al agarrarse de algo, parado con la cabeza fija. Después, los modos libres se mueven con `move_and_slide()`, y los anclados (la escalera, el colgado, el colgado de un compañero y, desde el 2026-10-14, el cable) con un barrido. En Suelo, si el movimiento chocó, la sonda de escalón prueba subirlo (desde el escalón).
-8. **Contactos:** los indicadores de Godot pasan al estado. La sonda de suelo dice sobre qué base quedó parado, y al cambiar de base la velocidad cambia de marco; colgado, la base es la del borde; colgado de un compañero o de un cable, no hay base. Si el actor ya no está agarrado de un borde ni de una escalera (ni, desde el 2026-10-18, de un cable), se borra quién cuelga de él (desde el punto 6). Si el modo ya no es Aire, se apaga `jumped`: vuelve el salto en el aire (desde el 2026-10-14). Desde el 2026-10-16, si no es Aire se borra la vuelta a la escalera, y agarrado de algo se apaga el ir derecho. Desde el 2026-10-22, si se quedó sin piso caminando o deslizándose, se anota que se cayó de un borde (`walked_off`, solo desde un piso fijo, sin base), que se borra al apoyarse o agarrarse de algo. Todo se cuantiza.
+    - **Mantle** (2026-10-25): respaldo si el borde ya no está; Ctrl se suelta y cae; si llegó, termina en Suelo: sin teclas, con el centro `mantle_land` detrás del filo, quieto; con teclas, apenas el centro queda `MANTLE_STAND` detrás del filo con piso debajo, caminando.
+6. **Modo:** el modo activo decide la velocidad. En el suelo, con el súper, por 1,5 (desde el 2026-10-12); desde el 2026-10-24, con el súper, todas las velocidades de todos los modos, porque el tick usa el Tuning de `with_boost` desde la etapa 3. Colgado, la velocidad va a lo largo del filo y, desde el 2026-10-13, sigue doblando las esquinas: por afuera, un cuarto de círculo alrededor de la esquina; por adentro, una curva de `hang_corner_radius` (sección 8.16). Con un compañero colgado, en el borde, en la escalera y, desde el 2026-10-18, en el cable, es cero. Enganchado, es cero y mira hacia donde mira el compañero; desde el 2026-10-18 mira hacia él, W y S suben y bajan las manos y A y D giran alrededor, hasta 90° de su espalda si está en un borde o una escalera, y si el camino no está libre no se mueve (sección 8.22). En un cable (2026-10-14), la velocidad va sobre el cable: las teclas, según la cámara, lo mueven hacia donde apuntan si están a menos de `cable_move_angle` de él; en uno inclinado, hacia abajo se desliza y hacia arriba sube despacio; sin teclas, quieto (sección 8.19). Desde el 2026-10-19 va a `cable_speed` (3,5 m/s) y sube a `cable_climb_speed` (2 m/s), y al agarrarse conserva la velocidad que traía a lo largo del cable, que se pierde a `cable_carry_brake` (sección 8.26). Desde el 2026-10-22, con el súper, por 1,5 en el aire, en los cables y en el tope del salto (`boost_scale`); en el aire, cayéndose de un borde sin saltar y sin teclas, frena a `walk_off_brake` (`walked_off`) (sección 8.31). En el mantle (2026-10-25), primero para arriba a `mantle_up_speed`, mirando a la pared, y después hacia adentro, hacia donde apuntan las teclas (hasta `mantle_side_angle` de costado), hasta `mantle_forward_speed` con `ground_accel`.
+7. **Postura y movimiento:** se resuelve la postura. Desde el 2026-10-16, con la vuelta a la escalera pendiente, Ctrl no pide agachado. Desde el 2026-10-12, encogido sigue así mientras está en el aire; al tocar el piso pide parado (con los pies fijos, o agachado si un techo no deja) y al agarrarse de algo, parado con la cabeza fija. Después, los modos libres se mueven con `move_and_slide()`, y los anclados (la escalera, el colgado, el colgado de un compañero, desde el 2026-10-14, el cable y, desde el 2026-10-25, el mantle, que sigue con la postura con que empezó) con un barrido. En Suelo, si el movimiento chocó, la sonda de escalón prueba subirlo (desde el escalón).
+8. **Contactos:** los indicadores de Godot pasan al estado. La sonda de suelo dice sobre qué base quedó parado, y al cambiar de base la velocidad cambia de marco; colgado y en el mantle, la base es la del borde; colgado de un compañero o de un cable, no hay base. Si el actor ya no está agarrado de un borde ni de una escalera (ni, desde el 2026-10-18, de un cable), se borra quién cuelga de él (desde el punto 6). Si el modo ya no es Aire, se apaga `jumped`: vuelve el salto en el aire (desde el 2026-10-14). Desde el 2026-10-16, si no es Aire se borra la vuelta a la escalera, y agarrado de algo se apaga el ir derecho. Desde el 2026-10-22, si se quedó sin piso caminando o deslizándose, se anota que se cayó de un borde (`walked_off`, solo desde un piso fijo, sin base), que se borra al apoyarse o agarrarse de algo. Todo se cuantiza.
 
 **Los empujones no entran al paso.** Los aplica con `apply_impulse` quien maneja el actor (el host, o el cliente en su predicción) al empezar el tick, antes del paso, y suben la época. El documento los pone en la etapa 3. Una diferencia que sale de leer el código: el bloqueo de reagarre que pone un empujón empieza a descontarse en el mismo tick, en la etapa 1. Host y cliente lo hacen igual, así que no causa correcciones.
 
@@ -5825,6 +6044,17 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | `LADDER_EXIT_NEAR` | 0,1 m | `ActorMotor` | Desde cuánto antes del alto se calcula si se puede salir (2026-10-23) |
 | `LADDER_TOP_FLOOR` | 0,3 m | `ActorMotor` | Salida por arriba: hasta cuánto más arriba o más abajo del alto de la escalera se busca el piso donde cae; sin piso, cae parado arriba de la escalera (2026-10-22, sección 8.31) |
 
+**Constantes que sumó lo que siguió, desde el 2026-10-25** (secciones 8.33 a 8.35):
+
+| Constante | Valor | Dónde | Para qué |
+| --- | --- | --- | --- |
+| `MANTLE_LIFT` | 0,002 m | `ActorMotor` | Mantle: cuánto pasan los pies por encima del filo antes de ir hacia adentro, como `LADDER_EXIT_LIFT` |
+| `MANTLE_REACH` | 0,7 m | `ActorMotor` | Al validar una afirmación en el mantle, hasta dónde delante de la cara del borde puede estar el cuerpo |
+| `MANTLE_SLACK` | 0,01 m | `ActorMotor` | El margen de las demás medidas de esa validación |
+| `MANTLE_STAND` | 0,1 m | `ActorMotor` | Mantle con teclas: termina apenas el centro del cuerpo queda este tanto detrás del filo, con piso debajo |
+| `MANTLE_WALL_GAP` | 0,01 m | `ActorMotor` | Mantle: subiendo, se arrima a la pared hasta quedar a esto de ella |
+| `CLEAR_ABOVE` | 0,05 m | `EdgeProbe` | Encima de la superficie de arriba de un filo tiene que haber este tanto de lugar libre (2026-10-27) |
+
 **El actor** (`actor.tscn`): cápsula parada de 1,8 m de alto y cápsula agachada de 1,0 m, las dos de 0,35 m de radio. Desde el 2026-10-12, una tercera forma, encogida, que arma el código: la parada, `hang_climb_tuck` más corta desde abajo (1,6 m).
 
 **Parámetros de movimiento (`ActorTuning`).** Los marcados con * los sumó la validación. Desde el 2026-10-10 son los valores del nodo Tuning de `net_lab.tscn`, en el Inspector; los de esta tabla son los que trae el script. En la escena, el usuario cambió tres: el salto desde la escalera mirando a otro lado sube a 1,2 m/s (`ladder_jump_up`), en vez de 3,5 (primero lo puso en 2); y, el 2026-10-14, el agarre del cable: 0,3 (`cable_grab_body`, en vez de 0,5) y 0,6 m (`cable_reach`, en vez de 0,4):
@@ -5867,6 +6097,12 @@ Con base, `position` y `velocity` son relativas a ella. El modo vale Suelo = 0, 
 | ~~Subir al borde*~~ | Se sacó el 2026-10-08 (sección 8.6). Eran 0,45 s hacia arriba y 0,25 s hacia adentro, agachado |
 | Salto para arriba desde el colgado* | Los pies suben hasta 0,2 m por encima del filo (`hang_climb_clearance`): unos 6,57 m/s hacia arriba |
 | Agarre del borde* | 3 |
+| Mantle: el filo, desde cuánto sobre los pies* | 0,3 m (`mantle_min_height`, 2026-10-25) |
+| Mantle: hasta cuánto sobre los pies* | 1,5 m (`mantle_max_height`); más alto, se cuelga; 0 apaga el mantle |
+| Mantle: subiendo* | 4 m/s (`mantle_up_speed`) |
+| Mantle: pasando arriba* | 5 m/s (`mantle_forward_speed`), desde quieto con `ground_accel` |
+| Mantle: hasta cuánto de costado* | 45° (`mantle_side_angle`) |
+| Mantle: dónde termina sin teclas* | El centro del cuerpo 0,45 m detrás del filo (`mantle_land`); también el fondo que tiene que tener lo de arriba |
 | Colgarse de un compañero: altura de las manos sobre sus pies* | 1,0 m, la cintura (`hook_height`, punto 6); desde el 2026-10-18, a donde va al agarrarse |
 | Colgarse de un compañero: distancia de centro a centro* | 0,7 m, de espaldas a la pared: las cápsulas se tocan (`hook_distance`) |
 | Colgarse de un compañero: alcance* | 1 m, como snap máximo (`hook_reach`); "esto vamos a tener que ir probando de a poco". Desde el 2026-10-18, el alcance del cilindro: de las manos a su eje, en horizontal (ese día, de 14:43 a 19:31, solo para el que está en un cable y con el nombre `hook_cable_reach`) |
@@ -5941,10 +6177,10 @@ Al correr `scenes/net_lab/net_lab.tscn` con **F6** aparece un menú con:
 
 | Tecla | Quién | Qué hace |
 | --- | --- | --- |
-| WASD | todos | Mover. En la escalera, hasta el 2026-10-16 hacia ella subía y alejarse bajaba; desde entonces W sube y S baja, mire donde mire la cámara, y A y D no hacen nada. Saliendo por arriba con W sola, sigue derecho hacia donde subía hasta soltar W o tocar A, S o D. Desde el 2026-10-20, solo en tercera persona y con la cámara mirando para atrás; girarla hacia adelante o pasar a primera persona también lo corta. Colgado, A y D van a la izquierda y a la derecha del personaje frente a la pared, mire donde mire la cámara (punto 5), y desde el 2026-10-13 siguen de largo por las esquinas de 90°, por afuera y por adentro. Colgado de un cable (2026-10-14), van según la cámara, como al caminar: mirando a lo largo del cable, W y S; mirándolo de costado, A y D. En uno inclinado, hacia abajo se desliza, y hacia arriba sube despacio |
-| Espacio | todos | Saltar. En la escalera, hasta el 2026-10-10 saltaba hacia atrás; ahora, mirándola, salta derecho para arriba, 1 m más alto que desde el piso, y mirando a otro lado, hacia donde mira; desde el 2026-10-16, mirándola se vuelve a agarrar solo, en el punto más alto o, si pasó el final, al volver a bajar. Colgado, mirando a la pared salta para arriba y con W se pasa arriba del borde, y mirando a otro lado salta hacia allá y se da vuelta (punto 5; el salto para arriba y el giro, desde el 2026-10-08). Colgado de un compañero, lo mismo, mirando hacia él (punto 6). Con un compañero colgado de vos, no hace nada. Desde el 2026-10-14, cayendo sin haber saltado, salta en el aire, una vez, hacia donde mira la cámara; y colgado de un cable, salta hacia donde mira la cámara |
+| WASD | todos | Mover. En la escalera, hasta el 2026-10-16 hacia ella subía y alejarse bajaba; desde entonces W sube y S baja, mire donde mire la cámara, y A y D no hacen nada. Saliendo por arriba con W sola, sigue derecho hacia donde subía hasta soltar W o tocar A, S o D. Desde el 2026-10-20, solo en tercera persona y con la cámara mirando para atrás; girarla hacia adelante o pasar a primera persona también lo corta. Colgado, A y D van a la izquierda y a la derecha del personaje frente a la pared, mire donde mire la cámara (punto 5), y desde el 2026-10-13 siguen de largo por las esquinas de 90°, por afuera y por adentro. Colgado de un cable (2026-10-14), van según la cámara, como al caminar: mirando a lo largo del cable, W y S; mirándolo de costado, A y D. En uno inclinado, hacia abajo se desliza, y hacia arriba sube despacio. En el mantle (2026-10-25), al pasar arriba, hacia donde apuntan según la cámara, hasta 45° de costado |
+| Espacio | todos | Saltar. En la escalera, hasta el 2026-10-10 saltaba hacia atrás; ahora, mirándola, salta derecho para arriba, 1 m más alto que desde el piso, y mirando a otro lado, hacia donde mira; desde el 2026-10-16, mirándola se vuelve a agarrar solo, en el punto más alto o, si pasó el final, al volver a bajar. Colgado, mirando a la pared salta para arriba y con W se pasa arriba del borde, y mirando a otro lado salta hacia allá y se da vuelta (punto 5; el salto para arriba y el giro, desde el 2026-10-08). Colgado de un compañero, lo mismo, mirando hacia él (punto 6). Con un compañero colgado de vos, no hace nada. Desde el 2026-10-14, cayendo sin haber saltado, salta en el aire, una vez, hacia donde mira la cámara; y colgado de un cable, salta hacia donde mira la cámara. Desde el 2026-10-25, saltando mirando un borde bajo, el mantle te sube solo (abajo) |
 | Shift | todos | Correr (desde el punto 3) |
-| Ctrl | todos | Agacharse; corriendo, deslizarse (desde el punto 3); desde el 2026-10-12, soltarlo corta el deslizamiento. Colgado, se suelta; mantenido en el aire, no se agarra de ningún borde (punto 5) ni de ningún compañero (punto 6). Colgado de un compañero, se suelta. Colgado de un borde con un compañero colgado de vos, se sueltan los dos. Colgado de un cable, se suelta, y mantenido en el aire no se agarra de ninguno (2026-10-14). En la escalera (2026-10-16), se suelta sin empujón: cae mientras lo tenga y al soltarlo se vuelve a agarrar; con alguien colgado, se sueltan los dos; mantenido, no se agarra de ninguna escalera, ni caminando hacia ella. Desde el 2026-10-20, con A o D apretada (antes de Ctrl, al tocarlo o cayendo) se suelta y no se vuelve a agarrar solo |
+| Ctrl | todos | Agacharse; corriendo, deslizarse (desde el punto 3); desde el 2026-10-12, soltarlo corta el deslizamiento. Colgado, se suelta; mantenido en el aire, no se agarra de ningún borde (punto 5) ni de ningún compañero (punto 6). Colgado de un compañero, se suelta. Colgado de un borde con un compañero colgado de vos, se sueltan los dos. Colgado de un cable, se suelta, y mantenido en el aire no se agarra de ninguno (2026-10-14). En la escalera (2026-10-16), se suelta sin empujón: cae mientras lo tenga y al soltarlo se vuelve a agarrar; con alguien colgado, se sueltan los dos; mantenido, no se agarra de ninguna escalera, ni caminando hacia ella. Desde el 2026-10-20, con A o D apretada (antes de Ctrl, al tocarlo o cayendo) se suelta y no se vuelve a agarrar solo. En el mantle (2026-10-25), se suelta; mantenido al saltar, no hay mantle |
 | Mouse | todos | Mirar; un clic vuelve a tomar el mouse |
 | Rueda del mouse | todos | Acerca o aleja la cámara sobre la guía, de tercera persona hasta primera persona en la cabeza; 10 pasos de punta a punta (2026-10-10) |
 | Esc | todos | Suelta el mouse |
@@ -5965,11 +6201,13 @@ Al correr `scenes/net_lab/net_lab.tscn` con **F6** aparece un menú con:
 
 **Colgarse de un compañero tampoco tiene tecla** (punto 6): saltando hacia un compañero que está colgado de un borde o en una escalera, mirándolo, se cuelga de su cintura cuando las manos pasan por esa altura, a no más de 1 m. Mientras alguien cuelga de él, el de arriba no se mueve ni salta. Desde el 2026-10-18 (sección 8.22) el compañero es un cilindro y puede estar también en un cable: sin mirarlo, te colgás si tus manos pasan a no más de 1 m de su eje entre sus pies y sus hombros, y vas a su cintura del lado por el que llegaste (en un borde o una escalera, solo hasta 90° de su espalda). Colgado, **W y S** suben y bajan tus manos entre sus pies y sus hombros, mire donde mire la cámara, y **A y D** te giran alrededor de él. Ctrl apretado un instante te suelta y, al soltarlo, si seguís al alcance, te volvés a agarrar, como en la escalera.
 
-**La escalera** se agarra caminando hacia ella con el cuerpo a menos de 0,6 m de su eje (0,9 hasta el 2026-10-10). Arriba de todo, empujando hacia ella sale por arriba con un saltito (desde el 2026-10-23, sin saltito: sigue agarrado hasta el rellano, como caminando, y sin teclas se queda donde está). Desde el 2026-10-16, arriba sale con W, mire donde mire, y con W sola sigue derecho. Desde el 2026-10-20 choca, y las sueltas se agarran también por atrás (al pie, o en el aire sin piso debajo); con algo arriba de ese lado, por atrás se sube hasta que la cabeza toca. Desde el 2026-10-21, saltando para arriba desde un borde, alcanza con mirarla (sección 8.29).
+**La escalera** se agarra caminando hacia ella con el cuerpo a menos de 0,6 m de su eje (0,9 hasta el 2026-10-10). Arriba de todo, empujando hacia ella sale por arriba con un saltito (desde el 2026-10-23, sin saltito: sigue agarrado hasta el rellano, como caminando, y sin teclas se queda donde está). Desde el 2026-10-16, arriba sale con W, mire donde mire, y con W sola sigue derecho. Desde el 2026-10-20 choca, y las sueltas se agarran también por atrás (al pie, o en el aire sin piso debajo); con algo arriba de ese lado, por atrás se sube hasta que la cabeza toca. Desde el 2026-10-21, saltando para arriba desde un borde, alcanza con mirarla (sección 8.29). Desde el 2026-10-28, frenando en la salida por arriba con el cuerpo ya sobre el piso, termina (sección 8.35).
 
 **El salto en el aire tampoco tiene tecla propia** (2026-10-14): es Espacio, cayendo, si no saltó desde que dejó el piso o algo de donde estaba agarrado. Lo gasta cualquier salto, y vuelve al tocar el piso o al agarrarse de algo.
 
 **Agarrarse de un cable tampoco tiene tecla** (2026-10-14): en el aire, se agarra solo si el cable toca la parte de arriba del cuerpo (`cable_grab_body`) o las manos, a no más de `cable_reach` del eje del cuerpo, mire donde mire la cámara, venga de donde venga y a la velocidad que sea. Colgado, sin teclas se queda quieto, aunque el cable esté inclinado.
+
+**El mantle tampoco tiene tecla** (2026-10-25, sección 8.33): subiendo en un salto, mirando un borde con el filo entre 0,3 y 1,5 m sobre los pies y lugar arriba, el cuerpo sube solo, sin saltito, y pasa arriba hacia donde apuntan las teclas; si arriba solo cabe agachado, sube agachado. Cayendo o sin haber saltado, nunca: se cuelga o cae como siempre. Sin piso arriba (un muro finito, una baranda), tampoco.
 
 **El cuerpo gira hacia donde camina**, no hacia la cámara; así lo eligió el usuario el 2026-10-10. Cuando haya armas, al apuntar sí se va a mover en relación a la cámara (sección 14).
 
@@ -5999,6 +6237,7 @@ Los niveles de red afectan solo a la máquina donde se eligen:
 - en la escalera, "Escalera N · pies a X m sobre su base" (desde el 2026-10-15, con el nombre de la escalera en vez del número), y después de soltarla, cuánto falta para poder volver a agarrarla (desde el punto 4);
 - desde el 2026-10-16, después de salir por arriba con W, "Saliste de la escalera: vas derecho mientras sigas con W sola · soltarla o tocar A, S o D lo corta"; y después de saltar mirándola o de soltarla con Ctrl, "Volvés solo a la escalera N al bajar, si seguís frente a ella · con Ctrl no"; desde el 2026-10-20, "Saliste de la escalera mirando atrás: derecho con W sola · soltar W, A, S, D o girar la cámara lo corta" y "Volvés solo a la escalera N al bajar, frente a ella · no con Ctrl; A o D la cancelan";
 - colgado, "Colgado del borde: filo a X m de altura" y, si el borde va sobre una base, "· sobre la base N"; y después de soltar un borde, "Recién soltó un borde: no puede agarrar otro por X s" (desde el punto 5);
+- desde el 2026-10-25, en el mantle, "Mantle: subiendo al borde, filo a X m de altura", con "· agachado: arriba no cabés parado" y "· sobre la base N" cuando corresponde;
 - desde el 2026-10-14, colgado de un cable, "Colgado del cable N (después, con el nombre del cable) · a X m de su punta · inclinación N°" y, si pasa de 15°, "· las teclas hacia abajo te deslizan" o, deslizándose, "· te deslizás: soltá las teclas para frenar"; y después de soltarlo, "Recién soltó un cable: no puede agarrar otro por X s". Hoy, con los bloqueos cruzados (secciones 8.22 y 8.26): "Recién soltó un borde: no puede agarrar otro ni un cable por X s", "Recién soltó un cable: no puede agarrar otro ni colgarse de un compañero por X s" y "Recién se soltó de un compañero: no se puede colgar de otro ni agarrar un cable por X s";
 - colgado de un compañero, "Colgado de la cintura del jugador N" (desde el 2026-10-18, "Colgado del jugador N, en un borde: girás hasta 90° por lado · manos a X m sobre sus pies · a X° de su espalda · W/S suben y bajan, A/D giran", o "en una escalera", o "en un cable: girás todo alrededor"); con alguien colgado, "El jugador N cuelga de tu cintura: quedás quieto · Ctrl te suelta y se caen los dos"; y después de soltarse de un compañero, "Recién se soltó de un compañero: no se puede colgar de otro por X s" (desde el punto 6);
 - desde el punto 7, "CÁMARA LENTA DEL MUNDO: al 30 % · quedan X s" mientras anda, o "Cámara lenta del mundo en X s" si está por empezar; y "CÁMARA LENTA PERSONAL: al 30 % · quedan X s del mundo". Desde el 2026-10-12 no hay personal, y la del mundo dice "al 30 % · 1 del teclado numérico la apaga" o, si ya se programó su fin, "se apaga en X s";
@@ -6006,7 +6245,7 @@ Los niveles de red afectan solo a la máquina donde se eligen:
 - "Pies en (x, y, z) · cabeza a … m de altura · base: …", con milímetros (desde el punto 3);
 - en pausa, "EN PAUSA (tick N) · G sigue · F avanza un tick";
 - arriba de todo, durante 3 s, el aviso de captura guardada;
-- la ayuda de teclas; desde el punto 5, con la línea "Colgado: A y D de costado · Espacio mirando a la pared sube, mirando a otro lado salta · Ctrl se suelta"; desde el punto 6, con "Saltando hacia un compañero colgado de un borde o en una escalera, te colgás de su cintura: ahí Espacio y Ctrl andan igual que colgado"; desde el punto 7, con "V cámara lenta del mundo, para todos" y, en el host, "B cámara lenta a los demás" en la línea de E, R y Q; desde el 2026-10-10, "rueda acerca la cámara, hasta primera persona" en la primera línea, y una línea nueva: "Escalera: Espacio mirándola salta para arriba, mirando a otro lado salta hacia allá". Desde el 2026-10-12, la V y la B pasan a "1 del teclado numérico: prende o apaga la cámara lenta del mundo, para todos · 2 del teclado numérico: prende o apaga tu súper salto y velocidad", y Ctrl dice "(corriendo: deslizarse, mientras lo mantengas)". Desde el 2026-10-14, "Cayendo sin haber saltado (te caíste, te soltaste, te empujaron): Espacio salta en el aire, una vez, hacia donde mira la cámara", y "Cable: te agarrás solo · teclas según la cámara · hacia abajo en uno inclinado te deslizás, soltar frena · Espacio salta hacia donde mirás · Ctrl se suelta". Desde el 2026-10-16, la de la escalera suma W y S, la salida derecha, la vuelta y Ctrl, y desde el 2026-10-17 son dos, porque en la notebook se cortaba: "Escalera: W sube y S baja, mire donde mire · Espacio mirándola salta para arriba y te volvés a agarrar al bajar, mirando a otro lado salta hacia allá" y "Escalera: al salir por arriba seguís derecho con W sola · Ctrl te suelta: caés mientras lo tengas y al soltarlo te agarrás". Con la fuente del panel miden 1.135 y 906 píxeles, y entran en los 1.280 de la notebook. La primera línea, la de WASD, medía 1.474 y se cortaba en la notebook desde antes; el 2026-10-17 a las 20:19, "dale, partí también la línea de WASD": "WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse, mientras lo mantengas)" y "Mouse mirar · rueda acerca la cámara, hasta primera persona · Esc suelta el mouse", de 821 y 656 píxeles. Desde el 2026-10-18, la línea del compañero es "Compañero colgado de un borde, una escalera o un cable: tocándolo te colgás de él · W/S suben y bajan, A/D giran alrededor (en borde y escalera, solo por su espalda) · Espacio y Ctrl, igual que colgado"; en las capturas de la notebook se cortaba después de "espalda", y el 2026-10-19 quedó en dos: "Compañero colgado de un borde, una escalera o un cable: tocándolo te colgás de él · Espacio y Ctrl, igual que colgado" y "Colgado de un compañero: W/S suben y bajan, A/D giran alrededor (en borde y escalera, solo por su espalda)", de 917 y 852 píxeles. Desde el 2026-10-19, la última es "F12 guarda una captura en el Escritorio · F1 oculta este panel y lo vuelve a mostrar" (sin commit).
+- la ayuda de teclas; desde el punto 5, con la línea "Colgado: A y D de costado · Espacio mirando a la pared sube, mirando a otro lado salta · Ctrl se suelta"; desde el punto 6, con "Saltando hacia un compañero colgado de un borde o en una escalera, te colgás de su cintura: ahí Espacio y Ctrl andan igual que colgado"; desde el punto 7, con "V cámara lenta del mundo, para todos" y, en el host, "B cámara lenta a los demás" en la línea de E, R y Q; desde el 2026-10-10, "rueda acerca la cámara, hasta primera persona" en la primera línea, y una línea nueva: "Escalera: Espacio mirándola salta para arriba, mirando a otro lado salta hacia allá". Desde el 2026-10-12, la V y la B pasan a "1 del teclado numérico: prende o apaga la cámara lenta del mundo, para todos · 2 del teclado numérico: prende o apaga tu súper salto y velocidad", y Ctrl dice "(corriendo: deslizarse, mientras lo mantengas)". Desde el 2026-10-14, "Cayendo sin haber saltado (te caíste, te soltaste, te empujaron): Espacio salta en el aire, una vez, hacia donde mira la cámara", y "Cable: te agarrás solo · teclas según la cámara · hacia abajo en uno inclinado te deslizás, soltar frena · Espacio salta hacia donde mirás · Ctrl se suelta". Desde el 2026-10-16, la de la escalera suma W y S, la salida derecha, la vuelta y Ctrl, y desde el 2026-10-17 son dos, porque en la notebook se cortaba: "Escalera: W sube y S baja, mire donde mire · Espacio mirándola salta para arriba y te volvés a agarrar al bajar, mirando a otro lado salta hacia allá" y "Escalera: al salir por arriba seguís derecho con W sola · Ctrl te suelta: caés mientras lo tengas y al soltarlo te agarrás". Con la fuente del panel miden 1.135 y 906 píxeles, y entran en los 1.280 de la notebook. La primera línea, la de WASD, medía 1.474 y se cortaba en la notebook desde antes; el 2026-10-17 a las 20:19, "dale, partí también la línea de WASD": "WASD mover · Espacio saltar · Shift correr · Ctrl agacharse (corriendo: deslizarse, mientras lo mantengas)" y "Mouse mirar · rueda acerca la cámara, hasta primera persona · Esc suelta el mouse", de 821 y 656 píxeles. Desde el 2026-10-18, la línea del compañero es "Compañero colgado de un borde, una escalera o un cable: tocándolo te colgás de él · W/S suben y bajan, A/D giran alrededor (en borde y escalera, solo por su espalda) · Espacio y Ctrl, igual que colgado"; en las capturas de la notebook se cortaba después de "espalda", y el 2026-10-19 quedó en dos: "Compañero colgado de un borde, una escalera o un cable: tocándolo te colgás de él · Espacio y Ctrl, igual que colgado" y "Colgado de un compañero: W/S suben y bajan, A/D giran alrededor (en borde y escalera, solo por su espalda)", de 917 y 852 píxeles. Desde el 2026-10-19, la última es "F12 guarda una captura en el Escritorio · F1 oculta este panel y lo vuelve a mostrar" (sin commit). Desde el 2026-10-25, después de la del colgado, "Mantle: subiendo en un salto, mirando un borde con el filo entre 0.3 y 1.5 m sobre tus pies, subís solo, hacia donde apuntan las teclas · Ctrl te suelta" (los números salen del Tuning).
 
 **Desde el 2026-10-11, en un corte** (sección 8.11): en el cliente, "SIN NOTICIAS DEL HOST hace X s · tu personaje queda quieto hasta que vuelvan" y, cortado, "SIN CONEXIÓN CON EL HOST · reintenta solo · se rinde en N s"; en el host, por jugador cortado, "jugador N: se le cortó la conexión · queda quieto y lo espero N s más". El estado de la sesión dice cuándo vuelve ("volvió a conectarse, ahora como jugador N") y, desde el 2026-10-12, si el host no deja entrar y por qué.
 
@@ -6051,10 +6290,13 @@ Van después de `--` en la línea de comandos. Los temporizadores cuentan segund
 | `--test-input=ladder` | Va a la escalera de la torre, se agarra y sube y baja entre 0,5 y 2 m; si la suelta, vuelve (punto 4) |
 | `--test-input=laddertop` | Sube la escalera hasta arriba y sale al techo de la torre (punto 4) |
 | `--test-input=laddertop:back` | Igual, con la cámara mirando para atrás: al salir sigue 30 ticks con W sola y toca D 6 ticks (2026-10-16). Desde el 2026-10-20, también con la cámara en tercera persona (el bit nuevo del input), que la salida derecha pide |
+| `--test-input=laddertop:stop` | Igual que `laddertop`, pero suelta W con el cuerpo medio metro pasado el alto: la escalera termina arriba de la torre, sin llegar al final del tramo (2026-10-28, sección 8.35). Al final imprime "escalera: termina en" y el estado |
 | `--test-input=ladderdrop` | Ciclos en la escalera de la torre: sube a 2 m y se suelta con Ctrl 15 ticks; baja a 1,5 m y salta mirándola. Cuenta cuántas veces se volvió a agarrar solo (2026-10-16) |
 | `--test-input=steps` | Recorre la pista de escalones en 15 puntos: cruza los sueltos de 10, 20 y 30 cm, choca contra el de 40 hasta que se le acaba el tiempo, y sube y baja las dos escaleras (escalón) |
-| `--test-input=hang` | Ciclos contra la cara de un bloque de 2 m de la pista de bordes: se aleja 2,2 m, corre, salta y se agarra al caer; colgado va a la derecha y a la izquierda; después, según la vuelta, salta para arriba y aprieta W recién cuando deja de subir, queda arriba y se baja por delante; se suelta con Ctrl; o salta hacia atrás (punto 5) |
+| `--test-input=hang` | Ciclos contra la cara de un bloque de 2 m de la pista de bordes: se aleja 2,2 m, corre, salta y se agarra al caer; colgado va a la derecha y a la izquierda; después, según la vuelta, salta para arriba y aprieta W recién cuando deja de subir, queda arriba y se baja por delante; se suelta con Ctrl; o salta hacia atrás (punto 5). Desde el 2026-10-25 salta a 0,5 m de la cara (antes 1,3): desde ahí, el mantle lo subía |
 | `--test-input=hang:<id>` | Lo mismo contra el borde de esa base: 4, la plataforma guionada; 5, el cuerpo del host (punto 5) |
+| `--test-input=mantle` | Ciclos contra la cara del mismo bloque de 2 m: se aleja 2,2 m, camina hacia ella y salta a 1,3 m; el mantle lo sube, una vuelta de cada dos con D, en diagonal; arriba se da vuelta y se baja por delante. Al final imprime cuántos mantles empezó, cuántos terminaron arriba y cuántas vueltas dio (2026-10-25, sección 8.33) |
+| `--test-input=mantle:<id>` | Lo mismo contra el borde de esa base: 4, la plataforma guionada; 5, el cuerpo del host |
 | `--test-input=ladderhold` | Sube la escalera de la torre hasta 1,5 m y se queda (punto 6) |
 | `--test-input=ladderhold:drop` | Igual, pero se suelta con Ctrl 10 ticks medio segundo después de que alguien se cuelga de él, y al soltar Ctrl se vuelve a agarrar (2026-10-16) |
 | `--test-input=hookwall` | Llega delante del cajón del muro alto, se sube saltando, salta desde el cajón, se agarra del borde subiendo y se corre colgado hasta el medio, donde se queda (punto 6) |
@@ -6119,7 +6361,7 @@ Después:
 - con `airjump`, "salto en el aire: N saltos" (2026-10-14);
 - con `cable`, "cable: N agarres, N frenadas a mitad de camino, N bajadas hasta la punta, subió X m en total; tramo N" (2026-10-14), y lo mismo con `cablehold` (2026-10-18).
 
-**Prueba de repetición:** `--scene res://scenes/net_lab/actor_replay_test.tscn -- --rate=N` (o `--rate=varying`). Sale con 0 si todas las repeticiones coinciden e imprime la huella de la pasada en vivo. Desde el punto 3 también imprime cuántos ticks pasó agachado y cuántos de ellos pidiendo pararse sin lugar; desde el punto 5, los ticks colgado; desde el punto 7, los ticks con cámara lenta; desde el 2026-10-12, los ticks con el súper prendido y los ticks encogido; y desde el 2026-10-14, cuántos de los saltos fueron en el aire y los ticks en un cable.
+**Prueba de repetición:** `--scene res://scenes/net_lab/actor_replay_test.tscn -- --rate=N` (o `--rate=varying`). Sale con 0 si todas las repeticiones coinciden e imprime la huella de la pasada en vivo. Desde el punto 3 también imprime cuántos ticks pasó agachado y cuántos de ellos pidiendo pararse sin lugar; desde el punto 5, los ticks colgado; desde el punto 7, los ticks con cámara lenta; desde el 2026-10-12, los ticks con el súper prendido y los ticks encogido; y desde el 2026-10-14, cuántos de los saltos fueron en el aire y los ticks en un cable. Desde el 2026-10-25, los ticks en el mantle.
 
 **Barrido de Hanging** (punto 5): `--scene res://scenes/net_lab/hang_sweep_test.tscn`. Imprime cada caso, una tabla por borde, las salidas, los cuatro criterios y el resumen con teclas y sin teclas. Desde el salto para arriba, también prueba dos formas de subir (W desde el salto y W recién arriba) e imprime hasta dónde llegan los pies sobre el filo. Sale con 0 si se cumplen los cuatro criterios. Con `-- --detalle=borde,vel,llegada,ángulo,lateral,objetivo,teclas` (por ejemplo `--detalle=curvo,6,-12.0,0,0.6,colgarse,empuja`) imprime ese caso tick a tick. Tarda unos minutos.
 
@@ -6154,7 +6396,7 @@ Desde el 2026-10-10, todo se ve también en el editor. Antes, lo que arman los s
 | Pista de colgarse (2026-10-18, sección 8.22) | Adelante y a la izquierda hasta detrás y a la izquierda, en el borde oeste del piso, con un cartel general al principio. Del lado de adelante, los cuatro cables (1 a 4); del lado de atrás, las tres escaleras (5 a 7) en una fila y los tres bordes (8 a 10) en otra, mirándose | nodo en (−25; 0; 0). Cables a 3,6 m, de x −28 a −22, en z −7, −1, 5 y 11; escaleras en z 20 (x −27,5, −22,5 y −17,5); caras de los bordes en z 27 (muro y columna) y 26 (losa) |
 | Zona de servicio (2026-10-19, sección 8.25) | Adelante, del otro lado del borde norte del piso: caminando derecho hacia adelante por la izquierda del túnel violeta, a unos 40 m, el portón entre dos faroles. Un patio de servicio con la sala de calderas, el edificio alto, el depósito, el anexo, los contenedores y los vecinos | nodo en (0; 0; −30) |
 | Torre de servicio (2026-10-19, sección 8.28) | Sobre el fondo de la zona: la Planta Técnica (20 m), la Torre Norte (cubierta a 100 m, con un mástil de luz roja) y la Torre de Tanques (62 m). Se sube desde la azotea del edificio alto, por la escalera del tanque de agua | hija de la zona, con sus mismas coordenadas |
-| Pista de salto agachado (2026-10-22, sección 8.31) | Detrás, al sur, pasando el borde del piso: date vuelta y caminá derecho unos 25 m. Tiene su propio piso. Adelante, seis bloques de 1,2 a 2,2 m; atrás, el conducto, el muro con la ventana alta y tres bloques para el súper. Cada cosa con su cartel; se entra caminando hacia +z | origen en (4; 0; 31); piso de x = 2,5 a 19,8 y de z = 29,5 a 44,5 |
+| Pista de salto agachado (2026-10-22, sección 8.31) | Detrás, al sur, pasando el borde del piso: date vuelta y caminá derecho unos 25 m. Tiene su propio piso. Adelante, seis bloques de 1,2 a 2,2 m; atrás, el conducto, el muro con la ventana alta y tres bloques para el súper. Cada cosa con su cartel; desde el 2026-10-25, los carteles dicen dónde sube el mantle. Se entra caminando hacia +z | origen en (4; 0; 31); piso de x = 2,5 a 19,8 y de z = 29,5 a 44,5 |
 
 ---
 
@@ -6456,6 +6698,19 @@ Las pruebas automáticas corrieron en esta PC, sin ventana, con host y cliente c
 | 8.31 | A la altura del piso (`diag_altura.gd` y `diag_escalera_salida.gd`) | El piso de arriba, justo en el alto en las 21 escaleras; con 1 mm encima, el cuerpo pasa en todas. Con 2 mm: sube 2 mm como mucho, termina apoyado; repetición `8fef544164401d4f`; zona 60, torre 70; en pareja con internet mala, 0 correcciones |
 | 8.31 | Sin pausa al terminar (`diag_escalera_salida.gd`) | Con W, 5 m/s seguidos de la escalera al piso (7,5 con el súper); soltando W justo al llegar, 0,65 m detrás del eje, y en las sueltas parado arriba a 0,25 m; repetición `efb6d76da57d9ecd`; zona 60, torre 70; en pareja con internet mala, 0 correcciones |
 | 8.32 | El súper en todas las velocidades (`diag_super.gd`) | Multiplica 18 valores y ninguno más; caminando 7,5, corriendo 12, trepando 3,75 (ninguna dos veces); repetición `efb6d76da57d9ecd`, igual; zona 60, torre 70; en pareja con el súper prendido y con internet mala, 0 correcciones |
+| 8.33 | El mantle, caso por caso (`diag_mantle.gd`) | 42 casos según lo decidido; cada tick del mantle, repetido, da los mismos bytes, y cada pose la acepta la validación del host: 0 fallas |
+| 8.33 | La pista de salto agachado con el mantle (`diag_pista_mantle.gd`) | De 1,2 a 1,8 m, mantle parado y caminando; 2,0, caminando; 2,2, colgado; el conducto, agachado; la ventana, nada |
+| 8.33 | Repetición | Coincide, a 60 y variando; huella `0632c924e6de2955` con la primera versión y `560b7d53f2c117c1` con la final (35 ticks en el mantle); con el mantle apagado, la de antes |
+| 8.33 | Barrido, zona y torre | Los cuatro criterios (906 de 908, 0 de 330, 0 ticks, 0,090 m); 60 de 60; 70 de 70 |
+| 8.33 | En pareja (`mantle`, `mantle:4`, `mantle:5`, `hang`, `hang:4`), sin red simulada y con internet mala | 0 correcciones, salvo sobre el cuerpo que mueve el host: la más grande, 0,215 m con internet mala (colgándose de él, 0,263) |
+| 8.33 | Dos PC (2026-10-28) | "no encontré ningún bug o rareza relacionada con el mantle" |
+| 8.33 | El commit, en una copia limpia | Repetición `560b7d53f2c117c1`; 60 de 60; 70 de 70; el mantle igual, salvo tres casos que arrancan en el aire con las manos por encima del filo (sin la 8.24) |
+| 8.34 | La unión de dos cajas (`diag_costura.gd`) | Se colgaba en 6 de 12 posiciones de la pared lisa de la torre de parkour; después, en ninguna |
+| 8.34 | Todo lo demás, después del arreglo | Torre de parkour, 19 de 19; zona, 60; torre, 70; repetición, mantle, pista y barrido, igual; en pareja con internet mala (`hang`, `hang:4`, `hangcorner`, `mantle`), 0 correcciones |
+| 8.35 | La salida por arriba, soltando W (`diag_salida_escalera.gd`) | En EscaleraTirolesa, a 0,5 y 0,6 m pasado el alto quedaba en la escalera con piso debajo: lo de las capturas |
+| 8.35 | Después del cambio, en todas las escaleras (`diag_salida_escalera2.gd`) | Con el cuerpo ya sobre el piso, Suelo en el mismo lugar; colgado del borde, en la escalera; las sueltas, igual |
+| 8.35 | Repetición, zona, torres y pareja (`laddertop:stop`) | Huella `7d3d417dd954d05b`; 60, 70 y 19 de 19; 0 correcciones con internet mala |
+| 8.35 | Dos PC (2026-10-30) | "funciona correctamente" |
 
 ---
 
@@ -6566,6 +6821,12 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - **La cápsula se asoma de un borde sin caerse** (2026-10-22): con 0,35 m de radio, sigue en el piso hasta que el centro pasa unos 0,24 m el filo (el contacto con la esquina da una normal de 39° a 44°, menos que los 45° de piso), y en ese tramo baja 0,11 m. Al caer, la punta resbala por el filo unos 10 cm más.
 - **Parado sobre una caja finita, la punta redonda de la cápsula aguanta poco** (2026-10-23): sobre una de 4 cm, hasta 0,15 m del centro; sobre una de 16 cm, hasta 0,20; sobre una de 30 cm, 0,30 o más, y un toque de W de 5 ticks ya no lo tira.
 - **Sobre una escalera suelta se puede estar parado** (2026-10-22): con las cajas de colisión recortadas a 8 cm del eje, la cápsula parada sobre el eje apoya en el peldaño de arriba (la caja del peldaño de 15 cm de los modelos del usuario), que queda más alto que donde tocaría los largueros. A 0,4 m del eje, en cambio, queda en el borde y a veces resbala.
+
+**Comprobados del 2026-10-25 al 2026-10-28 (secciones 8.33 a 8.35):**
+
+- **Un rayo de Jolt que arranca adentro de un cuerpo no lo toca.** Por eso la sonda tomaba la unión de dos cajas apiladas como un filo: su rayo de arriba arrancaba adentro de la caja de arriba y pegaba en el techo de la de abajo (`diag_costura.gd`, sección 8.34).
+- **Guardar un entero en una variable de tipo enum da un aviso de GDScript,** que sin ventana se ve solo con `-d`; `as` lo saca (`control_aviso.gd`, sección 8.33).
+- **Con el mantle apagado, la repetición dio la huella de antes** (`efb6d76da57d9ecd`): el modo nuevo y su prueba en el aire no cambian nada mientras no hay mantle.
 
 ---
 
@@ -6768,6 +7029,18 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 | 8.31 (error mío) | "posarte sobre la escalera" se entendió como quedarse al lado de la escalera, en el rellano de arriba, y la escalera suelta quedó sin cubrir | No se preguntó qué escalera ni dónde; las pruebas miraban solo las 18 con piso arriba | El video de las 20:37 lo mostró; sin piso detrás, el saltito cae parado arriba de la escalera |
 | 8.31 (error mío) | El saltito de la salida por arriba siguió dos vueltas más ("Ya me tiene las bolas llenas") | Se achicó el empujón y se cambió dónde caía, sin sacar el salto, que era lo que molestaba | Sin saltito: la salida pasa al rellano agarrada de la escalera |
 | 8.31 (error mío) | "no entendi" (la pregunta del saltito al borde) | La pregunta mezclaba números, la normal del contacto y dos causas | Repetida explicando primero qué pasa, con palabras simples |
+| 8.33 | Sobre muros de 0,3 o 0,4 m de grosor, el mantle dejaba el cuerpo parado en la arista de atrás | Terminaba con el centro detrás del muro, sin mirar si había piso | Piso debajo del centro al terminar; después, por decisión del usuario, sin piso no hay mantle |
+| 8.33 | En la torre de servicio, la baranda del pasillo del 86 tiraba al vacío | El mantle pasaba por encima de lo finito, como se había elegido | Pregunta: "Que no se pasen" |
+| 8.33 | La prueba de repetición se desviaba o no terminaba | El recorrido subía al techo del túnel corto, al costado del túnel y, en dos aproximaciones al colgado, llegaba con las manos por encima del filo | Cuatro tramos cambiados; con el mantle apagado, la huella de antes |
+| 8.33 | La prueba `hang` del laboratorio subía en vez de colgarse | Saltaba a 1,3 m de la cara | Salta a 0,5 m (`HANG_JUMP_DISTANCE`) |
+| 8.33 (error mío) | El aviso de GDScript de la captura | `wanted = state.stance`: un entero en una variable de tipo postura | `as ActorState.Stance` |
+| 8.33 | Cayendo con los pies cerca del filo, el mantle lo subía con las manos "abajo del todo" | El mantle valía también cayendo | Pregunta: "Cayendo nunca" |
+| 8.33 | El mantle iba siempre derecho contra la pared, y recién después de medio metro hacia donde se quería | Así estaba hecho | Pasa arriba hacia donde apuntan las teclas, según la cámara |
+| 8.33 (error mío) | En diagonal se corría más de 1 m de costado, y en la prueba en pareja se caía del bloque de 2 m de la pista de bordes | Subía separado de la pared, y se podía ir hasta 60° de costado | Subiendo se arrima a la pared, y hasta 45° |
+| 8.33 (error mío) | Con A o D solas pasaba derecho | El ángulo justo de 90° contaba como "hacia atrás" | Solo cuenta lo que apunta más de un poco hacia afuera |
+| 8.34 | Colgado de la pared lisa del núcleo de la torre de parkour, a 7 y 10,2 m | La sonda tomaba la unión de dos cajas apiladas como un filo | Un filo tiene que tener lugar libre encima (`CLEAR_ABOVE`) |
+| 8.35 | Parado sobre la plataforma, el panel decía LADDER | La salida por arriba del 2026-10-23: sin teclas, se queda donde está, también a mitad de camino | Pregunta: "Sí, cambialo"; con el cuerpo ya sobre el piso, termina |
+| 8.35 (error mío) | La primera comparación de todas las escaleras mostraba cambios "del otro lado" | Probaba también lados donde el cuerpo arranca metido en la plataforma | Se saltean los lados donde el cuerpo no cabe |
 
 ---
 
@@ -6778,7 +7051,7 @@ Estos hechos se comprobaron en el código, en el motor o en las pruebas mientras
 - **Arquitectura desde cero**, ignorando los diseños y el código de parkour anteriores (pedido original).
 - **Hanging con snap** (2026-10-02, 11:40): "bien, entonces vamos a usar el snap".
 - **Subir al borde es una salida de Hanging** (2026-10-02, 11:48): "sumalo como salida de Hanging, no es mantle".
-- **Mantle fuera del alcance** (pedido original).
+- **Mantle fuera del alcance** (pedido original), hasta el 2026-10-25: ese día el usuario lo pidió (sección 8.33).
 - **Esqueleto de red sin netfox**, en 8 pasos, en carpetas nuevas (2026-10-02, 11:59).
 - **La otra PC también usa Windows**, y se empezó por los pasos 1 y 2 (12:31).
 - **Copiar el proyecto en vez de exportar** (14:00), con zips en el escritorio (17:55).
@@ -6939,6 +7212,10 @@ Míos, avisados: Espacio siempre hacia la cámara, soltarse con la velocidad que
 - **El súper en todas las velocidades** (2026-10-24): el usuario pidió que todo lo que tenga una velocidad tenga la del súper, y propuso un apartado del Tuning del que la tome todo movimiento. Cómo (un solo valor, el que ya estaba, aplicado solo a todo lo que termina en `_speed`, salvo la velocidad terminal; las aceleraciones y la altura de los saltos igual) lo eligió Claude.
 - **La salida por arriba sin saltito** (2026-10-23): el usuario pidió sacarlo "no importa como"; cómo (seguir en la escalera y pasar al rellano a la velocidad de trepar, con W, S o sin teclas, y que los peldaños no choquen sobre el alto) lo eligió Claude. Esa misma tarde el usuario pidió que hacia el rellano fuera como caminando, 5 y 7,5 m/s; con Shift, "La de caminar igual"; y el frenazo de un tick al terminar con W, "ni se nota", quedó. A la noche pidió que la escalera soltara a la altura del piso y no 3 cm más arriba ("vas a salir con una solucion mucho mas elegante y sencilla"): se midió que los 3 cm sobraban y se bajaron a 2 mm, sin mecanismo nuevo. Después pidió sacar la pausa al terminar: era el frenazo de la pregunta ("En su momento mal interprete eso"); con W sigue caminando sin pausa.
 - **Lo que no se cambió sin preguntar** (2026-10-22): con el súper siguen sin multiplicarse la escalera, el colgado de un borde y del compañero, y los saltos desde la escalera y el borde. El pedido nombraba el salto y los cables.
+- **El mantle, decisiones del usuario del 2026-10-25** (sección 8.33): se activa saltando hacia el obstáculo; sube como la salida de la escalera, sin saltito; gana al colgado si arriba hay lugar; si arriba solo cabe agachado, sube agachado; solo después de saltar; solo subiendo ("Cayendo nunca", que deshizo "Que te suba" para el salto para arriba desde el colgado); sin piso arriba no hay mantle ("Que no se pasen", que cambió "Pasás y caés del otro lado"); y al pasar arriba, hacia las teclas según la cámara y no según la pared (el txt de su prueba).
+- **Elecciones mías, avisadas, del mantle:** sus números en el Tuning (0,3 y 1,5 m, 4 y 5 m/s, 45° y 0,45 m); arrimarse a la pared al subir; con teclas, terminar a 0,1 m del filo y seguir caminando; y la prueba `mantle`.
+- **La unión de dos cajas apiladas** (2026-10-27): "Sí, arreglá lo de la unión de las cajas antes de la prueba en red"; cómo (5 cm de lugar libre encima del filo) lo eligió Claude.
+- **Frenando en la salida por arriba de la escalera** (2026-10-28): la alternativa la propuso Claude al explicar lo de las capturas, y el usuario eligió "Sí, cambialo".
 
 ---
 
@@ -7046,9 +7323,12 @@ Míos, avisados: Espacio siempre hacia la cámara, soltarse con la velocidad que
 | `ea636a6` | 2026-10-22 | docs(net): record the service yard and tower, the third ladder pass and the export, and update the guide (la decimocuarta versión y la guía) | 2 | — |
 | `1324a69` | 2026-10-23 23:11 | feat(actor): ladder exit without hop, proportional super and terminal velocity options | 10 | +486 / −101 |
 | `3fae993` | 2026-10-24 | feat(actor): apply the super speed to every movement speed from one place | 3 | +86 / −45 |
+| `d846680` | 2026-10-24 19:24 | docs(net): record the fourth ladder pass and the super on every speed, and update the guide | 2 | +1.902 / −54 |
+| `eb473ca` | 2026-10-28 13:29 | feat(actor): add the mantle and ignore stacked-box seams as edges | 8 | +572 / −49 |
+| `fde8f9a` | 2026-10-30 13:26 | feat(actor): end the ladder top exit when stopping with the body over the floor | 3 | +39 / −5 |
 | el de esta versión | 2026-10-24 | docs(net): la decimoquinta versión y la guía | 2 | — |
 
-Cada uno, salvo los del documento, se commiteó después de la prueba en las dos PC, y se comprobó antes que los archivos eran los probados. `1324a69` lleva la 8.31 sin la 8.24, que estaba mezclada en los mismos archivos: se comprobó en una copia limpia. Igual `3fae993`. De `project.godot` van solo las acciones del Mapa de entrada (`599628b` y `a1f9084`), nunca la línea 4.6 → 4.7.
+Cada uno, salvo los del documento, se commiteó después de la prueba en las dos PC, y se comprobó antes que los archivos eran los probados. `1324a69` lleva la 8.31 sin la 8.24, que estaba mezclada en los mismos archivos: se comprobó en una copia limpia. Igual `3fae993`, `eb473ca` y `fde8f9a`: para estos dos, el índice se armó con `armar_commit.js` (Apéndice B), que cambia cada pedazo viejo del archivo del disco por el de `HEAD`, y la copia limpia salió del índice con `git checkout-index -a --prefix=`, sin worktree. De `project.godot` van solo las acciones del Mapa de entrada (`599628b` y `a1f9084`), nunca la línea 4.6 → 4.7.
 
 Desde `3d98ffe`, varios son commits parciales: llevan solo lo de su tanda, y los cambios viejos sin commit de los mismos archivos (el agarre de la sección 8.24 y F1) quedan afuera. `3d98ffe` se revisó en una copia aparte. `00e1d78` y `c588cfa` quedaron con líneas corridas en lo commiteado, que reparó `fccb2b0`; desde `5469f78` se arman con el método de la sección 14 y se verifican en una copia limpia: `5469f78` y `2a7e78f` cargan y repiten con `677545182b2c476f`.
 
@@ -7133,6 +7413,9 @@ Desde `3d98ffe`, varios son commits parciales: llevan solo lo de su tanda, y los
 | 2026-10-21 13:51 | Desde un borde, mirar la escalera. Probado a las 14:11 | `2a7e78f` |
 | 2026-10-22 a 2026-10-23 | Lo de la 8.31. Probado en las dos PC el 2026-10-22 a las 20:37 y la salida por arriba el 2026-10-23 a la noche | `1324a69` |
 | 2026-10-24 | El súper en todas las velocidades. Probado en las dos PC, en casa | `3fae993` |
+| 2026-10-25 19:58 | El mantle. Probado en las dos PC el 2026-10-28 a las 13:18 | `eb473ca` |
+| 2026-10-27 13:06 | La unión de dos cajas apiladas. Probada con el mantle | `eb473ca` |
+| 2026-10-28 14:08 | Frenando en la salida por arriba de la escalera. Probado en las dos PC el 2026-10-30 a las 13:07 | `fde8f9a` |
 
 **El `.exe`** (2026-10-21, sección 8.30): `TunTunTunSahur_LaboratorioCoop.exe` (113,8 MB) y `TunTunTunSahur_LaboratorioCoop.zip` (40,9 MB), en `Documents\otro proyecto bobo\exports`, con lo que había en el disco ese día, también lo sin commit. El amigo recibe el zip; la notebook sigue con el doble clic.
 
@@ -7141,7 +7424,7 @@ Desde `3d98ffe`, varios son commits parciales: llevan solo lo de su tanda, y los
 - **Primera versión de este documento:** eran 136, más el temporal del editor `project.godot~RF78902d2f.TMP`: 137.
 - **Segunda versión:** `git status` mostraba 138 entradas.
 - **Octava versión:** `git status` mostraba 137 entradas, ninguna de las carpetas del laboratorio.
-- **Hoy, en `net-lab`:** nueve archivos modificados (lo del laboratorio sin commit de la sección 1, los dos md y `project.godot`, que además tiene la línea 4.6 → 4.7) y 52 entradas sin seguir, ninguna del laboratorio.
+- **Hoy, en `net-lab`:** ocho archivos modificados (lo del laboratorio sin commit de la sección 1 y `project.godot`, que además tiene la línea 4.6 → 4.7) y 52 entradas sin seguir, ninguna del laboratorio.
 
 ---
 
@@ -7208,6 +7491,14 @@ Desde `3d98ffe`, varios son commits parciales: llevan solo lo de su tanda, y los
 - **Lo que queda del saltito al borde:** al empezar a caer, la punta redonda de la cápsula resbala por el filo unos 10 cm. "Que se caiga antes del filo" quedó como opción, sin elegir.
 - **Las demás escaleras de a dos:** con el límite de costado, para pasar de un borde a una escalera hay que estar debajo de su centro (0,3 m o menos); en la torre se reescribieron las dos rutas, y otras que se armen tienen que tenerlo en cuenta.
 - **El documento de Claude Docs y el Apéndice A** no tienen notas de la 8.24 a la 8.31.
+
+**De lo del 2026-10-25 al 2026-10-28 (secciones 8.33 a 8.35), sin cerrar:**
+
+- **El mantle sobre el cuerpo que mueve el host,** con internet mala: correcciones chicas, la más grande de 0,215 m, parecidas a las de colgarse de él (0,263). No se tocó, y no se sumó a lo que depende de un buen internet: no se le preguntó al usuario.
+- **Los números del mantle** (la franja, las velocidades, los 45° y dónde termina) los eligió Claude; están en el Tuning, grupo Mantle, para ajustarlos jugando.
+- **El cambio de la prueba `hang` que es de la 8.24** (cayendo por delante, sigue mirando para atrás) quedó sin commit, con la 8.24.
+- **El documento de Claude Docs y el Apéndice A** no tienen notas de la 8.33 a la 8.35: el Apéndice A sigue diciendo que el mantle está fuera del alcance.
+
 **Preguntas sin respuesta del 2026-10-12:**
 
 - ~~Si soltar solo Shift también tiene que cortar el deslizamiento.~~ Hoy solo lo corta soltar Ctrl. En la prueba, el usuario dijo "si una de las dos teclas deja de presionarse, este se termina automáticamente": según el código, soltar solo Shift no lo termina. Respondido el 2026-10-14: "con respecto al deslizamiento, déjalo como esta".
@@ -7230,7 +7521,7 @@ Desde `3d98ffe`, varios son commits parciales: llevan solo lo de su tanda, y los
 
 **Lo que contó el usuario del juego** (sección 14), para cuando lleguen: objetos con física (cajas, escaleras, munición de 155 mm, puertas, tanques vacíos) y vehículos (motos y autos; adentro del auto se va pegado, y arriba te lleva el compañero hasta que la fricción no alcanza). Preguntas abiertas: si las puertas se empujan con el cuerpo o se abren con una tecla, si la munición y las cajas se llevan en las manos, si las escaleras se pueden mover con alguien arriba, y quién decide cuándo se resbala uno arriba del auto.
 
-**Pedido para más adelante:** la subida al borde con "un saltito". La tercera versión de este documento decía: "Hoy es un recorrido de dos tramos, 0,45 s hacia arriba y 0,25 s hacia adentro". El 2026-10-08 esa subida se reemplazó "temporalmente" por un salto para arriba con control aéreo, y el usuario dijo "por ahora lo dejamos asi" (sección 8.6). Si vuelve una animación de subida, el código viejo está en `3cdcc91`.
+**Pedido para más adelante:** la subida al borde con "un saltito". La tercera versión de este documento decía: "Hoy es un recorrido de dos tramos, 0,45 s hacia arriba y 0,25 s hacia adentro". El 2026-10-08 esa subida se reemplazó "temporalmente" por un salto para arriba con control aéreo, y el usuario dijo "por ahora lo dejamos asi" (sección 8.6). Si vuelve una animación de subida, el código viejo está en `3cdcc91`. El mantle (sección 8.33) no lo cambió: el usuario eligió que suba como la salida de la escalera, sin saltito, y subir desde el colgado sigue siendo el salto para arriba.
 
 **Del plan original, sin hacer:**
 
@@ -22678,4 +22969,1001 @@ func _motor() -> void:
 		_a.apply_state(_a.state)
 		var climb := _run(Vector2(0, 1), atan2(out.x, out.z), 0, 30)
 		_check("trepando " + tag, is_equal_approx(climb, _tuning.climb_speed * k) and _a.state.mode == ActorState.Mode.LADDER, "%.2f m/s, %s" % [climb, ActorState.Mode.keys()[_a.state.mode]])
+```
+
+### Scripts de las secciones 8.33 a 8.35
+
+Los `.gd` extienden `SceneTree` y corrieron desde la carpeta temporal de la conversación con `--headless --fixed-fps 60 --path <proyecto> -s <ruta>`; las parejas, con `run_pair.ps1`, en tiempo real. La zona y la torre de servicio corrieron con sus `diag_zona.gd` y `diag_torre.gd` (secciones 8.25 y 8.28, con los cambios del 2026-10-22), copiados en una carpeta `tmp_diag/` del proyecto que se borró al terminar. La torre de parkour, con el `diag_torre.gd` de la sección 8.15, igual al de este apéndice.
+
+| Script | Sección | Qué hace |
+| --- | --- | --- |
+| `diag_mantle.gd` | 8.33 | El mantle caso por caso, sin red: un carril por caso con su obstáculo; qué modos pasa, cuándo entra al mantle, cómo termina y dónde. Después repite cada tick del mantle desde el estado anterior y compara los bytes, y valida cada pose con `anchored_pose_valid`, como el host. |
+| `diag_alturas.gd` | 8.33 | Por alto de muro (1,4 a 3,0 m) y forma de llegar (pegado, en el lugar, caminando y corriendo): mantle, colgado o nada. Con `-- --corte=X` cambia `mantle_max_height`. Dio la tabla de la primera versión. |
+| `diag_pista_mantle.gd` | 8.33 | El mantle en la pista de salto agachado del nivel real: cada bloque, el conducto, la ventana y los del súper, parado y caminando. Durante la sesión se llamó `diag_pista_agachado.gd`, como el de la sección 8.31, que es otro. |
+| `control_aviso.gd` | 8.33 | Control del aviso de la captura: el mismo aviso, a propósito. Corrido con `-d`, muestra el aviso; así se supo que, si el laboratorio no muestra ninguno con `-d`, no queda ninguno. |
+| `mantle_pares.ps1` | 8.33 | Las primeras pruebas en pareja del mantle: `mantle` y `mantle:4` sin red simulada y con internet mala, el host haciendo `mantle` con el cliente mirando, y `hang` y `hang:4`. El mantle y el colgado sobre el cuerpo que mueve el host (`mantle:5` y `hang:5`) se corrieron aparte, con los mismos argumentos. |
+| `mantle_pares2.ps1` | 8.33 | Las mismas, con la versión final: `mantle`, `mantle:4` y `hang`, con internet mala. |
+| `diag_costura.gd` | 8.34 | La unión de dos cajas apiladas en la torre de parkour: pone al actor en el aire pegado a dos caras del núcleo, con las manos cerca de cada unión, y pregunta a `grab_check`; también salta desde el saliente y desde la terraza 2, como un jugador. |
+| `diag_salida_escalera.gd` | 8.35 | La salida por arriba de EscaleraTirolesa: trepa con W y la suelta a distintas distancias pasado el alto; dónde queda, en qué modo y si hay piso debajo del centro. |
+| `diag_salida_escalera2.gd` | 8.35 | Lo mismo en todas las escaleras del nivel, por cada lado por el que se trepa, siguiendo 2 s sin teclas. Para compararlo con la regla apagada se corrió dos veces, la segunda con `elif false and` delante de la condición nueva del motor, y el motor se restauró de una copia. |
+| `salida_pares.ps1` | 8.35 | Las pruebas en pareja de `laddertop:stop` y `laddertop` con internet mala. La comparación del host trepando con y sin el cambio se corrió con los mismos argumentos, en los puertos 7844 y 7845. |
+| `armar_commit.js` | 8.33 y 8.35 | Arma el índice de git sin los cambios viejos que siguen sin commit en los mismos archivos (la 8.24, F1, las IP): cambia cada pedazo viejo del archivo del disco por el de `HEAD`. Para el commit de la 8.35, la misma lista. |
+
+#### diag_mantle.gd
+
+```gdscript
+extends SceneTree
+
+# Diagnóstico del mantle (2026-10-25), sin red, con el motor real y los valores
+# del nodo Tuning. Un carril por caso, cada uno con su obstáculo; el actor salta
+# (o hace lo que pide el caso) e imprime qué modos pasó, cuándo entró al
+# mantle, cómo terminó y dónde. Después repite cada tick del mantle desde el
+# estado anterior y compara los bytes, y valida cada pose del mantle con
+# anchored_pose_valid, como el host al adoptar.
+#
+# Con -- --traza=<nombre> imprime tick a tick ese caso.
+
+const LANE := 8.0
+const FACE_Z := -1.0
+const DT := 1.0 / 60.0
+
+
+class Runner extends Node:
+	var actor: ActorBody
+	var tuning := ActorTuning.from_scene()
+	var cases: Array[Dictionary] = []
+	var index := -1
+	var t := 0
+	var tick := 0
+	var presses := 0
+	var state: ActorState
+	var c: Dictionary
+	var wait := 5
+	var trace := ""
+	var jumped_once := false
+	var hang_jumped := false
+	# Por caso
+	var modes: Array[String] = []
+	var befores: Array[PackedByteArray] = []
+	var afters: Array[PackedByteArray] = []
+	var inputs: Array[ActorInput] = []
+	var mantle_from := -1
+	var mantle_until := -1
+	var mantle_stance := -1
+	var mantle_feet := Vector3.ZERO
+	var mantle_end := Vector3.ZERO
+	var mantle_yaw := 0.0
+	var invalid := 0
+	var max_y := -100.0
+	var total_fail := 0
+
+	func _ready() -> void:
+		SimClock.apply_tick_rate(SimClock.TICK_RATE)
+		for arg in OS.get_cmdline_user_args():
+			if arg.begins_with("--traza="):
+				trace = arg.substr(8)
+		_add_box(Vector3(400, 1, 60), Vector3(150, -0.5, 0))
+		var heights := [0.6, 1.0, 1.2, 1.4, 1.6, 1.8, 1.9, 2.0, 2.2]
+		for h: float in heights:
+			cases.append({"name": "salto en el lugar, %.1f m" % h, "blocks": [_block(h)], "jump_at": [10], "ticks": 150, "h": h})
+		for h: float in heights:
+			cases.append({"name": "salto con W, %.1f m" % h, "blocks": [_block(h)], "jump_at": [10], "move": Vector2(0, 1), "move_from": 10, "ticks": 150, "h": h})
+		cases.append({"name": "muro finito 1,5 m x 0,2", "blocks": [[Vector3(3, 1.5, 0.2), Vector3(0, 0.75, FACE_Z - 0.1)]], "jump_at": [10], "ticks": 150, "h": 1.5, "thin": 0.2})
+		cases.append({"name": "techo bajo: repisa 1,6, techo a 3,0", "blocks": [_block(1.6, 3.0), [Vector3(3, 0.2, 3), Vector3(0, 3.1, FACE_Z - 1.5)]], "jump_at": [10], "ticks": 150, "h": 1.6})
+		cases.append({"name": "ventana 1,8 a 3,1 en muro de 0,4", "blocks": [[Vector3(3, 1.8, 0.4), Vector3(0, 0.9, FACE_Z - 0.2)], [Vector3(3, 0.5, 0.4), Vector3(0, 3.35, FACE_Z - 0.2)]], "jump_at": [10], "ticks": 180, "h": 1.8, "thin": 0.4})
+		cases.append({"name": "colgado de 2,4 m, salto para arriba sin W", "blocks": [_block(2.4)], "start": Vector3(0, 0, FACE_Z + 0.36), "jump_at": [10], "hang_jump_at": 80, "ticks": 220, "h": 2.4})
+		cases.append({"name": "colgado de 2,4 m, salto para arriba con W en la punta", "blocks": [_block(2.4)], "start": Vector3(0, 0, FACE_Z + 0.36), "jump_at": [10], "hang_jump_at": 80, "w_at_top": true, "ticks": 220, "h": 2.4})
+		cases.append({"name": "de espaldas desde una plataforma de 1,5, mirándola", "blocks": [[Vector3(3, 1.5, 4), Vector3(0, 0.75, FACE_Z - 2)]], "start": Vector3(0, 1.5, FACE_Z - 0.3), "move": Vector2(0, -1), "move_from": 10, "move_until": 40, "ticks": 150, "h": 1.5})
+		cases.append({"name": "de espaldas, un paso, desde 1,5, mirándola", "blocks": [[Vector3(3, 1.5, 4), Vector3(0, 0.75, FACE_Z - 2)]], "start": Vector3(0, 1.5, FACE_Z - 0.1), "move": Vector2(0, -1), "move_from": 10, "move_until": 16, "ticks": 150, "h": 1.5})
+		cases.append({"name": "de espaldas, un paso, desde 3,0, mirándola", "blocks": [[Vector3(3, 3.0, 4), Vector3(0, 1.5, FACE_Z - 2)]], "start": Vector3(0, 3.0, FACE_Z - 0.1), "move": Vector2(0, -1), "move_from": 10, "move_until": 16, "ticks": 150, "h": 3.0})
+		cases.append({"name": "salto en el lugar a 0,6 de la cara, 1,6 m", "blocks": [_block(1.6)], "start": Vector3(0, 0, FACE_Z + 0.6), "jump_at": [10], "ticks": 150, "h": 1.6})
+		cases.append({"name": "salto en el lugar a 0,6 de la cara, 0,6 m", "blocks": [_block(0.6)], "start": Vector3(0, 0, FACE_Z + 0.6), "jump_at": [10], "ticks": 150, "h": 0.6})
+		cases.append({"name": "baranda de 1 m x 6 cm, salto en el lugar", "blocks": [[Vector3(3, 1.0, 0.06), Vector3(0, 0.5, FACE_Z - 0.03)]], "jump_at": [10], "ticks": 150, "h": 1.0, "thin": 0.06})
+		cases.append({"name": "baranda de 1 m x 6 cm, caminando y saltando", "blocks": [[Vector3(3, 1.0, 0.06), Vector3(0, 0.5, FACE_Z - 0.03)]], "start": Vector3(0, 0, FACE_Z + 3), "move": Vector2(0, 1), "move_until": 40, "jump_when_z": FACE_Z + 1.3, "ticks": 150, "h": 1.0, "thin": 0.06})
+		cases.append({"name": "diagonal 30°, W, 1,6 m", "blocks": [_block(1.6)], "start": Vector3(0, 0, FACE_Z + 0.5), "jump_at": [10], "look": deg_to_rad(30.0), "move": Vector2(0, 1), "move_from": 10, "move_until": 60, "ticks": 150, "h": 1.6})
+		cases.append({"name": "diagonal 50°, W, 1,6 m", "blocks": [_block(1.6)], "start": Vector3(0, 0, FACE_Z + 0.5), "jump_at": [10], "look": deg_to_rad(50.0), "move": Vector2(0, 1), "move_from": 10, "move_until": 60, "ticks": 150, "h": 1.6})
+		cases.append({"name": "de frente, solo D, 1,6 m", "blocks": [_block(1.6)], "start": Vector3(0, 0, FACE_Z + 0.5), "jump_at": [10], "move": Vector2(1, 0), "move_from": 30, "move_until": 60, "ticks": 150, "h": 1.6})
+		cases.append({"name": "de frente, W, 1,6 m (para ver la salida)", "blocks": [_block(1.6)], "start": Vector3(0, 0, FACE_Z + 0.5), "jump_at": [10], "move": Vector2(0, 1), "move_from": 30, "move_until": 60, "ticks": 150, "h": 1.6})
+		cases.append({"name": "bloque de 2 m x 1 m de fondo, caminando, D en el mantle", "blocks": [[Vector3(2.4, 2.0, 1.0), Vector3(0, 1.0, FACE_Z - 0.5)]], "start": Vector3(0, 0, FACE_Z + 2.2), "move": Vector2(0, 1), "jump_when_z": FACE_Z + 1.3, "until_mantle": true, "d_in_mantle": true, "ticks": 150, "h": 2.0})
+		cases.append({"name": "con Ctrl, 1,6 m", "blocks": [_block(1.6)], "jump_at": [10], "crouch": [5, 90], "ticks": 150, "h": 1.6})
+		cases.append({"name": "mirando de costado, 1,6 m", "blocks": [_block(1.6)], "jump_at": [10], "look": PI * 0.5, "ticks": 150, "h": 1.6})
+		cases.append({"name": "corriendo y saltando, 1,6 m", "blocks": [_block(1.6)], "start": Vector3(0, 0, FACE_Z + 6), "move": Vector2(0, 1), "run": true, "jump_when_z": FACE_Z + 1.5, "ticks": 150, "h": 1.6})
+		cases.append({"name": "corriendo y saltando, 1,0 m (el salto alcanza)", "blocks": [_block(1.0)], "start": Vector3(0, 0, FACE_Z + 6), "move": Vector2(0, 1), "run": true, "jump_when_z": FACE_Z + 1.5, "ticks": 150, "h": 1.0})
+		cases.append({"name": "en el aire, filo 1,3 sobre los pies", "blocks": [_block(4.0)], "start": Vector3(0, 2.7, FACE_Z + 0.6), "air": true, "jumped": true, "ticks": 150, "h": 4.0})
+		cases.append({"name": "en el aire sin haber saltado, filo 1,3", "blocks": [_block(4.0)], "start": Vector3(0, 2.7, FACE_Z + 0.6), "air": true, "ticks": 150, "h": 4.0})
+		cases.append({"name": "en el aire, filo 1,7 sobre los pies", "blocks": [_block(4.0)], "start": Vector3(0, 2.3, FACE_Z + 0.6), "air": true, "ticks": 150, "h": 4.0})
+		cases.append({"name": "pegado a la pared, salto en el lugar, 1,6 m", "blocks": [_block(1.6)], "start": Vector3(0, 0, FACE_Z + 0.36), "jump_at": [10], "ticks": 150, "h": 1.6})
+		cases.append({"name": "súper, salto en el lugar, 2,4 m", "blocks": [_block(2.4)], "jump_at": [10], "boost": true, "ticks": 150, "h": 2.4})
+		cases.append({"name": "súper, salto en el lugar, 3,0 m", "blocks": [_block(3.0)], "jump_at": [10], "boost": true, "ticks": 150, "h": 3.0})
+		for i in cases.size():
+			for b: Array in cases[i]["blocks"]:
+				_add_box(b[0], b[1] + Vector3(i * LANE, 0, 0))
+		actor = load("res://scenes/actor/actor.tscn").instantiate()
+		add_child(actor)
+
+	func _block(h: float, ceiling := 0.0) -> Array:
+		return [Vector3(3, h, 3), Vector3(0, h * 0.5, FACE_Z - 1.5)]
+
+	func _add_box(size: Vector3, center: Vector3) -> void:
+		var body := StaticBody3D.new()
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = size
+		shape.shape = box
+		body.add_child(shape)
+		body.position = center
+		add_child(body)
+
+	func _start_case() -> void:
+		index += 1
+		if index >= cases.size():
+			print("==== TOTAL de fallas de repetición o validación: %d" % total_fail)
+			get_tree().quit(0 if total_fail == 0 else 1)
+			return
+		c = cases[index]
+		state = ActorState.new()
+		state.position = c.get("start", Vector3(0, 0, FACE_Z + 0.5)) + Vector3(index * LANE, 0, 0)
+		if c.get("air", false):
+			state.mode = ActorState.Mode.AIR
+		else:
+			state.mode = ActorState.Mode.GROUND
+			state.on_floor = true
+		state.facing_yaw = c.get("look", 0.0)
+		state.boosted = c.get("boost", false)
+		state.jumped = c.get("jumped", false)
+		actor.apply_state(state)
+		actor.teleported()
+		t = 0
+		presses = 0
+		jumped_once = false
+		hang_jumped = false
+		modes.clear()
+		befores.clear()
+		afters.clear()
+		inputs.clear()
+		mantle_from = -1
+		mantle_until = -1
+		mantle_stance = -1
+		invalid = 0
+		max_y = -100.0
+
+	func _input_now() -> ActorInput:
+		var move := Vector2.ZERO
+		if t >= c.get("move_from", 0) and t < c.get("move_until", 99999):
+			move = c.get("move", Vector2.ZERO)
+		if c.get("w_at_top", false) and hang_jumped and state.velocity.y <= 0.0 and state.mode != ActorState.Mode.HANGING:
+			move = Vector2(0, 1)
+		if c.get("until_mantle", false) and jumped_once:
+			move = Vector2.ZERO
+		if c.get("d_in_mantle", false) and state.mode == ActorState.Mode.MANTLE:
+			move = Vector2(1, 0)
+		var buttons := ActorInput.BUTTON_THIRD_PERSON
+		if c.get("run", false):
+			buttons |= ActorInput.BUTTON_RUN
+		var crouch: Array = c.get("crouch", [-1, -1])
+		if t >= crouch[0] and t < crouch[1]:
+			buttons |= ActorInput.BUTTON_CROUCH
+		if t in c.get("jump_at", []):
+			presses += 1
+		if c.has("jump_when_z") and not jumped_once and state.position.z < c["jump_when_z"]:
+			presses += 1
+			jumped_once = true
+		if c.has("hang_jump_at") and not hang_jumped and t >= c["hang_jump_at"] and state.mode == ActorState.Mode.HANGING:
+			presses += 1
+			hang_jumped = true
+		return ActorInput.make(tick, move, c.get("look", 0.0), buttons, presses)
+
+	func _physics_process(_delta: float) -> void:
+		if wait > 0:
+			wait -= 1
+			if wait == 0:
+				_start_case()
+			return
+		if index >= cases.size():
+			return
+		var input := _input_now()
+		var why := ""
+		if trace != "" and c["name"].begins_with(trace) and state.mode == ActorState.Mode.AIR:
+			var check := ActorMotor.mantle_check(actor, state, ActorMotor.grab_direction(input.look_yaw), tuning, DT)
+			why = check["why"]
+			if not (check["edge"] as Dictionary).is_empty():
+				why += " (filo y=%.3f)" % check["edge"]["point"].y
+		var before := state.to_bytes()
+		var mode_before := state.mode
+		ActorMotor.step(actor, state, input, tuning, DT)
+		befores.append(before)
+		afters.append(state.to_bytes())
+		inputs.append(input)
+		var name: String = ActorState.Mode.keys()[state.mode]
+		if modes.is_empty() or modes[-1] != name:
+			modes.append(name)
+		if state.mode == ActorState.Mode.MANTLE:
+			if mantle_from == -1:
+				mantle_from = t
+				mantle_stance = state.stance
+				mantle_feet = BaseRegistry.world_position(state)
+			if not ActorMotor.anchored_pose_valid(actor, state, tuning):
+				invalid += 1
+		elif mode_before == ActorState.Mode.MANTLE and mantle_until == -1:
+			mantle_until = t
+			mantle_end = BaseRegistry.world_position(state) - Vector3(index * LANE, 0, 0)
+			mantle_yaw = rad_to_deg(state.facing_yaw)
+		max_y = maxf(max_y, state.position.y)
+		if c["name"].begins_with(trace) and trace != "":
+			print("  t=%3d %-7s %-8s pies=(%.3f, %.3f, %.3f) vel=(%.2f, %.2f, %.2f) piso=%s %s" % [t, name,
+					ActorState.Stance.keys()[state.stance], state.position.x - index * LANE, state.position.y, state.position.z,
+					state.velocity.x, state.velocity.y, state.velocity.z, state.on_floor, why])
+		t += 1
+		tick += 1
+		if t >= c["ticks"]:
+			_finish_case()
+			_start_case()
+
+	func _finish_case() -> void:
+		var feet := BaseRegistry.world_position(state) - Vector3(index * LANE, 0, 0)
+		var h: float = c["h"]
+		var depth: float = c.get("thin", 3.0)
+		var on_top := absf(feet.y - h) < 0.02 and feet.z < FACE_Z
+		var beyond := feet.z < FACE_Z - depth and feet.y < 0.02
+		var where := "arriba" if on_top else "del otro lado" if beyond else "abajo, delante" if feet.y < 0.02 and feet.z > FACE_Z else "en otro lado"
+		var line := "%-52s %s" % [c["name"], " > ".join(modes)]
+		if mantle_from != -1:
+			var until := mantle_until if mantle_until != -1 else t
+			line += "   ·   mantle t=%d a %d (%.2f s), %s, pies al empezar %.2f (filo %.2f sobre ellos)" % [mantle_from, until,
+					(until - mantle_from) * DT, "agachado" if mantle_stance == ActorState.Stance.CROUCHED else "parado",
+					mantle_feet.y, h - mantle_feet.y if h < 3.9 else 4.0 - mantle_feet.y]
+			line += " · al terminar (%.2f, %.2f, %.2f) mirando %.0f°" % [mantle_end.x, mantle_end.y, mantle_end.z, mantle_yaw]
+		line += "   ·   final %s %s en (%.2f, %.3f, %.2f): %s   ·   lo más alto %.2f" % [ActorState.Mode.keys()[state.mode],
+				ActorState.Stance.keys()[state.stance], feet.x, feet.y, feet.z, where, max_y]
+		print(line)
+		# Repetición de cada tick del mantle y del que lo termina.
+		var bad := 0
+		for k in afters.size():
+			var s_before := ActorState.from_bytes(befores[k])
+			var s_after := ActorState.from_bytes(afters[k])
+			if s_before.mode != ActorState.Mode.MANTLE and s_after.mode != ActorState.Mode.MANTLE:
+				continue
+			actor.apply_state(s_before)
+			ActorMotor.step(actor, s_before, inputs[k], tuning, DT)
+			if s_before.to_bytes() != afters[k]:
+				bad += 1
+				if bad <= 3:
+					print("    REPETICIÓN DISTINTA en t=%d:\n      en vivo  %s\n      repetido %s" % [k, s_after.describe(), s_before.describe()])
+		if bad > 0 or invalid > 0:
+			print("    FALLA: %d ticks repetidos distintos, %d poses del mantle no válidas" % [bad, invalid])
+			total_fail += bad + invalid
+
+
+func _initialize() -> void:
+	root.add_child(Runner.new())
+```
+
+#### diag_alturas.gd
+
+```gdscript
+extends SceneTree
+
+# Por alto de muro y forma de llegar: ¿mantle, colgado o nada? Con el motor
+# real y los valores del nodo Tuning; con -- --corte=X cambia Mantle Max Height.
+# Formas de llegar (mirando la pared, con W salvo "en el lugar"):
+#   pegado: parado contra la pared, salta en el lugar.
+#   en el lugar: parado a 0,5 m de la cara, salta sin teclas.
+#   caminando: camina desde 4 m y salta a 1,3 m de la cara.
+#   corriendo: corre (Shift) desde 6 m y salta a 1,8 m de la cara.
+
+const LANE := 8.0
+const FACE_Z := -1.0
+const DT := 1.0 / 60.0
+const HEIGHTS := [1.4, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0]
+const WAYS := ["pegado", "en el lugar", "caminando", "corriendo"]
+
+
+class Runner extends Node:
+	var actor: ActorBody
+	var tuning := ActorTuning.from_scene()
+	var index := -1
+	var t := 0
+	var tick := 0
+	var presses := 0
+	var state: ActorState
+	var wait := 5
+	var jumped := false
+	var result := ""
+	var results := {}
+
+	func _ready() -> void:
+		SimClock.apply_tick_rate(SimClock.TICK_RATE)
+		for arg in OS.get_cmdline_user_args():
+			if arg.begins_with("--corte="):
+				tuning.mantle_max_height = arg.substr(8).to_float()
+		_add_box(Vector3(400, 1, 80), Vector3(150, -0.5, 0))
+		for i in HEIGHTS.size() * WAYS.size():
+			var h: float = HEIGHTS[i / WAYS.size()]
+			_add_box(Vector3(3, h, 3), Vector3(i * LANE, h * 0.5, FACE_Z - 1.5))
+		actor = load("res://scenes/actor/actor.tscn").instantiate()
+		add_child(actor)
+
+	func _add_box(size: Vector3, center: Vector3) -> void:
+		var body := StaticBody3D.new()
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = size
+		shape.shape = box
+		body.add_child(shape)
+		body.position = center
+		add_child(body)
+
+	func _way() -> String:
+		return WAYS[index % WAYS.size()]
+
+	func _start() -> void:
+		index += 1
+		if index >= HEIGHTS.size() * WAYS.size():
+			var line := "%-8s" % "muro"
+			for way: String in WAYS:
+				line += "%-26s" % way
+			print("corte (Mantle Max Height) = %.2f" % tuning.mantle_max_height)
+			print(line)
+			for h: float in HEIGHTS:
+				line = "%-8s" % ("%.1f m" % h)
+				for way: String in WAYS:
+					line += "%-26s" % results["%s|%s" % [h, way]]
+				print(line)
+			get_tree().quit()
+			return
+		var starts := {"pegado": 0.36, "en el lugar": 0.5, "caminando": 4.0, "corriendo": 6.0}
+		state = ActorState.new()
+		state.position = Vector3(index * LANE, 0, FACE_Z + starts[_way()])
+		state.mode = ActorState.Mode.GROUND
+		state.on_floor = true
+		actor.apply_state(state)
+		t = 0
+		presses = 0
+		jumped = false
+		result = "nada"
+
+	func _physics_process(_delta: float) -> void:
+		if wait > 0:
+			wait -= 1
+			if wait == 0:
+				_start()
+			return
+		if index >= HEIGHTS.size() * WAYS.size():
+			return
+		var way := _way()
+		var move := Vector2.ZERO if way == "en el lugar" else Vector2(0, 1)
+		var buttons := ActorInput.BUTTON_RUN if way == "corriendo" else 0
+		var jump_at := {"pegado": FACE_Z + 10.0, "en el lugar": FACE_Z + 10.0, "caminando": FACE_Z + 1.65, "corriendo": FACE_Z + 2.15}
+		if not jumped and t >= 10 and state.position.z < jump_at[way]:
+			presses += 1
+			jumped = true
+		var feet_before := state.position.y
+		ActorMotor.step(actor, state, ActorInput.make(tick, move, 0.0, buttons, presses), tuning, DT)
+		if result == "nada" and state.mode == ActorState.Mode.MANTLE:
+			var h: float = HEIGHTS[index / WAYS.size()]
+			result = "mantle (filo %.2f)" % (h - feet_before)
+		elif result == "nada" and state.mode == ActorState.Mode.HANGING:
+			result = "colgado"
+		t += 1
+		tick += 1
+		if t >= 120:
+			if result == "nada" and state.position.y > 0.5 and state.mode == ActorState.Mode.GROUND:
+				result = "salto, arriba"
+			results["%s|%s" % [HEIGHTS[index / WAYS.size()], way]] = result
+			_start()
+
+
+func _initialize() -> void:
+	root.add_child(Runner.new())
+```
+
+#### diag_pista_mantle.gd
+
+```gdscript
+extends SceneTree
+
+# El mantle en la pista de salto agachado del nivel real (2026-10-25), con el
+# motor real y los valores del nodo Tuning. La pista está en (4; 0; 31,5) y a
+# cada cosa se entra caminando hacia +z, con la cámara mirando hacia +z.
+
+const DT := 1.0 / 60.0
+const COURSE := Vector3(4.0, 0.0, 31.5)
+const BLOCK_HEIGHTS := [1.2, 1.4, 1.6, 1.8, 2.0, 2.2]
+
+
+class Runner extends Node:
+	var actor: ActorBody
+	var tuning := ActorTuning.from_scene()
+	var cases: Array[Dictionary] = []
+	var index := -1
+	var t := 0
+	var tick := 0
+	var presses := 0
+	var state: ActorState
+	var c: Dictionary
+	var wait := 10
+	var jumped_once := false
+	var modes: Array[String] = []
+	var mantle_stance := -1
+
+	func _ready() -> void:
+		SimClock.apply_tick_rate(SimClock.TICK_RATE)
+		add_child(load("res://scenes/net_lab/net_lab_level.tscn").instantiate())
+		for i in BLOCK_HEIGHTS.size():
+			var x := COURSE.x + 0.7 + 1.8 * i
+			cases.append({"name": "bloque %.1f m, salto en el lugar a 0,5 m" % BLOCK_HEIGHTS[i], "start": Vector3(x, 0, COURSE.z - 0.5), "jump_at": 10})
+			cases.append({"name": "bloque %.1f m, caminando y saltando a 1,3 m" % BLOCK_HEIGHTS[i], "start": Vector3(x, 0, COURSE.z - 3.0), "walk": true, "jump_z": COURSE.z - 1.3})
+		cases.append({"name": "bloque 1.6 m, con Ctrl", "start": Vector3(COURSE.x + 0.7 + 3.6, 0, COURSE.z - 0.5), "jump_at": 10, "crouch": true})
+		cases.append({"name": "conducto, salto en el lugar a 0,5 m", "start": Vector3(COURSE.x + 1.75, 0, COURSE.z + 6.5 - 0.5), "jump_at": 10})
+		cases.append({"name": "conducto, caminando y saltando a 1,3 m", "start": Vector3(COURSE.x + 1.75, 0, COURSE.z + 3.5), "walk": true, "jump_z": COURSE.z + 6.5 - 1.3})
+		cases.append({"name": "ventana, caminando y saltando a 1,3 m", "start": Vector3(COURSE.x + 6.5, 0, COURSE.z + 4.0), "walk": true, "jump_z": COURSE.z + 7.0 - 1.3})
+		cases.append({"name": "ventana, salto en el lugar a 0,5 m", "start": Vector3(COURSE.x + 6.5, 0, COURSE.z + 7.0 - 0.5), "jump_at": 10})
+		for i in 3:
+			var bx := COURSE.x + 10.0 + 0.7 + 1.8 * i
+			var bh: float = [2.6, 3.0, 3.4][i]
+			cases.append({"name": "súper, bloque %.1f m, salto en el lugar a 0,5 m" % bh, "start": Vector3(bx, 0, COURSE.z + 6.5 - 0.5), "jump_at": 10, "boost": true})
+			cases.append({"name": "súper, bloque %.1f m, caminando y saltando a 1,3 m" % bh, "start": Vector3(bx, 0, COURSE.z + 3.5), "walk": true, "jump_z": COURSE.z + 6.5 - 1.3, "boost": true})
+		actor = load("res://scenes/actor/actor.tscn").instantiate()
+		add_child(actor)
+
+	func _start() -> void:
+		index += 1
+		if index >= cases.size():
+			get_tree().quit()
+			return
+		c = cases[index]
+		state = ActorState.new()
+		state.position = c["start"]
+		state.mode = ActorState.Mode.GROUND
+		state.on_floor = true
+		state.facing_yaw = PI
+		state.boosted = c.get("boost", false)
+		actor.apply_state(state)
+		t = 0
+		presses = 0
+		jumped_once = false
+		modes.clear()
+		mantle_stance = -1
+
+	func _physics_process(_delta: float) -> void:
+		if wait > 0:
+			wait -= 1
+			if wait == 0:
+				_start()
+			return
+		if index >= cases.size():
+			return
+		var move := Vector2(0, 1) if c.get("walk", false) and t < 80 else Vector2.ZERO
+		var buttons := ActorInput.BUTTON_CROUCH if c.get("crouch", false) and t >= 5 and t < 80 else 0
+		if c.has("jump_at") and t == c["jump_at"]:
+			presses += 1
+		if c.has("jump_z") and not jumped_once and state.position.z > c["jump_z"]:
+			presses += 1
+			jumped_once = true
+		ActorMotor.step(actor, state, ActorInput.make(tick, move, PI, buttons, presses), tuning, DT)
+		var name: String = ActorState.Mode.keys()[state.mode]
+		if modes.is_empty() or modes[-1] != name:
+			modes.append(name)
+		if state.mode == ActorState.Mode.MANTLE and mantle_stance == -1:
+			mantle_stance = state.stance
+		t += 1
+		tick += 1
+		if t >= 180:
+			var p := BaseRegistry.world_position(state)
+			print("%-48s %-40s %s · final %s %s en (%.2f, %.2f, %.2f)" % [c["name"], " > ".join(modes),
+					"mantle %s" % ("agachado" if mantle_stance == ActorState.Stance.CROUCHED else "parado") if mantle_stance != -1 else "sin mantle",
+					name, ActorState.Stance.keys()[state.stance], p.x, p.y, p.z])
+			_start()
+
+
+func _initialize() -> void:
+	root.add_child(Runner.new())
+```
+
+#### control_aviso.gd
+
+```gdscript
+extends SceneTree
+
+# Control: el mismo aviso de la captura (un entero en una variable de enum),
+# a propósito. Si -d muestra avisos así, tiene que aparecer acá.
+
+func _initialize() -> void:
+	var s := ActorState.new()
+	var wanted := ActorState.Stance.STANDING
+	wanted = s.stance
+	print("control: ", wanted)
+	quit()
+```
+
+#### mantle_pares.ps1
+
+```powershell
+# Pruebas en pareja del mantle (2026-10-25): host y cliente en esta PC.
+# Cada caso: [nombre, puerto, argumentos del host, argumentos del cliente].
+$s = Split-Path -Parent $MyInvocation.MyCommand.Path
+$proyecto = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+$common = @('--headless','--path',$proyecto,'--scene','res://scenes/net_lab/net_lab.tscn','--')
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5')
+$casos = @(
+    @('cliente mantle, sin red simulada', 7811, @(), @('--test-input=mantle')),
+    @('cliente mantle, internet mala', 7812, @(), (@('--test-input=mantle','--sim-seed=22') + $mala)),
+    @('cliente mantle:4 (bloque que se mueve), sin red simulada', 7813, @(), @('--test-input=mantle:4')),
+    @('cliente mantle:4, internet mala', 7814, @(), (@('--test-input=mantle:4','--sim-seed=22') + $mala)),
+    @('host mantle, el cliente mira, internet mala', 7815, @('--test-input=mantle'), (@('--sim-seed=22') + $mala)),
+    @('cliente hang (salta cerca), sin red simulada', 7816, @(), @('--test-input=hang')),
+    @('cliente hang, internet mala', 7817, @(), (@('--test-input=hang','--sim-seed=22') + $mala)),
+    @('cliente hang:4, internet mala', 7818, @(), (@('--test-input=hang:4','--sim-seed=22') + $mala))
+)
+foreach ($c in $casos) {
+    $name = $c[0]; $port = $c[1]
+    $hostArgs = $common + @('--host',"--port=$port",'--bind=127.0.0.1','--report-after=38','--autoquit=40') + $c[2]
+    $clientArgs = $common + @('--client','--address=127.0.0.1',"--port=$port",'--report-after=36.5','--autoquit=38.5') + $c[3]
+    $out = & "$s\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds 75
+    $file = "$s\par_$port.txt"
+    $out | Out-File -Encoding utf8 $file
+    Write-Output "######## $name"
+    $out | Select-String -Pattern 'mantle:|colgar:|correcciones|adopción del jugador|resumen|SCRIPT ERROR|ERROR:|exit' | ForEach-Object { $_.Line }
+}
+```
+
+#### mantle_pares2.ps1
+
+```powershell
+# Pruebas en pareja del mantle (2026-10-25): host y cliente en esta PC.
+# Cada caso: [nombre, puerto, argumentos del host, argumentos del cliente].
+$s = Split-Path -Parent $MyInvocation.MyCommand.Path
+$proyecto = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+$common = @('--headless','--path',$proyecto,'--scene','res://scenes/net_lab/net_lab.tscn','--')
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5')
+$casos = @(
+    @('cliente mantle, internet mala', 7832, @(), (@('--test-input=mantle','--sim-seed=22') + $mala)),
+    @('cliente mantle:4, internet mala', 7834, @(), (@('--test-input=mantle:4','--sim-seed=22') + $mala)),
+    @('cliente hang, internet mala', 7837, @(), (@('--test-input=hang','--sim-seed=22') + $mala))
+)
+foreach ($c in $casos) {
+    $name = $c[0]; $port = $c[1]
+    $hostArgs = $common + @('--host',"--port=$port",'--bind=127.0.0.1','--report-after=38','--autoquit=40') + $c[2]
+    $clientArgs = $common + @('--client','--address=127.0.0.1',"--port=$port",'--report-after=36.5','--autoquit=38.5') + $c[3]
+    $out = & "$s\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds 75
+    $file = "$s\par_$port.txt"
+    $out | Out-File -Encoding utf8 $file
+    Write-Output "######## $name"
+    $out | Select-String -Pattern 'mantle:|colgar:|correcciones|adopción del jugador|resumen|SCRIPT ERROR|ERROR:|exit' | ForEach-Object { $_.Line }
+}
+```
+
+#### diag_costura.gd
+
+```gdscript
+extends SceneTree
+
+# ¿Las manos toman como filo la unión de dos cajas apiladas en una pared lisa?
+# En la torre de parkour (origen en x -19, z -19), el núcleo se arma con una
+# caja hasta los 7 m, otras alrededor del nicho hasta 10,2 m y otra hasta los
+# 12 m. Pone al actor en el aire pegado a una cara, con las manos cerca de cada
+# unión, y pregunta a grab_check qué encuentra. También salta desde el saliente
+# y desde la terraza 2, como un jugador.
+
+const DT := 1.0 / 60.0
+const TOWER := Vector3(-19, 0, -19)
+
+
+class Runner extends Node:
+	var actor: ActorBody
+	var tuning := ActorTuning.from_scene()
+	var wait := 10
+	var done := false
+
+	func _ready() -> void:
+		SimClock.apply_tick_rate(SimClock.TICK_RATE)
+		add_child(load("res://scenes/net_lab/net_lab_level.tscn").instantiate())
+		actor = load("res://scenes/actor/actor.tscn").instantiate()
+		add_child(actor)
+
+	func _put(feet: Vector3, yaw: float, vy: float) -> ActorState:
+		var s := ActorState.new()
+		s.position = feet
+		s.mode = ActorState.Mode.AIR
+		s.velocity = Vector3(0, vy, 0)
+		s.facing_yaw = yaw
+		s.jumped = true
+		actor.apply_state(s)
+		actor.state = s
+		return s
+
+	func _physics_process(_delta: float) -> void:
+		if wait > 0:
+			wait -= 1
+			return
+		if done:
+			return
+		done = true
+		# Cara +Z del núcleo (z = -16), mirando hacia -Z; cara -X (x = -22),
+		# mirando hacia +X.
+		var faces := [["cara +Z", Vector3(TOWER.x, 0, -16.0 + 0.36), 0.0],
+				["cara -X", Vector3(-22.0 - 0.36, 0, TOWER.z), -PI * 0.5]]
+		for f: Array in faces:
+			for seam: float in [7.0, 10.2]:
+				for dy: float in [-0.1, 0.0, 0.1]:
+					var feet: Vector3 = f[1] + Vector3(0, seam - tuning.hang_height + dy, 0)
+					var s := _put(feet, f[2], 1.0)
+					var check := ActorMotor.grab_check(actor, s, ActorMotor.grab_direction(f[2]), tuning, DT)
+					var edge: Dictionary = check["edge"]
+					print("%s, manos %.2f m (unión a %.1f): %s%s" % [f[0], feet.y + tuning.hang_height, seam,
+							"SE AGARRA" if check["why"] == "" else "no (%s)" % check["why"],
+							"" if edge.is_empty() else ", filo en y=%.3f, de %s" % [edge["point"].y, _collider_at(edge)]])
+		# Como un jugador: salta pegado a la cara +Z desde el saliente (4 m) y a la cara -X desde la terraza 2 (4 m).
+		for f: Array in [["desde el saliente, cara +Z", Vector3(TOWER.x, 4.0, -16.0 + 0.3 + 0.36), 0.0],
+				["desde la terraza 2, cara -X", Vector3(-22.0 - 0.36, 4.0, TOWER.z), -PI * 0.5]]:
+			var s := ActorState.new()
+			s.position = f[1]
+			s.mode = ActorState.Mode.GROUND
+			s.on_floor = true
+			s.facing_yaw = f[2]
+			actor.apply_state(s)
+			actor.state = s
+			var presses := 0
+			var result := "no se agarra"
+			for t in 90:
+				if t == 5:
+					presses += 1
+				ActorMotor.step(actor, s, ActorInput.make(t, Vector2.ZERO, f[2], 0, presses), tuning, DT)
+				if s.mode == ActorState.Mode.HANGING:
+					var point := BaseRegistry.origin(s.anchor_id) + s.anchor_point
+					result = "SE CUELGA del filo en y=%.3f (pies a %.2f)" % [point.y, actor.global_position.y]
+					break
+				if s.mode == ActorState.Mode.GROUND and t > 10:
+					result = "vuelve al piso, pies a %.2f" % actor.global_position.y
+					break
+			print("%s: %s" % [f[0], result])
+		get_tree().quit()
+
+	func _collider_at(edge: Dictionary) -> String:
+		var point: Vector3 = edge["point"]
+		var normal: Vector3 = edge["normal"]
+		var space := actor.get_world_3d().direct_space_state
+		var from := point - normal * 0.03 + Vector3.UP * 0.25
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 0.5, EdgeProbe.mask(actor), [actor.get_rid()]))
+		if hit.is_empty():
+			return "nada"
+		var body: Node = hit["collider"]
+		var shape := (body.get_child(0) as CollisionShape3D).shape as BoxShape3D
+		var top := (body as Node3D).global_position.y + (shape.size.y * 0.5 if shape != null else 0.0)
+		return "una caja que termina en y=%.2f (%s)" % [top, "la de abajo de la unión" if absf(top - point.y) < 0.01 else "otra"]
+
+
+func _initialize() -> void:
+	root.add_child(Runner.new())
+```
+
+#### diag_salida_escalera.gd
+
+```gdscript
+extends SceneTree
+
+# La salida por arriba de EscaleraTirolesa (pista de cables, plataforma de 6 m),
+# en el nivel real: trepa con W y suelta W en distintos momentos del tramo de
+# la salida (cuando el centro ya pasó tanto del eje). Imprime dónde queda, en
+# qué modo y si hay piso debajo del centro.
+
+const DT := 1.0 / 60.0
+
+
+class Runner extends Node:
+	var actor: ActorBody
+	var tuning := ActorTuning.from_scene()
+	var wait := 10
+	var done := false
+
+	func _ready() -> void:
+		SimClock.apply_tick_rate(SimClock.TICK_RATE)
+		add_child(load("res://scenes/net_lab/net_lab_level.tscn").instantiate())
+		actor = load("res://scenes/actor/actor.tscn").instantiate()
+		add_child(actor)
+
+	func _physics_process(_delta: float) -> void:
+		if wait > 0:
+			wait -= 1
+			return
+		if done:
+			return
+		done = true
+		var ladder: Ladder = null
+		for l: Ladder in Ladder.all():
+			if l.name == &"EscaleraTirolesa":
+				ladder = l
+		var side := 1.0
+		var out := ladder.face(side)
+		print("escalera %s: alto %.2f, eje en %s, standoff %.2f, tramo de salida %.3f" % [ladder.name, ladder.height,
+				ladder.global_position, ladder.standoff, ActorMotor.ladder_exit_length(actor, ladder, side, tuning)])
+		var yaw := atan2(out.x, out.z)
+		for release_past: float in [0.2, 0.5, 0.6, 0.7, 0.75, 0.8, 99.0]:
+			var s := ActorState.new()
+			s.mode = ActorState.Mode.LADDER
+			s.anchor_id = ladder.ladder_id
+			s.anchor_t = 5.5
+			s.facing_yaw = atan2(out.x, out.z)
+			s.position = ladder.pose_at(5.5, side)
+			actor.apply_state(s)
+			actor.state = s
+			var released := false
+			var line := ""
+			for t in 240:
+				var past := s.anchor_t - ladder.height
+				var w := not released and past < release_past
+				if not w:
+					released = true
+				ActorMotor.step(actor, s, ActorInput.make(t, Vector2(0, 1) if w else Vector2.ZERO, yaw + PI, 0, 0), tuning, DT)
+				if s.mode != ActorState.Mode.LADDER:
+					line = "sale a %s en el tick %d" % [ActorState.Mode.keys()[s.mode], t]
+					break
+			var p := actor.global_position
+			var ray := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 0.05, p + Vector3.DOWN * 0.3, EdgeProbe.mask(actor), [actor.get_rid()])
+			var floor := not actor.get_world_3d().direct_space_state.intersect_ray(ray).is_empty()
+			print("suelta W pasado el alto %.2f m: %s · modo %s, t=%.3f, pies (%.3f, %.3f, %.3f), piso debajo del centro: %s" % [
+					release_past, line if line != "" else "sigue en la escalera", ActorState.Mode.keys()[s.mode], s.anchor_t, p.x, p.y, p.z,
+					"sí" if floor else "no"])
+		get_tree().quit()
+
+
+func _initialize() -> void:
+	root.add_child(Runner.new())
+```
+
+#### diag_salida_escalera2.gd
+
+```gdscript
+extends SceneTree
+
+# La salida por arriba de todas las escaleras del nivel, por cada lado por el
+# que se puede salir: trepa con W desde medio metro abajo del alto y suelta W
+# en distintos momentos del tramo de la salida (cuánto pasó del alto). Sigue
+# 2 s sin teclas y dice en qué modo terminó, dónde, y si hay piso debajo del
+# centro. "99" es no soltar W hasta el final del tramo.
+
+const DT := 1.0 / 60.0
+
+
+class Runner extends Node:
+	var actor: ActorBody
+	var tuning := ActorTuning.from_scene()
+	var wait := 10
+	var done := false
+
+	func _ready() -> void:
+		SimClock.apply_tick_rate(SimClock.TICK_RATE)
+		add_child(load("res://scenes/net_lab/net_lab_level.tscn").instantiate())
+		actor = load("res://scenes/actor/actor.tscn").instantiate()
+		add_child(actor)
+
+	func _floor_under_center() -> bool:
+		var p := actor.global_position
+		var ray := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 0.05, p + Vector3.DOWN * 0.3, EdgeProbe.mask(actor), [actor.get_rid()])
+		return not actor.get_world_3d().direct_space_state.intersect_ray(ray).is_empty()
+
+	func _physics_process(_delta: float) -> void:
+		if wait > 0:
+			wait -= 1
+			return
+		if done:
+			return
+		done = true
+		var only := ""
+		for arg in OS.get_cmdline_user_args():
+			if arg.begins_with("--escalera="):
+				only = arg.trim_prefix("--escalera=")
+		for ladder: Ladder in Ladder.all():
+			if only != "" and String(ladder.name) != only:
+				continue
+			for side: float in [1.0, -1.0]:
+				var exit := ActorMotor.ladder_exit_length(actor, ladder, side, tuning)
+				if exit <= 0.0:
+					continue
+				# De ese lado no se puede trepar si el cuerpo no cabe donde arranca
+				# (medio metro abajo del alto) o en la pose de arriba de todo.
+				var start_t := maxf(ladder.height - 0.5, 0.0)
+				if not actor.stance_fits(ActorState.Stance.STANDING, ladder.pose_at(start_t, side)) \
+						or not actor.stance_fits(ActorState.Stance.STANDING, ladder.pose_at(ladder.height, side)):
+					print("%s, lado %+d: no se puede trepar de ese lado (el cuerpo no cabe)" % [ladder.name, int(side)])
+					continue
+				var out := ladder.face(side)
+				var yaw := atan2(out.x, out.z)
+				print("%s, lado %+d: alto %.2f, tramo de salida %.3f" % [ladder.name, int(side), ladder.height, exit])
+				for release_past: float in [0.2, 0.4, 0.5, 0.6, 0.7, 99.0]:
+					var s := ActorState.new()
+					s.mode = ActorState.Mode.LADDER
+					s.anchor_id = ladder.ladder_id
+					s.anchor_t = maxf(ladder.height - 0.5, 0.0)
+					s.facing_yaw = yaw
+					s.position = ladder.pose_at(s.anchor_t, side)
+					actor.apply_state(s)
+					actor.state = s
+					var released := false
+					var left_at := -1
+					var past_at_release := 0.0
+					for t in 360:
+						var past := s.anchor_t - ladder.height
+						var w := not released and s.mode == ActorState.Mode.LADDER and past < release_past
+						if not w and not released:
+							released = true
+							past_at_release = past
+						ActorMotor.step(actor, s, ActorInput.make(t, Vector2(0, 1) if w else Vector2.ZERO, yaw, 0, 0), tuning, DT)
+						if left_at < 0 and s.mode != ActorState.Mode.LADDER:
+							left_at = t
+						if released and t > 240:
+							break
+					var p := actor.global_position
+					print("   suelta W a %s: %s · termina en %s, pies (%.3f, %.3f, %.3f), %.2f m sobre el alto, piso debajo del centro: %s" % [
+							"%.2f m" % release_past if release_past < 90.0 else "el final",
+							"sale de la escalera en el tick %d" % left_at if left_at >= 0 else "sigue en la escalera (t=%.3f)" % s.anchor_t,
+							ActorState.Mode.keys()[s.mode], p.x, p.y, p.z, p.y - (ladder.global_position + ladder.up() * ladder.height).y,
+							"sí" if _floor_under_center() else "no"])
+		get_tree().quit()
+
+
+func _initialize() -> void:
+	root.add_child(Runner.new())
+```
+
+#### salida_pares.ps1
+
+```powershell
+# Pruebas en pareja de la salida por arriba de la escalera (2026-10-28): host
+# y cliente en esta PC. Cada caso: [nombre, puerto, argumentos del host,
+# argumentos del cliente].
+$s = Split-Path -Parent $MyInvocation.MyCommand.Path
+$proyecto = "C:\Users\ElCaido97\Documents\tun-tun-tun-sahur"
+$common = @('--headless','--path',$proyecto,'--scene','res://scenes/net_lab/net_lab.tscn','--')
+$mala = @('--sim-rtt=200','--sim-jitter=40','--sim-loss=5')
+$casos = @(
+    @('cliente laddertop:stop, internet mala', 7841, @(), (@('--test-input=laddertop:stop','--sim-seed=22') + $mala)),
+    @('host laddertop:stop, cliente mirando, internet mala', 7842, @('--test-input=laddertop:stop'), (@('--sim-seed=22') + $mala)),
+    @('cliente laddertop (con W hasta el final), internet mala', 7843, @(), (@('--test-input=laddertop','--sim-seed=22') + $mala))
+)
+foreach ($c in $casos) {
+    $name = $c[0]; $port = $c[1]
+    $hostArgs = $common + @('--host',"--port=$port",'--bind=127.0.0.1','--report-after=28','--autoquit=30') + $c[2]
+    $clientArgs = $common + @('--client','--address=127.0.0.1',"--port=$port",'--report-after=26.5','--autoquit=28.5') + $c[3]
+    $out = & "$s\run_pair.ps1" -HostArgs $hostArgs -ClientArgs $clientArgs -TimeoutSeconds 60
+    $file = "$s\par_$port.txt"
+    $out | Out-File -Encoding utf8 $file
+    Write-Output "######## $name"
+    $out | Select-String -Pattern 'escalera:|resumen|los demás en pantalla|SCRIPT ERROR|ERROR:|TIMEOUT' | ForEach-Object { ($_.Line -replace 'sincronizado=.*?coincidencias', 'coincidencias' -replace ' esperas_input.*', '') }
+}
+```
+
+#### armar_commit.js
+
+```javascript
+// Deja en el índice de git cada archivo mezclado SIN los cambios viejos (la 8.24
+// del agarre por encima del filo, F1, las IP): toma el archivo de disco, le
+// cambia cada pedazo viejo por el de HEAD (cada uno tiene que estar una sola
+// vez) y lo guarda con hash-object + update-index. El disco no se toca.
+const { execSync } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+const repo = "C:/Users/ElCaido97/Documents/tun-tun-tun-sahur";
+const scratch = __dirname;
+
+const swaps = {
+	"scripts/actor/actor_motor.gd": [
+		["\tbody.grab_jump = Vector3.ZERO\n\tbody.grab_jump_speed = ActorBody.GRAB_MAX_SPEED\n", "\tbody.grab_jump = Vector3.ZERO\n"],
+		["\tbody.grab_jump += pose - from\n\tif check[\"from_above\"]:\n\t\tbody.grab_jump_speed = tuning.hang_drop_speed\n", "\tbody.grab_jump += pose - from\n"],
+		["## ya pasaron el filo, lo buscan de arriba hacia abajo.\n" +
+			"## Si las manos no tocaron nada, busca un filo debajo de ellas, hasta\n" +
+			"## hang_reach_down (from_above): llegó a la pared con las manos por encima del\n" +
+			"## filo, y se agarra en el acto, con el cuerpo bajando hasta colgar (pedido del\n" +
+			"## usuario, 2026-10-19). Subiendo, no, si ese salto le lleva los pies arriba\n" +
+			"## del filo: ahí sigue y cae arriba.\n" +
+			"## El filo se toma enfrente del centro del cuerpo (las manos pueden quedar\n" +
+			"## corridas si llega en diagonal), si el borde sigue ahí. Valida la pose de\n" +
+			"## colgado: cabe, el camino hasta ella está libre, queda a menos de\n" +
+			"## hang_snap_max (desde arriba, de costado; para abajo, hasta hang_reach_down)\n" +
+			"## y no cae delante de una escalera (Ladder.any_at). Devuelve {edge, pose, why,\n" +
+			"## from_above}: why vacío si se puede agarrar, o por qué no. Lo usan el motor y\n" +
+			"## las pruebas de confirmación.\n",
+			"## ya pasaron el filo, lo buscan de arriba hacia abajo.\n" +
+			"## El filo se toma enfrente del centro del cuerpo (las manos pueden quedar\n" +
+			"## corridas si llega en diagonal), si el borde sigue ahí. Valida la pose de\n" +
+			"## colgado: cabe, el camino hasta ella está libre, queda a menos de\n" +
+			"## hang_snap_max y no cae delante de una escalera (Ladder.any_at). Devuelve {edge, pose, why}: why vacío si se puede agarrar, o\n" +
+			"## por qué no. Lo usan el motor y las pruebas de confirmación.\n"],
+		["\"why\": \"sin borde\", \"from_above\": false}", "\"why\": \"sin borde\"}"],
+		["\tvar from_above := false\n" +
+			"\tif edge.is_empty() and tuning.hang_reach_down > 0.0:\n" +
+			"\t\tvar hands := EdgeProbe.hands_at(body, from, toward, tuning)\n" +
+			"\t\tedge = EdgeProbe.find(body, hands, hands + Vector3.DOWN * tuning.hang_reach_down, toward)\n" +
+			"\t\tif not edge.is_empty() and edge[\"point\"].y > hands.y:\n" +
+			"\t\t\tedge = {}\n" +
+			"\t\tfrom_above = not edge.is_empty()\n", ""],
+		["\tresult[\"from_above\"] = from_above\n\tvar drop: Vector3 = from - result[\"pose\"]\n", ""],
+		["\telif from_above and rising and from.y + state.velocity.y * state.velocity.y / (2.0 * tuning.gravity) > edge[\"point\"].y:\n" +
+			"\t\tresult[\"why\"] = \"subiendo, el salto pasa arriba del filo\"\n", ""],
+		["\telif not from_above and drop.length() > tuning.hang_snap_max:\n" +
+			"\t\tresult[\"why\"] = \"snap muy largo\"\n" +
+			"\telif from_above and (Vector2(drop.x, drop.z).length() > tuning.hang_snap_max or drop.y > tuning.hang_reach_down):\n" +
+			"\t\tresult[\"why\"] = \"snap muy largo\"\n",
+			"\telif result[\"pose\"].distance_to(from) > tuning.hang_snap_max:\n" +
+			"\t\tresult[\"why\"] = \"snap muy largo\"\n"],
+	],
+	"scripts/actor/actor_body.gd": [
+		["## A qué velocidad alcanza el dibujo ese agarre: GRAB_MAX_SPEED, salvo\n" +
+			"## agarrándose de un borde con las manos por encima del filo (hang_drop_speed).\n" +
+			"## Lo pone ActorMotor junto con grab_jump.\n" +
+			"var grab_jump_speed := GRAB_MAX_SPEED\n" +
+			"var _grab_speed := GRAB_MAX_SPEED\n", ""],
+		["\t\t_grab_speed = grab_jump_speed\n", ""],
+		["## decae igual, pero sin pasar de la velocidad de ese agarre (_grab_speed).\n", "## decae igual, pero sin pasar de GRAB_MAX_SPEED.\n"],
+		["_grab_speed * dt)", "GRAB_MAX_SPEED * dt)"],
+		["\t\tgrab_offset = Vector3.ZERO\n\t\t_grab_speed = GRAB_MAX_SPEED\n", "\t\tgrab_offset = Vector3.ZERO\n"],
+		["\tgrab_offset = Vector3.ZERO\n\t_grab_speed = GRAB_MAX_SPEED\n", "\tgrab_offset = Vector3.ZERO\n"],
+	],
+	"scripts/actor/actor_tuning.gd": [
+		["## Llegando a la pared con las manos por encima del filo, se agarra en el acto\n" +
+			"## si están hasta este tanto más arriba, en metros, y el cuerpo baja hasta\n" +
+			"## colgar. Subiendo, solo si ese salto no le lleva los pies arriba del filo\n" +
+			"## (ahí sigue y cae arriba). 0 lo apaga: espera a que las manos bajen al filo.\n" +
+			"@export_range(0.0, 1.5, 0.01) var hang_reach_down := 1.0\n" +
+			"## Al agarrarse así, a qué velocidad baja el dibujo hasta colgar, en m/s. Los\n" +
+			"## demás agarres van a 1,8 m/s, para que la cámara no salte.\n" +
+			"@export_range(0.5, 10.0, 0.1) var hang_drop_speed := 4.0\n", ""],
+	],
+	"scenes/net_lab/net_lab.gd": [
+		["\"Tu IP para que se unan:\\n%s\"", "\"Tu IP en la red local: %s\""],
+		["\t\tif event.keycode == KEY_F1:\n" +
+			"\t\t\t# Oculta o muestra el panel, para mirar o capturar el juego sin él\n" +
+			"\t\t\t# (pedido del usuario, 2026-10-19).\n" +
+			"\t\t\t_info.visible = not _info.visible\n" +
+			"\t\telif index >= 0:\n", "\t\tif index >= 0:\n"],
+		["\t\t\t\t# Cayendo por delante sigue mirando para atrás: mirando el bloque, las\n" +
+			"\t\t\t\t# manos lo agarrarían desde arriba (hang_reach_down) y la prueba se\n" +
+			"\t\t\t\t# quedaba colgada ahí.\n" +
+			"\t\t\t\tyaw = PI\n", ""],
+		["## Direcciones IPv4 de esta PC que hay que escribir en la otra para unirse, una\n" +
+			"## por renglón y con el nombre de su conexión: las de la red local (en la misma\n" +
+			"## casa) y las de Tailscale (100.64 a 100.127) y Radmin VPN (26), para jugar\n" +
+			"## cada uno desde su casa.\n" +
+			"func _lan_addresses() -> String:\n" +
+			"\tvar found := PackedStringArray()\n" +
+			"\tfor interface in IP.get_local_interfaces():\n" +
+			"\t\tfor address: String in interface[\"addresses\"]:\n" +
+			"\t\t\tvar parts := address.split(\".\")\n" +
+			"\t\t\tif parts.size() != 4:\n" +
+			"\t\t\t\tcontinue\n" +
+			"\t\t\tvar second := parts[1].to_int()\n" +
+			"\t\t\tif (parts[0] == \"192\" and parts[1] == \"168\") or parts[0] == \"10\" or (parts[0] == \"172\" and second >= 16 and second <= 31) \\\n" +
+			"\t\t\t\t\tor (parts[0] == \"100\" and second >= 64 and second <= 127) or parts[0] == \"26\":\n" +
+			"\t\t\t\tfound.append(\"%s: %s\" % [interface[\"friendly\"], address])\n" +
+			"\treturn \"\\n\".join(found) if not found.is_empty() else \"no encontrada\"\n",
+			"## Direcciones IPv4 privadas de esta PC: la que hay que escribir en la otra PC\n" +
+			"## para unirse.\n" +
+			"func _lan_addresses() -> String:\n" +
+			"\tvar found := PackedStringArray()\n" +
+			"\tfor address in IP.get_local_addresses():\n" +
+			"\t\tvar parts := address.split(\".\")\n" +
+			"\t\tif parts.size() != 4:\n" +
+			"\t\t\tcontinue\n" +
+			"\t\tvar second := parts[1].to_int()\n" +
+			"\t\tif (parts[0] == \"192\" and parts[1] == \"168\") or parts[0] == \"10\" or (parts[0] == \"172\" and second >= 16 and second <= 31):\n" +
+			"\t\t\tfound.append(address)\n" +
+			"\treturn \", \".join(found) if not found.is_empty() else \"no encontrada\"\n"],
+		["\"F12 guarda una captura en el Escritorio · F1 oculta este panel y lo vuelve a mostrar\"", "\"F12 guarda una captura en el Escritorio\""],
+	],
+};
+
+for (const [file, list] of Object.entries(swaps)) {
+	let text = fs.readFileSync(path.join(repo, file), "utf8");
+	if (text.includes("\r\n")) throw new Error(file + ": tiene CRLF");
+	for (const [disk, head] of list) {
+		const count = text.split(disk).length - 1;
+		if (count !== 1) throw new Error(file + ": el pedazo está " + count + " veces: " + disk.slice(0, 80));
+		text = text.replace(disk, () => head);
+	}
+	const copy = path.join(scratch, "commit_" + path.basename(file));
+	fs.writeFileSync(copy, text);
+	const hash = execSync(`git hash-object -w "${copy}"`, { cwd: repo }).toString().trim();
+	execSync(`git update-index --cacheinfo 100644,${hash},"${file}"`, { cwd: repo });
+	console.log("en el índice: " + file + " " + hash);
+}
 ```

@@ -30,8 +30,16 @@ extends Node3D
 ##    donde se puede aterrizar, o pasando de largo paralelo a la cara;
 ## 3. cero ticks colgado con el cuerpo metido en la geometría;
 ## 4. 10 cm o menos de salto de la cámara en los 50 ms después de agarrarse.
+##    Desde el 2026-10-19 no cuenta para los agarres con las manos por encima
+##    del filo (hang_reach_down): el cuerpo baja más rápido a propósito
+##    (hang_drop_speed, decisión del usuario), y se informan aparte;
+## 5. (desde el 2026-10-30, después de la auditoría de GPT) en esos agarres
+##    desde arriba, el dibujo baja a hang_drop_speed y la cámara no se mueve
+##    más que eso en los 50 ms (hang_drop_speed × 50 ms, más 1 cm). Se los
+##    reconoce por la decisión del motor (repitiendo el tick del agarre sin esa
+##    búsqueda, ver _needs_reach_down), no por la velocidad del dibujo.
 ##
-## Sale con 0 si se cumplen los cuatro criterios y con 1 si no.
+## Sale con 0 si se cumplen los cinco criterios y con 1 si no.
 
 const TICK_DT := 1.0 / 60.0
 const COURSE_ORIGIN := Vector3(10, 0, -10)
@@ -70,8 +78,10 @@ var _tuning := ActorTuning.from_scene()
 var _cases: Array = []
 var _index := 0
 var _results: Array = []
-## Con --detalle=borde,vel,llegada,ángulo,lateral,objetivo,teclas imprime ese caso tick a tick.
+## Con --detalle=borde,vel,llegada,ángulo,lateral,objetivo,teclas imprime ese caso tick a tick,
+## también sus salidas.
 var _detail := ""
+var _detailing := false
 ## Subir: la altura más alta de los pies sobre el filo en el último intento.
 var _last_climb_peak := -INF
 
@@ -149,7 +159,7 @@ func _run(c: Dictionary) -> Dictionary:
 	var start := contact - direction * speed * lead - Vector3.UP * (vy0 * lead - 0.5 * _tuning.gravity * lead * lead)
 	var result := {"case": c, "possible": true, "captured": false, "tick": -1, "snap": Vector3.ZERO,
 			"why": "", "b_would": false, "in_band": false, "landed_on_top": false, "inside": 0, "exits": {},
-			"grab_normal": Vector3.ZERO}
+			"grab_normal": Vector3.ZERO, "drop_speed": ActorBody.GRAB_MAX_SPEED, "from_above": false}
 	var state := ActorState.new()
 	state.position = start
 	state.velocity = direction * speed + Vector3.UP * vy0
@@ -163,9 +173,11 @@ func _run(c: Dictionary) -> Dictionary:
 	# Sin teclas, no empuja: sigue la misma parábola, sin control aéreo.
 	var push := clampf(speed / _tuning.walk_speed, 0.2, 1.0) if c["keys"] == "empuja" else 0.0
 	var detailed := _detail == "%s,%.0f,%.1f,%.0f,%.1f,%s,%s" % [variant[0], speed, arrival, c["angle"], c["lateral"], c["goal"], c["keys"]]
+	_detailing = detailed
 	_actor.apply_state(state)
 	for t in RUN_TICKS:
 		_note_tick(state, yaw, variant, result)
+		var before := state.copy()
 		ActorMotor.step(_actor, state, ActorInput.make(t, Vector2(0, push), yaw, 0, 0), _tuning, TICK_DT)
 		if detailed:
 			print("[detalle] t=%d modo=%s pies=%s vel=%s ancla=%s filo=%s por_qué=%s" % [t, ActorState.Mode.keys()[state.mode],
@@ -175,6 +187,8 @@ func _run(c: Dictionary) -> Dictionary:
 			result["tick"] = t
 			result["grab_normal"] = -Vector3.FORWARD.rotated(Vector3.UP, state.facing_yaw)
 			result["snap"] = _actor.grab_jump
+			result["drop_speed"] = _actor.grab_jump_speed
+			result["from_above"] = _needs_reach_down(before, ActorInput.make(t, Vector2(0, push), yaw, 0, 0))
 			_actor.grab_jump = Vector3.ZERO
 			var hanging := state.copy()
 			result["inside"] = _count_inside(hanging, 20)
@@ -187,6 +201,22 @@ func _run(c: Dictionary) -> Dictionary:
 			result["landed_on_top"] = _actor.global_position.y > height - 0.2
 			break
 	return result
+
+
+## Si el agarre de este tick fue con las manos por encima del filo (criterio
+## 5): repite el tick desde el estado anterior con hang_reach_down en 0, que
+## apaga solo esa búsqueda; si así no se agarra, la necesitó. Es la decisión
+## exacta del motor, sin mirar la velocidad del dibujo. Deja el cuerpo donde
+## estaba antes del tick.
+func _needs_reach_down(before: ActorState, input: ActorInput) -> bool:
+	var reach := _tuning.hang_reach_down
+	var state := before.copy()
+	_actor.apply_state(state)
+	_tuning.hang_reach_down = 0.0
+	ActorMotor.step(_actor, state, input, _tuning, TICK_DT)
+	_tuning.hang_reach_down = reach
+	_actor.apply_state(before)
+	return state.mode != ActorState.Mode.HANGING
 
 
 ## Antes de cada tick en el aire: si las manos cruzan la banda del filo (para
@@ -295,6 +325,9 @@ func _try_exit(hanging: ActorState, exit: String, height: float) -> String:
 				if t > 0 and state.velocity.y <= 0.0:
 					move = Vector2(0, 1)
 		ActorMotor.step(_actor, state, ActorInput.make(t, move, yaw, buttons, presses), _tuning, TICK_DT)
+		if _detailing:
+			print("[detalle] salida=%s t=%d modo=%s pies=%s vel=%s filo=%s" % [exit, t, ActorState.Mode.keys()[state.mode],
+					_actor.global_position, state.velocity, state.anchor_point])
 		if exit.begins_with("subir"):
 			if state.mode == ActorState.Mode.AIR:
 				# Los pies de parado: encogido, los de verdad suben hang_climb_tuck más.
@@ -331,10 +364,12 @@ func _shimmy(hanging: ActorState, side: float, look_offset: float) -> bool:
 ## Métricas visuales de un agarre (prueba 4): cuánto se mueve la raíz visual,
 ## que es lo que sigue la cámara, en los 50 ms (3 ticks) y en los 100 ms (6
 ## ticks) después de agarrarse, y en cuántos segundos el desvío vuelve a cero
-## (menos de 1 mm). Arranca desde donde estaba el cuerpo.
-func _visual_metrics(snap: Vector3) -> Array:
+## (menos de 1 mm). Arranca desde donde estaba el cuerpo, y el dibujo lo
+## alcanza a la velocidad de ese agarre.
+func _visual_metrics(snap: Vector3, speed: float) -> Array:
 	_actor.teleported()
 	_actor.grab_jump = snap
+	_actor.grab_jump_speed = speed
 	_actor.present(_actor.state)
 	var before := _actor.grab_offset
 	var moved_50 := 0.0
@@ -368,6 +403,12 @@ func _finish() -> void:
 	var max_settle := 0.0
 	var settle_sum := 0.0
 	var captures := 0
+	# Los agarres con las manos por encima del filo, aparte (criterios 4 y 5).
+	var above := 0
+	var above_snap := 0.0
+	var above_camera := 0.0
+	var above_settle := 0.0
+	var above_wrong_speed := 0
 	var reasons := {}
 	var b_rescues := 0
 	var exit_stats := {}
@@ -391,13 +432,21 @@ func _finish() -> void:
 			var snap: float = r["snap"].length()
 			row["agarres"] += 1
 			row["snap_max"] = maxf(row["snap_max"], snap)
-			max_snap = maxf(max_snap, snap)
-			var visual := _visual_metrics(r["snap"])
-			max_camera = maxf(max_camera, visual[0])
-			max_camera_100 = maxf(max_camera_100, visual[1])
-			max_settle = maxf(max_settle, visual[2])
-			settle_sum += visual[2]
-			captures += 1
+			var visual := _visual_metrics(r["snap"], r["drop_speed"])
+			if r["from_above"]:
+				above += 1
+				above_snap = maxf(above_snap, snap)
+				above_camera = maxf(above_camera, visual[0])
+				above_settle = maxf(above_settle, visual[2])
+				if r["drop_speed"] != _tuning.hang_drop_speed:
+					above_wrong_speed += 1
+			else:
+				max_snap = maxf(max_snap, snap)
+				max_camera = maxf(max_camera, visual[0])
+				max_camera_100 = maxf(max_camera_100, visual[1])
+				max_settle = maxf(max_settle, visual[2])
+				settle_sum += visual[2]
+				captures += 1
 			inside_ticks += r["inside"]
 			for exit in r["exits"]:
 				var verdict: String = r["exits"][exit]
@@ -454,6 +503,8 @@ func _finish() -> void:
 	var ok_unwanted := unwanted_rate <= 1.0
 	var ok_inside := inside_ticks == 0
 	var ok_camera := max_camera <= 0.1
+	var above_limit := _tuning.hang_drop_speed * 0.05 + 0.01
+	var ok_above := above_wrong_speed == 0 and above_camera <= above_limit
 	print("[barrido] criterio 1, capturas en la banda buscada: %d de %d (%.1f %%) -> %s" % [wanted_captured, wanted, wanted_rate, "CUMPLE" if ok_wanted else "NO CUMPLE"])
 	print("[barrido] criterio 2, agarres no buscados: %d de %d (%.1f %%) -> %s" % [unwanted_captured, unwanted, unwanted_rate, "CUMPLE" if ok_unwanted else "NO CUMPLE"])
 	print("[barrido] además, en esos casos: %d agarres de otro borde que estaba en el camino" % other_edges)
@@ -464,5 +515,9 @@ func _finish() -> void:
 	print("[barrido] criterio 3, ticks colgado metido en la geometría: %d -> %s" % [inside_ticks, "CUMPLE" if ok_inside else "NO CUMPLE"])
 	print("[barrido] criterio 4, salto de cámara en 50 ms: %.3f m como máximo (snap máximo %.3f m) -> %s" % [max_camera, max_snap, "CUMPLE" if ok_camera else "NO CUMPLE"])
 	print("[barrido] visual: en los 100 ms después de agarrarse la raíz visual y la cámara se mueven %.3f m como máximo; el desvío vuelve a cero en %.2f s de promedio y %.2f s como máximo" % [max_camera_100, settle_sum / maxi(captures, 1), max_settle])
-	get_tree().quit(0 if ok_wanted and ok_unwanted and ok_inside and ok_camera else 1)
+	print("[barrido] desde arriba (manos hasta %.2f m por encima del filo, bajada a %.1f m/s): %d agarres, snap máximo %.3f m, la cámara se mueve hasta %.3f m en 50 ms y el desvío vuelve a cero en %.2f s como máximo" % [
+			_tuning.hang_reach_down, _tuning.hang_drop_speed, above, above_snap, above_camera, above_settle])
+	print("[barrido] criterio 5, desde arriba: %d de %d con otra velocidad del dibujo, la cámara %.3f m en 50 ms (hasta %.3f) -> %s" % [
+			above_wrong_speed, above, above_camera, above_limit, "CUMPLE" if ok_above else "NO CUMPLE"])
+	get_tree().quit(0 if ok_wanted and ok_unwanted and ok_inside and ok_camera and ok_above else 1)
 

@@ -62,6 +62,11 @@ var simulated := true
 ## grab_jump, con su tope de velocidad.
 var snap_jump := Vector3.ZERO
 var grab_jump := Vector3.ZERO
+## A qué velocidad alcanza el dibujo ese agarre: GRAB_MAX_SPEED, salvo
+## agarrándose de un borde con las manos por encima del filo (hang_drop_speed).
+## Lo pone ActorMotor junto con grab_jump.
+var grab_jump_speed := GRAB_MAX_SPEED
+var _grab_speed := GRAB_MAX_SPEED
 
 ## Forma activa: la de la postura concedida.
 var _active_stance: int = ActorState.Stance.STANDING
@@ -334,6 +339,7 @@ func present(actor_state: ActorState) -> void:
 	if grab_jump != Vector3.ZERO:
 		grab_offset -= grab_jump
 		grab_jump = Vector3.ZERO
+		_grab_speed = grab_jump_speed
 		_visual.position = visual_offset + grab_offset
 	# Colgado y en el mantle: las manos sobre el filo, a los costados. Colgado de
 	# un compañero, sobre su cintura. Cuelgan del cuerpo y no del dibujo, así
@@ -430,7 +436,7 @@ func set_visual_offset(offset: Vector3) -> void:
 
 ## Una vez por tick, en el tick: el desvío decae hacia cero. Va en el tick
 ## para que la interpolación de física lo suavice entre ticks. El del agarre
-## decae igual, pero sin pasar de GRAB_MAX_SPEED.
+## decae igual, pero sin pasar de la velocidad de ese agarre (_grab_speed).
 func decay_visual_offset(dt: float) -> void:
 	if _turn_offset != 0.0:
 		_turn_offset = move_toward(_turn_offset, 0.0, TURN_SPEED * dt)
@@ -442,10 +448,11 @@ func decay_visual_offset(dt: float) -> void:
 	if visual_offset.length_squared() < 1e-8:
 		visual_offset = Vector3.ZERO
 	var grab_length := grab_offset.length()
-	var step := minf(grab_length * (1.0 - factor), GRAB_MAX_SPEED * dt)
+	var step := minf(grab_length * (1.0 - factor), _grab_speed * dt)
 	grab_offset = grab_offset.move_toward(Vector3.ZERO, step)
 	if grab_offset.length_squared() < 1e-8:
 		grab_offset = Vector3.ZERO
+		_grab_speed = GRAB_MAX_SPEED
 	_visual.position = visual_offset + grab_offset
 
 
@@ -454,6 +461,7 @@ func decay_visual_offset(dt: float) -> void:
 func teleported() -> void:
 	visual_offset = Vector3.ZERO
 	grab_offset = Vector3.ZERO
+	_grab_speed = GRAB_MAX_SPEED
 	_turn_offset = 0.0
 	_visual.position = Vector3.ZERO
 	reset_physics_interpolation()

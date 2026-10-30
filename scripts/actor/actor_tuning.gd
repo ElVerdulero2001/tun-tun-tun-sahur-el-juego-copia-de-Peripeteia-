@@ -106,6 +106,14 @@ var _boosted_from: Array = []
 ## no puede quedar más que esto por encima de los pies, en metros. Así no tira
 ## del cuerpo para arriba.
 @export var hang_rise_reach := 0.1
+## Llegando a la pared con las manos por encima del filo, se agarra en el acto
+## si están hasta este tanto más arriba, en metros, y el cuerpo baja hasta
+## colgar. Subiendo, solo si ese salto no le lleva los pies arriba del filo
+## (ahí sigue y cae arriba). 0 lo apaga: espera a que las manos bajen al filo.
+@export_range(0.0, 1.5, 0.01) var hang_reach_down := 1.0
+## Al agarrarse así, a qué velocidad baja el dibujo hasta colgar, en m/s. Los
+## demás agarres van a 1,8 m/s, para que la cámara no salte.
+@export_range(0.5, 10.0, 0.1) var hang_drop_speed := 4.0
 ## Desplazarse colgado, en m/s.
 @export var shimmy_speed := 1.5
 ## Saltar colgado: velocidad hacia donde mira y hacia arriba, en m/s.

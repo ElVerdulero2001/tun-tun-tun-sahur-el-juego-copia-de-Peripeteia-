@@ -28,7 +28,9 @@ extends Node3D
 ## Desde el 2026-10-25 pasa también por el mantle: saltando parado frente al
 ## techo del túnel corto, sube arriba de él. Para que el resto del recorrido
 ## siguiera igual, en un tramo la cámara mira para otro lado y en dos se salta
-## pegado a la pared (ver los comentarios de cada tramo).
+## pegado a la pared (ver los comentarios de cada tramo). Desde el 2026-10-30,
+## la cobertura pide que ese mantle termine en Suelo, no solo que entre al
+## modo; lo demás del mantle lo prueba mantle_test.tscn.
 ##
 ## Desde el 2026-10-28, antes del último tramo sube la escalera de la torre y
 ## suelta W en la salida por arriba con el cuerpo ya sobre la torre: termina la
@@ -71,6 +73,9 @@ var _ticks_ladder := 0
 var _ticks_hanging := 0
 var _ticks_cable := 0
 var _ticks_mantle := 0
+## Mantles que terminaron en Suelo: entrar al modo no alcanza (desde el
+## 2026-10-30, por la auditoría de GPT). Si se corta, no cuenta.
+var _mantles_done := 0
 ## Empujones del recorrido, por tick: [impulso, fuerza].
 var _events := {}
 var _ticks_crouched := 0
@@ -136,6 +141,7 @@ func _live_tick() -> void:
 		_state = _initial.copy()
 		_actor.apply_state(_state)
 	var previous_vertical := _state.velocity.y
+	var was_mantling := _state.mode == ActorState.Mode.MANTLE
 	var could_air_jump := _state.mode == ActorState.Mode.AIR and not _state.jumped and _state.coyote_left == 0.0
 	_apply_events(_state, _tick)
 	if SimClock.world_scale(_tick) < 1.0:
@@ -160,6 +166,8 @@ func _live_tick() -> void:
 			_ticks_cable += 1
 		ActorState.Mode.MANTLE:
 			_ticks_mantle += 1
+	if was_mantling and _state.mode == ActorState.Mode.GROUND:
+		_mantles_done += 1
 	if _state.stance == ActorState.Stance.TUCKED:
 		_ticks_tucked += 1
 	if _state.stance == ActorState.Stance.CROUCHED:
@@ -219,7 +227,7 @@ func _replay(start: int, stop: int) -> void:
 
 func _finish() -> void:
 	_phase = Phase.DONE
-	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d colgado, %d en un cable, %d en el mantle, %d tocando pared, %d saltos (%d en el aire), altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_hanging, _ticks_cable, _ticks_mantle, _ticks_wall, _jumps, _air_jumps, _max_height])
+	print("%s cobertura: %d ticks en Suelo, %d en Aire, %d deslizándose, %d en escalera, %d colgado, %d en un cable, %d en el mantle (%d terminados arriba), %d tocando pared, %d saltos (%d en el aire), altura máxima %.2f m" % [LOG_PREFIX, _ticks_ground, _ticks_air, _ticks_slide, _ticks_ladder, _ticks_hanging, _ticks_cable, _ticks_mantle, _mantles_done, _ticks_wall, _jumps, _air_jumps, _max_height])
 	print("%s postura: %d ticks agachado, %d de ellos pidiendo pararse sin lugar; %d encogido" % [LOG_PREFIX, _ticks_crouched, _ticks_kept_crouched, _ticks_tucked])
 	print("%s cámara lenta: %d ticks; súper salto y velocidad: %d ticks" % [LOG_PREFIX, _ticks_slow, _ticks_boost])
 	print("%s %d repeticiones, %d ticks repetidos" % [LOG_PREFIX, _replays, _replayed_ticks])
@@ -250,7 +258,7 @@ func _finish() -> void:
 func _missing_coverage() -> PackedStringArray:
 	var counts := {"Suelo": _ticks_ground, "Aire": _ticks_air, "deslizarse": _ticks_slide,
 			"la escalera": _ticks_ladder, "colgarse de un borde": _ticks_hanging, "un cable": _ticks_cable,
-			"el mantle": _ticks_mantle,
+			"el mantle hasta quedar arriba": _mantles_done,
 			"tocar una pared": _ticks_wall, "saltar": _jumps, "el salto en el aire": _air_jumps,
 			"agacharse": _ticks_crouched, "quedar agachado bajo un techo": _ticks_kept_crouched,
 			"encogerse": _ticks_tucked, "la cámara lenta": _ticks_slow, "el súper salto y velocidad": _ticks_boost}

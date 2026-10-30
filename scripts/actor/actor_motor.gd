@@ -90,6 +90,7 @@ const MANTLE_WALL_GAP := 0.01
 static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
 	body.snap_jump = Vector3.ZERO
 	body.grab_jump = Vector3.ZERO
+	body.grab_jump_speed = ActorBody.GRAB_MAX_SPEED
 	body.fit_tuck(tuning.hang_climb_tuck)
 
 	# 1. Tiempo: dt es el del mundo, 1/60 por la escala del mundo (cámara lenta).
@@ -1079,6 +1080,8 @@ static func _try_grab_edge(body: ActorBody, state: ActorState, direction: Vector
 	state.jump_buffer_left = 0.0
 	state.coyote_left = 0.0
 	body.grab_jump += pose - from
+	if check["from_above"]:
+		body.grab_jump_speed = tuning.hang_drop_speed
 	return edge
 
 
@@ -1090,15 +1093,22 @@ static func _try_grab_edge(body: ActorBody, state: ActorState, direction: Vector
 ## pose no puede quedar más de hang_rise_reach por encima de los pies. Si en
 ## este tick o en el anterior (el del salto, que todavía era Suelo) las manos
 ## ya pasaron el filo, lo buscan de arriba hacia abajo.
+## Si las manos no tocaron nada, busca un filo debajo de ellas, hasta
+## hang_reach_down (from_above): llegó a la pared con las manos por encima del
+## filo, y se agarra en el acto, con el cuerpo bajando hasta colgar (pedido del
+## usuario, 2026-10-19). Subiendo, no, si ese salto le lleva los pies arriba
+## del filo: ahí sigue y cae arriba.
 ## El filo se toma enfrente del centro del cuerpo (las manos pueden quedar
 ## corridas si llega en diagonal), si el borde sigue ahí. Valida la pose de
 ## colgado: cabe, el camino hasta ella está libre, queda a menos de
-## hang_snap_max y no cae delante de una escalera (Ladder.any_at). Devuelve {edge, pose, why}: why vacío si se puede agarrar, o
-## por qué no. Lo usan el motor y las pruebas de confirmación.
+## hang_snap_max (desde arriba, de costado; para abajo, hasta hang_reach_down)
+## y no cae delante de una escalera (Ladder.any_at). Devuelve {edge, pose, why,
+## from_above}: why vacío si se puede agarrar, o por qué no. Lo usan el motor y
+## las pruebas de confirmación.
 ## Agachado no agarra; encogido sí, y todo se mide desde donde estarían los
 ## pies parado (_standing_feet).
 static func grab_check(body: ActorBody, state: ActorState, direction: Vector3, tuning: ActorTuning, dt: float) -> Dictionary:
-	var result := {"edge": {}, "pose": Vector3.ZERO, "why": "sin borde"}
+	var result := {"edge": {}, "pose": Vector3.ZERO, "why": "sin borde", "from_above": false}
 	if state.regrab_id == ActorState.REGRAB_EDGES or state.stance == ActorState.Stance.CROUCHED:
 		result["why"] = "bloqueo o postura"
 		return result
@@ -1115,6 +1125,13 @@ static func grab_check(body: ActorBody, state: ActorState, direction: Vector3, t
 	if edge.is_empty() and rising:
 		var hands_before := EdgeProbe.hands_at(body, from - state.velocity * dt, toward, tuning)
 		edge = EdgeProbe.find(body, hands_to, hands_before, toward)
+	var from_above := false
+	if edge.is_empty() and tuning.hang_reach_down > 0.0:
+		var hands := EdgeProbe.hands_at(body, from, toward, tuning)
+		edge = EdgeProbe.find(body, hands, hands + Vector3.DOWN * tuning.hang_reach_down, toward)
+		if not edge.is_empty() and edge["point"].y > hands.y:
+			edge = {}
+		from_above = not edge.is_empty()
 	if edge.is_empty():
 		return result
 	var normal: Vector3 = edge["normal"]
@@ -1124,14 +1141,20 @@ static func grab_check(body: ActorBody, state: ActorState, direction: Vector3, t
 		edge = ahead
 	result["edge"] = edge
 	result["pose"] = _hang_pose(edge, tuning)
+	result["from_above"] = from_above
+	var drop: Vector3 = from - result["pose"]
 	if toward.dot(-edge["normal"]) < 0.5:
 		result["why"] = "intención de costado"
 	elif rising and result["pose"].y > from.y + tuning.hang_rise_reach:
 		result["why"] = "subiendo, las manos todavía no llegan"
+	elif from_above and rising and from.y + state.velocity.y * state.velocity.y / (2.0 * tuning.gravity) > edge["point"].y:
+		result["why"] = "subiendo, el salto pasa arriba del filo"
 	elif from.y + body.stance_height(ActorState.Stance.STANDING) * 0.5 > edge["point"].y:
 		# Con el cuerpo por encima del filo es un aterrizaje, no un agarre.
 		result["why"] = "por encima del filo"
-	elif result["pose"].distance_to(from) > tuning.hang_snap_max:
+	elif not from_above and drop.length() > tuning.hang_snap_max:
+		result["why"] = "snap muy largo"
+	elif from_above and (Vector2(drop.x, drop.z).length() > tuning.hang_snap_max or drop.y > tuning.hang_reach_down):
 		result["why"] = "snap muy largo"
 	elif not body.stance_fits(ActorState.Stance.STANDING, result["pose"]):
 		result["why"] = "la pose no cabe"

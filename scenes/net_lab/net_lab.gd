@@ -1134,6 +1134,10 @@ func _hang_input(tick: int, base_id: int) -> ActorInput:
 				yaw = PI
 				move = Vector2(0, 1)
 			elif _hang_since >= 1000:
+				# Cayendo por delante sigue mirando para atrás: mirando el bloque, las
+				# manos lo agarrarían desde arriba (hang_reach_down) y la prueba se
+				# quedaba colgada ahí.
+				yaw = PI
 				if s.mode == ActorState.Mode.GROUND:
 					_hang_phase = 0
 			elif s.mode == ActorState.Mode.HANGING:

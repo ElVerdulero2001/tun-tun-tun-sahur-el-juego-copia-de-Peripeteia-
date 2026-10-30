@@ -29,6 +29,10 @@ extends Node3D
 ## techo del túnel corto, sube arriba de él. Para que el resto del recorrido
 ## siguiera igual, en un tramo la cámara mira para otro lado y en dos se salta
 ## pegado a la pared (ver los comentarios de cada tramo).
+##
+## Desde el 2026-10-28, antes del último tramo sube la escalera de la torre y
+## suelta W en la salida por arriba con el cuerpo ya sobre la torre: termina la
+## escalera ahí. Va al final para no mover nada de lo de antes.
 
 const TICK_DT := 1.0 / 60.0
 const TIMEOUT_SECONDS := 400.0
@@ -400,6 +404,14 @@ func _build_inputs() -> void:
 		[20, Vector2.ZERO, 0.0, [], 0, [], 0, [5, 5]],  # dos pulsaciones juntas: sigue prendido
 		[20, Vector2.ZERO, 0.0, [], 0, [], 0, [5]],  # lo apaga
 		[60, Vector2.ZERO, 0.0, [10], 0],  # salto normal
+		# Escalera de la torre (x 8, z 12,5), por delante (2026-10-28): la sube y
+		# suelta W a mitad de la salida por arriba, con el centro del cuerpo ya
+		# sobre la torre: termina la escalera ahí y frena caminando.
+		[30, Vector2.ZERO, 0.0, [], 0],  # cae y se queda quieto
+		[120, Vector2(0, 1), PI / 2.0, [], 0],  # a la izquierda, hasta delante de la escalera
+		[30, Vector2.ZERO, 0.0, [], 0],
+		[148, Vector2(0, 1), PI, [], 0],  # hacia la escalera, se agarra, sube y entra a la salida
+		[30, Vector2.ZERO, PI, [], 0],  # suelta W: termina la escalera arriba y frena
 		# Cámara lenta del mundo prendida que nadie apaga (-1: hasta el final):
 		[60, Vector2(0, 1), 0.0, [20], 0, [], -1],
 	]

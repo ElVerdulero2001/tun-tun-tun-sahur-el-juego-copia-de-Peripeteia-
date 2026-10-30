@@ -238,6 +238,18 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 				# Terminó el tramo de la salida por arriba: queda parado arriba.
 				_finish_ladder_exit(body, state, ladder, input, tuning)
 				direction = _wish_direction(input, state)
+			elif ladder_exit > 0.0 and climb == 0.0 and state.anchor_t >= ladder.height + LADDER_EXIT_LIFT \
+					and _floor_under(body, body.global_position, tuning):
+				# Sin W ni S en la parte de la salida que va hacia el rellano, con el
+				# centro del cuerpo ya sobre el piso: termina la escalera y frena como
+				# caminando, con la velocidad que traía (pedido del usuario,
+				# 2026-10-28: quedaba en Ladder parado sobre la plataforma). Arriba
+				# de una escalera suelta no hay piso (sus piezas no cuentan), y ahí
+				# sigue quedando donde está.
+				var moving := state.velocity
+				_finish_ladder_exit(body, state, ladder, input, tuning)
+				state.velocity = moving
+				direction = _wish_direction(input, state)
 		ActorState.Mode.HANGING:
 			if edge.is_empty():
 				# Invariante roto: el borde ya no está o quedó fuera de alcance.
@@ -944,7 +956,9 @@ static func _move_on_ladder(body: ActorBody, state: ActorState) -> void:
 ## ladder_top_land (o solo Standoff, hasta el eje, si ahí no hay piso: una
 ## escalera suelta, y queda parado arriba de ella). Sube a climb_speed y hacia
 ## el rellano va a walk_speed (ver _ladder), con W;
-## vuelve con S y sin teclas se queda donde está; al final queda parado arriba,
+## vuelve con S y sin teclas se queda donde está, salvo que el centro del
+## cuerpo ya tenga piso debajo: ahí termina la escalera y frena caminando
+## (pedido del usuario, 2026-10-28); al final queda parado arriba,
 ## quieto (_finish_ladder_exit). Hasta entonces, un saltito por el aire lo
 ## llevaba al rellano (hasta el 2026-10-22, a 2,5 m/s y con W empujando en el
 ## aire; después, justo hasta ladder_top_land).

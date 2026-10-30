@@ -55,7 +55,9 @@ extends Node3D
 ## o --test-input=laddertop (la sube y sale al techo de la torre),
 ## --test-input=laddertop:back (igual, pero en tercera persona y con la cámara
 ## mirando para atrás: al salir sigue con W sola, que lo lleva derecho, y
-## después toca D),
+## después toca D), --test-input=laddertop:stop (igual que laddertop, pero
+## suelta W en la salida por arriba con el cuerpo ya sobre el techo: termina
+## la escalera ahí),
 ## --test-input=cable (sube a la plataforma alta de la pista de cables, se
 ## agarra de la tirolesa, se desliza con W hasta abajo, frenando una vez a
 ## mitad de camino, sube un poco con S y se suelta),
@@ -677,8 +679,8 @@ func _local_input(tick: int) -> ActorInput:
 		return _air_jump_input(tick)
 	if test_input == "cable" or test_input == "cablehold":
 		return _cable_input(tick, test_input == "cablehold")
-	if test_input == "ladder" or test_input == "laddertop" or test_input == "laddertop:back":
-		return _ladder_input(tick, test_input != "ladder", TOWER_LADDER_NAME, test_input == "laddertop:back")
+	if test_input == "ladder" or test_input == "laddertop" or test_input == "laddertop:back" or test_input == "laddertop:stop":
+		return _ladder_input(tick, test_input != "ladder", TOWER_LADDER_NAME, test_input == "laddertop:back", test_input == "laddertop:stop")
 	if test_input == "ladderhold" or test_input == "ladderhold:drop":
 		return _ladder_hold_input(tick, test_input == "ladderhold:drop")
 	if test_input == "ladderdrop":
@@ -892,7 +894,9 @@ func _ladder_named(ladder_name: StringName) -> Ladder:
 ## Con `look_back`, trepa en tercera persona con la cámara mirando para atrás
 ## y, al salir por arriba, sigue 30 ticks con W sola (va derecho, hacia adentro
 ## del techo), toca D 6 ticks y se queda quieto.
-func _ladder_input(tick: int, to_top: bool, ladder_name := TOWER_LADDER_NAME, look_back := false) -> ActorInput:
+## Con `stop_on_exit`, suelta W apenas pasó medio metro del alto (en la
+## salida por arriba, con el centro del cuerpo ya sobre el techo).
+func _ladder_input(tick: int, to_top: bool, ladder_name := TOWER_LADDER_NAME, look_back := false, stop_on_exit := false) -> ActorInput:
 	var ladder := _ladder_named(ladder_name)
 	if ladder == null or not is_instance_valid(_local_actor):
 		return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, 0)
@@ -904,6 +908,8 @@ func _ladder_input(tick: int, to_top: bool, ladder_name := TOWER_LADDER_NAME, lo
 		if to_top:
 			if s.anchor_t >= ladder.height - 0.01:
 				_ladder_top_done = true
+			if stop_on_exit and s.anchor_t >= ladder.height + 0.5:
+				return ActorInput.make(tick, Vector2.ZERO, look, view, 0)
 			return ActorInput.make(tick, Vector2(0, 1), look, view, 0)
 		if s.anchor_t >= 2.0:
 			_ladder_direction = -1.0
@@ -2434,6 +2440,8 @@ func _print_summary_and_quit() -> void:
 		print("[net_lab] relevo de prueba: %d paquetes pasaron, %d se tiraron en los cortes" % [_relay.forwarded, _relay.dropped])
 	if test_input == "airjump":
 		print("[net_lab] salto en el aire: %d saltos" % air_jumps)
+	if test_input.begins_with("laddertop") and is_instance_valid(_local_actor):
+		print("[net_lab] escalera: termina en %s" % _local_actor.state.describe())
 	if test_input == "cable" or test_input == "cablehold":
 		print("[net_lab] cable: %d agarres, %d frenadas a mitad de camino, %d bajadas hasta la punta, subió %.2f m en total; tramo %d" % [cable_grabs, cable_stops, cable_slides, cable_climbed, _cable_phase])
 	if test_input == "tunnel":

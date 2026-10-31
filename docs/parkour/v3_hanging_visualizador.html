@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V3 Player</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --fondo: #f5f7fb;
+      --capsula: #1f2937;
+      --camara: #ff1f1f;
+      --esfera: #1414ff;
+      --rayos-horizontales: #ff7900;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fondo: #0f1720;
+        --capsula: #e2e8f0;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      background: var(--fondo);
+    }
+
+    .escena {
+      display: block;
+      width: min(76vw, 700px);
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+  <svg class="escena" viewBox="0 0 600 600" role="img" aria-label="Cápsula del Player V3 y su cámara">
+    <rect x="180" y="100" width="140" height="390" rx="70" fill="none" stroke="var(--capsula)" stroke-width="5" />
+    <g stroke="var(--rayos-horizontales)" stroke-width="5">
+      <line x1="320" y1="140" x2="540" y2="140" />
+      <line x1="320" y1="200" x2="540" y2="200" />
+      <line x1="320" y1="260" x2="540" y2="260" />
+      <line x1="320" y1="340" x2="540" y2="340" />
+      <line x1="320" y1="410" x2="540" y2="410" />
+    </g>
+    <path d="M320 195 L480 120 L480 270 Z" fill="none" stroke="var(--camara)" stroke-width="5" stroke-linejoin="miter" />
+    <circle cx="285" cy="240" r="34" fill="none" stroke="var(--esfera)" stroke-width="5" />
+  </svg>
+</body>
+</html>

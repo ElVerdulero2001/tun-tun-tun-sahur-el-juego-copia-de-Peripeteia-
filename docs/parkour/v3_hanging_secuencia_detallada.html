@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Secuencia detallada de Hanging V3</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --page: #f8fafc;
+      --surface: #ffffff;
+      --ink: #111827;
+      --muted: #4b5563;
+      --line: #cbd5e1;
+      --wall: #050505;
+      --red: #ef2222;
+      --orange: #f27612;
+      --purple: #c000ff;
+      --blue: #143cff;
+      --green: #08783c;
+      --amber: #9a5800;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page: #0d1117;
+        --surface: #161b22;
+        --ink: #e6edf3;
+        --muted: #a9b4c2;
+        --line: #3a4552;
+        --wall: #e7e7e7;
+        --green: #5ee18b;
+        --amber: #ffc56d;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font: 15px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main { padding: 24px; }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.4rem;
+    }
+
+    .intro {
+      margin: 0 0 20px;
+      color: var(--muted);
+      max-width: 78rem;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: .9rem;
+    }
+
+    .legend span::before {
+      content: "";
+      display: inline-block;
+      width: .7em;
+      height: .7em;
+      margin-right: .35em;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .legend .orange { color: var(--orange); }
+    .legend .purple { color: var(--purple); }
+    .legend .blue { color: var(--blue); }
+
+    .timeline-wrap {
+      overflow-x: auto;
+      padding-bottom: 16px;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(9, minmax(255px, 1fr));
+      min-width: 2350px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .step {
+      min-height: 690px;
+      padding: 14px;
+      border-right: 2px solid var(--ink);
+    }
+
+    .step:last-child { border-right: 0; }
+
+    .step-header {
+      min-height: 84px;
+      text-align: center;
+    }
+
+    .step-number {
+      display: block;
+      margin-bottom: 2px;
+      color: var(--muted);
+      font-size: .8rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .state {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: .82rem;
+    }
+
+    .scene {
+      display: block;
+      width: 100%;
+      height: 190px;
+      margin: 4px 0 12px;
+    }
+
+    .player {
+      fill: none;
+      stroke: var(--ink);
+      stroke-width: 4;
+    }
+
+    .wall { fill: var(--wall); }
+    .camera { stroke: var(--red); stroke-width: 3; fill: none; }
+    .camera-head { fill: var(--red); }
+    .ray { stroke: var(--orange); stroke-width: 3; }
+    .top-ray { stroke: var(--orange); stroke-width: 3; stroke-dasharray: 7 5; }
+    .edge { stroke: var(--purple); stroke-width: 5; }
+    .disk { stroke: var(--purple); stroke-width: 11; }
+    .sensor { fill: var(--blue); }
+    .arrow { stroke: var(--ink); stroke-width: 3; fill: none; }
+
+    details {
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .detail {
+      margin-top: 10px;
+      font-size: .88rem;
+    }
+
+    .detail p { margin: 0 0 10px; }
+
+    .detail ol {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    .detail li { margin: 0 0 8px; }
+
+    code {
+      overflow-wrap: anywhere;
+      color: var(--ink);
+      font: .83em/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    .tag {
+      display: inline-block;
+      margin: 0 0 7px;
+      padding: 2px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: .76rem;
+      font-weight: 700;
+    }
+
+    .same { color: var(--green); }
+    .next { color: var(--amber); }
+
+    .footer-note {
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: .85rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Hanging V3: secuencia del motor</h1>
+    <p class="intro">Cada cuadro conserva el dibujo simplificado y abre el trabajo real que ocurre en el motor. La secuencia muestra la ruta exitosa; los rechazos indicados detienen esa ruta sin mover al player.</p>
+    <p class="legend"><span class="orange">rayos</span><span class="purple">borde o disco de captura</span><span class="blue">sensor del player</span></p>
+
+    <div class="timeline-wrap">
+      <section class="timeline" aria-label="Nueve cuadros de la secuencia de Hanging">
+        <article class="step">
+          <header class="step-header">
+            <span class="step-number">Cuadro 1</span>
+            <h2>Locomoción normal</h2>
+            <p class="state"><code>is_on_floor = true</code></p>
+          </header>
+          <svg class="scene" viewBox="0 0 220 190" role="img" aria-label="Player en el piso con referencia de cámara hacia delante">
+            <rect class="player" x="50" y="40" width="56" height="118" rx="28"/>
+            <line class="camera" x1="51" y1="102" x2="99" y2="102"/>
+            <path class="camera-head" d="M99 102l-10-6v12z"/>
+          </svg>
+          <details>
+            <summary>Acciones del motor</summary>
+            <div class="detail">
+              <span class="tag same">tick físico: H0 / body</span>
+              <ol>
+                <li><strong>Actúa:</strong> <code>H0Core._physics_process()</code>.</li>
+                <li><strong>Consume:</strong> input, cámara y <code>physics_body.get_physics_facts()</code>; entre esos hechos está <code>is_on_floor</code>.</li>
+                <li><strong>Hace:</strong> publica la intención normal mediante <code>submit_motion_intent()</code>.</li>
+                <li><strong>Produce:</strong> el body puede moverse con H0. Hanging todavía no mueve ni suspende H0.</li>
+                <li><strong>Siguiente:</strong> el player tiene que abandonar el piso; mientras <code>is_on_floor = true</code>, el evaluator agrega <code>en_piso</code> como rechazo.</li>
+              </ol>
+            </div>
+          </details>
+        </article>
+
+        <article class="step">
+          <header class="step-header">
+            <span class="step-number">Cuadro 2</span>
+            <h2>Se acerca al muro</h2>
+            <p class="state"><code>is_on_floor = true</code></p>
+          </header>
+          <svg class="scene" viewBox="0 0 220 190" role="img" aria-label="Player en el piso frente a un bloque">
+            <rect class="player" x="25" y="40" width="56" height="118" rx="28"/>
+            <rect class="wall" x="145" y="25" width="55" height="145"/>
+            <line class="camera" x1="27" y1="102" x2="75" y2="102"/><path class="camera-head" d="M75 102l-10-6v12z"/>
+          </svg>
+          <details>
+            <summary>Acciones del motor</summary>
+            <div class="detail">
+              <span class="tag same">tick físico: H0 / body</span>
+              <ol>
+                <li><strong>Actúa:</strong> H0 y luego <code>V3PhysicsBody._physics_process()</code>.</li>
+                <li><strong>Consume:</strong> <code>movement_axis</code> y los vectores planos de cámara.</li>
+                <li><strong>Hace:</strong> el body aplica movimiento normal y <code>move_and_slide()</code>.</li>
+                <li><strong>Produce:</strong> una nueva posición desde la que las sondas podrán consultar el mundo.</li>
+                <li><strong>Siguiente:</strong> acercarse no alcanza para Hanging: se necesita que el hecho físico posterior sea <code>is_on_floor = false</code>.</li>
+              </ol>
+            </div>
+          </details>
+        </article>
+
+        <article class="step">
+          <header class="step-header">
+            <span class="step-number">Cuadro 3</span>
+            <h2>Salto o caída</h2>
+            <p class="state"><code>is_on_floor = false</code></p>
+          </header>
+          <svg class="scene" viewBox="0 0 220 190" role="img" aria-label="Player en aire frente a un bloque">
+            <rect class="player" x="25" y="25" width="56" height="118" rx="28"/>
+            <rect class="wall" x="145" y="40" width="55" height="130"/>
+            <line class="camera" x1="27" y1="87" x2="75" y2="87"/><path class="camera-head" d="M75 87l-10-6v12z"/>
+            <path class="arrow" d="M55 178V151m0 0l-7 9m7-9l7 9"/>
+          </svg>
+          <details>
+            <summary>Acciones del motor</summary>
+            <div class="detail">
+              <span class="tag same">tick físico: H0 / body</span>
+              <ol>
+                <li><strong>Actúa:</strong> H0 puede pedir salto; el body lo aplica si estaba apoyado. Una caída también llega aquí sin pedido de salto.</li>
+                <li><strong>Consume:</strong> <code>jump_pressed</code>, <code>is_on_floor</code> y la penalización de daño por caída.</li>
+                <li><strong>Hace:</strong> al aceptar salto, el body usa <code>velocity.y = jump_velocity</code>; fuera de piso aplica gravedad.</li>
+                <li><strong>Produce:</strong> el hecho relevante pasa a ser <code>is_on_floor = false</code>.</li>
+                <li><strong>Siguiente:</strong> las sondas que ya existían pueden generar datos que el evaluator sí puede aceptar. No se exige velocidad vertical descendente: también puede capturar ascendiendo.</li>
+              </ol>
+            </div>
+          </details>
+        </article>
+
+        <article class="step">
+          <header class="step-header">
+            <span class="step-number">Cuadro 4</span>
+            <h2>Rayos de pared</h2>
+            <p class="state">al menos un <code>hit</code> de pared</p>
+          </header>
+          <svg class="scene" viewBox="0 0 220 190" role="img" aria-label="Cinco rayos horizontales hacia el bloque">
+            <rect class="player" x="18" y="25" width="56" height="118" rx="28"/>
+            <rect class="wall" x="155" y="40" width="48" height="130"/>
+            <line class="camera" x1="20" y1="87" x2="68" y2="87"/><path class="camera-head" d="M68 87l-10-6v12z"/>
+            <line class="ray" x1="74" y1="51" x2="155" y2="51"/><line class="ray" x1="74" y1="69" x2="155" y2="69"/><line class="ray" x1="74" y1="87" x2="155" y2="87"/><line class="ray" x1="74" y1="105" x2="155" y2="105"/><line class="ray" x1="74" y1="123" x2="155" y2="123"/>
+          </svg>
+          <details>
+            <summary>Acciones del motor</summary>
+            <div class="detail">
+              <span class="tag same">mismo tick, prioridad 140</span>
+              <ol>
+                <li><strong>Actúa:</strong> <code>V3ForwardWallProbe._physics_process()</code>.</li>
+                <li><strong>Consume:</strong> <code>physics_body.global_position</code>, <code>camera_rig.get_planar_forward()</code>, <code>probe_heights = [0.3, 0.6, 0.9, 1.2, 1.5]</code>, <code>detection_distance = 0.85</code>, máscara y RID del body.</li>
+                <li><strong>Consulta a Godot:</strong> por cada altura construye un <code>PhysicsRayQueryParameters3D</code> y llama <code>world.direct_space_state.intersect_ray(query)</code>.</li>
+                <li><strong>Produce:</strong> <code>last_planar_forward</code> y <code>last_wall_samples[]</code>; cada muestra guarda <code>{height, origin, hit}</code>. Un <code>hit</code> contiene posición, normal y collider.</li>
+                <li><strong>Siguiente:</strong> uno o más <code>hit</code> permiten que TopSurfaceProbe consulte una tapa. El probe corre también en piso; no crea una candidata ni mueve al player.</li>
+              </ol>
+            </div>
+          </details>
+        </article>
+
+        <article class="step">
+          <header class="step-header">
+            <span class="step-number">Cuadro 5</span>
+            <h2>Rayo hacia la tapa</h2>
+            <p class="state">pared + <code>top_hit</code></p>
+          </header>
+          <svg class="scene" viewBox="0 0 220 190" role="img" aria-label="Rayo vertical descendente sobre el bloque">
+            <rect class="player" x="18" y="25" width="56" height="118" rx="28"/>
+            <rect class="wall" x="155" y="40" width="48" height="130"/>
+            <line class="camera" x1="20" y1="87" x2="68" y2="87"/><path class="camera-head" d="M68 87l-10-6v12z"/>
+            <line class="top-ray" x1="161" y1="5" x2="161" y2="40"/>
+          </svg>
+          <details>
+            <summary>Acciones del motor</summary>
+            <div class="detail">
+              <span class="tag same">mismo tick, prioridad 141</span>
+              <ol>
+                <li><strong>Actúa:</strong> <code>V3TopSurfaceProbe._physics_process()</code>, después del probe de pared.</li>
+                <li><strong>Consume:</strong> cada <code>wall_hit</code> de <code>last_wall_samples</code>, la posición del body, normal de pared, máscara y RID.</li>
+                <li><strong>Consulta a Godot:</strong> tira un rayo vertical desde <code>body.y + 1.8</code> hasta la altura del impacto de pared, desplazado <code>0.08</code> m hacia dentro de la tapa; vuelve a llamar <code>intersect_ray()</code>.</li>
+                <li><strong>Produce:</strong> <code>last_surface_samples[]</code> con <code>{wall_hit, top_hit}</code>. Godot calcula <code>top_hit.position</code> como intersección rayo–collider.</li>
+                <li><strong>Siguiente:</strong> el evaluator puede comparar cada par pared/tapa. Esto aún es dato crudo: no existe <code>edge_point</code> de candidata ni movimiento.</li>
+              </ol>
+            </div>
+          </details>
+        </article>
+
+        <article class="step">
+          <header class="step-header">
+            <span class="step-number">Cuadro 6</span>
+            <h2>Candidata y pose P</h2>
+            <p class="state"><code>candidate.is_valid = true</code></p>
+          </header>
+          <svg class="scene" viewBox="0 0 220 190" role="img" aria-label="Borde candidato marcado en violeta">
+            <rect class="player" x="18" y="25" width="56" height="118" rx="28"/>
+            <rect class="wall" x="155" y="40" width="48" height="130"/>
+            <line class="camera" x1="20" y1="87" x2="68" y2="87"/><path class="camera-head" d="M68 87l-10-6v12z"/>
+            <line class="edge" x1="153" y1="40" x2="171" y2="40"/><line class="edge" x1="162" y1="31" x2="162" y2="49"/>
+          </svg>
+          <details>
+            <summary>Acciones del motor</summary>
+            <div class="detail">
+              <span class="tag same">mismo tick, prioridad 150</span>
+              <ol>
+                <li><strong>Actúa:</strong> <code>V3HangingCandidateEvaluator._physics_process()</code>.</li>
+                <li><strong>Consume:</strong> hechos del body, <code>last_wall_samples</code>, <code>last_surface_samples</code>, dirección de cámara e input de movimiento.</li>
+                <li><strong>Calcula:</strong> busca el mejor par <code>wall_hit/top_hit</code>. Exige player en aire, pared/tapa coherentes en XZ, pared y tapa con inclinación &le; 30°, altura relativa entre <code>0.5</code> y <code>1.5</code>, cámara hacia la pared e intención no contradictoria.</li>
+                <li><strong>Produce:</strong> toma <code>top_hit.position</code> como <code>candidate.edge_point</code>, guarda pared/normal/soporte y construye <code>P</code>: borde + <code>wall_normal * 0.68</code> + <code>UP * -1.5</code>. Consulta <code>can_occupy_pose(P)</code>.</li>
+                <li><strong>Siguiente:</strong> sólo si no quedaron razones de rechazo, <code>candidate.is_valid = true</code>. P es un dato; todavía no se aplica ningún snap.</li>
+              </ol>
+            </div>
+          </details>
+        </article>
+
+        <article class="step">
+          <header class="step-header">
+            <span class="step-number">Cuadro 7</span>
+            <h2>Zona de captura visible</h2>
+            <p class="state">disco rosa + esfera azul</p>
+          </header>
+          <svg class="scene" viewBox="0 0 220 190" role="img" aria-label="Esfera azul del player y disco violeta del muro">
+            <rect class="player" x="18" y="25" width="56" height="118" rx="28"/>
+            <rect class="wall" x="155" y="40" width="48" height="130"/>
+            <line class="camera" x1="20" y1="87" x2="68" y2="87"/><path class="camera-head" d="M68 87l-10-6v12z"/>
+            <circle class="sensor" cx="69" cy="52" r="6"/><line class="disk" x1="122" y1="42" x2="154" y2="42"/>
+          </svg>
+          <details>
+            <summary>Acciones del motor</summary>
+            <div class="detail">
+              <span class="tag same">mismo tick, prioridad 155</span>
+              <ol>
+                <li><strong>Actúa:</strong> <code>V3HangingCaptureProbe._physics_process()</code>.</li>
+                <li><strong>Consume:</strong> <code>candidate.is_valid</code>, <code>wall_point</code>, <code>edge_point</code>, <code>wall_normal</code>, <code>support_id</code> y el transform del body.</li>
+                <li><strong>Calcula:</strong> C, el disco vertical del muro (radio <code>0.18</code>, espesor <code>0.25</code>), y S, la esfera del player: <code>body.global_transform * (0, 1.30, 0)</code>, radio <code>0.10</code>.</li>
+                <li><strong>Produce:</strong> zona activa, distancia y solapamiento entre C/S. Las mallas se crearon ocultas en <code>_ready()</code>; aquí sólo se muestran si la candidata es válida.</li>
+                <li><strong>Siguiente:</strong> la zona visible no entra a Hanging por sí sola. Debe ocurrir un primer contacto o barrido de S contra C.</li>
+              </ol>
+            </div>
+          </details>
+        </article>
+
+        <article class="step">
+          <header class="step-header">
+            <span class="step-number">Cuadro 8</span>
+            <h2>Contacto y decisión</h2>
+            <p class="state"><code>last_contact_event = true</code></p>
+          </header>
+          <svg class="scene" viewBox="0 0 220 190" role="img" aria-label="Esfera azul tocando el disco violeta">
+            <rect class="player" x="18" y="25" width="56" height="118" rx="28"/>
+            <rect class="wall" x="155" y="40" width="48" height="130"/>
+            <line class="camera" x1="20" y1="87" x2="68" y2="87"/><path class="camera-head" d="M68 87l-10-6v12z"/>
+            <circle class="sensor" cx="122" cy="52" r="6"/><line class="disk" x1="126" y1="42" x2="154" y2="42"/>
+          </svg>
+          <details>
+            <summary>Acciones del motor</summary>
+            <div class="detail">
+              <span class="tag same">mismo tick, prioridades 155 y 160</span>
+              <ol>
+                <li><strong>Actúa:</strong> CaptureProbe primero; luego <code>V3HangingCore._try_enter()</code>.</li>
+                <li><strong>Consume:</strong> distancia C/S, muestra anterior del mismo soporte, candidata, crouch, lock de recaptura y estado de ocupación de P.</li>
+                <li><strong>Calcula:</strong> contacto actual o barrido entre ticks. Sólo el flanco nuevo produce <code>last_contact_event = true</code>; contacto sostenido no vuelve a dispararlo.</li>
+                <li><strong>Produce:</strong> si pasan todos los gates, Hanging guarda <code>held_pose = P</code>, borde y normal; cambia su estado local a <code>HANGING</code>, suspende H0 y llama <code>submit_pose_snap(HangingCore, P)</code>.</li>
+                <li><strong>Siguiente:</strong> <span class="next">tick físico siguiente</span>: la solicitud de snap espera al body. Este cuadro no cambia todavía el transform físico del player.</li>
+              </ol>
+            </div>
+          </details>
+        </article>
+
+        <article class="step">
+          <header class="step-header">
+            <span class="step-number">Cuadro 9</span>
+            <h2>Snap aceptado: Hanging</h2>
+            <p class="state"><code>body.global_transform = P</code></p>
+          </header>
+          <svg class="scene" viewBox="0 0 220 190" role="img" aria-label="Player en la pose colgada junto al muro">
+            <rect class="wall" x="155" y="40" width="48" height="130"/>
+            <rect class="player" x="96" y="42" width="56" height="118" rx="28"/>
+            <line class="camera" x1="98" y1="102" x2="146" y2="102"/><path class="camera-head" d="M146 102l-10-6v12z"/>
+          </svg>
+          <details>
+            <summary>Acciones del motor</summary>
+            <div class="detail">
+              <span class="tag next">tick físico siguiente, prioridad 100</span>
+              <ol>
+                <li><strong>Actúa:</strong> <code>V3PhysicsBody._physics_process()</code>, antes de los probes del nuevo tick.</li>
+                <li><strong>Consume:</strong> el snap pendiente y su <code>target_pose = P</code>.</li>
+                <li><strong>Consulta:</strong> vuelve a comprobar <code>can_occupy_pose(P)</code>.</li>
+                <li><strong>Produce:</strong> si P cabe, asigna <code>global_transform = P</code>, pone <code>velocity = Vector3.ZERO</code>, reinicia distancia de caída y limpia órdenes pendientes. No llama <code>move_and_slide()</code> en ese snap.</li>
+                <li><strong>Siguiente:</strong> Hanging retiene P en ticks posteriores; H0 permanece suspendido hasta una salida. Si el snap se rechaza, Hanging libera y H0 recupera control.</li>
+              </ol>
+            </div>
+          </details>
+        </article>
+      </section>
+    </div>
+
+    <p class="footer-note">Fuente de verdad usada: <code>v3_forward_wall_probe.gd</code>, <code>v3_top_surface_probe.gd</code>, <code>v3_hanging_candidate_evaluator.gd</code>, <code>v3_hanging_capture_probe.gd</code>, <code>v3_hanging_core.gd</code>, <code>v3_physics_body.gd</code>, <code>h0_core.gd</code> y <code>v3_input_source.gd</code>.</p>
+  </main>
+</body>
+</html>

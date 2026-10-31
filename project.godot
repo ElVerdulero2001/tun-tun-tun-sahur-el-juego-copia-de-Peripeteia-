@@ -12,8 +12,9 @@ config_version=5
 
 config/name="Tun tun tun sahur"
 run/main_scene="uid://cq3xs5ly2b4v0"
-config/features=PackedStringArray("4.6", "Forward Plus")
+config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
+run/main_scene.lab_coop="res://scenes/net_lab/net_lab.tscn"
 
 [autoload]
 
@@ -25,6 +26,7 @@ DebugDraw="*uid://cm26i11qxysqa"
 window/size/viewport_width=1600
 window/size/viewport_height=900
 window/stretch/mode="viewport"
+window/size/mode.lab_coop=2
 
 [input]
 

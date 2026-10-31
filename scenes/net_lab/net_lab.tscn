@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://da43euy0wtgss"]
 
 [ext_resource type="Script" uid="uid://dkdlu8xd2jvi2" path="res://scenes/net_lab/net_lab.gd" id="1_lab"]
-[ext_resource type="PackedScene" path="res://scenes/net_lab/net_lab_level.tscn" id="2_level"]
+[ext_resource type="PackedScene" uid="uid://dy6gvwqansaiq" path="res://scenes/net_lab/net_lab_level.tscn" id="2_level"]
 [ext_resource type="Script" uid="uid://cw1lcfjj5psjq" path="res://scripts/net/sim_clock.gd" id="3_clock"]
 [ext_resource type="Script" uid="uid://b4gq7eh3kp1nt" path="res://scripts/net/net_session.gd" id="4_session"]
 [ext_resource type="Script" uid="uid://bwwtlotussuoo" path="res://scenes/net_lab/lab_camera.gd" id="5_camera"]

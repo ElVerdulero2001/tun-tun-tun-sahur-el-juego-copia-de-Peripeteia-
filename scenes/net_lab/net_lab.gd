@@ -480,7 +480,7 @@ func _ready() -> void:
 	$Hud/Menu/Box/Host.pressed.connect(_start.bind(Role.HOST))
 	$Hud/Menu/Box/JoinRow/Join.pressed.connect(_on_join_pressed)
 	_address_field.text_submitted.connect(func(_text: String) -> void: _on_join_pressed())
-	_lan_label.text = "Tu IP en la red local: %s" % _lan_addresses()
+	_lan_label.text = "Tu IP para que se unan:\n%s" % _lan_addresses()
 	if _role_from_args:
 		_start(role)
 	else:
@@ -514,7 +514,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		power_presses = (power_presses + 1) & 0xFF
 	elif _started and event is InputEventKey and event.pressed and not event.echo:
 		var index: int = [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5].find(event.keycode)
-		if index >= 0:
+		if event.keycode == KEY_F1:
+			# Oculta o muestra el panel, para mirar o capturar el juego sin él
+			# (pedido del usuario, 2026-10-19).
+			_info.visible = not _info.visible
+		elif index >= 0:
 			_apply_net_preset(index)
 		elif role == Role.HOST and (event.keycode == KEY_E or event.keycode == KEY_R):
 			var force := PUSH_FORCE_WEAK if event.shift_pressed else PUSH_FORCE_STRONG
@@ -2236,18 +2240,22 @@ func _read_launch_args() -> void:
 			_session.host_spawn_override = Vector3(xz[0].to_float(), 0.0, xz[1].to_float())
 
 
-## Direcciones IPv4 privadas de esta PC: la que hay que escribir en la otra PC
-## para unirse.
+## Direcciones IPv4 de esta PC que hay que escribir en la otra para unirse, una
+## por renglón y con el nombre de su conexión: las de la red local (en la misma
+## casa) y las de Tailscale (100.64 a 100.127) y Radmin VPN (26), para jugar
+## cada uno desde su casa.
 func _lan_addresses() -> String:
 	var found := PackedStringArray()
-	for address in IP.get_local_addresses():
-		var parts := address.split(".")
-		if parts.size() != 4:
-			continue
-		var second := parts[1].to_int()
-		if (parts[0] == "192" and parts[1] == "168") or parts[0] == "10" or (parts[0] == "172" and second >= 16 and second <= 31):
-			found.append(address)
-	return ", ".join(found) if not found.is_empty() else "no encontrada"
+	for interface in IP.get_local_interfaces():
+		for address: String in interface["addresses"]:
+			var parts := address.split(".")
+			if parts.size() != 4:
+				continue
+			var second := parts[1].to_int()
+			if (parts[0] == "192" and parts[1] == "168") or parts[0] == "10" or (parts[0] == "172" and second >= 16 and second <= 31) \
+					or (parts[0] == "100" and second >= 64 and second <= 127) or parts[0] == "26":
+				found.append("%s: %s" % [interface["friendly"], address])
+	return "\n".join(found) if not found.is_empty() else "no encontrada"
 
 
 func _update_hud() -> void:
@@ -2368,7 +2376,7 @@ func _update_hud() -> void:
 		lines.append("E empuja a los demás ya · R los empuja programado · con Shift, empujón débil · Q prende o apaga la adopción")
 	if role == Role.LOCAL:
 		lines.append("G pausa y congela · F avanza un tick en pausa")
-	lines.append("F12 guarda una captura en el Escritorio")
+	lines.append("F12 guarda una captura en el Escritorio · F1 oculta este panel y lo vuelve a mostrar")
 	if Time.get_ticks_msec() < _flash_until_msec:
 		lines.insert(0, ">> %s" % _flash_text)
 	_info.text = "\n".join(lines)

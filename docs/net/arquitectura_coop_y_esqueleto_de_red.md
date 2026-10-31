@@ -1,7 +1,7 @@
 # Arquitectura de movimiento co-op y esqueleto de red: todo lo hecho hasta ahora
 
 **Proyecto:** tun-tun-tun-sahur · **Motor:** Godot 4.7.2 estable con Jolt Physics (`3d/physics_engine="Jolt Physics"` en `project.godot`).
-**Período:** del 2026-10-01 a las 20:41 al 2026-10-30 a las 13:07. Todas las horas están en hora de Argentina (UTC−3).
+**Período:** del 2026-10-01 a las 20:41 al 2026-10-30 a la tarde (la auditoría de GPT del parkour, sección 8.36). Todas las horas están en hora de Argentina (UTC−3).
 **Documento de arquitectura original:** [Arquitectura de movimiento co-op (Godot 4.7 + Jolt)](https://claude.ai/code/artifact/6760c3bf-39ed-4f2f-8d9d-23642c7ac797), en Claude Docs. Está copiado completo en el Apéndice A.
 **Guía práctica:** [`guia_del_laboratorio.md`](guia_del_laboratorio.md), para retomar el laboratorio por tareas (dónde está cada cosa, cómo probar, cómo agregar cables y escaleras, las reglas acordadas) sin leer todo este historial. Escrita el 2026-10-15 y puesta al día el 2026-10-30.
 
@@ -98,6 +98,7 @@
     - la salida por arriba de la escalera: frenando con el cuerpo ya sobre el piso, termina (sección 8.35).
 
   Pone al día las secciones 1, 2, 4.4 y 9 a 16, y el Apéndice B, con los scripts de esas pruebas. El documento de Claude Docs y su copia en el Apéndice A no tienen notas nuevas: se pidieron los dos md. El código de la 8.35 fue primero a su commit, `fde8f9a`, y después esta versión y la guía, a otro; los dos, solo locales.
+- **Agregado del 2026-10-30 a la tarde:** la auditoría de GPT del parkour (sección 8.36), con el pedido "Quiero que me digas que tanto es verdad y apliques los cambios que consideres necesarios". Suma la sección 8.36 y pone al día el resumen y las secciones 15 y 16, donde quedaba el pendiente viejo del súper que marcó la auditoría. Las secciones 9 a 11 no se repasaron enteras; las dos pruebas fijas nuevas están descritas en la 8.36. El código fue al commit `a257e4b`; este agregado y la guía, al commit siguiente, el 2026-10-31, a pedido ("Sí, commitealos").
 
 Este documento junta todo lo que se hizo, sin recortes:
 
@@ -171,7 +172,7 @@ Este documento junta todo lo que se hizo, sin recortes:
     - la rueda del mouse mueve la cámara sobre una guía editable, de tercera persona hasta primera persona;
     - las manos buscan un borde o un compañero hacia donde mira la cámara. El cuerpo sigue girando hacia donde camina; al apuntar con armas, cuando existan, va a seguir a la cámara;
     - las pruebas de un proceso corren sin esperar al reloj: la de repetición, de 96,6 s a 9 s.
-- **Lo que siguió a la validación** (secciones 8.11 a 8.35), todo probado en las dos PC y commiteado, salvo la 8.18, que no tocó código, y lo que se marca sin commit:
+- **Lo que siguió a la validación** (secciones 8.11 a 8.36), todo probado en las dos PC y commiteado, salvo la 8.18, que no tocó código, y lo que se marca sin commit:
     - **la diferencia de 0,1 mm** del salto con cámara lenta era un error real de determinismo: según el cuadro en que corría un tick, la posición podía caer en otro paso de 0,1 mm. Resuelto;
     - **la reconexión:** si se corta la red, el cliente reintenta solo y el host deja al jugador quieto en el mundo hasta 60 s; al volver sigue donde estaba, también si estaba colgado de un compañero;
     - **la rama propia, `net-lab`:** `main` más los commits del laboratorio, copiados con otros hashes. Lo del parkour sin commitear quedó guardado en git;
@@ -187,7 +188,7 @@ Este documento junta todo lo que se hizo, sin recortes:
     - **la escalera, después de probarla:** W sube y S baja, mire donde mire la cámara. Saliendo por arriba con W sola, sigue derecho hacia donde subía. Saltando mirándola, se vuelve a agarrar sola en el punto más alto o al volver a bajar. Ctrl la suelta, cae mientras se lo tenga y, al soltarlo, se vuelve a agarrar. Con internet mala, si el de arriba se soltaba un instante con alguien colgado, el host adoptaba afirmaciones atrasadas del que cuelga y dejaba quieto al de arriba; desde el 2026-10-17, que el compañero te suelte es un evento del host (`3c3fab8`);
     - **colgarse del compañero, como de un cilindro** (2026-10-18): saltar de un borde ya no deja que un cable cercano te atrape enseguida, que armaba un bucle entre los dos. Te podés colgar de un compañero que está en un cable, y de cualquier compañero agarrado te colgás tocándolo, sin mirarlo, en la franja de sus pies a sus hombros, del lado por el que llegás. Colgado, W y S suben y bajan las manos y A y D giran alrededor; en el borde y la escalera, solo por su espalda, hasta 90° por lado. Una pista nueva, con diez estaciones, para buscar por dónde se atraviesan paredes y pisos: en ninguna se pudo.
     - **la segunda revisión de GPT** (2026-10-19, sección 8.23): la huella mira también el personaje y los valores físicos de cada cuerpo; "no cuelga nadie de mí" vale solo al soltarse; la escalera escalada avisa; y la repetición falla si su recorrido deja de pasar por alguna mecánica;
-    - **el agarre con las manos por encima del filo** (2026-10-19, sección 8.24; sin commit y sin una prueba aparte en las dos PC): llegando a la pared con las manos hasta 1 m por encima del filo, se agarra en el acto y el cuerpo baja rápido a colgar;
+    - **el agarre con las manos por encima del filo** (2026-10-19, sección 8.24; sin una prueba aparte en las dos PC, commiteado el 2026-10-30 a pedido): llegando a la pared con las manos hasta 1 m por encima del filo, se agarra en el acto y el cuerpo baja rápido a colgar;
     - **la zona de servicio** (2026-10-19, sección 8.25): un patio entre edificios, en una escena propia, para probar todo junto como un pedazo de mapa;
     - **los cables, más rápidos** (2026-10-19, sección 8.26): 3,5 m/s, y 2 subiendo uno inclinado; al agarrarse se conserva el impulso; el súper vale al saltar de un cable; y entre un compañero y un cable hay 0,3 s sin agarrarse, para los dos lados;
     - **F1 oculta el panel** (2026-10-19, sección 8.27; sin commit);
@@ -204,11 +205,11 @@ Este documento junta todo lo que se hizo, sin recortes:
     - el esqueleto de red: `d75ef67`, `9cd1936`, `7547de1` y `c0e0421`;
     - las dieciséis versiones de este documento y una corrección: `9caaec3`, `375d419`, `fa26986`, `048dc4d`, `2314f18`, `9e4753e`, `f86b80f`, `1988808`, `b419717`, `5a06178`, `3e1bd48`, `69acc84`, `3bdb077`, `1dfb1e3`, `ea636a6`, `d846680` y el de esta decimosexta;
     - la validación: `600002a`, `25f7806`, `cb71b16`, `91a4433`, `b907dae` (escalón), `3cdcc91` (Hanging), `3825c2b` (salto para arriba), `bd2157b` (agarre subiendo), `f39ba70` (colgarse de un compañero, con cambio de línea), `e21d6c6` (colgado, predicho), `c408ad6` (cámara lenta), `b7403fb` (el arreglo del temblor) y `f7640fb` (la segunda vuelta de la escalera, Tuning y la primera persona);
-    - después, ya en `net-lab`: `1184427` (los 0,1 mm), `97d23cc` (reconexión), `1dba5db` (copias iguales y validación), `599628b` (una sola cámara lenta), `a1f9084` (súper salto y velocidad), `7f9b3e5` (encogido), `245d55a` (torre), `8e5bd15` (esquinas), `f855536` (salto en el aire), `a099f95` (el redondeo del input), `7dd59ca` (cables), `9c74ca6` (cables y escaleras en el editor), `969c7fc` (las teclas, el salto y Ctrl de la escalera), `3c3fab8` (el arreglo de la adopción), `25a37f1` (el bucle entre el cable y el borde), `8355cd2` (colgarse de un compañero en un cable), `4b4fdb6` (el compañero como un cilindro, en el cable), `9fc5d86` (el cilindro en la escalera y el borde, y la pista de colgarse), `b267dc9` (la línea de ayuda del compañero, partida en dos), `b3a4f80` (la segunda revisión de GPT), `8d7b0b9` (la zona de servicio), `3d98ffe` (los cables), `b4d35cb` (la torre de servicio), `00e1d78` (la salida derecha), `c588cfa` (colisión y los dos lados), `fccb2b0` (A o D), `5469f78` (por atrás, con piso), `2a7e78f` (desde un borde), `1324a69` (la cuarta vuelta de la escalera, el súper proporcional, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado) `3fae993` (el súper en todas las velocidades), `eb473ca` (el mantle y la unión de dos cajas apiladas) y `fde8f9a` (frenando en la salida por arriba de la escalera).
+    - después, ya en `net-lab`: `1184427` (los 0,1 mm), `97d23cc` (reconexión), `1dba5db` (copias iguales y validación), `599628b` (una sola cámara lenta), `a1f9084` (súper salto y velocidad), `7f9b3e5` (encogido), `245d55a` (torre), `8e5bd15` (esquinas), `f855536` (salto en el aire), `a099f95` (el redondeo del input), `7dd59ca` (cables), `9c74ca6` (cables y escaleras en el editor), `969c7fc` (las teclas, el salto y Ctrl de la escalera), `3c3fab8` (el arreglo de la adopción), `25a37f1` (el bucle entre el cable y el borde), `8355cd2` (colgarse de un compañero en un cable), `4b4fdb6` (el compañero como un cilindro, en el cable), `9fc5d86` (el cilindro en la escalera y el borde, y la pista de colgarse), `b267dc9` (la línea de ayuda del compañero, partida en dos), `b3a4f80` (la segunda revisión de GPT), `8d7b0b9` (la zona de servicio), `3d98ffe` (los cables), `b4d35cb` (la torre de servicio), `00e1d78` (la salida derecha), `c588cfa` (colisión y los dos lados), `fccb2b0` (A o D), `5469f78` (por atrás, con piso), `2a7e78f` (desde un borde), `1324a69` (la cuarta vuelta de la escalera, el súper proporcional, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado) `3fae993` (el súper en todas las velocidades), `eb473ca` (el mantle y la unión de dos cajas apiladas), `fde8f9a` (frenando en la salida por arriba de la escalera) y `a257e4b` (el agarre con las manos por encima del filo y lo de la auditoría de GPT del parkour).
 
-  La novena versión de este documento es el commit 36, `5a06178`, y los cables, los 37 y 38. La décima versión es el commit 39, `3e1bd48`, y la undécima, con la guía práctica, el 40, `69acc84`. Los cables y escaleras en el editor son el 41; la escalera, el 42; y el arreglo de la adopción, el 43. La duodécima versión, con la guía puesta al día, es el 44, `3bdb077`; lo del 2026-10-18, del 45 al 48; la decimotercera versión, con la guía, el 49, `1dfb1e3`; y la línea de ayuda partida, el 50, `b267dc9` (2026-10-19), solo local; la segunda revisión de GPT, el 51, `b3a4f80`; la zona y los cables, el 52 y el 53; la torre de servicio, el 54; y la escalera, del 55 al 59. El usuario subió la rama vieja a GitHub cinco veces, del 2026-10-09 al 2026-10-10, y el 2026-10-10 a las 19:13 se subió desde la sesión hasta `b419717`. `net-lab` se subió el 2026-10-11 a las 20:55, hasta `e1d9eb9`. Los 18 commits siguientes fueron solo locales hasta el 2026-10-17: el 2026-10-12 el usuario pidió "por ahora no hacemos push del commit, dejémoslo solo en local" (sección 15). El 2026-10-17 a las 22:25 pidió subirlos, con la duodécima versión; el 2026-10-18 a las 19:32, los cinco siguientes, con la decimotercera. El 2026-10-19, "no hagas commit ni push al git": `b267dc9` queda solo local, y el agregado a este documento, sin commit. Los nueve siguientes también son solo locales, y la decimocuarta versión y la guía fueron al commit 60, `ea636a6` (2026-10-22), también solo local. Lo de la 8.31 es el 61, `1324a69` (2026-10-23), y el súper en todo, el 62, `3fae993` (2026-10-24). La decimoquinta versión y la guía son el 63, `d846680`, y el 2026-10-24, "hace commit y un push al repositorio en github": `net-lab` se subió con los 13 commits que estaban solo en local. El mantle y la unión de las cajas son el 64, `eb473ca` (2026-10-28); la salida de la escalera, el 65, `fde8f9a` (2026-10-30); y esta decimosexta versión y la guía, el 66. Los tres, solo locales.
+  La novena versión de este documento es el commit 36, `5a06178`, y los cables, los 37 y 38. La décima versión es el commit 39, `3e1bd48`, y la undécima, con la guía práctica, el 40, `69acc84`. Los cables y escaleras en el editor son el 41; la escalera, el 42; y el arreglo de la adopción, el 43. La duodécima versión, con la guía puesta al día, es el 44, `3bdb077`; lo del 2026-10-18, del 45 al 48; la decimotercera versión, con la guía, el 49, `1dfb1e3`; y la línea de ayuda partida, el 50, `b267dc9` (2026-10-19), solo local; la segunda revisión de GPT, el 51, `b3a4f80`; la zona y los cables, el 52 y el 53; la torre de servicio, el 54; y la escalera, del 55 al 59. El usuario subió la rama vieja a GitHub cinco veces, del 2026-10-09 al 2026-10-10, y el 2026-10-10 a las 19:13 se subió desde la sesión hasta `b419717`. `net-lab` se subió el 2026-10-11 a las 20:55, hasta `e1d9eb9`. Los 18 commits siguientes fueron solo locales hasta el 2026-10-17: el 2026-10-12 el usuario pidió "por ahora no hacemos push del commit, dejémoslo solo en local" (sección 15). El 2026-10-17 a las 22:25 pidió subirlos, con la duodécima versión; el 2026-10-18 a las 19:32, los cinco siguientes, con la decimotercera. El 2026-10-19, "no hagas commit ni push al git": `b267dc9` queda solo local, y el agregado a este documento, sin commit. Los nueve siguientes también son solo locales, y la decimocuarta versión y la guía fueron al commit 60, `ea636a6` (2026-10-22), también solo local. Lo de la 8.31 es el 61, `1324a69` (2026-10-23), y el súper en todo, el 62, `3fae993` (2026-10-24). La decimoquinta versión y la guía son el 63, `d846680`, y el 2026-10-24, "hace commit y un push al repositorio en github": `net-lab` se subió con los 13 commits que estaban solo en local. El mantle y la unión de las cajas son el 64, `eb473ca` (2026-10-28); la salida de la escalera, el 65, `fde8f9a` (2026-10-30); y esta decimosexta versión y la guía, el 66. El agarre con las manos por encima del filo, con lo de la auditoría de GPT del parkour, es el 67, `a257e4b` (2026-10-30, sección 8.36). Los cuatro, solo locales.
 - **Cambios pendientes:** en `net-lab`, `git status` muestra:
-    - del laboratorio, sin commit: el agarre con las manos por encima del filo (sección 8.24: `actor_motor.gd`, `actor_body.gd`, `actor_tuning.gd` y `hang_sweep_test.gd`, que además imprime las salidas con `--detalle`); F1 (sección 8.27) y las IP del menú (sección 8.30), en `net_lab.gd`; el ajuste de exportación, `export_presets.cfg`, y dos líneas de `project.godot` (sección 8.30); y en `net_lab.tscn`, el uid del nivel, que agregó el editor;
+    - del laboratorio, sin commit: F1 (sección 8.27) y las IP del menú (sección 8.30), en `net_lab.gd`; el ajuste de exportación, `export_presets.cfg`, y dos líneas de `project.godot` (sección 8.30); y en `net_lab.tscn`, el uid del nivel, que agregó el editor;
     - `project.godot`, además, con el cambio de versión 4.6 → 4.7 que hizo el editor, que no se commitea. Las cuatro acciones del Mapa de entrada que agregó el laboratorio sí están commiteadas;
     - archivos sin seguir: las carpetas `archive/`, `docs/parkour/`, `output/` (con la revisión de GPT) y `tmp/` (la copia del código que dejó esa revisión); `parkour_3d_godot_investigacion_arquitectura.md`; el temporal del editor `project.godot~RF78902d2f.TMP`; y 46 modelos y texturas de `assets/models/`.
 
@@ -554,6 +555,7 @@ Este documento junta todo lo que se hizo, sin recortes:
 | 2026-10-28 13:18–13:30 | La prueba en las dos PC: "no encontré ningún bug o rareza relacionada con el mantle". Commit `eb473ca` (13:29), comprobado en una copia limpia. Dos capturas de la escalera: parado sobre la plataforma, en LADDER (sección 8.35); reproducido sin red. |
 | 2026-10-28 13:45–14:08 | "Sí, cambialo": frenando en la salida por arriba con el cuerpo ya sobre el piso, termina la escalera. La prueba `laddertop:stop`. |
 | 2026-10-30 13:07 | "funciona correctamente, primero actualiza los md, despues hace el commit": esta decimosexta versión y la guía; el commit `fde8f9a` del código y otro de los md. |
+| 2026-10-30, tarde | La auditoría de GPT del parkour: qué era cierto de sus seis puntos, tres preguntas ("Sí, las dos", "Sí, sumalo", "Commitealo ya"), el criterio 5 del barrido, el mantle terminado en la repetición y las pruebas fijas del mantle y del agarre desde arriba. Commit `a257e4b` con la 8.24 (sección 8.36). |
 
 ---
 
@@ -5669,6 +5671,61 @@ A las 13:30 se le explicó, con una alternativa: si frena en ese tramo con el ce
 
 **Estado:** probado en las dos PC el 2026-10-30 a las 13:07: "funciona correctamente, primero actualiza los md, despues hace el commit". Commit `fde8f9a` (13:26), también sin la 8.24, F1, las IP ni la exportación, comprobado en una copia limpia del índice: la repetición, `7d3d417dd954d05b` a 60 y variando; la zona, 60 de 60; la torre, 70 de 70; y la salida por arriba en todas las escaleras (`diag_salida_escalera2.gd`), igual que en el disco.
 
+### 8.36 La auditoría de GPT del parkour (2026-10-30, commit `a257e4b`)
+
+El 2026-10-30 a la tarde:
+
+> en la carpeta C:\Users\ElCaido97\Documents\tun-tun-tun-sahur\docs\net hay un md con el nombre de auditoria_parkour_2026-10-30.md, creado por GPT con la idea de que encuentre problemas en la implementacion actual del parkour diseñada y creada por vos. Quiero que me digas que tanto es verdad y apliques los cambios que consideres necesarios. Cualquier duda que tengas, hacemela mientras haces las correcciones.
+
+El informe (`auditoria_parkour_2026-10-30.md`, en esta carpeta) no encontró un fallo que rompa el parkour y no terminó de correr ninguna prueba. Marcó seis puntos. Cada uno se comparó con el código y con este historial:
+
+| Punto | Qué decía | Qué es cierto | Qué se hizo |
+| --- | --- | --- | --- |
+| H1 | El barrido de bordes cuenta aparte los agarres con las manos por encima del filo, sin un criterio que pueda fallar, y los reconoce por la velocidad del dibujo | Cierto, tal cual: con **Hang Drop Speed** en 1,8 se habrían contado como agarres comunes. Los criterios 1 a 3 sí los contaban; el 4 no | Se reconocen por la decisión del motor (el tick del agarre, repetido sin esa búsqueda) y tienen un criterio 5 propio |
+| H2 | La repetición solo pide algún tick en el mantle, y las variantes del mantle no están en una prueba fija | Cierto. `diag_mantle.gd` (Apéndice B) imprimía cada caso, pero solo fallaba por bytes distintos o poses no válidas, y estaba en una carpeta temporal | La repetición pide un mantle terminado en Suelo; `mantle_test.tscn`, 50 casos con lo que tiene que pasar en cada uno |
+| H3 | La validación del host del mantle no rehace la entrada ni limita el corrimiento de costado: no alcanza contra un cliente modificado | Cierto como descripción. Es la adopción que eligió el documento (sección 4): el host adopta lo que no contradice su mundo, hasta 1 m. Entre amigos no es un problema, y no se reprodujo ninguna trampa | Nada |
+| H4 | Sobre la balsa del borde, el mantle da correcciones de hasta 21,5 cm con internet mala | Cierto; ya estaba en la sección 8.33, sin preguntarle al usuario si iba a lo que depende de un buen internet | Pregunta: sumado a esa lista |
+| H5 | Ocho archivos sin commit que mezclan temas | Cierto, a propósito (sección 16) | Pregunta: la 8.24 va al commit; F1, las IP, la exportación, `project.godot` y el uid de `net_lab.tscn` siguen en el disco |
+| H6 | Pendientes viejos que contradicen lo hecho: el súper en la escalera y el colgado | Cierto: ese pendiente de la sección 16 era de antes de la 8.32 | Tachado, con lo que sigue abierto (la altura de los saltos con el súper, pregunta del 2026-10-12) |
+
+**Las preguntas y lo que eligió el usuario:**
+
+| Pregunta | Respuesta |
+| --- | --- |
+| ¿Paso las pruebas del mantle y del agarre con las manos por encima del filo al proyecto como pruebas fijas, que fallen solas? | "Sí, las dos (Recomendado)" |
+| ¿Sumo el mantle sobre la balsa del borde a lo que depende de un buen internet? | "Sí, sumalo" |
+| La 8.24 sigue sin commit desde el 2026-10-19: ¿qué hago con ella? | "Commitealo ya" (cuenta como probada por todas las pruebas en dos PC desde entonces) |
+
+**Lo que cambió (solo pruebas; el movimiento es el mismo):**
+
+- **`hang_sweep_test.gd`:** al agarrarse, repite ese tick desde el estado anterior con `hang_reach_down` en 0, que apaga solo la búsqueda desde arriba (`_needs_reach_down`); si así no se agarra, el agarre fue desde arriba. Es la decisión exacta del motor, sin mirar la velocidad del dibujo. Criterio 5: en esos agarres el dibujo baja a `hang_drop_speed` y la cámara no se mueve más de `hang_drop_speed` × 50 ms + 1 cm (21 cm con 4 m/s). Los criterios 1 a 4 no cambian.
+- **`actor_replay_test.gd`:** la cobertura pide "el mantle hasta quedar arriba" (`_mantles_done`: un tick en el mantle seguido de uno en Suelo) en vez de algún tick en el mantle. La huella no cambia.
+- **`mantle_test.gd` y `.tscn`, nuevos:** los 45 casos de `diag_mantle.gd` como estaba en el Apéndice B, y 5 más que la auditoría marcó sin prueba: Ctrl a mitad del mantle, un empujón fuerte y uno débil a mitad de camino, dos cajas de 0,8 m apiladas y un bloque delante de una escalera. Cada caso dice si hay mantle y dónde termina (arriba, colgado, abajo o en la escalera). El que sube tiene que terminar el mantle en Suelo arriba del filo, en menos de 1 s, parado o agachado según el caso, y corrido hacia el lado de las teclas. El que se corta tiene que salir al aire. Además, como el diagnóstico: cada pose la acepta `anchored_pose_valid` y cada tick del mantle, repetido, da los mismos bytes. Arma sus bloques él mismo, sin el nivel.
+- **`grab_above_test.gd` y `.tscn`, nuevos:** las comprobaciones de `diag_agarre_arriba.gd` y un caso 8: cayendo pegado a la pared con las manos a 0,2, 0,5, 0,9 y 1,3 veces `hang_reach_down` por encima del filo. Hasta el alcance se agarra en el tick 0 y baja eso. Más arriba se agarra después, sin bajar más que el alcance.
+
+**Lo que mostró la primera corrida:**
+
+- **El barrido:** la primera versión del criterio 5 tomaba la decisión de `grab_check` que la prueba ya calculaba antes de cada tick (`_note_tick`). En 4 casos no coincidía con el motor: esa llamada decía "se agarraría" un tick antes, con un borde común, y el motor se agarraba en el tick siguiente desde arriba. Esos 4 quedaban contados como agarres comunes, bajando a 4 m/s, y el criterio 4 no cumplía (0,200 m). Se cambió por repetir el tick del agarre, que no puede discrepar. No era un error del motor.
+- **El mantle:** fallaron 15 de 50, ninguno por el motor.
+    - Doce eran de la prueba: con W apretada hasta el final, el personaje cruzaba el bloque de 3 m y se caía por atrás, y el empujón no se registraba porque el modo se anotaba después de aplicarlo. Se arreglaron con bloques más hondos o más anchos en los casos con teclas y anotando el modo antes del empujón. Además, ahora se mira dónde termina el mantle mismo.
+    - Tres eran resultados esperados mal puestos por Claude, y el motor hacía lo decidido. De un muro de 1,5 m no se cuelga desde el piso: los pies quedarían bajo tierra. Bajando de espaldas desde 1,5 m se va al piso, como dice la 8.33. El súper saltando en el lugar contra 2,4 m se cuelga, como los bloques del súper de la pista de salto agachado: las manos llegan al filo cuando todavía está más alto que el pecho.
+- **El agarre desde arriba:** el caso del video del usuario (pared de 2,5 m, saltando corriendo a 2,9 m) ya no se cuelga: desde el 2026-10-25 hace mantle, porque llega subiendo con el filo a la altura del pecho, y así lo decidió el usuario (sección 8.33). La prueba lo comprueba de tres formas: con el mantle apagado se agarra en el tick 80 y baja 0,583 m, como en la 8.24; con el mantle, sube y queda arriba; y contra una pared de 2,8 m, con el filo ya más alto que el pecho, se agarra desde arriba en el tick 80 y baja 0,283 m.
+
+**Pruebas:**
+
+| Prueba | Resultado |
+| --- | --- |
+| Repetición, antes y después | Coincide; huella `7d3d417dd954d05b`, la misma; 35 ticks en el mantle, 1 terminado arriba |
+| Barrido de bordes, antes del cambio | Cumple los cuatro criterios; 921 agarres desde arriba, snap hasta 1,000 m, la cámara se mueve hasta 0,200 m en 50 ms. Tarda 7 minutos |
+| Barrido de bordes, con el criterio 5 | Cumple los cinco criterios; reconoce los mismos 921 agarres desde arriba, todos a 4 m/s y con la cámara a 0,200 m en 50 ms (el tope es 0,210); cada caso da lo mismo que antes del cambio |
+| `mantle_test.tscn` | 50 de 50 |
+| `grab_above_test.tscn` | 22 de 22 |
+| El commit, en una copia limpia del índice (`git checkout-index -a --prefix=`) | La repetición (`7d3d417dd954d05b`), las dos pruebas nuevas y el barrido, igual que en el disco |
+
+**Lo que no se hizo:** endurecer la validación del host (H3); repetir en pareja el mantle sobre la plataforma guionada y la balsa (quedan las pruebas de la 8.33); y pasar a pruebas fijas los demás diagnósticos del Apéndice B. En el barrido se ve que el agarre desde arriba llega a un snap de 1,000 m (en el borde con techo bajo). Si con internet mala el host se agarra un tick después, la diferencia que adopta es de ese tamaño, y pasado 1 m (`MAX_DIFFERENCE`) sería una corrección. Ya estaba avisado en la 8.24; no se tocó.
+
+**Estado:** commit `a257e4b`, solo local, con la 8.24 entera (`actor_motor.gd`, `actor_body.gd`, `actor_tuning.gd` y `hang_sweep_test.gd`), el cambio de la prueba `hang` de `net_lab.gd` que va con ella, la repetición y las dos pruebas nuevas. Siguen sin commit F1 y las IP del menú (en `net_lab.gd`), `export_presets.cfg`, `project.godot` y el uid de `net_lab.tscn`.
+
 
 ## 9. Estado actual del código
 
@@ -7326,7 +7383,9 @@ Míos, avisados: Espacio siempre hacia la cámara, soltarse con la velocidad que
 | `d846680` | 2026-10-24 19:24 | docs(net): record the fourth ladder pass and the super on every speed, and update the guide | 2 | +1.902 / −54 |
 | `eb473ca` | 2026-10-28 13:29 | feat(actor): add the mantle and ignore stacked-box seams as edges | 8 | +572 / −49 |
 | `fde8f9a` | 2026-10-30 13:26 | feat(actor): end the ladder top exit when stopping with the body over the floor | 3 | +39 / −5 |
-| el de esta versión | 2026-10-24 | docs(net): la decimoquinta versión y la guía | 2 | — |
+| `e0eeb88` | 2026-10-30 13:27 | docs(net): record the mantle, the stacked-box seam and the ladder exit stop, and update the guide | 2 | +1.395 / −63 |
+| `a257e4b` | 2026-10-30 16:38 | feat(actor): grab edges with the hands above the lip, and add fixed mantle and grab tests | 12 | +859 / −22 |
+| el de este agregado | 2026-10-31 | docs(net): la auditoría de GPT del parkour (sección 8.36) y la guía | 2 | — |
 
 Cada uno, salvo los del documento, se commiteó después de la prueba en las dos PC, y se comprobó antes que los archivos eran los probados. `1324a69` lleva la 8.31 sin la 8.24, que estaba mezclada en los mismos archivos: se comprobó en una copia limpia. Igual `3fae993`, `eb473ca` y `fde8f9a`: para estos dos, el índice se armó con `armar_commit.js` (Apéndice B), que cambia cada pedazo viejo del archivo del disco por el de `HEAD`, y la copia limpia salió del índice con `git checkout-index -a --prefix=`, sin worktree. De `project.godot` van solo las acciones del Mapa de entrada (`599628b` y `a1f9084`), nunca la línea 4.6 → 4.7.
 
@@ -7401,7 +7460,7 @@ Desde `3d98ffe`, varios son commits parciales: llevan solo lo de su tanda, y los
 | 2026-10-18 | El cilindro en la escalera y el borde, y la pista de colgarse. Probado en las dos PC a las 19:14, también con +200 ms en las dos | `9fc5d86` |
 | 2026-10-19 | La línea de ayuda del compañero partida en dos. Vista en la notebook a las 12:37 | `b267dc9` |
 | 2026-10-19 | Los arreglos de la segunda revisión de GPT. Probados en las dos PC a las 14:47 | `b3a4f80` |
-| 2026-10-19 16:26 | El agarre con las manos por encima del filo | Sin commit; no se contó una prueba en las dos PC |
+| 2026-10-19 16:26 | El agarre con las manos por encima del filo. Sin una prueba aparte en las dos PC; estuvo en todas las que siguieron | `a257e4b` (2026-10-30, sección 8.36) |
 | 2026-10-19 19:04 | La zona de servicio. Probada en las dos PC a las 19:45 | `8d7b0b9` |
 | 2026-10-19 20:00 | Los cables: velocidad, impulso, súper y el bucle. Probados a las 20:08 | `3d98ffe` |
 | 2026-10-19 20:12 | F1 | Sin commit |
@@ -7416,6 +7475,7 @@ Desde `3d98ffe`, varios son commits parciales: llevan solo lo de su tanda, y los
 | 2026-10-25 19:58 | El mantle. Probado en las dos PC el 2026-10-28 a las 13:18 | `eb473ca` |
 | 2026-10-27 13:06 | La unión de dos cajas apiladas. Probada con el mantle | `eb473ca` |
 | 2026-10-28 14:08 | Frenando en la salida por arriba de la escalera. Probado en las dos PC el 2026-10-30 a las 13:07 | `fde8f9a` |
+| 2026-10-30 | La 8.24 ("Commitealo ya"), con lo de la auditoría de GPT: el criterio 5 del barrido, el mantle terminado en la repetición y las pruebas fijas del mantle y del agarre desde arriba | `a257e4b` |
 
 **El `.exe`** (2026-10-21, sección 8.30): `TunTunTunSahur_LaboratorioCoop.exe` (113,8 MB) y `TunTunTunSahur_LaboratorioCoop.zip` (40,9 MB), en `Documents\otro proyecto bobo\exports`, con lo que había en el disco ese día, también lo sin commit. El amigo recibe el zip; la notebook sigue con el doble clic.
 
@@ -7424,7 +7484,7 @@ Desde `3d98ffe`, varios son commits parciales: llevan solo lo de su tanda, y los
 - **Primera versión de este documento:** eran 136, más el temporal del editor `project.godot~RF78902d2f.TMP`: 137.
 - **Segunda versión:** `git status` mostraba 138 entradas.
 - **Octava versión:** `git status` mostraba 137 entradas, ninguna de las carpetas del laboratorio.
-- **Hoy, en `net-lab`:** ocho archivos modificados (lo del laboratorio sin commit de la sección 1 y `project.godot`, que además tiene la línea 4.6 → 4.7) y 52 entradas sin seguir, ninguna del laboratorio.
+- **Hoy, en `net-lab`:** desde el commit de este agregado (2026-10-31), cuatro archivos modificados: `net_lab.gd` (F1 y las IP), `net_lab.tscn` (el uid), `export_presets.cfg` y `project.godot`, que además tiene la línea 4.6 → 4.7. Antes eran ocho, con la 8.24 y los dos md. Sin seguir, las 52 entradas de antes, ninguna del laboratorio, y el informe de GPT (`docs/net/auditoria_parkour_2026-10-30.md`).
 
 ---
 
@@ -7472,7 +7532,7 @@ Desde `3d98ffe`, varios son commits parciales: llevan solo lo de su tanda, y los
 
 **De lo del 2026-10-19 al 2026-10-21 (secciones 8.24 a 8.30), sin cerrar:**
 
-- **El agarre con las manos por encima del filo** (sección 8.24): sin commit, y nunca probado aparte en las dos PC; estuvo en todas las pruebas que vinieron después.
+- ~~**El agarre con las manos por encima del filo** (sección 8.24): sin commit, y nunca probado aparte en las dos PC; estuvo en todas las pruebas que vinieron después.~~ Commiteado el 2026-10-30 (`a257e4b`), a pedido ("Commitealo ya"), con su prueba fija (sección 8.36).
 - **F1** (sección 8.27): sin commit; probada con teclas simuladas. Pasarla al Mapa de entrada quedó ofrecido.
 - **Jugar a distancia** (sección 8.30): la prueba de verdad con el amigo, con Radmin VPN y el `.exe`; después, el commit del ajuste, de las dos líneas de `project.godot` y de las IP del menú. Cada cambio de código pide exportar y mandar otro `.exe`.
 - **El editor contra el `.exe`** en una partida: dan la misma huella, pero son dos programas distintos y no se probaron juntos.
@@ -7485,19 +7545,25 @@ Desde `3d98ffe`, varios son commits parciales: llevan solo lo de su tanda, y los
 - ~~**La salida por arriba de las escaleras sueltas,** arreglada a las 20:50 y, el 2026-10-23, el peldaño que atravesaba el cuerpo, el grosor del peldaño de arriba (`top_rung_depth`) y el bucle con W, y después la salida sin saltito, agarrado de la escalera, hacia el rellano como caminando, a la altura del piso y sin pausa al terminar.~~ Probada en las dos PC el 2026-10-23 a la noche y commiteada con todo lo de la 8.31 (`1324a69`).
 - ~~**El súper en todas las velocidades** (sección 8.32).~~ Probado en las dos PC y commiteado (`3fae993`).
 - ~~**Los md** (la decimoquinta versión y la guía).~~ Commiteados y subidos el 2026-10-24.
-- **La prueba a distancia** (sección 8.30): las del 2026-10-24 fueron en casa; para jugar desde dos casas hace falta un `.exe` nuevo. Lo de la 8.30, la 8.24 y F1 sigue sin commit.
+- **La prueba a distancia** (sección 8.30): las del 2026-10-24 fueron en casa; para jugar desde dos casas hace falta un `.exe` nuevo. Lo de la 8.30 y F1 sigue sin commit; la 8.24 está en `a257e4b` (sección 8.36).
 - **Un `.exe` nuevo** para jugar a distancia: el del 2026-10-21 tiene el código viejo (la huella no coincidiría con el editor).
-- **El súper en la escalera, el colgado y los saltos desde la escalera y el borde** siguen sin multiplicarse por 1,5: el pedido nombraba el salto y los cables. Es la pregunta sin respuesta del 2026-10-12, de abajo.
+- ~~**El súper en la escalera, el colgado y los saltos desde la escalera y el borde** siguen sin multiplicarse por 1,5: el pedido nombraba el salto y los cables. Es la pregunta sin respuesta del 2026-10-12, de abajo.~~ Quedó viejo con la sección 8.32 (2026-10-24): desde entonces el súper multiplica todas las velocidades, también trepar, desplazarse colgado y los saltos hacia afuera desde la escalera y el borde. Lo que sigue abierto es solo la altura de los saltos para arriba (`hang_jump_up`, `ladder_jump_up`), la pregunta de abajo. Lo marcó la auditoría de GPT del 2026-10-30 (sección 8.36).
 - **Lo que queda del saltito al borde:** al empezar a caer, la punta redonda de la cápsula resbala por el filo unos 10 cm. "Que se caiga antes del filo" quedó como opción, sin elegir.
 - **Las demás escaleras de a dos:** con el límite de costado, para pasar de un borde a una escalera hay que estar debajo de su centro (0,3 m o menos); en la torre se reescribieron las dos rutas, y otras que se armen tienen que tenerlo en cuenta.
 - **El documento de Claude Docs y el Apéndice A** no tienen notas de la 8.24 a la 8.31.
 
 **De lo del 2026-10-25 al 2026-10-28 (secciones 8.33 a 8.35), sin cerrar:**
 
-- **El mantle sobre el cuerpo que mueve el host,** con internet mala: correcciones chicas, la más grande de 0,215 m, parecidas a las de colgarse de él (0,263). No se tocó, y no se sumó a lo que depende de un buen internet: no se le preguntó al usuario.
+- ~~**El mantle sobre el cuerpo que mueve el host,** con internet mala: correcciones chicas, la más grande de 0,215 m, parecidas a las de colgarse de él (0,263). No se tocó, y no se sumó a lo que depende de un buen internet: no se le preguntó al usuario.~~ Preguntado el 2026-10-30: "Sí, sumalo". Está en la lista de abajo (sección 8.36).
 - **Los números del mantle** (la franja, las velocidades, los 45° y dónde termina) los eligió Claude; están en el Tuning, grupo Mantle, para ajustarlos jugando.
-- **El cambio de la prueba `hang` que es de la 8.24** (cayendo por delante, sigue mirando para atrás) quedó sin commit, con la 8.24.
+- ~~**El cambio de la prueba `hang` que es de la 8.24** (cayendo por delante, sigue mirando para atrás) quedó sin commit, con la 8.24.~~ Commiteado con ella en `a257e4b`.
 - **El documento de Claude Docs y el Apéndice A** no tienen notas de la 8.33 a la 8.35: el Apéndice A sigue diciendo que el mantle está fuera del alcance.
+
+**De la auditoría de GPT del 2026-10-30 (sección 8.36), sin cerrar:**
+
+- **Contra un cliente modificado,** la validación del host no alcanza: adopta poses plausibles hasta 1 m de lo suyo sin rehacer la transición. Para co-op entre amigos no hace falta; si algún día importa, hay que validar también el camino desde el estado anterior.
+- **El agarre desde arriba llega a un snap de 1,000 m** en el barrido, justo `MAX_DIFFERENCE`: con internet mala, un agarre un tick tarde en el host puede pasar a ser una corrección (avisado en la 8.24).
+- **Las pruebas fijas nuevas usan el Tuning de la escena,** como las demás: si el usuario cambia la franja del mantle, la altura del salto o el alcance desde arriba, pueden fallar sin que haya un error. Hay que leer qué caso cambió.
 
 **Preguntas sin respuesta del 2026-10-12:**
 
@@ -7511,13 +7577,14 @@ Desde `3d98ffe`, varios son commits parciales: llevan solo lo de su tanda, y los
 
 - ~~**La prueba en las dos PC y el commit** de los cuatro arreglos: sobre todo, que la notebook entre con la huella nueva.~~ Hechos el 2026-10-19: entró, 0 por datos imposibles, commit `b3a4f80`.
 - ~~**Una versión exportada:** la parte del código de la huella puede quedar vacía si los `.gd` no están como texto; habría que armar la identidad de la simulación al exportar. Para cuando se exporte (va con la prueba de dos binarios, más abajo).~~ Resuelto el 2026-10-21 exportando los scripts como texto: la huella del `.exe` es igual a la del editor, entera (sección 8.30).
-- **Las comprobaciones de las secciones 8.12 a 8.23** son scripts del Apéndice B que se arman en una carpeta temporal: no son una colección de pruebas mantenida, y algunas, como `diag_pista.gd`, salen siempre con código 0 y hay que leer su salida. Pasarlas a pruebas con condición de éxito quedó sugerido por la revisión; no se pidió.
+- **Las comprobaciones de las secciones 8.12 a 8.23** son scripts del Apéndice B que se arman en una carpeta temporal: no son una colección de pruebas mantenida, y algunas, como `diag_pista.gd`, salen siempre con código 0 y hay que leer su salida. Pasarlas a pruebas con condición de éxito quedó sugerido por la revisión; no se pidió. El 2026-10-30, después de la auditoría de GPT, el usuario pidió pasar dos: `diag_mantle.gd` y `diag_agarre_arriba.gd` son hoy `mantle_test.tscn` y `grab_above_test.tscn` (sección 8.36). Las demás siguen en el Apéndice B.
 - **La copia** de esa revisión en `tmp/audit_actor_net_20261019` se puede borrar cuando el usuario termine de mirarla.
 
 **Mecánicas que dependen de un buen internet** (sección 8.18): a los jugadores se les pide internet de menos de 140 ms y con poca pérdida, y se aceptan así:
 
 1. las correcciones de la balsa al subirse, bajarse o saltar arriba (2026-10-10);
-2. la demora de la cámara lenta del mundo: 0,1 s en la red de la casa y unos 0,3 s con internet mala (2026-10-14).
+2. la demora de la cámara lenta del mundo: 0,1 s en la red de la casa y unos 0,3 s con internet mala (2026-10-14);
+3. las correcciones del mantle sobre la balsa del borde, la que mueve solo el host: hasta 0,215 m con internet mala (2026-10-30, "Sí, sumalo"; sección 8.36).
 
 **Lo que contó el usuario del juego** (sección 14), para cuando lleguen: objetos con física (cajas, escaleras, munición de 155 mm, puertas, tanques vacíos) y vehículos (motos y autos; adentro del auto se va pegado, y arriba te lleva el compañero hasta que la fricción no alcanza). Preguntas abiertas: si las puertas se empujan con el cuerpo o se abren con una tecla, si la munición y las cajas se llevan en las manos, si las escaleras se pueden mover con alguien arriba, y quién decide cuándo se resbala uno arriba del auto.
 

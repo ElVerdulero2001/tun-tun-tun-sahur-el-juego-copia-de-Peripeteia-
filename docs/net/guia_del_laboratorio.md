@@ -7,7 +7,7 @@ Esta guía es para retomar el laboratorio después de un tiempo sin tener que le
 
 **Para pedirle algo a Claude en otra conversación:** "leé `docs/net/guia_del_laboratorio.md` y ayudame a …". Si hace falta más detalle, la sección 12 de esta guía dice en qué parte del historial buscarlo.
 
-Escrita el 2026-10-15 y puesta al día el 2026-10-22 dos veces (la segunda, a la noche, con la cuarta vuelta de la escalera, el súper, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado), el 2026-10-24 (el súper en todas las velocidades) y el 2026-10-30 (el mantle, la unión de dos cajas apiladas y frenar en la salida por arriba de la escalera). Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
+Escrita el 2026-10-15 y puesta al día el 2026-10-22 dos veces (la segunda, a la noche, con la cuarta vuelta de la escalera, el súper, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado), el 2026-10-24 (el súper en todas las velocidades) y el 2026-10-30 dos veces (el mantle, la unión de dos cajas apiladas y frenar en la salida por arriba de la escalera; a la tarde, lo que salió de la auditoría de GPT del parkour). Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
 
 ---
 
@@ -36,7 +36,7 @@ Todo el laboratorio está en la rama `net-lab` y en estas carpetas. El resto del
 | El doble clic de la notebook | `tools/net_lab/actualizar_lab.bat` y `.ps1` |
 | La exportación a `.exe` para jugar a distancia (sección 2) | `export_presets.cfg` (el ajuste **Laboratorio co-op (Windows)**) y dos líneas de `project.godot`, las que terminan en `.lab_coop` |
 | Los modelos de escaleras | `assets/models/stairs/` |
-| Las dos pruebas automáticas que están en el proyecto | `scenes/net_lab/actor_replay_test.tscn` (repetición) y `hang_sweep_test.tscn` (barrido de bordes) |
+| Las cuatro pruebas automáticas que están en el proyecto | `scenes/net_lab/actor_replay_test.tscn` (repetición), `hang_sweep_test.tscn` (barrido de bordes) y, desde el 2026-10-30, `mantle_test.tscn` (el mantle, caso por caso) y `grab_above_test.tscn` (el agarre con las manos por encima del filo) |
 
 ---
 
@@ -131,7 +131,7 @@ Todo valor que se pueda ajustar está en el nodo **Tuning**, no en el personaje.
 3. Cambialo y guardá con **Ctrl+S**.
 4. Si vas a probar en las dos PC, actualizá la notebook: las dos tienen que tener los mismos valores, o la notebook no entra.
 
-**Desde el 2026-10-19** (sin commit), en el grupo **Borde**, **Hang Reach Down** (1 m) y **Hang Drop Speed** (4 m/s): llegando a la pared con las manos hasta ese tanto por encima del filo, te agarrás en el acto, y el cuerpo baja a esa velocidad hasta colgar. Subiendo también, salvo que el salto te lleve los pies por encima del muro: ahí seguís y caés arriba. Con **Hang Reach Down** en 0, es como antes. Elegiste hasta 1 m y que la bajada fuera más rápida; los 4 m/s los puso Claude. El detalle, en la sección 8.24 del historial.
+**Desde el 2026-10-19** (commit `a257e4b`, el 2026-10-30), en el grupo **Borde**, **Hang Reach Down** (1 m) y **Hang Drop Speed** (4 m/s): llegando a la pared con las manos hasta ese tanto por encima del filo, te agarrás en el acto, y el cuerpo baja a esa velocidad hasta colgar. Subiendo también, salvo que el salto te lleve los pies por encima del muro: ahí seguís y caés arriba. Con **Hang Reach Down** en 0, es como antes. Elegiste hasta 1 m y que la bajada fuera más rápida; los 4 m/s los puso Claude. Llegando subiendo con el filo a la altura del pecho, en vez de agarrarte hacés el mantle (sección 9). El detalle, en la sección 8.24 del historial.
 
 **Desde el 2026-10-20,** en el grupo **Escalera**, **Ladder Exit Back Angle** (90°): desde qué ángulo la cámara cuenta como mirando para atrás al salir de una escalera. Lo eligió Claude.
 
@@ -495,9 +495,11 @@ Pedido el 2026-10-25 (hasta ese día estaba fuera del alcance). Cómo funciona l
 
 **Medido:** parado frente a un bloque, hay mantle hasta 1,9 m; caminando y saltando, hasta 2,0 m, justo; en 2,2 m te colgás. Un mantle de 1,6 m tarda unos 0,6 s.
 
-**En red:** 0 correcciones, también con internet mala, en un bloque fijo y en la plataforma guionada. Sobre el bloque que mueve solo el host, con internet mala, correcciones chicas (21 cm como mucho), parecidas a las de colgarse de ese mismo bloque. Lo probaste en las dos PC el 2026-10-28: "no encontré ningún bug o rareza relacionada con el mantle". Commit `eb473ca`.
+**En red:** 0 correcciones, también con internet mala, en un bloque fijo y en la plataforma guionada. Sobre el bloque que mueve solo el host (la balsa del borde), con internet mala, correcciones chicas (21 cm como mucho), parecidas a las de colgarse de ese mismo bloque. El 2026-10-30 elegiste sumarlo a lo que depende de un buen internet (sección 11). Lo probaste en las dos PC el 2026-10-28: "no encontré ningún bug o rareza relacionada con el mantle". Commit `eb473ca`.
 
 **Para Claude, la prueba automática en pareja:** `--test-input=mantle` (o `mantle:4`, en la plataforma guionada) hace mantles en ciclos contra el bloque de 2 m de la pista de bordes, uno de cada dos en diagonal con D.
+
+**Para Claude, la prueba sin red:** `scenes/net_lab/mantle_test.tscn` (desde el 2026-10-30) corre 50 casos, cada uno con lo que tiene que pasar según lo que decidiste: si hay mantle, dónde termina (arriba, colgado o abajo), parado o agachado, hacia qué lado, y que Ctrl y un empujón fuerte lo corten. Falla sola si un caso da otra cosa. Usa los valores del **Tuning**: si cambiás la franja del mantle o la altura del salto, puede fallar sin que haya un error, y Claude te dice qué caso cambió.
 
 ---
 
@@ -514,13 +516,13 @@ Pedido el 2026-10-25 (hasta ese día estaba fuera del alcance). Cómo funciona l
 - **Los poderes van en el teclado numérico** (1 y 2 usados; del 3 en adelante, libres), como acciones del Mapa de entrada.
 - **Todo lo que te escribe Claude va en español,** también los avisos entre pasos.
 - **Cuando Claude te nombra un archivo,** te dice qué es y si tenés que hacer algo con él.
-- **Las pruebas automáticas:** la de repetición y el barrido de bordes están en el proyecto. La de repetición, desde el 2026-10-19, también falla si su recorrido deja de pasar por alguna mecánica (por ejemplo, porque un valor del Tuning lo desvió del cable). Las demás (`diag_*.gd` y las pruebas en pareja) Claude las arma en una carpeta temporal que se borra; están copiadas enteras en el Apéndice B del historial, para volver a correrlas.
+- **Las pruebas automáticas:** cuatro están en el proyecto: la de repetición, el barrido de bordes y, desde el 2026-10-30, la del mantle y la del agarre con las manos por encima del filo (sección 1). La de repetición, desde el 2026-10-19, también falla si su recorrido deja de pasar por alguna mecánica (por ejemplo, porque un valor del Tuning lo desvió del cable); desde el 2026-10-30, el mantle tiene que terminar arriba, no alcanza con empezar. El barrido, desde el 2026-10-30, tiene un quinto criterio para los agarres desde arriba: el dibujo baja a **Hang Drop Speed** y la cámara no se mueve más que eso. Las demás (`diag_*.gd` y las pruebas en pareja) Claude las arma en una carpeta temporal que se borra; están copiadas enteras en el Apéndice B del historial, para volver a correrlas.
 
 ---
 
 ## 11. Lo que conviene recordar
 
-- **Mecánicas que dependen de un buen internet** (se pide menos de 140 ms y poca pérdida): las correcciones de la balsa al subirse o saltar arriba, y la demora de la cámara lenta (0,1 s en la red de la casa, hasta 0,33 s con internet mala).
+- **Mecánicas que dependen de un buen internet** (se pide menos de 140 ms y poca pérdida): las correcciones de la balsa al subirse o saltar arriba, la demora de la cámara lenta (0,1 s en la red de la casa, hasta 0,33 s con internet mala) y, desde el 2026-10-30, las correcciones del mantle sobre la balsa del borde (21 cm como mucho, con internet mala).
 - **Si se va el host, se termina la partida:** no hay migración de host. Si a un cliente se le corta la red, el host lo espera hasta 60 s.
 - **Cables y escaleras están fijos:** no se mueven ni se balancean. Sus números salen de su lugar en la escena, así que no se pueden agregar ni sacar en pleno juego sin cambiar eso.
 - **El laboratorio no es el juego.** Antes de pasarlo al juego queda pendiente el punto 4 de la revisión externa: sacar las reglas que hoy están en `net_lab.gd` a una pieza propia (sección 8.12 del historial).
@@ -533,13 +535,14 @@ Pedido el 2026-10-25 (hasta ese día estaba fuera del alcance). Cómo funciona l
 - **Saltar de un borde no te deja agarrarte de un cable por 0,3 s;** del cable al borde, sí (desde el 2026-10-18, para cortar el bucle entre los dos). Entre un compañero y un cable, 0,3 s para los dos lados (desde el 2026-10-19, por el mismo motivo).
 
 - **Para jugar a distancia, los dos con el mismo `.exe`** (sección 2): cada cambio de código o de valores pide exportar de nuevo y mandarlo. Si tu amigo tiene uno viejo, el host no lo deja entrar.
-- **El agarre con las manos por encima del filo** (sección 3) sigue sin commit desde el 2026-10-19: está en todas tus pruebas desde entonces, pero nunca se probó aparte.
+- **El agarre con las manos por encima del filo** (sección 3) estuvo sin commit del 2026-10-19 al 2026-10-30: estuvo en todas tus pruebas desde entonces, aunque nunca se probó aparte, y el 2026-10-30 elegiste commitearlo así (`a257e4b`). Desde ese día tiene su prueba fija, `grab_above_test.tscn`.
 - **Caerse de un borde sin saltar** (desde el 2026-10-22): sin apretar nada, frenás en el aire y caés casi derecho, pegado al borde. Con las teclas apretadas seguís de largo, y saltando no cambia nada. Desde algo que se mueve (el vagón, la balsa) no frena: te llevás su velocidad. Lo que queda es la punta redonda de la cápsula resbalando por el filo al empezar a caer, unos 10 cm.
 - **El súper multiplica todo por 1,5** (desde el 2026-10-22), también el tope del salto: corriendo con el súper saltás a 9 m/s, no a 6,5. Por eso el atajo a la caseta de la zona de servicio sale saltando antes del filo.
 - **Agacharse corriendo** es el deslizamiento: de 8 m/s a 2,5 en 1,4 s, unos 7 m, y después seguís agachado a 2,5. El 2026-10-22 elegiste dejarlo así.
 - **Un filo necesita lugar libre encima** (desde el 2026-10-27, después de tus capturas de la torre de parkour): la unión de dos cajas apiladas en una pared lisa ya no es un borde del que colgarse (antes, en el núcleo de la torre, te colgabas a 7 y a 10,2 m). Al armar niveles: si apoyás algo de más de 5 cm de alto a ras del filo de un borde, ese borde tampoco se agarra.
 - **La salida por arriba de la escalera** (desde el 2026-10-28): si frenás con el cuerpo ya sobre el piso, la escalera termina y quedás parado; si frenás todavía colgado del borde, seguís en la escalera.
-- **El mantle sobre el bloque que mueve solo el host,** con internet mala, da correcciones chicas, como colgarse de él. No se sumó a la lista de lo que depende de un buen internet: no se te preguntó.
+- **El mantle sobre el bloque que mueve solo el host,** con internet mala, da correcciones chicas, como colgarse de él. Desde el 2026-10-30 está en la lista de lo que depende de un buen internet (arriba): se te preguntó y elegiste sumarlo.
+- **El caso de tu video del 2026-10-19** (pared de 2,5 m, saltando corriendo a 2,9 m) hoy es un mantle, no un agarre: llegás subiendo con el filo a la altura del pecho, y así lo decidiste el 2026-10-25. El agarre con las manos por encima del filo sigue en paredes más altas que el pecho, por ejemplo una de 2,8 m.
 
 La lista completa de pendientes y límites está en la sección 16 del historial.
 
@@ -581,6 +584,7 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 | El mantle | 8.33 |
 | La unión de dos cajas apiladas, que se tomaba como un filo | 8.34 |
 | La salida por arriba de la escalera: frenando ya sobre el piso, termina | 8.35 |
+| La auditoría de GPT del parkour: qué era cierto, las pruebas fijas del mantle y del agarre desde arriba, y el commit de la 8.24 | 8.36 |
 | El código hoy: archivos, funciones, formatos de red, constantes, valores del Tuning | 9 |
 | Cómo usar el laboratorio: menú, teclas, panel, pruebas, el nivel | 10 |
 | Todas las pruebas y sus resultados | 11 |
@@ -595,7 +599,8 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 
 ## 13. Dónde quedó (2026-10-30)
 
-- **Último commit:** el de esta guía y el historial (2026-10-30). Antes, `fde8f9a` (2026-10-30), frenando en la salida por arriba de la escalera con el cuerpo ya sobre el piso, termina; y `eb473ca` (2026-10-28), el mantle y la unión de dos cajas apiladas. Los dos, después de tu prueba en las dos PC, y solo locales.
+- **Último commit:** `a257e4b` (2026-10-30 a la tarde), después de la auditoría de GPT del parkour (sección 8.36 del historial): el agarre con las manos por encima del filo, que elegiste commitear sin una prueba aparte, y las pruebas: el criterio 5 del barrido, el mantle terminado en la repetición y las dos pruebas fijas nuevas (sección 1). Solo local. Esta puesta al día de la guía y el historial, en el commit siguiente (2026-10-31), también solo local.
+- **Antes,** `e0eeb88`, la guía y el historial del mediodía (2026-10-30), y `fde8f9a` (2026-10-30), frenando en la salida por arriba de la escalera con el cuerpo ya sobre el piso, termina; y `eb473ca` (2026-10-28), el mantle y la unión de dos cajas apiladas. Los dos, después de tu prueba en las dos PC, y solo locales.
 - **Antes,** `d846680` (2026-10-24), la guía y el historial; `3fae993` (2026-10-24), el súper en todas las velocidades; y `1324a69` (2026-10-23 a la noche), lo del 2026-10-22 y la escalera del 2026-10-23, cada uno después de tu prueba en las dos PC.
 - **Los commits del 2026-10-19 al 2026-10-21** (secciones 8.23 a 8.29 del historial), cada uno después de tu prueba en las dos PC:
     - `b3a4f80`, los arreglos de la segunda revisión de GPT;
@@ -609,14 +614,15 @@ La lista completa de pendientes y límites está en la sección 16 del historial
     - `2a7e78f`, saltando para arriba desde un borde, mirar la escalera alcanza (sección 5);
     - `1324a69`, lo del 2026-10-22 y la escalera del 2026-10-23;
     - `3fae993`, el súper en todas las velocidades (sección 3).
-- **En GitHub:** `net-lab` subida el 2026-10-24, hasta `d846680`; hasta entonces estaba como el 2026-10-18, en `1dfb1e3`. Los tres commits del 2026-10-28 y el 2026-10-30 están solo en tu PC.
-- **La prueba de repetición** coincide. Desde el 2026-10-28 su huella es `7d3d417dd954d05b`: un tramo nuevo, antes del último, sube la escalera de la torre chica y frena en la salida por arriba con el cuerpo ya sobre la torre. Del 2026-10-25 al 2026-10-28 fue `560b7d53f2c117c1`, con el mantle (un salto parado frente al techo del túnel corto); la primera versión del mantle dio `0632c924e6de2955`. Desde el mantle, sus aproximaciones al colgado saltan pegadas a la pared, y con o sin el agarre con las manos por encima del filo da lo mismo. Antes, con lo que tenías en el disco, era `efb6d76da57d9ecd` desde el 2026-10-23 a la noche, por la salida por arriba a la altura del piso y sin pausa al terminar (su recorrido sale por arriba de la escalerita de la plataforma). El súper en todas las velocidades (2026-10-24) no la cambió: el recorrido no trepa ni se cuelga con el súper prendido. Sin el agarre con las manos por encima del filo, que sigue sin commit, da `e2f77d3eccd297c6` (lo que tiene `1324a69` solo). Un rato antes, todavía con la pausa, fue `8fef544164401d4f`. Esa tarde, con la salida hacia el rellano como caminando y 3 cm más arriba, fue `2a4b315010b9405b`. Un rato antes, con la salida sin saltito a la velocidad de trepar, fue `ccc95b9ae1765ef7`. Del 2026-10-22 al 2026-10-23 fue `025fb3508b46734d` (el súper nuevo, el freno al caerse de un borde y su salto del súper movido al tick 38); antes, `c06785573be6cf66`.
+- **En GitHub:** `net-lab` subida el 2026-10-24, hasta `d846680`; hasta entonces estaba como el 2026-10-18, en `1dfb1e3`. Los cinco commits del 2026-10-28 al 2026-10-31 están solo en tu PC.
+- **La prueba de repetición** coincide. Desde el 2026-10-28 su huella es `7d3d417dd954d05b`: un tramo nuevo, antes del último, sube la escalera de la torre chica y frena en la salida por arriba con el cuerpo ya sobre la torre. Del 2026-10-25 al 2026-10-28 fue `560b7d53f2c117c1`, con el mantle (un salto parado frente al techo del túnel corto); la primera versión del mantle dio `0632c924e6de2955`. Desde el mantle, sus aproximaciones al colgado saltan pegadas a la pared, y con o sin el agarre con las manos por encima del filo da lo mismo. Desde el 2026-10-30 pide además que su mantle termine arriba; la huella no cambió. Antes, con lo que tenías en el disco, era `efb6d76da57d9ecd` desde el 2026-10-23 a la noche, por la salida por arriba a la altura del piso y sin pausa al terminar (su recorrido sale por arriba de la escalerita de la plataforma). El súper en todas las velocidades (2026-10-24) no la cambió: el recorrido no trepa ni se cuelga con el súper prendido. Sin el agarre con las manos por encima del filo (commiteado el 2026-10-30), da `e2f77d3eccd297c6` (lo que tiene `1324a69` solo). Un rato antes, todavía con la pausa, fue `8fef544164401d4f`. Esa tarde, con la salida hacia el rellano como caminando y 3 cm más arriba, fue `2a4b315010b9405b`. Un rato antes, con la salida sin saltito a la velocidad de trepar, fue `ccc95b9ae1765ef7`. Del 2026-10-22 al 2026-10-23 fue `025fb3508b46734d` (el súper nuevo, el freno al caerse de un borde y su salto del súper movido al tick 38); antes, `c06785573be6cf66`.
 - **Lo del 2026-10-22** (sección 8.31 del historial): la escalera sin empujón arriba, la punta, de costado y sin trabas; el súper por 1,5 en todo; la casilla de la velocidad terminal; el freno al caerse de un borde; y la pista de salto agachado. Lo probaste en las dos PC a las 20:37: "todo funciona correctamente", salvo la salida por arriba de la escalera suelta, que te dejaba caer del otro lado. Arreglada a las 20:50 (sección 5). En tu prueba del 2026-10-23 quedabas parado arriba, pero te atravesaba el peldaño de más arriba, que era solo dibujo: desde entonces los peldaños llegan solo hasta el alto. Probado sin red. El 2026-10-23, además: el grosor del peldaño de arriba (**Top Rung Depth**) y la salida por arriba sin saltito, pasando al rellano agarrado de la escalera (sección 5). Probado en las dos PC el 2026-10-23 a la noche ("perfecto, ahora funciona perfectamente") y commiteado en `1324a69`; el 2026-10-24, "hice las pruebas en red, funciona correctamente todo".
 - **Lo del 2026-10-24** (sección 8.32 del historial): el súper en todas las velocidades, también la escalera (sección 3). Probado en las dos PC, en casa ("todo funciona correctamente"), y commiteado en `3fae993`.
 - **Lo del 2026-10-25 al 2026-10-28** (secciones 8.33 a 8.35 del historial): el mantle (sección 9); la unión de dos cajas apiladas, que ya no es un filo (sección 11); y la salida por arriba de la escalera, que termina si frenás con el cuerpo ya sobre el piso (sección 5). El mantle y las cajas, probados en las dos PC el 2026-10-28 y commiteados en `eb473ca`; la escalera, probada el 2026-10-30 ("funciona correctamente") y commiteada en `fde8f9a`.
 - **Sin commit:**
     - la exportación para jugar a distancia (sección 2): `export_presets.cfg`, dos líneas de `project.godot` y las IP del menú, en `net_lab.gd`; falta la prueba con tu amigo;
-    - el agarre con las manos por encima del filo (sección 3; en `actor_motor.gd`, `actor_body.gd`, `actor_tuning.gd` y `hang_sweep_test.gd`), del 2026-10-19, y un cambio de la prueba `hang` de `net_lab.gd` que va con él (cayendo por delante, sigue mirando para atrás);
     - F1, que oculta el panel (`net_lab.gd`), probada con teclas simuladas;
-    - `project.godot` tiene además la línea 4.6 → 4.7 del editor, que no se commitea.
-- **Pendientes:** la prueba a distancia con tu amigo (con un `.exe` nuevo; las del 2026-10-24 fueron en casa); ajustar jugando los números del mantle, si hace falta (los eligió Claude); seguir probando si el cilindro es muy permisivo, con más escenarios; la cuerda con la cámara ("no lo vamos a tocar ahora"); las pruebas de empujones al que cuelga de un compañero, que ya no llegan a colgarse (de antes, sin investigar); y el punto 4 de la revisión externa, para cuando pase al juego. La lista completa, en la sección 16 del historial.
+    - el uid del nivel en `net_lab.tscn`, que agregó el editor;
+    - `project.godot` tiene además la línea 4.6 → 4.7 del editor, que no se commitea;
+    - el informe de GPT (`docs/net/auditoria_parkour_2026-10-30.md`), que está sin seguir.
+- **Pendientes:** la prueba a distancia con tu amigo (con un `.exe` nuevo; las del 2026-10-24 fueron en casa); ajustar jugando los números del mantle, si hace falta (los eligió Claude); seguir probando si el cilindro es muy permisivo, con más escenarios; la cuerda con la cámara ("no lo vamos a tocar ahora"); las pruebas de empujones al que cuelga de un compañero, que ya no llegan a colgarse (de antes, sin investigar); el punto 4 de la revisión externa, para cuando pase al juego; y de la auditoría de GPT, endurecer la validación del host solo si algún día importan los tramposos (entre amigos no hace falta). La lista completa, en la sección 16 del historial.

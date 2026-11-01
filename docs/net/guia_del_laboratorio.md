@@ -7,7 +7,7 @@ Esta guía es para retomar el laboratorio después de un tiempo sin tener que le
 
 **Para pedirle algo a Claude en otra conversación:** "leé `docs/net/guia_del_laboratorio.md` y ayudame a …". Si hace falta más detalle, la sección 12 de esta guía dice en qué parte del historial buscarlo.
 
-Escrita el 2026-10-15 y puesta al día el 2026-10-22 dos veces (la segunda, a la noche, con la cuarta vuelta de la escalera, el súper, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado), el 2026-10-24 (el súper en todas las velocidades), el 2026-10-30 dos veces (el mantle, la unión de dos cajas apiladas y frenar en la salida por arriba de la escalera; a la tarde, lo que salió de la auditoría de GPT del parkour) y el 2026-10-31 (todo commiteado y subido a GitHub). Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
+Escrita el 2026-10-15 y puesta al día el 2026-10-22 dos veces (la segunda, a la noche, con la cuarta vuelta de la escalera, el súper, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado), el 2026-10-24 (el súper en todas las velocidades), el 2026-10-30 dos veces (el mantle, la unión de dos cajas apiladas y frenar en la salida por arriba de la escalera; a la tarde, lo que salió de la auditoría de GPT del parkour) y el 2026-10-31 tres veces (todo commiteado y subido a GitHub; a la noche, el inventario de grilla, sección 14, y después su segunda vuelta con tus notas de prueba). Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
 
 ---
 
@@ -37,6 +37,7 @@ Todo el laboratorio está en la rama `net-lab` y en estas carpetas. El resto del
 | La exportación a `.exe` para jugar a distancia (sección 2) | `export_presets.cfg` (el ajuste **Laboratorio co-op (Windows)**) y dos líneas de `project.godot`, las que terminan en `.lab_coop` |
 | Los modelos de escaleras | `assets/models/stairs/` |
 | Las cuatro pruebas automáticas que están en el proyecto | `scenes/net_lab/actor_replay_test.tscn` (repetición), `hang_sweep_test.tscn` (barrido de bordes) y, desde el 2026-10-30, `mantle_test.tscn` (el mantle, caso por caso) y `grab_above_test.tscn` (el agarre con las manos por encima del filo) |
+| El inventario de grilla (sección 14; desde el 2026-10-31) | Código en `scripts/inventory/`; la zona de prueba, los objetos y sus pruebas en `scenes/net_lab/inventario/`; los nodos **Inventario** y **Hud → InventarioUI** de `net_lab.tscn`. Todo, en `docs/net/inventario_de_grilla.md` |
 
 ---
 
@@ -86,7 +87,7 @@ Si algo sale mal, cada `.exe` deja lo que pasó en `%APPDATA%\Godot\app_userdata
 
 ### Simular internet
 
-En el menú, **Simular internet**, o en el juego, las teclas **1** a **5** de la fila de arriba. Cada máquina elige la suya:
+En el menú, **Simular internet**, o en el juego, **Alt** + las teclas **1** a **5** de la fila de arriba (hasta el 2026-10-31 eran sin Alt; la fila de arriba sin Alt pasó a ser la barra rápida del inventario). Cada máquina elige la suya:
 
 | Tecla | Red |
 | --- | --- |
@@ -113,10 +114,13 @@ En el menú, **Simular internet**, o en el juego, las teclas **1** a **5** de la
 | Rueda del mouse | Acerca la cámara, hasta primera persona |
 | 1 del teclado numérico | Prende o apaga la cámara lenta del mundo, para todos |
 | 2 del teclado numérico | Prende o apaga el súper salto y velocidad, para vos |
-| E, R (solo el host) | Empujón inmediato y programado a los demás; con Shift, débiles. Q prende o apaga la adopción |
+| Y, U (solo el host) | Empujón inmediato y programado a los demás; con Shift, débiles. Q prende o apaga la adopción. Hasta el 2026-10-31 eran E y R: E pasó a ser interactuar (elegido por vos) |
+| Tab | Abre y cierra el inventario (sección 14). El mundo no se pausa: se sigue caminando |
+| E | Recoge el objeto o abre la caja que estás mirando, si está al alcance y a la vista. Con una caja abierta, la cierra junto con el inventario |
+| 1 a 9 y 0 | La barra rápida del inventario: usa o equipa lo que tiene cada acceso |
 | G, F (solo en Jugar solo) | Pausa, y avanzar un tick en pausa |
 | F1 | Oculta el panel de valores, y otra vez F1 lo muestra: para mirar o capturar el juego sin él (desde el 2026-10-19) |
-| Esc | Suelta el mouse |
+| Esc | Con el inventario abierto, suelta lo que tenés en la mano (vuelve a su lugar) o cierra el diálogo, después cierra el menú y por último el inventario. Si no, suelta el mouse |
 
 El detalle de cada una está en la sección 10.2 del historial.
 
@@ -624,5 +628,35 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 - **Lo del 2026-10-22** (sección 8.31 del historial): la escalera sin empujón arriba, la punta, de costado y sin trabas; el súper por 1,5 en todo; la casilla de la velocidad terminal; el freno al caerse de un borde; y la pista de salto agachado. Lo probaste en las dos PC a las 20:37: "todo funciona correctamente", salvo la salida por arriba de la escalera suelta, que te dejaba caer del otro lado. Arreglada a las 20:50 (sección 5). En tu prueba del 2026-10-23 quedabas parado arriba, pero te atravesaba el peldaño de más arriba, que era solo dibujo: desde entonces los peldaños llegan solo hasta el alto. Probado sin red. El 2026-10-23, además: el grosor del peldaño de arriba (**Top Rung Depth**) y la salida por arriba sin saltito, pasando al rellano agarrado de la escalera (sección 5). Probado en las dos PC el 2026-10-23 a la noche ("perfecto, ahora funciona perfectamente") y commiteado en `1324a69`; el 2026-10-24, "hice las pruebas en red, funciona correctamente todo".
 - **Lo del 2026-10-24** (sección 8.32 del historial): el súper en todas las velocidades, también la escalera (sección 3). Probado en las dos PC, en casa ("todo funciona correctamente"), y commiteado en `3fae993`.
 - **Lo del 2026-10-25 al 2026-10-28** (secciones 8.33 a 8.35 del historial): el mantle (sección 9); la unión de dos cajas apiladas, que ya no es un filo (sección 11); y la salida por arriba de la escalera, que termina si frenás con el cuerpo ya sobre el piso (sección 5). El mantle y las cajas, probados en las dos PC el 2026-10-28 y commiteados en `eb473ca`; la escalera, probada el 2026-10-30 ("funciona correctamente") y commiteada en `fde8f9a`.
-- **Sin commit:** nada. Quedan sin seguir, porque elegiste dejarlos afuera, `tmp/` (la copia del código y los logs de las revisiones de GPT), `archive/` (logs viejos de pruebas) y un `.TMP` que dejó el editor; y también `output/pdf/`, los PDF del diseño del Parkour V2, que no estaban en la lista.
+- **Sin commit (2026-10-31, a la noche):** el inventario de grilla (sección 14) y su segunda vuelta con tus notas de prueba, con los cambios en `net_lab.tscn`, `net_lab.gd`, `lab_camera.gd`, `net_session.gd`, `sim_fingerprint.gd` y `project.godot`. Pediste no commitear hasta que lo digas. Antes de eso, nada. Quedan sin seguir, porque elegiste dejarlos afuera, `tmp/` (la copia del código y los logs de las revisiones de GPT), `archive/` (logs viejos de pruebas) y un `.TMP` que dejó el editor; y también `output/pdf/`, los PDF del diseño del Parkour V2, que no estaban en la lista.
 - **Pendientes:** la prueba a distancia con tu amigo (con un `.exe` nuevo; las del 2026-10-24 fueron en casa); ajustar jugando los números del mantle, si hace falta (los eligió Claude); seguir probando si el cilindro es muy permisivo, con más escenarios; la cuerda con la cámara ("no lo vamos a tocar ahora"); las pruebas de empujones al que cuelga de un compañero, que ya no llegan a colgarse (de antes, sin investigar); el punto 4 de la revisión externa, para cuando pase al juego; y de la auditoría de GPT, endurecer la validación del host solo si algún día importan los tramposos (entre amigos no hace falta). La lista completa, en la sección 16 del historial.
+
+---
+
+## 14. El inventario de grilla
+
+Pedido el 2026-10-31 (`docs/net/prompt_claude_inventario_grilla.md`), hecho desde cero: no usa el inventario anterior. Todo el detalle (arquitectura, quién valida qué, cómo crear objetos y cajas, pruebas y límites) está en [`inventario_de_grilla.md`](inventario_de_grilla.md).
+
+- **Dónde probarlo:** la **Zona de inventario**, pasando el borde este del piso (a la derecha de donde aparecés, unos 30 m), con dos cajas y objetos en el piso.
+- **Teclas:**
+    - **Tab** abre y cierra el inventario (el mundo no se pausa).
+    - **E** recoge o abre lo que estás mirando; con una caja abierta, la cierra.
+    - Un **clic** agarra un objeto y otro **clic** lo deja (también afuera de los paneles: al piso, aunque sea de la caja).
+    - **R** gira 90° lo que tenés en la mano, alrededor del centro de la celda por donde lo agarraste: cuatro posiciones.
+    - Con la mano vacía, el cursor sobre un objeto muestra su nombre.
+    - El **clic derecho** con algo en la mano deja una unidad en una grilla; sin nada en la mano, abre el menú.
+    - **1** a **9** y **0** usan o equipan.
+- **Lo que decidiste vos:**
+    - La simulación de internet pasó a **Alt + 1 a 5**.
+    - **E** es interactuar; los empujones del host pasaron a **Y** y **U**.
+    - Tras tu prueba del 2026-10-31: clic en vez de arrastrar, clic derecho por unidad, soltar desde la caja, cuatro giros y el banquito girable.
+    - Tras tu segunda prueba, el mismo día: el giro alrededor del centro de la celda agarrada (tu dibujo), el nombre al pasar el cursor y E para cerrar la caja.
+    - Se agarra o se abre solo lo que mirás. En tercera persona, además, tiene que estar adelante del cuerpo: es tu idea del cono, con la mira que arranca en la cabeza, que propuso Claude.
+    - Tras tu tercera prueba (2026-11-01): con un objeto en la mano, su lugar de antes queda vacío, sin "recuerdo".
+    - La física de los objetos sueltos queda para más adelante. Mientras tanto, solo se suelta con piso hasta 1,5 m debajo de los pies: colgado de un cable dice "No hay lugar cerca para soltarlo".
+- **Los valores:**
+    - En el nodo **Inventario** de `net_lab.tscn`: la grilla del jugador (12 × 16), los alcances y el grupo **Mirar**. **Look Cone Degrees** (75°) es el cono de la tercera persona; **Aim Margin**, cuánto se perdona al apuntar.
+    - El tamaño de las celdas, en **Hud → InventarioUI**.
+    - Los de cada caja, en la caja; los de cada objeto, en su `.tres`.
+- **La huella** tiene una quinta parte, "el inventario": si las dos PC no tienen los mismos objetos, cajas o valores, la notebook no entra.
+- **Probado** con pruebas automáticas, en un proceso y con tres procesos en esta PC (con internet simulada, un corte y uno que entra tarde). **Falta** tu prueba jugando, con el mouse y mirando con la cámara de verdad, y en las dos PC.

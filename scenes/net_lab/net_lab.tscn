@@ -8,6 +8,10 @@
 [ext_resource type="Script" uid="uid://cr6kkmj70nrp" path="res://scripts/net/net_sync.gd" id="6_sync"]
 [ext_resource type="Script" uid="uid://bryre3m0h8n1e" path="res://scripts/net/link_simulator.gd" id="7_link"]
 [ext_resource type="Script" uid="uid://dkdiqhwldaecd" path="res://scripts/actor/actor_tuning.gd" id="8_tuning"]
+[ext_resource type="PackedScene" path="res://scenes/net_lab/inventario/zona_de_inventario.tscn" id="9_zona_inventario"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_net.gd" id="10_inventory"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/catalogo_de_prueba.tres" id="11_catalog"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_ui.gd" id="12_inventory_ui"]
 
 [sub_resource type="Curve3D" id="Curve3D_guide"]
 _data = {
@@ -20,6 +24,9 @@ point_count = 2
 script = ExtResource("1_lab")
 
 [node name="Level" parent="." unique_id=1991015406 instance=ExtResource("2_level")]
+
+[node name="ZonaDeInventario" parent="." unique_id=1742000101 instance=ExtResource("9_zona_inventario")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 37, 0, 13)
 
 [node name="Actors" type="Node3D" parent="." unique_id=301528492]
 
@@ -46,6 +53,12 @@ script = ExtResource("8_tuning")
 ladder_jump_up = 1.2
 cable_reach = 0.6000000000000001
 cable_grab_body = 0.3
+
+[node name="Inventario" type="Node3D" parent="." unique_id=1742000102 node_paths=PackedStringArray("actors_root", "world_root")]
+script = ExtResource("10_inventory")
+catalog = ExtResource("11_catalog")
+actors_root = NodePath("../Actors")
+world_root = NodePath("../ZonaDeInventario")
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=1623118060]
 physics_interpolation_mode = 2
@@ -140,3 +153,15 @@ Desde otra PC: escribí la IP que muestra la ventana del host.
 Simular internet: elegilo solo en la PC que se une."
 horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="InventarioUI" type="Control" parent="Hud" unique_id=1742000103 node_paths=PackedStringArray("net", "camera")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("12_inventory_ui")
+net = NodePath("../../Inventario")
+camera = NodePath("../../CameraRig")

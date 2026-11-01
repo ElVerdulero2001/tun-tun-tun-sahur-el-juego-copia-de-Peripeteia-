@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="InvCatalog" format=3]
+
+[ext_resource type="Script" path="res://scripts/inventory/inv_catalog.gd" id="1_catalog"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="2_def"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/botella.tres" id="3_botella"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/machete.tres" id="4_machete"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/llave.tres" id="5_llave"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/granada.tres" id="6_granada"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/banquito.tres" id="7_banquito"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/tornillos.tres" id="8_tornillos"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/bateria.tres" id="9_bateria"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/linterna.tres" id="10_linterna"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/caja_de_herramientas.tres" id="11_caja"]
+
+[resource]
+script = ExtResource("1_catalog")
+items = Array[ExtResource("2_def")]([ExtResource("3_botella"), ExtResource("4_machete"), ExtResource("5_llave"), ExtResource("6_granada"), ExtResource("7_banquito"), ExtResource("8_tornillos"), ExtResource("9_bateria"), ExtResource("10_linterna"), ExtResource("11_caja")])

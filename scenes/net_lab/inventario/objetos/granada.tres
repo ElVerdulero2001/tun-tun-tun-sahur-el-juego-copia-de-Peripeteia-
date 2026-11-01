@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="InvItemDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="PackedScene" path="res://assets/models/collectibles/granada1.glb" id="2_model"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"granada"
+display_name = "Granada inerte"
+description = "De utilería: no hace nada. Se apila de a cuatro."
+stackable = true
+max_stack = 4
+model = ExtResource("2_model")
+color = Color(0.35, 0.45, 0.3, 1)
+world_size = 0.16

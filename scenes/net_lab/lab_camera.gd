@@ -53,6 +53,9 @@ var _zoom := 1.0
 var _wanted_zoom := 1.0
 ## Mientras está el menú del laboratorio, la cámara no se queda con el mouse.
 var _capture_enabled := false
+## Interfaces que necesitan el mouse libre (el inventario): mientras haya
+## alguna, la cámara no lo vuelve a capturar ni gira.
+var _mouse_holders := {}
 
 @onready var _guide: Path3D = $Guide
 @onready var _spring: SpringArm3D = $SpringArm
@@ -68,11 +71,26 @@ func _ready() -> void:
 ## Empieza a usar el mouse para mirar. La llama el laboratorio al salir del menú.
 func start_capture() -> void:
 	_capture_enabled = true
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if _mouse_holders.is_empty():
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Una interfaz pide el mouse libre: se suelta y la cámara deja de girar.
+func hold_mouse(holder: Object) -> void:
+	_mouse_holders[holder.get_instance_id()] = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+## La interfaz ya no lo necesita. Si no queda ninguna otra, la cámara lo vuelve
+## a tomar (salvo en el menú del laboratorio).
+func release_mouse(holder: Object) -> void:
+	_mouse_holders.erase(holder.get_instance_id())
+	if _mouse_holders.is_empty() and _capture_enabled:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not _capture_enabled:
+	if not _capture_enabled or not _mouse_holders.is_empty():
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if event is InputEventMouseMotion and captured:
@@ -128,6 +146,15 @@ func _process(delta: float) -> void:
 ## resorte). Viaja en el input: el motor lo usa al salir de una escalera.
 func third_person() -> bool:
 	return _spring.spring_length > hide_body_distance
+
+
+## La mira: la línea que sale de la cámara por el centro de la pantalla. Empieza
+## a la altura de la cabeza, así lo que queda entre la cámara y el personaje
+## (en tercera persona) no cuenta. [desde, hacia dónde].
+func aim_ray() -> Array:
+	var look := -global_basis.z
+	var eye := _camera.global_position
+	return [eye + look * maxf((global_position - eye).dot(look), 0.0), look]
 
 
 ## Pone el resorte apuntando al punto de la guía que corresponde a _zoom, y la

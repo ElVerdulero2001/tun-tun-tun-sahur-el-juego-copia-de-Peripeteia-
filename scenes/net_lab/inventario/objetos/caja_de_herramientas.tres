@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="InvItemDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_tools"]
+size = Vector3(0.6, 0.3, 0.3)
+
+[resource]
+script = ExtResource("1_def")
+id = &"caja_de_herramientas"
+display_name = "Caja de herramientas"
+description = "Objeto ancho (3 × 2) que se puede girar."
+size = Vector2i(3, 2)
+mesh = SubResource("BoxMesh_tools")
+color = Color(0.8, 0.25, 0.2, 1)
+world_size = 0.55

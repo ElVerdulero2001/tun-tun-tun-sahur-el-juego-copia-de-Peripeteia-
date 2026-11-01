@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="InvItemDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_equippable.gd" id="3_equip"]
+[ext_resource type="PackedScene" path="res://assets/models/collectibles/machetedesanmartin4.glb" id="4_model"]
+
+[sub_resource type="Resource" id="Resource_equip"]
+script = ExtResource("3_equip")
+hold_offset = Vector3(0.45, 1.05, -0.15)
+hold_rotation = Vector3(0, 0, 90)
+hold_size = 0.6
+
+[resource]
+script = ExtResource("1_def")
+id = &"machete"
+display_name = "Machete"
+description = "Equipable de prueba: se lleva en la mano sin sacarlo de la grilla."
+size = Vector2i(1, 3)
+abilities = Array[ExtResource("2_ability")]([SubResource("Resource_equip")])
+model = ExtResource("4_model")
+color = Color(0.6, 0.6, 0.62, 1)
+world_size = 0.6

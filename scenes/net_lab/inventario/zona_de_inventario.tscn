@@ -1,0 +1,155 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/inventory/caja.tscn" id="1_caja"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_pickup_spawn.gd" id="2_spawn"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/botella.tres" id="3_botella"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/machete.tres" id="4_machete"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/llave.tres" id="5_llave"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/granada.tres" id="6_granada"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/banquito.tres" id="7_banquito"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/tornillos.tres" id="8_tornillos"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/bateria.tres" id="9_bateria"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/linterna.tres" id="10_linterna"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/caja_de_herramientas.tres" id="11_caja"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(14, 1, 14)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.42, 0.46, 0.52, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+material = SubResource("StandardMaterial3D_floor")
+size = Vector3(14, 1, 14)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wall"]
+size = Vector3(0.3, 2, 4)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wall"]
+albedo_color = Color(0.75, 0.72, 0.66, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_wall"]
+material = SubResource("StandardMaterial3D_wall")
+size = Vector3(0.3, 2, 4)
+
+[node name="ZonaDeInventario" type="Node3D"]
+
+[node name="Piso" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="Forma" type="CollisionShape3D" parent="Piso"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="Malla" type="MeshInstance3D" parent="Piso"]
+mesh = SubResource("BoxMesh_floor")
+
+[node name="Pared" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 1, -3)
+
+[node name="Forma" type="CollisionShape3D" parent="Pared"]
+shape = SubResource("BoxShape3D_wall")
+
+[node name="Malla" type="MeshInstance3D" parent="Pared"]
+mesh = SubResource("BoxMesh_wall")
+
+[node name="Cartel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 2.6, 0)
+billboard = 1
+pixel_size = 0.006
+font_size = 48
+outline_size = 10
+text = "ZONA DE INVENTARIO
+Tab abre el inventario · E recoge o abre una caja
+1 a 9 y 0: barra rápida · R gira lo que arrastrás"
+
+[node name="CajaCompartida" parent="." instance=ExtResource("1_caja")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
+display_name = "Caja compartida"
+columns = 8
+rows = 8
+box_size = Vector3(1.2, 0.9, 0.8)
+
+[node name="CajonChico" parent="." instance=ExtResource("1_caja")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3.5)
+display_name = "Cajón chico"
+columns = 4
+rows = 3
+box_size = Vector3(0.8, 0.6, 0.6)
+color = Color(0.35, 0.4, 0.5, 1)
+
+[node name="Objetos" type="Node3D" parent="."]
+
+[node name="Botellas2" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -5)
+script = ExtResource("2_spawn")
+item = ExtResource("3_botella")
+quantity = 2
+
+[node name="Botella1" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3.8)
+script = ExtResource("2_spawn")
+item = ExtResource("3_botella")
+
+[node name="Machete" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -2.6)
+script = ExtResource("2_spawn")
+item = ExtResource("4_machete")
+
+[node name="Linterna" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -1.4)
+script = ExtResource("2_spawn")
+item = ExtResource("10_linterna")
+
+[node name="Banquito" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -0.2)
+script = ExtResource("2_spawn")
+item = ExtResource("7_banquito")
+
+[node name="CajaDeHerramientas" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 1)
+script = ExtResource("2_spawn")
+item = ExtResource("11_caja")
+
+[node name="Llave" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 2.2)
+script = ExtResource("2_spawn")
+item = ExtResource("5_llave")
+
+[node name="Tornillos20a" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, -5)
+script = ExtResource("2_spawn")
+item = ExtResource("8_tornillos")
+quantity = 20
+
+[node name="Tornillos20b" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, -3.8)
+script = ExtResource("2_spawn")
+item = ExtResource("8_tornillos")
+quantity = 20
+
+[node name="Granadas3" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, -2.6)
+script = ExtResource("2_spawn")
+item = ExtResource("6_granada")
+quantity = 3
+
+[node name="Granadas2" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, -1.4)
+script = ExtResource("2_spawn")
+item = ExtResource("6_granada")
+quantity = 2
+
+[node name="BateriasLlenas" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, -0.2)
+script = ExtResource("2_spawn")
+item = ExtResource("9_bateria")
+quantity = 2
+
+[node name="BateriasGastadas" type="Marker3D" parent="Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, 1)
+script = ExtResource("2_spawn")
+item = ExtResource("9_bateria")
+quantity = 2
+state_override = {
+"carga": 40
+}

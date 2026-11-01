@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="InvItemDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="PackedScene" path="res://assets/models/collectibles/llave2.glb" id="2_model"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"llave"
+display_name = "Llave"
+description = "Objeto chico, sin acciones. No se apila."
+model = ExtResource("2_model")
+color = Color(0.85, 0.7, 0.3, 1)
+world_size = 0.18

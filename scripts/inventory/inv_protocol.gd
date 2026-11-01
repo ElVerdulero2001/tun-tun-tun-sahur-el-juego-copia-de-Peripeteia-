@@ -1,0 +1,72 @@
+class_name InvProtocol
+extends RefCounted
+
+## Forma de los pedidos que un jugador le hace al host. Viajan como
+## [número de pedido, operación, argumentos], solo con números enteros: nunca
+## nodos, recursos ni rutas. El host descarta lo que no tenga exactamente esta
+## forma.
+##
+## Un inventario se nombra con un número: 0 es el propio (el host sabe de quién
+## es por la conexión), uno positivo es una caja, y uno negativo sería el de
+## otro jugador, que el host siempre rechaza. El giro va de 0 a 3, de a 90° en
+## el sentido del reloj.
+
+enum Op {
+	MOVE = 1,  ## [origen, id, versión, destino, x, y, giro]
+	MERGE,  ## [origen, id, versión, destino, id de la pila de destino, cantidad]
+	SPLIT,  ## [origen, id, versión, cantidad, destino, x, y, giro]
+	DROP,  ## [origen, id, versión, cantidad]: al piso, desde el inventario propio o una caja abierta
+	PICKUP,  ## [id del objeto del mundo]
+	USE,  ## [id, versión]
+	EQUIP,  ## [id, versión]: equipa o desequipa
+	HOTBAR_SET,  ## [acceso, id] (id 0 lo vacía)
+	HOTBAR_SWAP,  ## [acceso, acceso]
+	HOTBAR_PRESS,  ## [acceso]: usa o equipa lo que tiene
+	OPEN,  ## [id de la caja]
+	CLOSE,  ## [id de la caja]
+}
+
+const OWN := 0
+## Un pedido más largo que esto no es de este juego.
+const MAX_REQUEST_BYTES := 512
+
+const ARGS := {
+	Op.MOVE: [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT],
+	Op.MERGE: [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT],
+	Op.SPLIT: [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT],
+	Op.DROP: [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT],
+	Op.PICKUP: [TYPE_INT],
+	Op.USE: [TYPE_INT, TYPE_INT],
+	Op.EQUIP: [TYPE_INT, TYPE_INT],
+	Op.HOTBAR_SET: [TYPE_INT, TYPE_INT],
+	Op.HOTBAR_SWAP: [TYPE_INT, TYPE_INT],
+	Op.HOTBAR_PRESS: [TYPE_INT],
+	Op.OPEN: [TYPE_INT],
+	Op.CLOSE: [TYPE_INT],
+}
+
+
+static func encode_request(seq: int, op: int, args: Array) -> PackedByteArray:
+	return var_to_bytes([seq, op, args])
+
+
+## [número, operación, argumentos], o vacío si no tiene la forma esperada.
+static func parse_request(data: PackedByteArray) -> Array:
+	if data.size() < 4 or data.size() > MAX_REQUEST_BYTES:
+		return []
+	# Sin objetos: bytes_to_var no los arma, así que un pedido no puede traer uno.
+	var value: Variant = bytes_to_var(data)
+	if not value is Array or value.size() != 3 or typeof(value[0]) != TYPE_INT or typeof(value[1]) != TYPE_INT \
+			or not value[2] is Array:
+		return []
+	var op: int = value[1]
+	if value[0] <= 0 or not ARGS.has(op):
+		return []
+	var args: Array = value[2]
+	var types: Array = ARGS[op]
+	if args.size() != types.size():
+		return []
+	for i in types.size():
+		if typeof(args[i]) != types[i]:
+			return []
+	return [value[0], op, args]

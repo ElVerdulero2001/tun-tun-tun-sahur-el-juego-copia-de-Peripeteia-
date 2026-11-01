@@ -11,8 +11,9 @@ extends Node3D
 ## Paso 5: simulador de red, para que una LAN se comporte como internet.
 ## Paso 6: el cliente predice su propio actor y mantiene el adelanto sobre el host.
 ## Paso 7: con cada input viaja lo que el cliente predijo (la afirmación) y el
-## host la adopta si es creíble. En el host, E empuja a los demás jugadores (un
-## evento del host, que sube su época) y Q prende o apaga la adopción.
+## host la adopta si es creíble. En el host, Y empuja a los demás jugadores (un
+## evento del host, que sube su época) y Q prende o apaga la adopción. (Hasta
+## el 2026-10-31 eran E y R; E pasó a interactuar, para el inventario.)
 ## Paso 8: los demás jugadores se ven interpolados unos 100 ms en el pasado,
 ## las correcciones del propio se suavizan y el host manda 30 snapshots por
 ## segundo. Quien cae del mapa reaparece en su lugar.
@@ -37,6 +38,11 @@ extends Node3D
 ## deja su actor en el mundo, quieto, hasta que vuelve (ver NetSession). Al
 ## volver sigue donde estaba. Una copia con otro Tuning, otro código u otro
 ## nivel no entra: el host dice qué parte es distinta (SimFingerprint).
+## Inventario de grilla (2026-10-31): cada jugador tiene el suyo y las cajas de
+## la zona de inventario se comparten. Lo valida el host (nodo Inventario,
+## InvNet) y la interfaz es del jugador local (Hud/InventarioUI). Tab lo abre,
+## E recoge o abre una caja y 1 a 9 y 0 son la barra rápida; por eso la
+## simulación de internet pasó a Alt + 1 a 5.
 ##
 ## El rol se elige con el menú. Para pruebas automáticas también se puede pasar
 ## por argumentos: --local, --host o --client, --address=IP, --port=N,
@@ -124,7 +130,7 @@ const HOST_SILENCE_MSEC := 500
 ## Cliente: mientras no predice (todavía no sincronizó, o quieto sin noticias
 ## del host), cada cuántos ticks le avisa al host que sigue ahí.
 const HEARTBEAT_TICKS := 15
-## Niveles del simulador de red, con las teclas 1 a 5. La demora es de ida y
+## Niveles del simulador de red, con Alt + 1 a 5. La demora es de ida y
 ## vuelta; los tirones traban la conexión stall ms cada stall_every ms.
 const NET_PRESETS := [
 	{"name": "sin simulación", "rtt": 0.0, "jitter": 0.0, "loss": 0.0},
@@ -415,6 +421,10 @@ var _remote_last_positions := {}  # peer -> Vector3
 @onready var _menu: Control = $Hud/Menu
 @onready var _lan_label: Label = $Hud/Menu/Box/LanAddress
 @onready var _address_field: LineEdit = $Hud/Menu/Box/JoinRow/Address
+@onready var _inventory: InvNet = $Inventario
+@onready var _inventory_ui: InvUI = $Hud/InventarioUI
+## Si el panel estaba a la vista al abrir el inventario: al cerrarlo vuelve así.
+var _info_before_inventory := true
 
 
 func _enter_tree() -> void:
@@ -435,7 +445,8 @@ func _ready() -> void:
 		tuning.set(property, test_tuning[property])
 	# Antes del primer tick: después las plataformas y la balsa ya se movieron.
 	_session.compatibility = SimFingerprint.compute(tuning, SimFingerprint.level_text($Level),
-			SimFingerprint.actor_text(NetSession.ACTOR_SCENE))
+			SimFingerprint.actor_text(NetSession.ACTOR_SCENE),
+			_inventory.fingerprint_text() + "\n" + SimFingerprint.level_text($ZonaDeInventario))
 	print("[net_lab] huella de compatibilidad: %s" % _session.compatibility.hex_encode())
 	_clock.actors_root = _actors
 	_clock.tuning = tuning
@@ -447,6 +458,13 @@ func _ready() -> void:
 	_net_sync.link = _link
 	_net_sync.clock = _clock
 	_session.net_sync = _net_sync
+	_inventory.link = _link
+	_session.actor_replaced.connect(_inventory.actor_replaced)
+	# Con el inventario abierto, el panel de valores se oculta: tapa la grilla.
+	_inventory_ui.opened.connect(func() -> void:
+		_info_before_inventory = _info.visible
+		_info.visible = false)
+	_inventory_ui.closed.connect(func() -> void: _info.visible = _info_before_inventory)
 	multiplayer.server_disconnected.connect(_link.clear)
 	multiplayer.peer_disconnected.connect(_interpolation.forget)
 	multiplayer.peer_connected.connect(_announce_world_slow_to)
@@ -518,11 +536,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			# Oculta o muestra el panel, para mirar o capturar el juego sin él
 			# (pedido del usuario, 2026-10-19).
 			_info.visible = not _info.visible
-		elif index >= 0:
+		elif index >= 0 and event.alt_pressed:
+			# Con Alt: la fila de arriba sin Alt es la barra rápida del inventario.
 			_apply_net_preset(index)
-		elif role == Role.HOST and (event.keycode == KEY_E or event.keycode == KEY_R):
+		elif role == Role.HOST and (event.keycode == KEY_Y or event.keycode == KEY_U):
 			var force := PUSH_FORCE_WEAK if event.shift_pressed else PUSH_FORCE_STRONG
-			_push_requests.append([event.keycode == KEY_R, force])
+			_push_requests.append([event.keycode == KEY_U, force])
 		elif role == Role.HOST and event.keycode == KEY_Q:
 			_adoption.enabled = not _adoption.enabled
 			print("[net_lab] adopción %s" % ("prendida" if _adoption.enabled else "apagada"))
@@ -577,6 +596,9 @@ func _start(new_role: Role) -> void:
 	_camera.start_capture()
 	if not sim_from_args:
 		_apply_net_preset(_sim_option.selected)
+	# Antes de la sesión: el host arma el mundo del inventario y el cliente
+	# queda esperando el estado que le mande el host.
+	_inventory.start(role != Role.CLIENT)
 	match role:
 		Role.HOST:
 			_session.start_host(port, bind_address)
@@ -712,6 +734,10 @@ func _local_input(tick: int) -> ActorInput:
 		buttons |= ActorInput.BUTTON_CROUCH
 	if Input.is_action_pressed("run"):
 		buttons |= ActorInput.BUTTON_RUN
+	if _inventory_ui.is_typing():
+		# Escribiendo una cantidad en el inventario, las teclas son del campo.
+		move = Vector2.ZERO
+		buttons = 0
 	if _camera.third_person():
 		buttons |= ActorInput.BUTTON_THIRD_PERSON
 	return ActorInput.make(tick, move, _camera.yaw, buttons, jump_presses)
@@ -2101,6 +2127,7 @@ func _on_local_actor_spawned(actor: ActorBody) -> void:
 	_local_actor = actor
 	# La cámara sigue lo que se ve, con el desvío de las correcciones incluido.
 	_camera.target = actor.visual_root()
+	_inventory_ui.activate(actor)
 	if role == Role.CLIENT:
 		# El contador de saltos arranca donde lo dejó el host: si se apretó
 		# Espacio mientras estaba cortado, al volver no salta solo.
@@ -2126,6 +2153,9 @@ func _on_connection_lost() -> void:
 	_interpolation.clear()
 	_client_events.clear()
 	_remote_last_positions.clear()
+	# Primero el inventario: así la interfaz, al cerrarse, no le pide nada al host.
+	_inventory.connection_lost()
+	_inventory_ui.connection_lost()
 	_flash("Se cortó la conexión con el host: reconectando…")
 
 
@@ -2262,7 +2292,7 @@ func _update_hud() -> void:
 	var lines := PackedStringArray([
 		_session.status,
 		"tick %d   ·   actores: %s" % [_clock.tick, _actor_ids()],
-		"red simulada: %s   ·   teclas 1 a 5 para cambiarla" % _net_sim_text(),
+		"red simulada: %s   ·   Alt + 1 a 5 para cambiarla" % _net_sim_text(),
 	])
 	if role == Role.CLIENT and _session.reconnecting:
 		lines.append("SIN CONEXIÓN CON EL HOST   ·   reintenta solo   ·   se rinde en %d s" % maxi(ceili(_session.give_up_left()), 0))
@@ -2373,9 +2403,10 @@ func _update_hud() -> void:
 	lines.append("Colgado de un compañero: W/S suben y bajan, A/D giran alrededor (en borde y escalera, solo por su espalda)")
 	lines.append("1 del teclado numérico: prende o apaga la cámara lenta del mundo, para todos · 2 del teclado numérico: prende o apaga tu súper salto y velocidad")
 	if role == Role.HOST:
-		lines.append("E empuja a los demás ya · R los empuja programado · con Shift, empujón débil · Q prende o apaga la adopción")
+		lines.append("Y empuja a los demás ya · U los empuja programado · con Shift, empujón débil · Q prende o apaga la adopción")
 	if role == Role.LOCAL:
 		lines.append("G pausa y congela · F avanza un tick en pausa")
+	lines.append("Tab abre el inventario · E recoge un objeto o abre una caja · 1 a 9 y 0: barra rápida (usa o equipa)")
 	lines.append("F12 guarda una captura en el Escritorio · F1 oculta este panel y lo vuelve a mostrar")
 	if Time.get_ticks_msec() < _flash_until_msec:
 		lines.insert(0, ">> %s" % _flash_text)

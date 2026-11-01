@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/inventory/inv_container.gd" id="1_box"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_inventory.gd" id="2_inventory"]
+
+[node name="Caja" type="StaticBody3D" node_paths=PackedStringArray("inventory")]
+script = ExtResource("1_box")
+inventory = NodePath("Inventario")
+
+[node name="Inventario" type="Node" parent="."]
+script = ExtResource("2_inventory")

@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="InvItemDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_equippable.gd" id="3_equip"]
+
+[sub_resource type="Resource" id="Resource_equip"]
+script = ExtResource("3_equip")
+hold_offset = Vector3(0.38, 1.0, -0.3)
+hold_rotation = Vector3(90, 0, 0)
+hold_size = 0.3
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_torch"]
+top_radius = 0.05
+bottom_radius = 0.035
+height = 0.28
+radial_segments = 16
+
+[resource]
+script = ExtResource("1_def")
+id = &"linterna"
+display_name = "Linterna"
+description = "Equipable con una malla simple de prueba (un cilindro). Equipar otra cosa la reemplaza."
+size = Vector2i(1, 2)
+abilities = Array[ExtResource("2_ability")]([SubResource("Resource_equip")])
+mesh = SubResource("CylinderMesh_torch")
+color = Color(0.95, 0.8, 0.2, 1)
+world_size = 0.3

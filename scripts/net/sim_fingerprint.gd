@@ -2,17 +2,18 @@ class_name SimFingerprint
 extends RefCounted
 
 ## Huella de lo que tiene que ser igual en el host y en cada cliente para que
-## la simulación dé lo mismo: los valores del Tuning, el código, el nivel y el
-## personaje. El cliente la manda al conectarse; si no coincide, el host no lo
-## deja entrar y le dice qué parte es distinta. Sin esto, una copia vieja se
-## conecta igual y todo anda raro, con correcciones a cada rato y sin aviso.
+## la simulación dé lo mismo: los valores del Tuning, el código, el nivel, el
+## personaje y el inventario (sus objetos, sus cajas y sus valores). El
+## cliente la manda al conectarse; si no coincide, el host no lo deja entrar y
+## le dice qué parte es distinta. Sin esto, una copia vieja se conecta igual y
+## todo anda raro, con correcciones a cada rato y sin aviso.
 ##
 ## Se arma con lo que hay en memoria y no con los archivos de escena, que el
 ## editor puede volver a guardar con otro formato sin cambiar nada.
 
-enum Part { TUNING, CODE, LEVEL, ACTOR }
+enum Part { TUNING, CODE, LEVEL, ACTOR, INVENTORY }
 ## Cómo se nombra cada parte en el aviso.
-const PART_NAMES := ["los valores del Tuning", "el código", "el nivel", "el personaje"]
+const PART_NAMES := ["los valores del Tuning", "el código", "el nivel", "el personaje", "el inventario"]
 ## Bytes por parte: los primeros del SHA-256 de su texto.
 const PART_BYTES := 8
 ## Todo número se redondea a esto antes de entrar en la huella. Las piezas que
@@ -20,20 +21,22 @@ const PART_BYTES := 8
 ## diferir en el último decimal entre dos procesadores: sin redondear, dos
 ## copias iguales podrían dar huellas distintas.
 const STEP := 0.0001
-const BYTES := PART_BYTES * 4
+const BYTES := PART_BYTES * 5
 ## Carpetas con el código que simula, viaja por red o arma el nivel.
-const CODE_DIRS := ["res://scripts/actor", "res://scripts/net", "res://scenes/net_lab"]
+const CODE_DIRS := ["res://scripts/actor", "res://scripts/net", "res://scenes/net_lab", "res://scripts/inventory"]
 
 
 ## La huella completa. Para el nivel, el texto de level_text(), tomado antes
 ## del primer tick: después las plataformas y la balsa ya se movieron. Para el
-## personaje, el de actor_text().
-static func compute(tuning: ActorTuning, level: String, actor: String) -> PackedByteArray:
+## personaje, el de actor_text(). Para el inventario, el de
+## InvNet.fingerprint_text() más el de level_text() de su zona.
+static func compute(tuning: ActorTuning, level: String, actor: String, inventory: String = "") -> PackedByteArray:
 	var out := PackedByteArray()
 	out.append_array(_digest(tuning_text(tuning)))
 	out.append_array(_digest(code_text()))
 	out.append_array(_digest(level))
 	out.append_array(_digest(actor))
+	out.append_array(_digest(inventory))
 	return out
 
 

@@ -29,6 +29,10 @@ signal local_actor_spawned(actor: ActorBody)
 signal connection_lost
 ## Cliente: volvió a conectarse después de un corte.
 signal connection_restored
+## Host: un jugador volvió después de un corte y su actor viejo se cambió por
+## uno nuevo, con el mismo estado. El viejo ya no está en el árbol pero todavía
+## existe: lo que la entidad tenía (su inventario) se puede pasar al nuevo.
+signal actor_replaced(old_actor: ActorBody, new_actor: ActorBody)
 
 const ACTOR_SCENE := preload("res://scenes/actor/actor.tscn")
 const MAX_CLIENTS := 7
@@ -316,7 +320,9 @@ func _hand_over(old_peer: int, new_peer: int) -> void:
 	# Si para el host la conexión vieja seguía abierta, ya no sirve.
 	_forget_peer(old_peer, true)
 	players_back += 1
-	spawner.spawn({"peer": new_peer, "state": state.to_bytes()})
+	var new_actor := spawner.spawn({"peer": new_peer, "state": state.to_bytes()}) as ActorBody
+	if new_actor != null:
+		actor_replaced.emit(old_actor, new_actor)
 
 
 ## Saca a los jugadores cortados que no volvieron a tiempo.

@@ -42,6 +42,68 @@ Lo que pediste en `capturas/ifac.txt` (el mantle quedó para otro momento):
 - **Sin "recuerdo":** con un objeto en la mano, su lugar de antes queda vacío; antes se veía apagado. También queda vacío mientras lo que dejaste espera al host; en el lugar nuevo se ve el borde amarillo. Si el host lo rechaza, vuelve a aparecer en su lugar. Asignarlo a un acceso de la barra no lo mueve: ahí sigue viéndose.
 - **"No hay lugar cerca para soltarlo"** colgado del cable es a propósito, mientras los objetos no tengan física: no caen, así que el host los apoya directo en el piso, y solo busca piso hasta 1,5 m debajo de tus pies, de 0,7 a 1,5 m alrededor tuyo. Colgado o en el aire, más alto que eso, no hay dónde apoyarlo. Con la física, va a caer desde la mano.
 
+### El panel Objetos (2026-11-01)
+
+Pediste una herramienta para no crear los objetos a mano, y elegiste un panel en el editor: la pestaña **Objetos**, al lado del **Inspector**. Con un botón hace los tres pasos de la sección 4. Cómo activarlo y usarlo, en la sección 4.
+
+La primera versión rompía la vista 3D del editor (tu captura del mismo día: los íconos de la luz y de la cámara gigantes, sin perspectiva). Con la pestaña **Objetos** oculta, su texto de ayuda quedaba sin ancho y se partía letra por letra; su alto estiraba todo el editor, y la vista 3D llegaba a 5448 píxeles de alto, de los que se veía un pedazo. Arreglado ese día: los textos largos del panel tienen un ancho mínimo, y la vista volvió a su tamaño (comprobado con una foto del editor).
+
+### El panel Objetos, segunda versión (2026-11-01)
+
+Pedida en [`prompt_claude_creador_de_objetos.md`](prompt_claude_creador_de_objetos.md). El mismo panel, ampliado:
+
+- Crea, abre, edita y duplica **ítems** y también **contenedores**.
+- Muestra todo lo que antes había que cambiar en el Inspector, con una **vista previa**: el objeto en el piso o en la mano, la miniatura, y la huella sin girar y girada 90°.
+- **Guardar** y **Colocar en la zona** son pasos separados. Colocar ya no guarda la zona sola.
+
+Cómo se usa, en la sección 4.
+
+### Acomodar la miniatura (2026-11-01, tus capturas 1079 y 1080)
+
+Probaste la segunda versión y anduvo. Pediste dos cosas:
+
+- **Acomodar el objeto en su miniatura,** como uno quiera. La puerta salía en diagonal porque toda miniatura arranca girada −20° y 35°.
+- **"Apariencia y miniatura" no se entendía.**
+
+Lo que cambió:
+
+- Sección nueva, **Miniatura del inventario**: la imagen que se ve en la grilla, grande, para acomodarla con el mouse (girar, correr, acercar) o con botones (**↺ 90°**, **↻ 90°**, **De frente**, **Centrar** y **Automático**).
+- Se sacaron del panel los números de giro y zoom y la casilla "acostarlo"; siguen en el Inspector.
+- **Apariencia** muestra la forma simple y el color solo si no hay modelo, porque con modelo no se usan.
+- Para poder correr el objeto en la miniatura, `InvItemDef` tiene un dato nuevo, **Thumbnail Offset**.
+
+### Buscador y textos más claros (2026-11-01)
+
+Tras tu prueba:
+
+- **Abrir** pasó a ser un **buscador** con una lista: hoy hay pocos objetos, pero con cientos ya no alcanza una lista desplegable.
+- No se entendían **Estado inicial** ni **Colocar en la zona**. Sus textos en el panel ahora dicen para qué sirven, con un ejemplo (también en la sección 4).
+- Cada dato del estado va en dos renglones: arriba el nombre, abajo el tipo y el valor. Antes, el tipo no se leía.
+
+### Consumibles con salud y estamina (2026-11-02)
+
+Probado: el modelo 70 de 70, el laboratorio 166 de 166, tres procesos (host 18, A 24 y B 7) y el panel en una copia (144 de 144 en el editor, 25 de 25 jugando).
+
+Pedido en [`prompt_claude_hud_salud_estamina_y_estados.md`](prompt_claude_hud_salud_estamina_y_estados.md); todo el detalle, en [`hud_salud_estamina_y_estados.md`](hud_salud_estamina_y_estados.md). Para el inventario cambió esto:
+
+- **La vitalidad de prueba ya no existe.** Era un contador de la barra (`InvLoadout.test_vitality`, de 40 a 100). Los consumibles ahora cambian la salud y la estamina del personaje, que muestra el HUD. Así no hay dos números que parezcan la salud.
+- **El consumible tiene dos números:**
+    - **Efecto en la salud:** positivo cura y negativo daña; un daño mayor a lo que queda mata (muerte de prueba).
+    - **Recupera estamina.**
+    
+    Uno que solo cura no se usa con la salud completa, y uno que solo devuelve estamina, con la reserva llena: no se gastan. Uno que daña se usa siempre. El host aplica el efecto y gasta la unidad en el mismo paso, y un pedido repetido no se vuelve a aplicar.
+- **La Botella de agua cura 25** (lo que antes sumaba a la vitalidad). Hay cuatro objetos nuevos en la zona: **Botiquín**, **Bebida energética**, **Frasco de veneno** y **Cápsula letal**.
+- **A la izquierda de la barra** ya no dice la vitalidad: ahí van los instrumentos del HUD. "Equipado: …" pasó a la derecha de la barra.
+- **Las capacidades reciben la salud y la estamina del que las usa** (`ActorVitals`), para el menú y para el host. Es todo lo que el inventario ve del personaje.
+
+### Menos texto en el panel: las burbujitas (2026-11-02)
+
+Pediste sacar el texto que explica, porque el panel estaba muy cargado. Ahora cada explicación está en una **burbujita**: un signo de pregunta en un círculo, al lado del nombre del campo o del título de la sección. Un clic abre un globo con la explicación; otro clic, uno afuera o Escape lo cierran. Hay burbujitas en el buscador, Identidad (ID y Archivo), Apariencia (la sección, Modelo y Tamaño en el piso), Miniatura del inventario, Capacidades, los cuatro números del consumible, la Posición y el Tamaño del equipable, Estado inicial, Vista previa, Colocar en la zona (la sección, Unidades y Datos propios) y, en contenedores, Escena, Inventario y caja, Grilla, Medidas de la caja y Alcance.
+
+Algunas cambian con lo que está abierto: la de **ID** dice si se puede cambiar, la de **Modelo** dice qué se ve ahora, y las de **Colocar** y **Vista previa** cambian entre ítems y contenedores.
+
+Lo que eligió Claude: **siguen a la vista** los avisos, que cambian con lo que escribís: lo que falta para guardar, lo que no entra en una grilla, la línea del consumible que dice lo que hace, el resultado de guardar o colocar, lo que no se pudo dibujar en la vista previa y que la caja base no se cambia. La sección **Ayuda** del final, plegada, quedó igual. La burbujita está en `addons/inventario_objetos/ayuda.gd`.
+
 ---
 
 ## 1. Dónde está cada cosa
@@ -52,6 +114,8 @@ Lo que pediste en `capturas/ifac.txt` (el mantle quedó para otro momento):
 | La caja reutilizable | `scenes/inventory/caja.tscn` |
 | La zona de prueba | `scenes/net_lab/inventario/zona_de_inventario.tscn`, nodo **ZonaDeInventario** de `net_lab.tscn` (en x 37, z 13, pegada al borde este del piso) |
 | Los objetos de prueba y su catálogo | `scenes/net_lab/inventario/objetos/*.tres` y `scenes/net_lab/inventario/catalogo_de_prueba.tres` |
+| El panel **Objetos** del editor, para crear ítems y contenedores (sección 4) | `addons/inventario_objetos/`; sus pruebas, en `addons/inventario_objetos/pruebas/` |
+| Los contenedores creados con el panel | `scenes/net_lab/inventario/contenedores/` (se crea con el primero) |
 | La red y los valores ajustables | nodo **Inventario** de `net_lab.tscn` (script `inv_net.gd`) |
 | La interfaz | nodo **Hud → InventarioUI** de `net_lab.tscn` (script `inv_ui.gd`) |
 | Las pruebas | `scenes/net_lab/inventario/pruebas/` |
@@ -66,7 +130,7 @@ Lo que pediste en `capturas/ifac.txt` (el mantle quedó para otro momento):
 - **Instancia** (`InvStack`): un id estable, el tipo, la cantidad y su estado (por ejemplo `{"carga": 40}`). No sabe dónde está.
 - **Colocación** (dentro de `InvGrid`): la celda y el giro de cada id. Es de la grilla, no del objeto.
 - **Operaciones** (`InvOps`): mover (también entre grillas), apilar, dividir, sacar y meter lo que se recoge. Cada una valida todo antes de cambiar algo. Se prueban sin escena ni red.
-- **Barra, equipo y vitalidad de prueba** (`InvLoadout`): la barra guarda ids, no copias. El objeto sigue ocupando su lugar en la grilla.
+- **Barra y equipo** (`InvLoadout`): la barra guarda ids, no copias. El objeto sigue ocupando su lugar en la grilla. (Hasta el 2026-11-01 también tenía la vitalidad de prueba; los consumibles ahora cambian la salud y la estamina del personaje.)
 
 **Componentes por entidad:** `InvInventory` es el inventario de una entidad. La caja lo trae en su escena. Al personaje se lo agrega el host cuando aparece (un nodo **Inventario** hijo del actor), así `actor.tscn` no cambió. No hay inventario global, ni Autoload, ni singleton.
 
@@ -91,7 +155,7 @@ Lo que pediste en `capturas/ifac.txt` (el mantle quedó para otro momento):
 | Dividir | Cantidad entera entre 1 y la cantidad menos 1, y lugar libre para la pila nueva, que recibe un id nuevo |
 | Recoger | Que el objeto siga en el mundo, que el pecho del personaje esté a menos de **Pickup Range** (2 m) y que el personaje lo vea desde los ojos, sin una pared en el medio. Primero completa pilas compatibles y después busca lugar libre, siempre en el mismo orden. Si entra solo una parte, el resto queda en el mundo |
 | Soltar | Desde el inventario propio o desde la caja que tiene abierta y al alcance. Cantidad válida y un lugar en el piso cerca del personaje, calculado por el host: que se vea desde el pecho, con piso abajo y sin pisar personajes, paredes, cajas ni otro objeto suelto. Si no hay lugar, no se suelta nada |
-| Usar, equipar | Que el objeto esté en el inventario propio, que tenga esa capacidad y que se pueda (por ejemplo, con la vitalidad al máximo, la botella no se usa ni se gasta) |
+| Usar, equipar | Que el objeto esté en el inventario propio, que tenga esa capacidad y que se pueda (por ejemplo, con la salud completa, la botella no se usa ni se gasta). El efecto en la salud y la estamina y el gasto de la unidad van en el mismo paso |
 | Barra rápida | Que el acceso exista y que el objeto sea del inventario propio |
 | Abrir una caja | Que exista, que los pies del jugador estén a menos de su **Access Range** (2,2 m) del centro y que la vea desde los ojos, sin una pared en el medio. Si se aleja o la caja desaparece, se le cierra (para cerrarse alcanza con alejarse: no hace falta dejar de mirarla) |
 
@@ -107,7 +171,7 @@ Lo que pediste en `capturas/ifac.txt` (el mantle quedó para otro momento):
 
 1. Abrí Godot. En las pestañas de arriba del visor, elegí **net_lab**.
 2. **F6** → **Jugar solo**.
-3. Date vuelta hacia la derecha (al este) y caminá unos 30 m: pasando el borde del piso está la **Zona de inventario**, con su cartel, una pared, dos cajas (la grande y el cajón chico) y dos filas de objetos en el piso.
+3. Date vuelta hacia la derecha (al este) y caminá unos 30 m: pasando el borde del piso está la **Zona de inventario**, con su cartel, una pared, dos cajas (la grande y el cajón chico) y tres filas de objetos en el piso (la tercera, desde el 2026-11-02, con los consumibles de salud y estamina).
 4. Acercate a un objeto y miralo (el centro de la pantalla sobre él): abajo aparece "E: recoger …". Apretá **E**.
 5. **Tab** abre el inventario.
 6. Clic en un objeto: queda en la mano. Clic donde lo querés dejar. Con una pila en la mano (por ejemplo, los tornillos), probá varios clics derechos en un lugar libre: deja de a una unidad.
@@ -146,7 +210,7 @@ Si la notebook no entra y dice "difiere en el inventario", las dos copias no tie
 | **Clic derecho** en un objeto | Menú: Usar, Equipar o Desequipar, Inspeccionar, Dividir…, Soltar, Soltar una cantidad… y Quitar del acceso. Lo que no se puede aparece apagado y dice por qué. Soltar anda también en la caja |
 | **Clic derecho** en un acceso | Lo vacía |
 | **Clic en un acceso y clic en otro** | Los intercambia |
-| **1 a 9 y 0** | Usan o equipan lo que tiene ese acceso (la botella sube la vitalidad de prueba; el machete y la linterna se equipan o desequipan) |
+| **1 a 9 y 0** | Usan o equipan lo que tiene ese acceso (la botella cura 25 de salud; el machete y la linterna se equipan o desequipan) |
 | **Esc** | Primero suelta lo que tenés en la mano (vuelve a su lugar) o cierra el diálogo, después el menú y por último el inventario. Con todo cerrado, suelta el mouse como siempre |
 | **Alt + 1 a 5** | La simulación de internet (antes, 1 a 5 sin Alt) |
 | **Y**, **U** (solo el host) | Empujón inmediato y programado (antes, E y R) |
@@ -157,7 +221,12 @@ Lo que está esperando al host se ve con un borde amarillo y dice "esperando…"
 
 | Objeto | Tamaño | Para qué |
 | --- | --- | --- |
-| Botella de agua (2 y 1) | 1 × 2, pilas de 3 | Consumible: sube 25 la **vitalidad de prueba**, un contador que se ve al lado de la barra (de 40 a 100). Con la vitalidad al máximo no se usa ni se gasta |
+| Botella de agua (2 y 1) | 1 × 2, pilas de 3 | Consumible: cura 25 de salud (hasta el 2026-11-01 subía la vitalidad de prueba). Con la salud completa no se usa ni se gasta |
+| Botiquín (3) | 2 × 1, pilas de 3 | Consumible: cura 50 (desde el 2026-11-02) |
+| Bebida energética (4) | 1 × 2, pilas de 4 | Consumible: +100 de estamina |
+| Frasco de veneno (5) | 1 × 1, pilas de 5 | Consumible: −40 de salud, también con la salud completa |
+| Cápsula letal (2) | 1 × 1, pilas de 2 | Consumible: −1000 de salud, una mata (muerte de prueba) |
+| Toxina lenta (4) | 1 × 1, pilas de 4 | Consumible: quita 20 de salud de a poco en 4 s (daño en el tiempo, desde el 2026-11-02 a la tarde; ver `hud_salud_estamina_y_estados.md`, sección 11) |
 | Machete | 1 × 3 | Equipable, con un modelo `.glb` |
 | Linterna | 1 × 2 | Equipable, con una malla simple (un cilindro) |
 | Banquito | 2 × 3 | Grande; se gira |
@@ -171,7 +240,123 @@ Lo que está esperando al host se ve con un borde amarillo y dice "esperando…"
 
 ---
 
-## 4. Crear un objeto
+## 4. Crear un ítem o un contenedor
+
+### Con el panel Objetos
+
+**Dónde está:** la pestaña **Objetos**, al lado de **Inspector**. Ya está activada en `project.godot`. Si no la ves: **Project** → **Project Settings…** → pestaña **Plugins** → en la fila **Objetos del inventario**, tildá la casilla de la derecha. Para verla más grande, el menú ⋮ de la pestaña la hace flotante o la pasa abajo.
+
+Arriba se elige **Ítems** o **Contenedores**. Debajo:
+
+- **El buscador**: escribí parte del nombre, del ID o del archivo y la lista de abajo muestra los que coinciden (sin importar mayúsculas ni tildes; con varias palabras, tienen que estar todas). Un clic en la lista lo abre; Enter abre el primero. Muestra hasta 200 a la vez: si hay más, escribí más para achicar.
+- **Nuevo**: uno vacío.
+- **Duplicar**: una copia del que está abierto, con otro ID y otro archivo. El original no cambia.
+
+Si cambiás de objeto o de pestaña con cambios sin guardar, pregunta: **Guardar**, **Descartar** o **Cancelar**.
+
+Si algo no se entiende, hacé clic en el **?** que tiene al lado: abre la explicación. Se cierra con otro clic, con uno afuera o con Escape.
+
+#### Crear un ítem
+
+1. **Ítems** → **Nuevo**.
+2. **Identidad**:
+    - **Nombre**: el que se lee en el juego.
+    - **Descripción**.
+    - **ID** y **Archivo**: salen solos del nombre ("Termo de café" → `termo_de_cafe` y `objetos/termo_de_cafe.tres`). Se pueden cambiar antes de guardar; después, no.
+3. **Grilla y pila**:
+    - **Celdas**: ancho × alto.
+    - **Se gira**.
+    - **Se apila, hasta**: cuántos entran en una pila. Sin tildar, va de a uno.
+    - Si no entra en la grilla del jugador (12 × 16) o en alguna caja conocida, lo avisa; igual se puede guardar.
+4. **Apariencia**: cómo se ve en el piso, en la mano y en la miniatura.
+    - **Modelo**: arrastrá un `.glb` o `.tscn` desde **FileSystem**. No se copia ni se cambia. Solo se usan sus mallas: no corren sus scripts, ni su física, ni sus efectos.
+    - Sin modelo aparecen **Forma simple** (caja, cilindro, esfera o cápsula, con sus medidas, o una malla de un archivo) y **Color**. Con modelo no se muestran, porque no se usan. Sin modelo ni forma, se ve como una caja de su color.
+    - **Tamaño en el piso**: cuánto mide su lado más largo cuando está suelto en el mundo, en metros.
+5. **Miniatura del inventario**: la imagen que se ve en la grilla, grande, con las líneas de sus celdas. Se acomoda con el mouse:
+    - Arrastrar la gira (con **Ctrl**, de a 15°).
+    - Arrastrar con el botón derecho la corre.
+    - La rueda la acerca o la aleja.
+    - Botones: **↺ 90°** y **↻ 90°** la giran un cuarto de vuelta en la pantalla; **De frente** la deja sin giro; **Centrar** la pone en el medio, sin acercar; **Automático** la deja como sale sola (en diagonal, acostada si su lado largo no coincide con el de la huella, y en el medio).
+    - Es la misma imagen que hace el juego: al girar el objeto con R en la grilla, gira con él.
+6. **Capacidades** (opcionales):
+    - **+ Consumible**: al usarlo gasta una unidad y cambia la salud o la estamina del que lo usa (desde el 2026-11-02; antes subía la vitalidad de prueba). **Efecto en la salud (puntos)**: positivo cura y negativo daña; la salud completa son 100, y un daño mayor que lo que queda mata (muerte de prueba). **Recupera estamina**: la reserva completa son 200. Debajo, una línea dice lo que hace. Con los dos en 0 no se guarda. Más detalle en `hud_salud_estamina_y_estados.md`, sección 5.
+    - **+ Equipable**: se lleva en la mano y los demás lo ven. Elegís su posición, giro y tamaño en la mano. No dispara, no pega ni ilumina.
+    - La primera de la lista es la de la barra rápida; las flechas cambian el orden.
+7. **Estado inicial** (opcional): datos que lleva cada unidad del objeto, y con estos valores nace. Por ejemplo, una batería con `carga = 100` (cada dato es un número entero, un número con decimales, un texto o sí/no). Para qué sirve hoy: dos unidades del mismo objeto se juntan en una pila solo si sus datos son iguales. Una batería con carga 100 y otra con carga 40 no se apilan, aunque se llamen igual. Hoy ningún dato cambia solo al jugar (la carga no baja): queda listo para mecánicas futuras. Si no lo necesitás, dejalo vacío.
+8. Mirá la **Vista previa**: el objeto en el piso (o **En la mano**, si es equipable; se gira arrastrando), y su miniatura como queda en la grilla, sin girar y girada 90°.
+9. **Guardar**. Crea el `.tres` y lo suma una vez al catálogo. No pone nada en el mapa.
+
+#### Crear un contenedor
+
+1. **Contenedores** → **Nuevo**, o abrí la **Caja base** y apretá **Duplicar**.
+2. **Nombre**, **Grilla** (columnas × filas, hasta 64 × 64), **Medidas de la caja** (x, y, z en metros), **Color** y **Alcance**: hasta qué distancia, de los pies al centro de la caja, se abre con E. En la vista previa, el alcance es el círculo amarillo.
+3. **Guardar**. Crea `contenedores/<nombre>.tscn`, una escena heredada de `caja.tscn`: trae su inventario y lo enlaza solo. Se crea vacía; lo de adentro se pone jugando.
+
+#### Colocar en la zona
+
+**Para qué sirve:** guardar crea el objeto (el juego lo conoce), pero no lo pone en ningún lado del mundo. Colocar pone unidades en el piso de la zona de inventario, pasando el borde este del piso, para encontrarlas y recogerlas con E al jugar. Es para probar en el laboratorio; en el juego de verdad los pondrá cada nivel.
+
+Con lo guardado abierto, sección **Colocar en la zona**:
+
+- **Ítems**: **Unidades**. Van en pilas válidas: 12 de a 5 son tres pilas, de 5, 5 y 2. Con 0 no se coloca nada. Abajo, **Datos propios de estas unidades** (opcional) reemplaza datos del estado inicial solo para las que pongas ahora: por ejemplo, unas baterías gastadas con `carga = 40`.
+- **Contenedores**: **Cajas**, cuántas. Cada caja tiene su propio inventario, aunque sean de la misma escena.
+
+**Colocar en la zona** abre la zona, busca lugares libres en el piso y deja lo colocado seleccionado, para moverlo con las herramientas de Godot. **La zona queda sin guardar**: guardala con **Ctrl+S** o con **Guardar la zona**. Si no hay lugar para todo, dice cuántos entran y no coloca nada.
+
+#### Editar
+
+**Abrir** → cambiás → **Guardar**.
+
+- Mientras escribís, lo guardado no cambia. **Descartar cambios** vuelve a lo guardado sin escribir nada.
+- Se guarda en el mismo archivo, con el mismo uid. Todo lo que lo usa (el catálogo, la zona) sigue apuntando a él. Lo que el panel no muestra se conserva, como una capacidad que no conoce (se abre con **Abrir en el Inspector**).
+- Si el archivo cambió desde que lo abriste (por ejemplo, en el Inspector), pregunta antes de pisarlo.
+- Si un cambio afecta lo colocado, también pregunta, y no corrige nada solo. Por ejemplo, bajar el límite de la pila con marcadores de 20 unidades: al jugar, se recortarían.
+- Un contenedor se guarda con el editor: abre su escena un momento, la guarda y vuelve a la que tenías. Las cajas ya colocadas toman los valores nuevos; si la zona tenía cambios sin guardar, la deja como está y avisa que hasta guardarla y reabrirla las ve con los valores viejos.
+- La caja base (`caja.tscn`) no se cambia desde el panel: de ella heredan todas.
+
+#### Qué produce
+
+| Qué | Dónde |
+| --- | --- |
+| Un ítem | `scenes/net_lab/inventario/objetos/<id>.tres`, y una línea en `catalogo_de_prueba.tres` que apunta a él |
+| Un contenedor | `scenes/net_lab/inventario/contenedores/<nombre>.tscn`, heredada de `scenes/inventory/caja.tscn` |
+| Lo colocado | Nodos en `zona_de_inventario.tscn`: marcadores **InvPickupSpawn** adentro de **Objetos**, y cajas en la raíz de la zona |
+
+Son recursos y escenas normales del proyecto: el juego no necesita el panel.
+
+#### Qué deshace Ctrl+Z
+
+Saca lo que se colocó en la zona. No borra el `.tres` ni la escena del contenedor, no los saca del catálogo ni deshace un guardado: eso ya está escrito en el disco.
+
+#### Lo que se rechaza sin escribir nada
+
+- Un nombre vacío.
+- Un ID vacío, con mayúsculas, tildes o espacios, de más de 64 letras, o que ya está en el catálogo.
+- Un archivo fuera de `scenes/net_lab/inventario/` o que ya existe: no se pisa nada.
+- Medidas fuera de rango:
+    - celdas, de 1 a 64;
+    - pila, de 2 a 9999 si se apila;
+    - tamaños, en metros;
+    - un alcance de caja que no llega desde ningún lado.
+- Dos capacidades del mismo tipo.
+- Un estado con nodos, recursos o números rotos. No se evalúa nada de lo escrito.
+- Colocar sin lugar en la zona.
+
+Si un guardado falla a mitad de camino, deshace lo que alcanzó a escribir y lo dice. Por ejemplo, si se guardó el `.tres` pero no el catálogo, se borra el `.tres`. Si ni eso pudiera, dice exactamente qué quedó.
+
+#### Probar lo creado
+
+- **Solo:** sección 3, "Solo, en esta PC".
+- **En las dos PC:** después de guardar o colocar, la notebook necesita la misma versión del laboratorio: `actualizar_lab.bat`, o una exportación nueva para los dos. Si no, no entra: "difiere en el inventario". El panel no manda nada por red: lo creado viaja por el mismo camino que lo hecho a mano.
+
+#### Límites
+
+- Trabaja solo con el catálogo y la zona del laboratorio. La red los usa porque el nodo **Inventario** de `net_lab.tscn` apunta a ese catálogo y tiene la zona de **World Root**; el panel comprueba que siga así. Otro nivel necesitaría su propio nodo **Inventario**.
+- No borra ni cambia IDs. Para borrar uno, a mano: sus marcadores de la zona, su lugar en **Items** del catálogo y su `.tres`.
+- Los contenedores son la caja de color de `caja.tscn`: sin modelos propios, sin contenido inicial y sin cerraduras.
+- Del estado se editan números, textos y sí/no. Una lista o un vector que ya estuvieran se conservan, y se cambian en el Inspector.
+
+### A mano
 
 1. En **FileSystem**, clic derecho en `scenes/net_lab/inventario/objetos` → **Create New** → **Resource…** → buscá **InvItemDef** → **Create**. Ponele nombre (por ejemplo `cuerda.tres`) y **Save**.
 2. Con el `.tres` seleccionado, en el Inspector:
@@ -179,7 +364,7 @@ Lo que está esperando al host se ve con un borde amarillo y dice "esperando…"
     - **Display Name** y **Description**: lo que se lee en el juego.
     - Grupo **Grilla**: **Size** (ancho y alto en celdas, sin girar) y **Can Rotate**.
     - Grupo **Pila**: **Stackable** y **Max Stack**.
-    - Grupo **Capacidades**: en **Abilities**, **Add Element** → **New InvConsumable** (sube la vitalidad de prueba; **Vitality Gain**) o **New InvEquippable** (en la mano: **Hold Offset**, **Hold Rotation** y **Hold Size**). La primera de la lista es la que hace la barra rápida.
+    - Grupo **Capacidades**: en **Abilities**, **Add Element** → **New InvConsumable** (cura, daña o devuelve estamina; **Health** y **Stamina**) o **New InvEquippable** (en la mano: **Hold Offset**, **Hold Rotation** y **Hold Size**). La primera de la lista es la que hace la barra rápida.
     - Grupo **Estado**: **Default State**, por ejemplo `carga: 100`. Dos pilas del mismo tipo se juntan solo si su estado es igual.
     - Grupo **Modelo**: arrastrá un `.glb` desde **FileSystem** a **Model**, o poné una malla en **Mesh** (con **Color**). **World Size** es cuánto mide en el piso el lado más largo.
     - Grupo **Miniatura**: **Thumbnail Rotation** gira el modelo para la foto; **Thumbnail Zoom** lo acerca; **Thumbnail Auto Align** lo acuesta 90° si su lado largo no coincide con el de la huella.
@@ -193,7 +378,8 @@ La miniatura sale sola del modelo, la primera vez que el objeto se ve en la inte
 
 ## 5. Otra caja, y cambiar las medidas de las grillas
 
-- **Agregar una caja:** en `zona_de_inventario.tscn` (o en cualquier nodo adentro de **ZonaDeInventario**), arrastrá `scenes/inventory/caja.tscn` desde **FileSystem** al árbol. En el Inspector: **Display Name**, **Columns** y **Rows** (su grilla), **Box Size** y **Color** (cómo se ve y choca) y **Access Range**. No hace falta numerarla: se numeran solas por su orden en la escena.
+- **Con el panel Objetos:** pestaña **Contenedores**, como en la sección 4.
+- **Agregar una caja a mano:** en `zona_de_inventario.tscn` (o en cualquier nodo adentro de **ZonaDeInventario**), arrastrá `scenes/inventory/caja.tscn` desde **FileSystem** al árbol. En el Inspector: **Display Name**, **Columns** y **Rows** (su grilla), **Box Size** y **Color** (cómo se ve y choca) y **Access Range**. No hace falta numerarla: se numeran solas por su orden en la escena.
 - **La grilla del jugador:** nodo **Inventario** de `net_lab.tscn`, grupo **Grilla del jugador**, **Player Columns** y **Player Rows** (12 × 16).
 - **El tamaño de las celdas en pantalla:** nodo **Hud → InventarioUI**, **Cell Size** (40 píxeles). Si la grilla no entra en la pantalla, se achica sola.
 - **Los alcances:** nodo **Inventario**, **Pickup Range** (recoger) y **Drop Distance** (a qué distancia adelante cae lo que soltás). El de cada caja, en la caja (**Access Range**).
@@ -214,6 +400,18 @@ La miniatura sale sola del modelo, la primera vez que el objeto se ve en la inte
 
 No se tocaron el nivel, el personaje (`actor.tscn`), el motor, los modelos, las texturas, los materiales, la escena principal ni la exportación. Los modelos de `assets/models/collectibles` se usan para las miniaturas sin modificarlos.
 
+Con la segunda versión del panel Objetos (2026-11-01) cambiaron tres archivos del inventario. Lo que se ve en el juego quedó igual (comprobado con la prueba visual):
+
+| Archivo | Qué cambió |
+| --- | --- |
+| `scripts/inventory/inv_thumbnails.gd` | Cómo se arma la escena de la miniatura pasó a dos funciones, `image_size` y `build_viewport`, y el dibujo girado a `draw_turned`. Las usan el juego y la vista previa del panel: la misma regla de encuadre |
+| `scripts/inventory/inv_ui.gd` | Dibuja la miniatura girada con `InvThumbnails.draw_turned` |
+| `scripts/inventory/inv_container.gd` | La malla y el cartel de la caja salen de `InvContainer.look`, que también usa la vista previa |
+| `scripts/inventory/inv_item_def.gd` (al acomodar la miniatura) | Un dato nuevo, **Thumbnail Offset**: cuánto se corre el modelo en la miniatura, en partes del cuadro. Entra en la clave de la miniatura (`appearance_key`), no en la huella: es solo dibujo |
+| `scripts/inventory/inv_thumbnails.gd` (al acomodar la miniatura) | El encuadre pasó a `frame`, que también aplica el corrimiento. El panel lo vuelve a llamar mientras acomodás, sin rearmar el modelo. Sin corrimiento, las miniaturas salen idénticas a las de antes (comparadas archivo por archivo) |
+
+Al ser código de `scripts/inventory`, cambia la parte "el código" de la huella: la notebook necesita `actualizar_lab.bat`, como con cualquier cambio. La huella no necesitó nada nuevo: lo funcional que edita el panel ya estaba en ella (ID, grilla, pila, estado, efecto del consumible, cajas con sus medidas y alcance; desde el 2026-11-02 el efecto es la salud y la estamina). Lo de la mano y el modelo es solo dibujo, y no entra.
+
 ---
 
 ## 7. Pruebas
@@ -221,12 +419,23 @@ No se tocaron el nivel, el personaje (`actor.tscn`), el motor, los modelos, las 
 | Prueba | Qué cubre | Resultado (2026-10-31) |
 | --- | --- | --- |
 | `inv_model_test.tscn` (modelo, sin escena) | Bordes, solapamiento, los cuatro giros (180° ocupa como sin girar; 270°, como 90°; giros de 4 o negativos se rechazan), un objeto que no gira, mover sobre la propia huella, rechazos que no cambian nada, pilas parciales y llenas, apilar solo una cantidad, estado distinto, divisiones inválidas y sin lugar, recogida parcial, soltar, transferir, barra después de cada operación y copias por red mal formadas (también con el giro viejo, verdadero o falso) | **70 de 70** |
-| `inv_lab_test.tscn` (el laboratorio entero, un proceso) | Todo lo de arriba por el camino real del host, más: lejos no se recoge ni se abre; soltar contra una pared y encerrado entre paredes; soltar desde la caja; el banquito girado en la caja; transferencia que no entra en el cajón chico; cierre al alejarse; pedido repetido (una sola botella gastada) y pedido viejo; el inventario de otro; dos jugadores sobre la misma pila de la caja y sobre el mismo objeto del mundo (gana uno); desconexión; Esc en orden; WASD con el inventario abierto; W quieto mientras se escribe; cantidad no numérica; un clic agarra y otro deja; en la mano y mientras espera al host, su lugar de antes queda vacío (y asignado a un acceso, no); un clic donde no se puede deja el objeto en la mano; se agarra por el centro de la celda del clic y R lo gira cuatro veces alrededor de ella (la punta agarrada va a la izquierda, arriba, a la derecha y vuelve), y esa celda cae bajo el cursor aunque el cursor esté cerca del borde; el nombre al pasar el cursor (sobre un objeto y sobre un acceso; no sobre una celda vacía, con algo en la mano ni con el menú abierto); E cierra la caja con el inventario, no cierra el inventario abierto con Tab, y apretada antes de que conteste el host la caja no queda abierta; clic derecho: tres seguidos hacen una pila de 3, uno más se suma a esa pila, sobre su propio lugar no deja nada, con la última la mano queda vacía, y el total se conserva; mirar: se elige lo que se mira y no lo de al lado, en tercera persona no lo que está detrás del cuerpo, con una pared en el medio no se elige y el host no deja recoger; dejar sobre la barra, un panel o un menú no suelta al piso; la caja que desaparece con algo suyo en la mano; y que las cantidades se conserven | **166 de 166** (2026-11-01) |
+| `inv_lab_test.tscn` (el laboratorio entero, un proceso) | Todo lo de arriba por el camino real del host, más: todos los objetos de la zona en el piso (los cuenta: si agregás uno, la prueba sigue andando); lejos no se recoge ni se abre; soltar contra una pared y encerrado entre paredes; soltar desde la caja; el banquito girado en la caja; transferencia que no entra en el cajón chico; cierre al alejarse; pedido repetido (una sola botella gastada) y pedido viejo; el inventario de otro; dos jugadores sobre la misma pila de la caja y sobre el mismo objeto del mundo (gana uno); desconexión; Esc en orden; WASD con el inventario abierto; W quieto mientras se escribe; cantidad no numérica; un clic agarra y otro deja; en la mano y mientras espera al host, su lugar de antes queda vacío (y asignado a un acceso, no); un clic donde no se puede deja el objeto en la mano; se agarra por el centro de la celda del clic y R lo gira cuatro veces alrededor de ella (la punta agarrada va a la izquierda, arriba, a la derecha y vuelve), y esa celda cae bajo el cursor aunque el cursor esté cerca del borde; el nombre al pasar el cursor (sobre un objeto y sobre un acceso; no sobre una celda vacía, con algo en la mano ni con el menú abierto); E cierra la caja con el inventario, no cierra el inventario abierto con Tab, y apretada antes de que conteste el host la caja no queda abierta; clic derecho: tres seguidos hacen una pila de 3, uno más se suma a esa pila, sobre su propio lugar no deja nada, con la última la mano queda vacía, y el total se conserva; mirar: se elige lo que se mira y no lo de al lado, en tercera persona no lo que está detrás del cuerpo, con una pared en el medio no se elige y el host no deja recoger; dejar sobre la barra, un panel o un menú no suelta al piso; la caja que desaparece con algo suyo en la mano; y que las cantidades se conserven | **166 de 166** (2026-11-01) |
 | `inv_pair_test.tscn` con tres procesos en esta PC: host; cliente A con +120 ms, ±40 ms y 2 % de pérdida, que se corta 8 s y vuelve; cliente B, que entra tarde | Estado inicial; A camina, recoge las dos baterías (no se apilan) y abre la caja; carrera por la misma pila (ganó el host; A ve el rechazo); a A se le suelta de la mano la llave cuando el host la mueve; A ve el machete en la mano del host y los tornillos soltados; A vuelve del corte con el mismo inventario y los mismos ids; B ve lo soltado y el machete; al irse, el host no guarda suscripciones ni pedidos; el mundo, igual en los tres; el inventario de A, igual en A y en el host | **Host 18, A 24 y B 7, sin fallas** |
 | `inv_visual_test.tscn` (con ventana) | Las 9 miniaturas hechas desde el modelo, con fondo transparente; tres clics derechos dejan 3; el nombre de la batería al pasar el cursor; capturas de la grilla, la caja, el objeto en la mano girado 90°, 180° y 270°, el rojo sobre otro objeto, el clic derecho, el nombre al pasar el cursor, el menú, la inspección, la división y lo equipado | **7 de 7** (y las capturas, revisadas) |
-| Las del laboratorio | Repetición, mantle y agarre por encima del filo | Iguales que antes: la repetición coincide con la misma huella (`7d3d417dd954d05b`), el mantle da 50 casos y el agarre, 22 de 22 |
+| El panel **Objetos**, primera versión, en una copia del proyecto | Crear con un botón, rechazos y colocación | **Todo bien** (2026-11-01, a la tarde); la reemplazan las dos de abajo |
+| `addons/inventario_objetos/pruebas/prueba_del_creador.gd`: el panel de la segunda versión, en una copia del proyecto, con el editor sin ventana | Desactivar y activar el plugin tres veces: un solo panel y una sola conexión. **Ítem simple:** el ID y el archivo salen del nombre; guardarlo no pone nada en la zona; queda una sola vez en el catálogo, apuntando al `.tres`. **Apilable:** 12 de a 5 son marcadores de 5, 5 y 2, seleccionados, en **Objetos**; la zona queda sin guardar; Ctrl+Z los saca sin borrar el `.tres` ni sacarlo del catálogo; Ctrl+Y los vuelve a poner; guardada, cerrada y reabierta, los 3 siguen (12 unidades). **Rechazos sin escribir nada:** ID repetido, ID inválido, nombre vacío, tamaño 0, dato del estado sin nombre, estado con números rotos u objetos, ruta fuera de la carpeta, pisar otro archivo y 500 unidades sin lugar. **Consumible de 7 y equipable** con posición, giro y tamaño propios; dos del mismo tipo no se pueden sumar. **Editar:** la batería conserva su uid, su ID, su estado y un dato que el panel no muestra; el original no cambia mientras se escribe; el ID no se cambia ni a la fuerza; descartar no escribe; si cambió por afuera, pregunta; bajar el límite de los tornillos avisa por los marcadores de 20 y no recorta. **Duplicar** la linterna: otro ID, su propia capacidad y su propia malla; cambiar la copia no toca el original. **Cambios sin guardar** al cambiar de pestaña: pregunta; Cancelar, Descartar y Guardar hacen lo suyo. **Contenedor nuevo:** un alcance que no llega se rechaza sin crear la carpeta; la escena hereda de `caja.tscn` con su Inventory enlazado; dos colocados, cada uno con su inventario, sin pisarse; Ctrl+Z y Ctrl+Y; editado a 4 columnas, las cajas colocadas lo toman y la zona no deja pegado el valor viejo; con la zona sin guardar, no la recarga y avisa; la caja base no se edita y se duplica. **Fallos al guardar,** con un guardado que falla a propósito (sin dañar nada): si falla el catálogo, se borra el `.tres` nuevo y el catálogo queda igual; si falla una edición, el archivo y el recurso quedan como estaban; si falla un contenedor, no queda la escena. **Miniatura** (agregado al acomodarla): De frente, ↺ 90°, arrastrar de costado (gira alrededor del eje vertical de la pantalla), Ctrl de a 15°, correr y acercar escriben lo esperado y se guardan; Centrar; corrido fuera del cuadro se rechaza; Automático vuelve a los valores de fábrica. **Buscador** (agregado después): sin buscar están todos; «bater», «BATERÍA», «caja herr», «puerta_de» y «tornillos.tres» encuentran uno; algo que no existe no encuentra nada y lo dice; un clic abre y queda marcado; Enter abre el primero; en contenedores arranca vacío y está la caja base; con 500 que coinciden muestra 200 y lo dice, y escribiendo más se achica. **Burbujitas** (2026-11-02): con un consumible se ven 17, todas con su explicación; cada explicación está en una; ningún texto de ayuda queda suelto, tampoco en contenedores; la de una sección va pegada al título; un clic abre el globo con todos sus renglones, el clic que lo cierra no lo reabre y uno después sí; las del ID, el modelo, colocar, la vista previa y la escena cambian con lo que está abierto | **159 de 159** (2026-11-02; el 2026-11-01, 138 de 138 en tres corridas seguidas, y antes del buscador, 125) |
+| `addons/inventario_objetos/pruebas/prueba_del_creador_juego.tscn`, jugando, en la misma copia, con lo que creó la anterior | La cuerda está en el piso en pilas de 5, 5 y 2, se recoge entera y ocupa 1 × 3. El termo: el host suma 7 de vitalidad de prueba y gasta uno (desde el 2026-11-02: cura 7 de salud y devuelve 3 de estamina; y un veneno creado con el panel quita 30 con la salud completa). La soga: otro jugador la recoge y se la equipa, y acá se ve en su personaje con la posición y el giro del panel. Los dos armarios: 4 × 3, cada uno con su inventario; una cuerda en el primero la ve el otro jugador, y el segundo sigue vacío | **26 de 26** (2026-11-02; antes de la salud y la estamina, 23) |
+| Las del inventario en esa copia, con lo creado | El laboratorio entero y la de tres procesos: lo creado aparece igual en el host, en A y en B (que entra tarde) | **166 de 166**; **host 18, A 24 y B 7, sin fallas** |
+| Revisión con ventana del editor, con fotos | El panel a la vista, oculto y con la ventana chica: la vista 3D mide lo mismo (883 × 472) y el panel entra en su ancho de siempre (260 px; lo de adentro pide 225), también con un nombre larguísimo. La vista previa dibuja el objeto, en el piso y en la mano, y la caja con su alcance. Las miniaturas se hacen en el editor, y cambiar de ítem borra la anterior. Ver "Lo que se arregló mirando las fotos" | Revisadas |
+| Revisión con ventana de la miniatura | Arrastrar con el mouse la gira y cuenta como cambio. Al pasar de automático a manual, la imagen no salta: el machete, acostado solo, queda igual. La imagen del panel es la del juego: la misma medida y diferencia 0. Correrla 0,25 mueve lo dibujado un cuarto del ancho exacto. La puerta de frente se ve derecha, también girada 90° en la vista previa. Fotos de Apariencia con y sin modelo | Revisadas |
+| Las de siempre, después del cambio en `scripts/inventory` | Modelo, laboratorio, visual y tres procesos | **70 de 70**, **166 de 166**, **7 de 7** (capturas revisadas: el giro de la imagen se ve igual), **host 18, A 24 y B 7**; lo mismo otra vez después de acomodar la miniatura |
+| Las del laboratorio | Repetición, mantle y agarre por encima del filo | Iguales que antes: la repetición coincide con la misma huella (`7d3d417dd954d05b`), el mantle da 50 casos y el agarre, 22 de 22. No usan nada de lo que cambió con el panel: no se volvieron a correr |
+
+**Lo que se arregló mirando las fotos (2026-11-01):** en la primera foto, el contenido del panel era más ancho que el panel y se cortaba a la derecha. Por eso los campos van uno abajo del otro, con su nombre arriba, y los números usan el control angosto del Inspector. Los x, y, z van uno por renglón y las listas recortan su texto. El editor nunca se estiró: la vista 3D medía lo mismo con el panel a la vista y oculto.
 
 **Para correrlas** (Claude): `--headless --path . --scene res://scenes/net_lab/inventario/pruebas/inv_model_test.tscn`; la del laboratorio, igual con `--fixed-fps 60`. La de pareja necesita tres procesos en tiempo real: host con `-- --host --port=7781 --test-spawn-at=34,10 --inv-pair=host`; A con `-- --client --address=127.0.0.1 --port=7781 --test-relay=7791 --test-cut-at=28 --test-cut-for=8 --sim-rtt=120 --sim-jitter=40 --sim-loss=2 --inv-pair=a`; y B a los 22 s con `-- --client --address=127.0.0.1 --port=7781 --inv-pair=b`. La visual, sin `--headless`, con `-- --out=CARPETA`.
+
+Las del panel escriben archivos: **solo en una copia del proyecto**. En la copia, importar primero con los plugins apagados; después activar el panel y la prueba con un `plugin.cfg` que diga `script="prueba_del_creador.gd"`, puesto en `addons/inventario_objetos/pruebas/`. En el proyecto de verdad no tiene `plugin.cfg`, así que no aparece en la lista de plugins. Se corre `--headless --editor --path <copia>`, y después, en la misma copia, `--headless --fixed-fps 60 --scene res://addons/inventario_objetos/pruebas/prueba_del_creador_juego.tscn`.
 
 ### Lo que no se probó
 
@@ -236,6 +445,8 @@ No se tocaron el nivel, el personaje (`actor.tscn`), el motor, los modelos, las 
 - **En las dos PC ni con el `.exe` exportado.** La red se probó con tres procesos en esta PC, con internet simulada.
 - **El aviso "difiere en el inventario"** no se provocó a propósito. Es el mismo mecanismo que las otras partes de la huella.
 - **El barrido de bordes** (7 min) no se corrió: no usa nada de lo que cambió.
+- **El panel Objetos con el mouse.** Las pruebas escriben en sus campos, aprietan sus botones y abren su diálogo; las fotos se revisaron. Pero nadie arrastró un modelo desde FileSystem, giró la vista previa con el mouse ni apretó los botones del diálogo con un clic de verdad. Falta tu prueba creando algo.
+- **Lo creado con el panel, en las dos PC.** Se probó con tres procesos en esta PC, en la copia.
 
 ### Decisiones chicas y límites (las eligió Claude)
 
@@ -254,5 +465,9 @@ No se tocaron el nivel, el personaje (`actor.tscn`), el motor, los modelos, las 
 - **Dos pilas se juntan** si tienen el mismo tipo y el mismo estado, clave por clave. El nombre o la miniatura no cuentan.
 - **El machete equipado** se ve fino, porque el modelo es así. Se ajusta en su `.tres`, en **Hold Offset**, **Hold Rotation** y **Hold Size**.
 - **E con una caja abierta la cierra junto con el inventario,** aunque el inventario lo hayas abierto antes con Tab: hace lo mismo que Tab.
+- **El panel Objetos busca lugar** sobre el piso de la zona (a 0,4 m o más de su borde) y lejos de lo que ya hay. Para los ítems, en las columnas x −3, −1, 1, −5, 3 y 5, de z −5 a 6, cada 1,2 m (las filas que ya había), a 0,9 m o más de otro ítem o del borde de una caja y a 0,6 m de una pared. Para las cajas, en columnas parecidas, cada 0,5 m, con 0,8 m libres alrededor para pararse. Tiene en cuenta las medidas y el giro de cada caja, y si el nodo **Objetos** está corrido. Las cajas nuevas van en la raíz de la zona, después de las que ya hay: así no cambian los números de las cajas viejas.
+- **Colocar no guarda la zona** (la primera versión del panel sí la guardaba): se guarda con Ctrl+S o con **Guardar la zona**. Si se te olvida, Godot la guarda al apretar F6.
+- **Editar un contenedor** lo hace el editor (abre su escena, la guarda y vuelve), así se conservan los nodos que le hayas agregado y la herencia de `caja.tscn`. Después vuelve a cargar las escenas abiertas que tienen esas cajas, si no tenían cambios sin guardar; si tenían, no las toca y avisa.
+- **Los números del panel** usan el control del Inspector y van de a milésimas (de a décimas los grados): abrir un objeto no redondea lo que tenía guardado. Lo que estuviera fuera de rango se muestra tal cual y lo avisa la validación al guardar.
 - **El nombre aparece al instante,** sin esperar, y solo con la mano vacía: con algo en la mano, el cartel de al lado del cursor ya dice qué va a pasar con el clic.
-- **Las miniaturas** se hacen la primera vez que se ve cada tipo, de a una. Durante esa fracción de segundo se ve el rectángulo con el nombre. En el editor no hay vista previa: solo en el juego.
+- **Las miniaturas** se hacen la primera vez que se ve cada tipo, de a una. Durante esa fracción de segundo se ve el rectángulo con el nombre. En el editor, la vista previa del panel Objetos las hace con las mismas funciones del juego.

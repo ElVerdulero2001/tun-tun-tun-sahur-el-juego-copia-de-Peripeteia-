@@ -7,7 +7,7 @@ Esta guía es para retomar el laboratorio después de un tiempo sin tener que le
 
 **Para pedirle algo a Claude en otra conversación:** "leé `docs/net/guia_del_laboratorio.md` y ayudame a …". Si hace falta más detalle, la sección 12 de esta guía dice en qué parte del historial buscarlo.
 
-Escrita el 2026-10-15 y puesta al día el 2026-10-22 dos veces (la segunda, a la noche, con la cuarta vuelta de la escalera, el súper, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado), el 2026-10-24 (el súper en todas las velocidades), el 2026-10-30 dos veces (el mantle, la unión de dos cajas apiladas y frenar en la salida por arriba de la escalera; a la tarde, lo que salió de la auditoría de GPT del parkour), el 2026-10-31 tres veces (todo commiteado y subido a GitHub; a la noche, el inventario de grilla, sección 14, y después su segunda vuelta con tus notas de prueba) y el 2026-11-01 (la tercera y la cuarta vuelta del inventario, y su commit). Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
+Escrita el 2026-10-15 y puesta al día el 2026-10-22 dos veces (la segunda, a la noche, con la cuarta vuelta de la escalera, el súper, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado), el 2026-10-24 (el súper en todas las velocidades), el 2026-10-30 dos veces (el mantle, la unión de dos cajas apiladas y frenar en la salida por arriba de la escalera; a la tarde, lo que salió de la auditoría de GPT del parkour), el 2026-10-31 tres veces (todo commiteado y subido a GitHub; a la noche, el inventario de grilla, sección 14, y después su segunda vuelta con tus notas de prueba) y el 2026-11-01 (la tercera y la cuarta vuelta del inventario, su commit y el panel Objetos para crear objetos, y a la noche su segunda versión, con contenedores y vista previa) y el 2026-11-02 (la salud, la estamina, los estados y el HUD, sección 15, y las burbujitas de ayuda del panel Objetos). Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
 
 ---
 
@@ -38,6 +38,7 @@ Todo el laboratorio está en la rama `net-lab` y en estas carpetas. El resto del
 | Los modelos de escaleras | `assets/models/stairs/` |
 | Las cuatro pruebas automáticas que están en el proyecto | `scenes/net_lab/actor_replay_test.tscn` (repetición), `hang_sweep_test.tscn` (barrido de bordes) y, desde el 2026-10-30, `mantle_test.tscn` (el mantle, caso por caso) y `grab_above_test.tscn` (el agarre con las manos por encima del filo) |
 | El inventario de grilla (sección 14; desde el 2026-10-31) | Código en `scripts/inventory/`; la zona de prueba, los objetos y sus pruebas en `scenes/net_lab/inventario/`; los nodos **Inventario** y **Hud → InventarioUI** de `net_lab.tscn`. Todo, en `docs/net/inventario_de_grilla.md` |
+| La salud, la estamina, los estados y el HUD (sección 15; desde el 2026-11-02) | `scripts/actor/actor_powers.gd` y `actor_vitals.gd`; el HUD en `scenes/net_lab/hud/` y el nodo **Hud → Instrumentos** de `net_lab.tscn`; su prueba, `scenes/net_lab/estados_test.tscn`. Todo, en `docs/net/hud_salud_estamina_y_estados.md` |
 
 ---
 
@@ -112,8 +113,8 @@ En el menú, **Simular internet**, o en el juego, **Alt** + las teclas **1** a *
 | Shift | Correr |
 | Ctrl | Agacharse; corriendo, deslizarse. Colgado, se suelta. En la escalera, se suelta sin empujón: caés mientras lo tengas y, al soltarlo, si seguís frente a la escalera te agarrás solo; si llegaste al piso, te quedás ahí (desde el 2026-10-16). Con A o D apretada (antes de Ctrl, al tocarlo o mientras caés), te soltás y no te volvés a agarrar solo (desde el 2026-10-20). Con Ctrl no te agarrás de ninguna escalera, ni caminando hacia ella. Con alguien colgado de vos, se caen los dos. Colgado de un compañero, igual que en la escalera: caés mientras lo tengas y, al soltarlo, si seguís al alcance, te volvés a agarrar (desde el 2026-10-18). En el mantle, te suelta; con Ctrl apretado al saltar, no hay mantle (desde el 2026-10-25) |
 | Rueda del mouse | Acerca la cámara, hasta primera persona |
-| 1 del teclado numérico | Prende o apaga la cámara lenta del mundo, para todos |
-| 2 del teclado numérico | Prende o apaga el súper salto y velocidad, para vos |
+| 1 del teclado numérico | Pedís o soltás la cámara lenta del mundo: va lenta para todos mientras al menos uno la pida. Desde el 2026-11-02 gasta tu estamina mientras la pedís (sección 15) |
+| 2 del teclado numérico | Prende o apaga el súper salto y velocidad, para vos. Desde el 2026-11-02 gasta tu estamina mientras está prendido |
 | Y, U (solo el host) | Empujón inmediato y programado a los demás; con Shift, débiles. Q prende o apaga la adopción. Hasta el 2026-10-31 eran E y R: E pasó a ser interactuar (elegido por vos) |
 | Tab | Abre y cierra el inventario (sección 14). El mundo no se pausa: se sigue caminando |
 | E | Recoge el objeto o abre la caja que estás mirando, si está al alcance y a la vista. Con una caja abierta, la cierra junto con el inventario |
@@ -131,7 +132,7 @@ El detalle de cada una está en la sección 10.2 del historial.
 Todo valor que se pueda ajustar está en el nodo **Tuning**, no en el personaje.
 
 1. Abrí `net_lab.tscn` y seleccioná el nodo **Tuning**.
-2. En el Inspector, los valores están por grupos: **Suelo**, **Deslizamiento**, **Escalera**, **Borde**, **Mantle** (desde el 2026-10-25), **Cable**, **Compañero**, **Cámara lenta**, **Súper salto y velocidad**, **Agarre**, **Aire** y **Salto**. Pasando el mouse por cada uno, se ve qué hace.
+2. En el Inspector, los valores están por grupos: **Suelo**, **Deslizamiento**, **Escalera**, **Borde**, **Mantle** (desde el 2026-10-25), **Cable**, **Compañero**, **Salud y estamina** (desde el 2026-11-02, sección 15), **Cámara lenta**, **Súper salto y velocidad**, **Agarre**, **Aire** y **Salto**. Pasando el mouse por cada uno, se ve qué hace.
 3. Cambialo y guardá con **Ctrl+S**.
 4. Si vas a probar en las dos PC, actualizá la notebook: las dos tienen que tener los mismos valores, o la notebook no entra.
 
@@ -162,7 +163,7 @@ Todo valor que se pueda ajustar está en el nodo **Tuning**, no en el personaje.
 | **Mantle Side Angle** | 45° | Pasando arriba, hasta cuánto de costado podés ir |
 | **Mantle Land** | 0,45 m | Dónde terminás sin teclas: el centro del cuerpo, este tanto detrás del filo. También es lo que tiene que tener de fondo lo de arriba para que haya mantle |
 
-**Valores que cambiaste vos y no son los de fábrica:** el salto desde la escalera mirando a otro lado (**Ladder Jump Up**, 1,2), y en el grupo **Cable**, **Cable Grab Body** (0,3) y **Cable Reach** (0,6).
+**Valores que cambiaste vos y no son los de fábrica:** el salto desde la escalera mirando a otro lado (**Ladder Jump Up**, 1,2), en el grupo **Cable**, **Cable Grab Body** (0,3) y **Cable Reach** (0,6), y desde el 2026-11-02 los costos de estamina: **Slow Stamina Cost** y **Boost Stamina Cost** en 0,8 (los de fábrica, 8 y 5, fundían la reserva muy rápido). Los estás probando hasta que se sientan bien.
 
 **Para que colgarse de un compañero sea más o menos permisivo** (grupo **Compañero**, desde el 2026-10-18): **Hook Reach** (1 m: hasta qué distancia de su eje te agarrás), **Hook Min Height** y **Hook Max Height** (0 y 1,5 m: la franja de su cuerpo de la que te agarrás, y hasta donde llegan W y S), **Hook Climb Speed** y **Hook Turn Speed** (1,5 m/s) y **Hook Turn Limit** (90°: cuánto girás por lado en un borde o una escalera). Los eligió Claude; están para que los ajustes vos.
 
@@ -520,13 +521,14 @@ Pedido el 2026-10-25 (hasta ese día estaba fuera del alcance). Cómo funciona l
 - **Los poderes van en el teclado numérico** (1 y 2 usados; del 3 en adelante, libres), como acciones del Mapa de entrada.
 - **Todo lo que te escribe Claude va en español,** también los avisos entre pasos.
 - **Cuando Claude te nombra un archivo,** te dice qué es y si tenés que hacer algo con él.
-- **Las pruebas automáticas:** cuatro están en el proyecto: la de repetición, el barrido de bordes y, desde el 2026-10-30, la del mantle y la del agarre con las manos por encima del filo (sección 1). La de repetición, desde el 2026-10-19, también falla si su recorrido deja de pasar por alguna mecánica (por ejemplo, porque un valor del Tuning lo desvió del cable); desde el 2026-10-30, el mantle tiene que terminar arriba, no alcanza con empezar. El barrido, desde el 2026-10-30, tiene un quinto criterio para los agarres desde arriba: el dibujo baja a **Hang Drop Speed** y la cámara no se mueve más que eso. Las demás (`diag_*.gd` y las pruebas en pareja) Claude las arma en una carpeta temporal que se borra; están copiadas enteras en el Apéndice B del historial, para volver a correrlas.
+- **Las pruebas automáticas:** cinco están en el proyecto: la de repetición, el barrido de bordes, desde el 2026-10-30 la del mantle y la del agarre con las manos por encima del filo, y desde el 2026-11-02 la de los estados (`estados_test.tscn`, sección 15). Las del inventario y del panel Objetos están en sus carpetas (sección 14). La de repetición, desde el 2026-10-19, también falla si su recorrido deja de pasar por alguna mecánica (por ejemplo, porque un valor del Tuning lo desvió del cable); desde el 2026-10-30, el mantle tiene que terminar arriba, no alcanza con empezar. El barrido, desde el 2026-10-30, tiene un quinto criterio para los agarres desde arriba: el dibujo baja a **Hang Drop Speed** y la cámara no se mueve más que eso. Las demás (`diag_*.gd` y las pruebas en pareja) Claude las arma en una carpeta temporal que se borra; están copiadas enteras en el Apéndice B del historial, para volver a correrlas.
 
 ---
 
 ## 11. Lo que conviene recordar
 
 - **Mecánicas que dependen de un buen internet** (se pide menos de 140 ms y poca pérdida): las correcciones de la balsa al subirse o saltar arriba, la demora de la cámara lenta (0,1 s en la red de la casa, hasta 0,33 s con internet mala) y, desde el 2026-10-30, las correcciones del mantle sobre la balsa del borde (21 cm como mucho, con internet mala).
+- **La cámara lenta es de cada uno** (desde el 2026-11-02): el 1 del teclado numérico pide o suelta la tuya, y el mundo va lento mientras alguno la pida. Hasta ese día, la pulsación de cualquiera apagaba la del otro. Cada uno paga la suya con su estamina (sección 15).
 - **Si se va el host, se termina la partida:** no hay migración de host. Si a un cliente se le corta la red, el host lo espera hasta 60 s.
 - **Cables y escaleras están fijos:** no se mueven ni se balancean. Sus números salen de su lugar en la escena, así que no se pueden agregar ni sacar en pleno juego sin cambiar eso.
 - **El laboratorio no es el juego.** Antes de pasarlo al juego queda pendiente el punto 4 de la revisión externa: sacar las reglas que hoy están en `net_lab.gd` a una pieza propia (sección 8.12 del historial).
@@ -601,8 +603,9 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 
 ---
 
-## 13. Dónde quedó (2026-11-01)
+## 13. Dónde quedó (2026-11-02)
 
+- **Sin commit, a la espera de tu prueba:** la salud, la estamina, los estados, el HUD y la cámara lenta de cada uno (sección 15), del 2026-11-02. Tu pedido decía que no se commitee por esta tarea. También siguen sin commit la segunda versión del panel Objetos y sus cambios en el inventario (sección 14), y sus burbujitas de ayuda, del 2026-11-02.
 - **Últimos commits** (2026-11-01), cuando pediste "Sí, commitealo", después de probar el inventario ("todo funciona correctamente"). Subidos a GitHub cuando pediste "Sí, subilo".
     - `12fa57b`, el inventario de grilla entero (sección 14): su código, la zona, los objetos, la caja, sus pruebas y los cambios en `net_lab.tscn`, `net_lab.gd`, `lab_camera.gd`, `net_session.gd`, `sim_fingerprint.gd` y `project.godot`;
     - `ca2186d`, su documento (`inventario_de_grilla.md`), tu pedido original (`prompt_claude_inventario_grilla.md`) y la sección 14 de esta guía;
@@ -657,6 +660,13 @@ Pedido el 2026-10-31 (`docs/net/prompt_claude_inventario_grilla.md`), hecho desd
     - Tras tu segunda prueba, el mismo día: el giro alrededor del centro de la celda agarrada (tu dibujo), el nombre al pasar el cursor y E para cerrar la caja.
     - Se agarra o se abre solo lo que mirás. En tercera persona, además, tiene que estar adelante del cuerpo: es tu idea del cono, con la mira que arranca en la cabeza, que propuso Claude.
     - Tras tu tercera prueba (2026-11-01): con un objeto en la mano, su lugar de antes queda vacío, sin "recuerdo".
+    - Para crear objetos sin hacerlo a mano, un panel en el editor (2026-11-01): la pestaña **Objetos**, al lado del **Inspector**, ya activada en `project.godot` (si no aparece: **Project** → **Project Settings…** → **Plugins** → **Objetos del inventario**). Su segunda versión, del mismo día:
+        - Crea, edita y duplica ítems y contenedores, con vista previa.
+        - Se buscan por nombre, ID o archivo (el buscador de arriba).
+        - La miniatura del inventario se acomoda con el mouse (girar, correr, acercar) o con botones como **De frente** (tus capturas del 2026-11-01).
+        - **Guardar** y **Colocar en la zona** van por separado: colocar deja la zona sin guardar (Ctrl+S).
+        - Desde el 2026-11-02, lo que explica cada campo está en su **?**, al lado del nombre: un clic abre la explicación. A la vista quedan solo los avisos.
+        - Cómo usarlo, en la sección 4 de `inventario_de_grilla.md`.
     - La física de los objetos sueltos queda para más adelante. Mientras tanto, solo se suelta con piso hasta 1,5 m debajo de los pies: colgado de un cable dice "No hay lugar cerca para soltarlo".
 - **Los valores:**
     - En el nodo **Inventario** de `net_lab.tscn`: la grilla del jugador (12 × 16), los alcances y el grupo **Mirar**. **Look Cone Degrees** (75°) es el cono de la tercera persona; **Aim Margin**, cuánto se perdona al apuntar.
@@ -664,3 +674,51 @@ Pedido el 2026-10-31 (`docs/net/prompt_claude_inventario_grilla.md`), hecho desd
     - Los de cada caja, en la caja; los de cada objeto, en su `.tres`.
 - **La huella** tiene una quinta parte, "el inventario": si las dos PC no tienen los mismos objetos, cajas o valores, la notebook no entra.
 - **Probado** con pruebas automáticas, en un proceso y con tres procesos en esta PC (con internet simulada, un corte y uno que entra tarde). **Falta** tu prueba jugando, con el mouse y mirando con la cámara de verdad, y en las dos PC.
+
+---
+
+## 15. Salud, estamina, estados y el HUD
+
+Pedido el 2026-11-02 (`docs/net/prompt_claude_hud_salud_estamina_y_estados.md`). Todo el detalle está en [`hud_salud_estamina_y_estados.md`](hud_salud_estamina_y_estados.md): qué decidiste vos y qué eligió Claude, arquitectura, archivos, pruebas y límites.
+
+- **El HUD:**
+    - abajo a la izquierda, la salud (de 0 a 10), la estamina (de 0 a 200) y el termómetro (100 fijo, todavía no mide la luz);
+    - arriba, una luz por cada estado tuyo prendido;
+    - la luz naranja de la salud está apagada: es para la futura integridad del cuerpo.
+
+    Es solo dibujo: no toma el mouse ni el teclado. Se dibuja por código, sin las fotos del concepto.
+- **La salud:** cada jugador tiene 100 puntos. No vuelve sola: la cambian los consumibles. Al llegar a 0, muerte de prueba:
+    - aparece "Moriste";
+    - se apagan tus estados;
+    - la salud vuelve al máximo;
+    - seguís en el mismo lugar, con tu inventario y tu estamina.
+- **La estamina:** 200, no vuelve sola, solo con consumibles. Correr, saltar y trepar no gastan.
+- **Los estados gastan mientras están prendidos:**
+    - el súper (2 del teclado numérico), 5 por segundo de fábrica;
+    - tu pedido de cámara lenta (1), 8 por segundo de fábrica;
+    - con los dos, la suma.
+
+    Desde el 2026-11-02 los tenés en 0,8 cada uno: el gasto es 0,8 o 1,6 por segundo.
+
+    Sin estamina se apagan todos juntos, con un sonido. Con 0 no se prende nada.
+- **La cámara lenta es de cada uno:**
+    - el mundo va lento mientras al menos uno la pida, igual de lento con uno o con varios;
+    - cada uno paga la suya;
+    - si uno la suelta, se queda sin estamina o muere, sigue mientras otro la pida.
+- **Los consumibles:**
+    - en la zona de inventario, una tercera columna nueva: **Botiquín** (cura 50), **Bebida energética** (+100 de estamina), **Frasco de veneno** (−40) y **Cápsula letal** (te mata);
+    - la **Botella de agua** ahora cura 25;
+    - en el panel **Objetos**, **+ Consumible** tiene **Efecto en la salud (puntos)**, **Recupera estamina** y, desde la tarde, **Daño en el tiempo (puntos)** con **En cuántos segundos**.
+- **El daño en el tiempo** (2026-11-02, a la tarde; sección 11 del documento):
+    - quita salud de a poco, parejo, hasta terminar o hasta que morís;
+    - se acumulan, cada uno con su ritmo, hasta 4 a la vez;
+    - con la cámara lenta va más despacio;
+    - lo decidiste vos.
+    
+    Para probarlo, la **Toxina lenta** de la zona (20 en 4 s).
+- **Los valores:**
+    - en el nodo **Tuning**: grupo **Salud y estamina** (**Health Max**, **Stamina Max**), **Slow Stamina Cost** (en **Cámara lenta**) y **Boost Stamina Cost** (en **Súper salto y velocidad**);
+    - en el nodo **Hud → Instrumentos**: el tamaño, la duración del aviso de muerte y el sonido.
+- **Si se te corta la conexión,** el host te apaga los estados mientras te espera (elección de Claude): no gastás ni sostenés la cámara lenta de los demás.
+- **Probado** sin red (85 de 85, con el daño en el tiempo) y en trece casos con host y cliente en esta PC, también con internet mala. **Falta** tu prueba, solo y en las dos PC: el recorrido está en la sección 2 de ese documento.
+- **La cámara "todavía más lenta"** que viste con dos jugadores no se pudo reproducir con el código de antes. Lo que sí pasaba era que el segundo, al pedirla, la apagaba. Detalle en la sección 7 de ese documento.

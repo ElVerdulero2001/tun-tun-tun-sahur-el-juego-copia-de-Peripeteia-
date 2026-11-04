@@ -210,10 +210,10 @@ func _rebuild_shown() -> void:
 			var item: Dictionary = world.get(args[0], {})
 			if item.is_empty():
 				continue
-			var stack: InvStack = item["stack"]
-			var result := InvOps.insert(_shown, stack.copy())
-			if result["reason"] == "" and result["taken"] >= stack.quantity:
-				_taken[stack.uid] = true
+			var picked: InvStack = item["stack"]
+			var result := InvOps.insert(_shown, picked.copy())
+			if result["reason"] == "" and result["taken"] >= picked.quantity:
+				_taken[picked.uid] = true
 			continue
 		# Soltar: de la grilla propia o de la caja abierta.
 		var from: InvGrid = _shown if args[0] == InvProtocol.OWN else null

@@ -92,6 +92,11 @@ func _actor() -> ActorBody:
 	return lab._local_actor
 
 
+## La hora de la PC en ms: la misma en los dos procesos, para comparar.
+static func _now_ms() -> int:
+	return roundi(Time.get_unix_time_from_system() * 1000.0)
+
+
 ## Camina hasta ahí con W, girando la cámara hacia el lugar, como un jugador.
 func _walk_to(target: Vector3, tolerance := 0.35) -> bool:
 	var limit := Time.get_ticks_msec() + 20000
@@ -168,12 +173,26 @@ func _host() -> void:
 		_finish()
 		return
 	var last := ""
+	# Cuándo ve el host que algo aparece o desaparece del piso, en ms de la
+	# hora de la PC (la misma para los dos procesos): se compara con cuándo lo
+	# pidió el cliente ("PIDE …").
+	var floor_seen := {}
+	for uid in net.replica.world:
+		floor_seen[uid] = true
 	while is_instance_valid(client) and client.is_inside_tree():
 		var inventory := net.authority.player_inventory(client.owner_peer_id)
 		var now := "%s %s" % [vitals_digest(client.state), grid_digest(inventory.grid if inventory != null else null)]
 		if now != last:
 			last = now
 			_log("CLIENTE %s" % now)
+		for uid in floor_seen.keys():
+			if not net.replica.world.has(uid):
+				floor_seen.erase(uid)
+				_log("PISO a las %d ya no está %d" % [_now_ms(), uid])
+		for uid in net.replica.world:
+			if not floor_seen.has(uid):
+				floor_seen[uid] = true
+				_log("PISO a las %d aparece %d (%s)" % [_now_ms(), uid, net.replica.world[uid]["stack"].def_id])
 		await get_tree().physics_frame
 	_log("pedidos aceptados %d, rechazados %d" % [net.authority.accepted, net.authority.rejected])
 	_finish()
@@ -210,6 +229,7 @@ func _pick_up(def_id: StringName) -> void:
 	var quantity: int = net.replica.world[uid]["stack"].quantity
 	var confirmed := _count(net.replica.own, def_id)
 	var sent := Time.get_ticks_msec()
+	_log("PIDE a las %d recoger %d (%s)" % [_now_ms(), uid, def_id])
 	var seq := ui.pick_up_world(uid, String(def_id))
 	_check(seq != 0, "pide recoger %s" % def_id)
 	var mine := _first_of(net.replica.shown_own(), def_id)
@@ -344,6 +364,7 @@ func _drop_things() -> void:
 	var poison := _first_of(net.replica.own, &"veneno")
 	var left := _count(net.replica.own, &"veneno")
 	var sent := Time.get_ticks_msec()
+	_log("PIDE a las %d soltar desde el menú" % _now_ms())
 	var seq := ui.drop_item(InvProtocol.OWN, poison, net.replica.shown_own().get_stack(poison).ver, 1)
 	var ghost := net.world_view(-seq)
 	_check(seq != 0 and ghost != null and _count(net.replica.shown_own(), &"veneno") == left - 1 and _count(net.replica.own, &"veneno") == left,
@@ -360,6 +381,7 @@ func _drop_things() -> void:
 	ui._pick_up(InvProtocol.OWN, kit)
 	ui._mouse = Vector2(ui.size.x - 10.0, 10.0)
 	sent = Time.get_ticks_msec()
+	_log("PIDE a las %d soltar desde la mano" % _now_ms())
 	ui._place_all()
 	var flight: int = ui._flight.get("seq", 0)
 	ghost = net.world_view(-flight) if flight != 0 else null

@@ -8,10 +8,12 @@
 [ext_resource type="Script" uid="uid://cr6kkmj70nrp" path="res://scripts/net/net_sync.gd" id="6_sync"]
 [ext_resource type="Script" uid="uid://bryre3m0h8n1e" path="res://scripts/net/link_simulator.gd" id="7_link"]
 [ext_resource type="Script" uid="uid://dkdiqhwldaecd" path="res://scripts/actor/actor_tuning.gd" id="8_tuning"]
-[ext_resource type="PackedScene" path="res://scenes/net_lab/inventario/zona_de_inventario.tscn" id="9_zona_inventario"]
-[ext_resource type="Script" path="res://scripts/inventory/inv_net.gd" id="10_inventory"]
-[ext_resource type="Resource" path="res://scenes/net_lab/inventario/catalogo_de_prueba.tres" id="11_catalog"]
-[ext_resource type="Script" path="res://scripts/inventory/inv_ui.gd" id="12_inventory_ui"]
+[ext_resource type="PackedScene" uid="uid://b7en182aor4of" path="res://scenes/net_lab/inventario/zona_de_inventario.tscn" id="9_zona_inventario"]
+[ext_resource type="Script" uid="uid://dij6jqwdicwrn" path="res://scripts/inventory/inv_net.gd" id="10_inventory"]
+[ext_resource type="Resource" uid="uid://dp4ldlu54xxbc" path="res://scenes/net_lab/inventario/catalogo_de_prueba.tres" id="11_catalog"]
+[ext_resource type="Script" uid="uid://dlqciyblcsq5r" path="res://scripts/inventory/inv_ui.gd" id="12_inventory_ui"]
+[ext_resource type="Script" uid="uid://cwjs2nh2w03gt" path="res://scenes/net_lab/hud/lab_hud.gd" id="13_hud"]
+[ext_resource type="AudioStream" uid="uid://d3pucel8dllln" path="res://scenes/net_lab/hud/estados_apagados.wav" id="14_sound"]
 
 [sub_resource type="Curve3D" id="Curve3D_guide"]
 _data = {
@@ -53,6 +55,8 @@ script = ExtResource("8_tuning")
 ladder_jump_up = 1.2
 cable_reach = 0.6000000000000001
 cable_grab_body = 0.3
+slow_stamina_cost = 0.8
+boost_stamina_cost = 0.8
 
 [node name="Inventario" type="Node3D" parent="." unique_id=1742000102 node_paths=PackedStringArray("actors_root", "world_root")]
 script = ExtResource("10_inventory")
@@ -153,6 +157,19 @@ Desde otra PC: escribí la IP que muestra la ventana del host.
 Simular internet: elegilo solo en la PC que se une."
 horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="Instrumentos" type="Control" parent="Hud" unique_id=1743000104 node_paths=PackedStringArray("inventory_ui", "tuning")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("13_hud")
+inventory_ui = NodePath("../InventarioUI")
+tuning = NodePath("../../Tuning")
+exhaustion_sound = ExtResource("14_sound")
 
 [node name="InventarioUI" type="Control" parent="Hud" unique_id=1742000103 node_paths=PackedStringArray("net", "camera")]
 layout_mode = 3

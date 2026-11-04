@@ -28,8 +28,11 @@ var buttons := 0
 ## Contador de pulsaciones de salto, de 0 a 255 y da la vuelta. Si se pierde
 ## el tick exacto en que se apretó, el contador igual cambió.
 var jump_presses := 0
-## Contador de pulsaciones de la tecla de cámara lenta del mundo (punto 7), igual
-## que el de salto. No lo usa el motor: con él, el host se entera del pedido.
+## Contador de pulsaciones de la tecla de cámara lenta del mundo (1 del
+## teclado numérico), igual que el de salto. Desde el 2026-11-02 lo usa el
+## motor (ActorPowers): prende o apaga el pedido de cámara lenta de este
+## jugador, que gasta su estamina. El host prende la del mundo mientras alguno
+## la pida.
 var ability_presses := 0
 ## Contador de pulsaciones del súper salto y velocidad (2 del teclado
 ## numérico), igual que el de salto. Lo usa el motor: cada jugador lo activa

@@ -99,6 +99,8 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	state.regrab_left = maxf(state.regrab_left - dt, 0.0)
 	if state.regrab_left == 0.0:
 		state.regrab_id = 0
+	# El daño en el tiempo también va con el tiempo del mundo (ActorVitals.step).
+	ActorVitals.step(state, tuning, dt)
 
 	# 2. Base: la base se movió desde el tick anterior y lleva al actor.
 	_ride_base(body, state)
@@ -108,13 +110,10 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	if input.jump_presses != state.jump_presses_seen:
 		state.jump_presses_seen = input.jump_presses
 		state.jump_buffer_left = tuning.jump_buffer_time
-	# Cada pulsación prende o apaga el súper salto y velocidad: dos que caen
-	# entre dos ticks se anulan.
-	var power_presses := (input.power_presses - state.power_presses_seen) & 0xFF
-	if power_presses != 0:
-		state.power_presses_seen = input.power_presses
-		if power_presses % 2 == 1:
-			state.boosted = not state.boosted
+	# Cada pulsación prende o apaga el súper salto y velocidad o el pedido de
+	# cámara lenta (dos que caen entre dos ticks se anulan); después se cobra la
+	# estamina del tick, y si se acaba se apagan todos (ActorPowers).
+	ActorPowers.step(state, input, tuning)
 	# Con el súper, desde acá todas las velocidades de moverse vienen
 	# multiplicadas (ActorTuning.with_boost).
 	tuning = tuning.with_boost(state.boosted)

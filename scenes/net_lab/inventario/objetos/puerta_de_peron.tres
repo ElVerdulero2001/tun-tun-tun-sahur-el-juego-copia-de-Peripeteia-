@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://b04xepo42hob"]
+
+[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="1_cwp4c"]
+[ext_resource type="PackedScene" uid="uid://bfbjsgji3vcwb" path="res://assets/models/no_collectibles/door_oxide3.glb" id="2_psoc7"]
+[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="3_scdm8"]
+
+[resource]
+script = ExtResource("3_scdm8")
+id = &"puerta_de_peron"
+display_name = "puerta de Peron"
+size = Vector2i(3, 4)
+model = ExtResource("2_psoc7")
+thumbnail_rotation = Vector3(0, 0, 0)
+thumbnail_auto_align = false

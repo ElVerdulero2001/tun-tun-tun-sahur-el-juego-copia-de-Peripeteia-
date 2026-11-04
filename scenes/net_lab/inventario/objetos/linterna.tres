@@ -1,12 +1,12 @@
-[gd_resource type="Resource" script_class="InvItemDef" format=3]
+[gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://boq6y8uqoklho"]
 
-[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
-[ext_resource type="Script" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
-[ext_resource type="Script" path="res://scripts/inventory/inv_equippable.gd" id="3_equip"]
+[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
+[ext_resource type="Script" uid="uid://dvft74npx23ia" path="res://scripts/inventory/inv_equippable.gd" id="3_equip"]
 
 [sub_resource type="Resource" id="Resource_equip"]
 script = ExtResource("3_equip")
-hold_offset = Vector3(0.38, 1.0, -0.3)
+hold_offset = Vector3(0.38, 1, -0.3)
 hold_rotation = Vector3(90, 0, 0)
 hold_size = 0.3
 

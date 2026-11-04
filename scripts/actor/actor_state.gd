@@ -28,8 +28,21 @@ const VELOCITY_STEP := 0.001
 const NORMAL_STEP := 0.0001
 const TIME_STEP := 0.0001
 const YAW_STEPS := 65536
-## Largo de to_bytes(). Lo que llega por red con otro largo se descarta.
-const BYTE_SIZE := 93
+## Largo de to_bytes(). Lo que llega por red con otro largo se descarta. Hasta
+## el 2026-11-01 eran 93: la salud, la estamina y lo demás del jugador van al
+## final, así los primeros 93 bytes siguen siendo los del movimiento. Desde el
+## 2026-11-02 a la tarde, con el daño en el tiempo, 152.
+const BYTE_SIZE := 152
+## La salud se guarda en milésimas de punto: así el daño en el tiempo la baja
+## un poquito en cada tick, parejo, sin saltos de a un punto.
+const HEALTH_UNIT := 1000
+## Cuántos daños en el tiempo puede tener encima a la vez (se acumulan).
+const MAX_EFFECTS := 4
+## Salud y estamina de un estado nuevo: los máximos de fábrica del Tuning
+## (health_max y stamina_max). Al aparecer, el actor nace con los del Tuning
+## (NetSession); estos son para las pruebas que arman un estado a mano.
+const START_HEALTH := 100 * HEALTH_UNIT
+const START_STAMINA := 200 * ActorPowers.STAMINA_UNIT
 ## regrab_id de un bloqueo de bordes (Hanging), distinto de cualquier escalera.
 ## También bloquea los cables: si no, uno al alcance de las manos atrapa al
 ## que salta del borde, y desde el cable el salto vuelve al borde (pedido del
@@ -108,10 +121,44 @@ var hooked_by := 0
 ## y también todos los cables.
 var regrab_id := 0
 var regrab_left := 0.0
-## Súper salto y velocidad: si está prendido (la misma tecla lo prende y lo
-## apaga), y el último valor del contador de pulsaciones que ya se procesó.
-var boosted := false
+## Estados activos del jugador, un bit por estado (ActorPowers): el súper
+## salto y velocidad y su pedido de cámara lenta del mundo. Los prende y los
+## apaga su tecla (la misma), y gastan estamina mientras están prendidos.
+var powers := 0
+## Súper salto y velocidad: si está prendido. Es el bit ActorPowers.BOOST.
+var boosted: bool:
+	get:
+		return (powers & ActorPowers.BOOST) != 0
+	set(value):
+		powers = (powers | ActorPowers.BOOST) if value else (powers & ~ActorPowers.BOOST)
+## El último valor del contador de pulsaciones del súper (2 del teclado
+## numérico) que ya se procesó, y el del de la cámara lenta (1).
 var power_presses_seen := 0
+var ability_presses_seen := 0
+## Salud, en milésimas de punto (HEALTH_UNIT por punto): de 0 al máximo del
+## Tuning (health_max, 100 puntos). No vuelve sola. La cambian los eventos del
+## host (consumibles, ActorVitals) y el daño en el tiempo, que descuenta el
+## motor; al llegar a cero, muerte de prueba y vuelve al máximo.
+var health := START_HEALTH
+## Daños en el tiempo encima (consumibles, desde el 2026-11-02), hasta
+## MAX_EFFECTS a la vez, cada uno con su ritmo: cuánto quita en total, en
+## milésimas de punto; cuánto dura y cuánto lleva, en tiempo del mundo, en
+## milésimas de tick (con la cámara lenta corre más despacio). Con el total y
+## lo que lleva, cada tick quita justo lo que le toca, sin atrasos de redondeo.
+## Un lugar con duración 0 está libre. Los descuenta ActorVitals.step.
+var effect_total := PackedInt32Array([0, 0, 0, 0])
+var effect_duration := PackedInt32Array([0, 0, 0, 0])
+var effect_elapsed := PackedInt32Array([0, 0, 0, 0])
+## Estamina, en unidades internas (ActorPowers.STAMINA_UNIT por unidad): de 0 a
+## stamina_max del Tuning (200). No vuelve sola: la gastan los estados
+## prendidos (ActorPowers) y la devuelven los consumibles.
+var stamina := START_STAMINA
+## Contadores para avisar una sola vez, de 0 a 255 y dan la vuelta: muertes de
+## prueba (las sube el host) y agotamientos (la reserva llegó a cero con algún
+## estado prendido; los sube el motor). El HUD avisa cuando cambian; repetir
+## ticks da el mismo número, así que no avisa dos veces.
+var deaths := 0
+var exhaustions := 0
 ## Hanging, doblando (anchor_t distinto de 0): si es un rincón, por adentro.
 var corner_inside := false
 ## Si saltó (desde el piso, una escalera, un borde o un compañero, o en el
@@ -154,6 +201,34 @@ func quantize() -> void:
 	hooked_by &= 0xFFFFFFFF
 	power_presses_seen &= 0xFF
 	ladder_return &= 0xFFFF
+	powers &= 0xFF
+	ability_presses_seen &= 0xFF
+	health = clampi(health, 0, 0x7FFFFFFF)
+	stamina = clampi(stamina, 0, 0x7FFFFFFF)
+	deaths &= 0xFF
+	exhaustions &= 0xFF
+	for i in MAX_EFFECTS:
+		effect_total[i] = maxi(effect_total[i], 0)
+		effect_duration[i] = maxi(effect_duration[i], 0)
+		effect_elapsed[i] = clampi(effect_elapsed[i], 0, effect_duration[i])
+
+
+## Lo que es del jugador y no del movimiento: los contadores de pulsaciones
+## (si se pierden, la próxima parece una pulsación nueva), los estados
+## prendidos, la salud, los daños en el tiempo, la estamina y los contadores de
+## avisos. Lo usa quien arma un estado nuevo para el mismo jugador (al reaparecer).
+func keep_player_state(from: ActorState) -> void:
+	jump_presses_seen = from.jump_presses_seen
+	power_presses_seen = from.power_presses_seen
+	ability_presses_seen = from.ability_presses_seen
+	powers = from.powers
+	health = from.health
+	effect_total = from.effect_total.duplicate()
+	effect_duration = from.effect_duration.duplicate()
+	effect_elapsed = from.effect_elapsed.duplicate()
+	stamina = from.stamina
+	deaths = from.deaths
+	exhaustions = from.exhaustions
 
 
 func copy() -> ActorState:
@@ -181,13 +256,23 @@ func to_bytes() -> PackedByteArray:
 	b.put_32(roundi(regrab_left / TIME_STEP))
 	_put3(b, anchor_point, POSITION_STEP)
 	b.put_u32(hooked_by & 0xFFFFFFFF)
-	b.put_u8(1 if boosted else 0)
+	# Donde iba `boosted` (1 o 0): con solo el súper, el mismo byte que antes.
+	b.put_u8(powers & 0xFF)
 	b.put_u8(power_presses_seen & 0xFF)
 	b.put_u8(1 if corner_inside else 0)
 	b.put_u8(1 if jumped else 0)
 	b.put_u8(1 if straight_out else 0)
 	b.put_u16(ladder_return & 0xFFFF)
 	b.put_u8(1 if walked_off else 0)
+	b.put_u8(ability_presses_seen & 0xFF)
+	b.put_32(clampi(health, 0, 0x7FFFFFFF))
+	b.put_32(clampi(stamina, 0, 0x7FFFFFFF))
+	b.put_u8(deaths & 0xFF)
+	b.put_u8(exhaustions & 0xFF)
+	for i in MAX_EFFECTS:
+		b.put_32(maxi(effect_total[i], 0))
+		b.put_32(maxi(effect_duration[i], 0))
+		b.put_32(maxi(effect_elapsed[i], 0))
 	return b.data_array
 
 
@@ -214,22 +299,32 @@ static func from_bytes(bytes: PackedByteArray) -> ActorState:
 	s.regrab_left = b.get_32() * TIME_STEP
 	s.anchor_point = _get3(b, POSITION_STEP)
 	s.hooked_by = b.get_u32()
-	s.boosted = b.get_u8() == 1
+	s.powers = b.get_u8()
 	s.power_presses_seen = b.get_u8()
 	s.corner_inside = b.get_u8() == 1
 	s.jumped = b.get_u8() == 1
 	s.straight_out = b.get_u8() == 1
 	s.ladder_return = b.get_u16()
 	s.walked_off = b.get_u8() == 1
+	s.ability_presses_seen = b.get_u8()
+	s.health = b.get_32()
+	s.stamina = b.get_32()
+	s.deaths = b.get_u8()
+	s.exhaustions = b.get_u8()
+	for i in MAX_EFFECTS:
+		s.effect_total[i] = b.get_32()
+		s.effect_duration[i] = b.get_32()
+		s.effect_elapsed[i] = b.get_32()
 	return s
 
 
 func describe() -> String:
-	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f rincón=%s súper=%s/%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d saltó=%s derecho=%s vuelve=%d cayó_del_borde=%s época=%d" % [
+	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f rincón=%s súper=%s/%d lenta=%s/%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d saltó=%s derecho=%s vuelve=%d cayó_del_borde=%s salud=%.3f daño_en_el_tiempo=%s estamina=%.3f muertes=%d agotamientos=%d época=%d" % [
 		Mode.keys()[mode], Stance.keys()[stance], Stance.keys()[stance_wanted], on_floor, base_id,
 		anchor_id, anchor_t, anchor_point, hooked_by, regrab_id, regrab_left, "sí" if corner_inside else "no",
-		"sí" if boosted else "no", power_presses_seen,
-		position, velocity, facing_yaw, coyote_left, jump_buffer_left, jump_presses_seen, "sí" if jumped else "no", "sí" if straight_out else "no", ladder_return, "sí" if walked_off else "no", epoch,
+		"sí" if boosted else "no", power_presses_seen, "sí" if powers & ActorPowers.SLOW else "no", ability_presses_seen,
+		position, velocity, facing_yaw, coyote_left, jump_buffer_left, jump_presses_seen, "sí" if jumped else "no", "sí" if straight_out else "no", ladder_return, "sí" if walked_off else "no",
+		health / float(HEALTH_UNIT), effect_total, stamina / float(ActorPowers.STAMINA_UNIT), deaths, exhaustions, epoch,
 	]
 
 

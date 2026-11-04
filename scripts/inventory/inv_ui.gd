@@ -796,7 +796,7 @@ func _open_menu(ref: int, uid: int) -> void:
 	var not_here := "" if own else "primero pasalo a tu inventario"
 	var use := def.ability_of(InvAbility.Kind.USE)
 	if use != null:
-		var reason := _first(wait, not_here, use.check(_r().loadout, stack) if _r().loadout != null else "")
+		var reason := _first(wait, not_here, use.check(_r().loadout, stack, _vitals()) if _r().loadout != null else "")
 		_add_action(use.action_text(_r().loadout, stack), reason, _request_item.bind(InvProtocol.Op.USE, uid, stack.ver))
 	var equip := def.ability_of(InvAbility.Kind.EQUIP)
 	if equip != null:
@@ -832,6 +832,12 @@ func _add_action(text: String, reason: String, action: Callable) -> void:
 		_close_menu()
 		action.call())
 	_menu_box.add_child(button)
+
+
+## La salud y la estamina del personaje propio como se ven en esta máquina,
+## solo para habilitar Usar en el menú: lo que vale lo vuelve a mirar el host.
+func _vitals() -> ActorVitals:
+	return ActorVitals.of(actor.state, net.tuning) if is_instance_valid(actor) and net.tuning != null else null
 
 
 func _request_item(op: int, uid: int, ver: int) -> void:
@@ -1086,6 +1092,23 @@ func _item_at(point: Vector2) -> Array:
 	return []
 
 
+## Para el HUD (Hud/Instrumentos), que no tiene que tapar nada de esto:
+## "grid_bottom", hasta dónde baja la grilla propia abierta en el peor caso (con
+## una caja más alta las celdas se achican y baja menos), así los instrumentos
+## entran debajo con el inventario abierto o cerrado; "panels_right", dónde
+## terminan a la derecha las grillas abiertas (0 con el inventario cerrado); y
+## "hotbar", la barra rápida.
+func hud_limits() -> Dictionary:
+	var rows := float(_r().own.rows if net != null and _r().own != null else net.player_rows if net != null else 16)
+	var available := size.y - 24.0 - HEADER - PAD * 2.0 - SLOT_SIZE - 64.0
+	var cs := clampf(floorf(available / rows), 16.0, float(cell_size))
+	var right := 0.0
+	if is_open and net != null:
+		for ref in _refs():
+			right = maxf(right, _panel_rect(ref).end.x)
+	return {"grid_bottom": 24.0 + HEADER + rows * cs + PAD, "panels_right": right, "hotbar": _hotbar_rect()}
+
+
 func _hotbar_rect() -> Rect2:
 	var width := KEYS.size() * SLOT_SIZE + (KEYS.size() - 1) * SLOT_GAP
 	return Rect2(Vector2((size.x - width) / 2.0, size.y - SLOT_SIZE - 18.0), Vector2(width, SLOT_SIZE))
@@ -1202,18 +1225,7 @@ func _draw_visual(rect: Rect2, def: InvItemDef, rot: int, alpha: float) -> void:
 	draw_rect(rect, Color(color.lightened(0.2), 0.7 * alpha), false, 1.0)
 	var texture := thumbnails.texture_for(def)
 	if texture != null:
-		var tint := Color(1, 1, 1, alpha)
-		var turns := posmod(rot, 4)
-		if turns == 0:
-			draw_texture_rect(texture, rect, false, tint)
-		else:
-			# La esquina de arriba a la izquierda de la imagen va a la esquina
-			# que le toca con ese giro; girada 90° o 270°, se cambian ancho y alto.
-			var corners := [Vector2.ZERO, Vector2(rect.size.x, 0.0), rect.size, Vector2(0.0, rect.size.y)]
-			var drawn := rect.size if turns == 2 else Vector2(rect.size.y, rect.size.x)
-			draw_set_transform(rect.position + corners[turns], turns * PI / 2.0, Vector2.ONE)
-			draw_texture_rect(texture, Rect2(Vector2.ZERO, drawn), false, tint)
-			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		InvThumbnails.draw_turned(self, texture, rect, rot, Color(1, 1, 1, alpha))
 	else:
 		var label := def.display_name if def != null else "?"
 		draw_string(get_theme_default_font(), rect.position + Vector2(4, minf(rect.size.y / 2.0 + 5.0, rect.size.y - 4.0)), label,
@@ -1272,17 +1284,17 @@ func _draw_hotbar() -> void:
 		if _r().is_slot_pending(i):
 			draw_rect(rect, PENDING_COLOR, false, 2.0)
 		_text(rect.position + Vector2(4, 15), KEYS[i], font_size - 2, Color(1, 1, 1, 0.8))
-	var info := "Vitalidad de prueba: %d / %d" % [loadout.test_vitality if loadout != null else 0, InvLoadout.TEST_VITALITY_MAX]
-	var equipped := ""
+	# A la izquierda de la barra van los instrumentos del HUD: lo de la barra
+	# se escribe a la derecha. (Hasta el 2026-11-01, a la izquierda decía la
+	# vitalidad de prueba, que ya no existe: ahora es la salud del HUD.)
+	var y := bar.position.y + 16
 	if loadout != null and loadout.equipped_uid != 0 and _r().own != null:
 		var def := _r().own.def_of(loadout.equipped_uid)
-		equipped = "Equipado: %s" % (def.display_name if def != null else "?")
-	_text_right(Vector2(bar.position.x - 14, bar.position.y + 22), info, font_size - 1, Color.WHITE)
-	if equipped != "":
-		_text_right(Vector2(bar.position.x - 14, bar.position.y + 44), equipped, font_size - 1, Color(1.0, 0.75, 0.45))
+		_text(Vector2(bar.end.x + 14, y), "Equipado: %s" % (def.display_name if def != null else "?"), font_size - 1, Color(1.0, 0.75, 0.45))
+		y += 20
 	if is_open:
-		_text(Vector2(bar.end.x + 14, bar.position.y + 22), "Clic en un objeto y después en un acceso", font_size - 3, Color(1, 1, 1, 0.6))
-		_text(Vector2(bar.end.x + 14, bar.position.y + 40), "Clic derecho en un acceso lo vacía", font_size - 3, Color(1, 1, 1, 0.6))
+		_text(Vector2(bar.end.x + 14, y), "Clic en un objeto y después en un acceso", font_size - 3, Color(1, 1, 1, 0.6))
+		_text(Vector2(bar.end.x + 14, y + 17), "Clic derecho en un acceso lo vacía", font_size - 3, Color(1, 1, 1, 0.6))
 
 
 func _draw_prompt() -> void:

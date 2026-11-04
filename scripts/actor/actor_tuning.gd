@@ -258,16 +258,36 @@ var _boosted_from: Array = []
 ## En un cable, todo alrededor.
 @export_range(0.0, 180.0, 0.1, "radians_as_degrees") var hook_turn_limit := deg_to_rad(90.0)
 
+@export_group("Salud y estamina")
+## Salud completa, en puntos. Cada jugador empieza con esta; el instrumento
+## del HUD muestra la proporción, de 0 a 10. No vuelve sola: la cambian los
+## consumibles. Al llegar a 0, muerte de prueba: se apagan tus estados y vuelve
+## a este valor.
+@export_range(1, 10000) var health_max := 100
+## Reserva de estamina completa. Cada jugador empieza con esta; el instrumento
+## va de 0 a 200 (lleno marca 200 aunque cambies este valor). No vuelve sola:
+## solo con consumibles. La gastan los estados prendidos (Slow Stamina Cost y
+## Boost Stamina Cost, sumados si hay varios); correr, saltar y trepar no.
+@export_range(1, 10000) var stamina_max := 200
+
 @export_group("Cámara lenta")
-## Escala de tiempo de la cámara lenta del mundo. La prende y la apaga
-## cualquier jugador con el 1 del teclado numérico.
+## Escala de tiempo de la cámara lenta del mundo, una sola: igual con uno o con
+## varios jugadores que la pidan. Cada jugador prende o apaga su pedido con el 1
+## del teclado numérico, y el mundo va lento mientras alguno la pida.
 @export var slow_scale := 0.3
+## Estamina por segundo que gasta cada jugador mientras su pedido de cámara
+## lenta está prendido, aunque otro también la pida. Se cobra por segundo real
+## (60 ticks): la cámara lenta no la abarata. De a milésimas; 0 la deja gratis.
+@export_range(0.0, 1000.0, 0.001) var slow_stamina_cost := 8.0
 
 @export_group("Súper salto y velocidad")
 ## Lo prende y lo apaga cada jugador para sí mismo con el 2 del teclado
 ## numérico. Cuánto más alto llegan los pies en un salto desde el piso, en
 ## metros, además de la altura de siempre.
 @export var boost_jump_extra := 1.5
+## Estamina por segundo que gasta mientras está prendido, por segundo real
+## (60 ticks). De a milésimas; 0 lo deja gratis.
+@export_range(0.0, 1000.0, 0.001) var boost_stamina_cost := 5.0
 ## Por cuánto se multiplican todas las velocidades de moverse: las de este
 ## nodo que terminan en _speed (caminando, corriendo, agachado, deslizándose,
 ## en la escalera, colgado, en un cable, colgado de un compañero, el tope del

@@ -35,25 +35,31 @@ func _ready() -> void:
 	shape.shape = box_shape
 	shape.position = Vector3.UP * box_size.y / 2.0
 	add_child(shape)
+	for part in InvContainer.look(display_name, box_size, color):
+		add_child(part)
+
+
+## Cómo se ve una caja: su malla apoyada en el piso y el cartel. Lo usa también
+## la vista previa del panel Objetos del editor.
+static func look(shown_name: String, size: Vector3, tint: Color) -> Array[Node3D]:
 	var mesh := MeshInstance3D.new()
 	mesh.name = "Malla"
 	var box_mesh := BoxMesh.new()
-	box_mesh.size = box_size
+	box_mesh.size = size
 	var material := StandardMaterial3D.new()
-	material.albedo_color = color
+	material.albedo_color = tint
 	box_mesh.material = material
 	mesh.mesh = box_mesh
-	mesh.position = shape.position
-	add_child(mesh)
+	mesh.position = Vector3.UP * size.y / 2.0
 	var label := Label3D.new()
 	label.name = "Cartel"
-	label.text = "%s\nE para abrir" % display_name
+	label.text = "%s\nE para abrir" % shown_name
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.font_size = 40
 	label.pixel_size = 0.004
 	label.outline_size = 8
-	label.position = Vector3.UP * (box_size.y + 0.35)
-	add_child(label)
+	label.position = Vector3.UP * (size.y + 0.35)
+	return [mesh, label]
 
 
 ## Hacia dónde se mide el alcance.

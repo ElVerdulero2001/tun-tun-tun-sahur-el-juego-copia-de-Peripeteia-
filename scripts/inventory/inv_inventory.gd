@@ -9,7 +9,7 @@ extends Node
 ## Medidas de la grilla. Se leen al armarla, la primera vez que se usa.
 @export_range(1, 64) var columns := 12
 @export_range(1, 64) var rows := 16
-## Los jugadores tienen barra rápida, equipo y vitalidad de prueba; las cajas no.
+## Los jugadores tienen barra rápida y equipo; las cajas no.
 @export var has_loadout := false
 
 var grid: InvGrid

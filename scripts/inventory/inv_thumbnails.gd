@@ -65,13 +65,50 @@ func _process(_delta: float) -> void:
 func _render(def: InvItemDef) -> void:
 	_busy = true
 	var key := def.appearance_key()
-	var pixels := Vector2(def.size) * pixels_per_cell
+	var viewport := InvThumbnails.build_viewport(def, InvThumbnails.image_size(def, pixels_per_cell, max_pixels), padding)
+	add_child(viewport)
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	if not is_instance_valid(viewport):
+		_busy = false
+		return
+	var image := viewport.get_texture().get_image()
+	if image != null and not image.is_empty() and not viewport.get_meta(&"empty"):
+		_cache[key] = ImageTexture.create_from_image(image)
+		rendered += 1
+	else:
+		_failed[key] = true
+		failed += 1
+	viewport.queue_free()
+	_queued.erase(key)
+	_busy = false
+	thumbnail_ready.emit(key)
+
+
+## Para las pruebas: la imagen hecha para ese tipo, o null.
+func image_for(def: InvItemDef) -> Image:
+	var texture: Texture2D = _cache.get(def.appearance_key()) if def != null else null
+	return texture.get_image() if texture != null else null
+
+
+## Medidas de la imagen de ese tipo: la proporción de su huella, de a
+## `per_cell` píxeles por celda, sin que el lado más largo pase de `max_side`.
+static func image_size(def: InvItemDef, per_cell: int, max_side: int) -> Vector2i:
+	var pixels := Vector2(def.size) * per_cell
 	var longest := maxf(pixels.x, pixels.y)
-	if longest > max_pixels:
-		pixels *= max_pixels / longest
+	if longest > max_side:
+		pixels *= max_side / longest
+	return Vector2i(maxi(roundi(pixels.x), 8), maxi(roundi(pixels.y), 8))
+
+
+## Un SubViewport con lo que ve la miniatura de ese tipo: su propio mundo,
+## fondo transparente, dos luces, el modelo y la cámara que lo encuadra. Se
+## dibuja una vez al entrar al árbol. Con la meta "empty", si no había mallas
+## que encuadrar. Lo usa también la vista previa del panel Objetos del editor.
+static func build_viewport(def: InvItemDef, size: Vector2i, margin: float) -> SubViewport:
 	var viewport := SubViewport.new()
 	viewport.name = "Miniatura"
-	viewport.size = Vector2i(maxi(roundi(pixels.x), 8), maxi(roundi(pixels.y), 8))
+	viewport.size = size
 	viewport.own_world_3d = true
 	viewport.transparent_bg = true
 	viewport.msaa_3d = Viewport.MSAA_4X
@@ -92,48 +129,61 @@ func _render(def: InvItemDef) -> void:
 	fill_light.rotation_degrees = Vector3(-15.0, 150.0, 0.0)
 	fill_light.light_energy = 0.45
 	viewport.add_child(fill_light)
+	var turn := Node3D.new()
+	turn.name = "Giro"
+	turn.add_child(InvVisuals.build(def))
+	viewport.add_child(turn)
+	var camera := Camera3D.new()
+	camera.name = "Camara"
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.keep_aspect = Camera3D.KEEP_HEIGHT
+	camera.near = 0.01
+	viewport.add_child(camera)
+	camera.current = true
+	frame(viewport, def, margin)
+	return viewport
+
+
+## Encuadra el modelo de una miniatura ya armada con build_viewport, según el
+## tipo: su giro, acostado si hace falta, su zoom y su corrimiento. El panel
+## Objetos lo vuelve a llamar mientras la acomodás con el mouse, sin rearmar el
+## modelo. Deja la meta "empty" si no había mallas que encuadrar.
+static func frame(viewport: SubViewport, def: InvItemDef, margin: float) -> void:
 	# El modelo, girado como pide el tipo; si el lado largo no coincide con el
 	# de la huella, se acuesta 90° (thumbnail_auto_align).
-	var turn := Node3D.new()
-	var model := InvVisuals.build(def)
+	var turn := viewport.get_node("Giro") as Node3D
+	var model := turn.get_child(0) as Node3D
 	model.rotation_degrees = def.thumbnail_rotation
-	turn.add_child(model)
+	turn.rotation = Vector3.ZERO
 	var box := model.transform * InvVisuals.bounds(model)
 	if def.thumbnail_auto_align and def.size.x != def.size.y and (box.size.x > box.size.y) != (def.size.x > def.size.y):
 		turn.rotation.z = PI / 2.0
 		box = turn.transform * box
-	viewport.add_child(turn)
-	var camera := Camera3D.new()
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.keep_aspect = Camera3D.KEEP_HEIGHT
+	var camera := viewport.get_node("Camara") as Camera3D
 	var aspect := float(viewport.size.x) / viewport.size.y
-	camera.size = maxf(maxf(box.size.y, box.size.x / aspect) * padding / maxf(def.thumbnail_zoom, 0.01), 0.001)
+	camera.size = maxf(maxf(box.size.y, box.size.x / aspect) * margin / maxf(def.thumbnail_zoom, 0.01), 0.001)
 	var center := box.get_center()
-	camera.near = 0.01
 	camera.far = box.size.z + 10.0
-	camera.position = Vector3(center.x, center.y, box.end.z + 2.0)
-	viewport.add_child(camera)
-	camera.current = true
-	add_child(viewport)
-	await RenderingServer.frame_post_draw
-	await RenderingServer.frame_post_draw
-	if not is_instance_valid(viewport):
-		_busy = false
+	# Correr el modelo a la derecha es correr la cámara a la izquierda; para
+	# abajo, la cámara sube. En partes del cuadro: alto camera.size, ancho por aspecto.
+	var shift := Vector2(-def.thumbnail_offset.x * camera.size * aspect, def.thumbnail_offset.y * camera.size)
+	camera.position = Vector3(center.x + shift.x, center.y + shift.y, box.end.z + 2.0)
+	viewport.set_meta(&"empty", box.size.length() <= 0.0)
+	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+
+
+## Dibuja la miniatura en ese rectángulo, girada de a 90° en el sentido del
+## reloj según `rot`, como en la grilla. Lo usan la interfaz y la vista previa
+## del panel Objetos del editor.
+static func draw_turned(canvas: CanvasItem, texture: Texture2D, rect: Rect2, rot: int, tint: Color) -> void:
+	var turns := posmod(rot, 4)
+	if turns == 0:
+		canvas.draw_texture_rect(texture, rect, false, tint)
 		return
-	var image := viewport.get_texture().get_image()
-	if image != null and not image.is_empty() and box.size.length() > 0.0:
-		_cache[key] = ImageTexture.create_from_image(image)
-		rendered += 1
-	else:
-		_failed[key] = true
-		failed += 1
-	viewport.queue_free()
-	_queued.erase(key)
-	_busy = false
-	thumbnail_ready.emit(key)
-
-
-## Para las pruebas: la imagen hecha para ese tipo, o null.
-func image_for(def: InvItemDef) -> Image:
-	var texture: Texture2D = _cache.get(def.appearance_key()) if def != null else null
-	return texture.get_image() if texture != null else null
+	# La esquina de arriba a la izquierda de la imagen va a la esquina que le
+	# toca con ese giro; girada 90° o 270°, se cambian ancho y alto.
+	var corners := [Vector2.ZERO, Vector2(rect.size.x, 0.0), rect.size, Vector2(0.0, rect.size.y)]
+	var drawn := rect.size if turns == 2 else Vector2(rect.size.y, rect.size.x)
+	canvas.draw_set_transform(rect.position + corners[turns], turns * PI / 2.0, Vector2.ONE)
+	canvas.draw_texture_rect(texture, Rect2(Vector2.ZERO, drawn), false, tint)
+	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

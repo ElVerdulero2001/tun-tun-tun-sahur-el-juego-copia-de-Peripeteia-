@@ -55,6 +55,9 @@ signal container_closed(id: int, reason: String)
 
 ## El simulador de red del laboratorio. Lo pone el laboratorio.
 var link: LinkSimulator
+## Los valores del laboratorio (el nodo Tuning): los consumibles los usan para
+## los máximos de salud y estamina. Lo pone el laboratorio.
+var tuning: ActorTuning
 var replica := InvReplica.new()
 ## Solo en el host.
 var authority: InvAuthority
@@ -125,6 +128,7 @@ func start(as_host: bool) -> void:
 	authority = InvAuthority.new()
 	authority.catalog = catalog
 	authority.actors_root = actors_root
+	authority.tuning = tuning
 	authority.pickup_range = pickup_range
 	authority.drop_distance = drop_distance
 	authority.send = _send_commit

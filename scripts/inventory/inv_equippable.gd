@@ -23,7 +23,7 @@ func action_text(loadout: InvLoadout, stack: InvStack) -> String:
 	return "Desequipar" if loadout != null and stack != null and loadout.equipped_uid == stack.uid else "Equipar"
 
 
-func apply(loadout: InvLoadout, stack: InvStack) -> int:
+func apply(loadout: InvLoadout, stack: InvStack, _vitals: ActorVitals) -> int:
 	loadout.equipped_uid = 0 if loadout.equipped_uid == stack.uid else stack.uid
 	return 0
 

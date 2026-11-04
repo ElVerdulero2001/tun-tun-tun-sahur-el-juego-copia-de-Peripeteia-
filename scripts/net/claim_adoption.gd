@@ -12,7 +12,8 @@ extends RefCounted
 ## - los valores son posibles: la velocidad no se aleja de la del host más que
 ##   lo que cambia un input que llegó tarde, los tiempos no pasan de su máximo
 ##   en el Tuning, y lo que decide el host (quién cuelga de este actor) es lo
-##   que dice el host. Un cliente con un error no
+##   que dice el host; la salud y la estamina, que el cliente no puede subir
+##   (ver _vitals_possible). Un cliente con un error no
 ##   le pasa al host, ni a los demás, un estado imposible;
 ## - la posición difiere de la del host en menos de MAX_DIFFERENCE;
 ## - la pose entra en el mundo del host: no queda metida en la geometría y,
@@ -115,7 +116,29 @@ func _values_possible(claim: ActorState, host: ActorState, tuning: ActorTuning) 
 			or not _time_within(claim.jump_buffer_left, tuning.jump_buffer_time) \
 			or not _time_within(claim.regrab_left, maxf(tuning.regrab_block_time, tuning.hang_regrab_time)):
 		return false
+	if not _vitals_possible(claim, host):
+		return false
 	return claim.hooked_by == host.hooked_by or (claim.hooked_by == 0 and not ActorMotor.holds_mates(claim.mode))
+
+
+## La salud, la estamina y los estados (desde el 2026-11-02). La salud y las
+## muertes solo las cambia el host (consumibles): con la misma época, iguales.
+## La estamina puede ser menos que la del host (prendió un estado antes de lo
+## que el host vio, con un input que llegó tarde: paga de más), nunca más: el
+## cliente no puede imponer reserva. Con la reserva en cero no hay estados
+## prendidos, y un agotamiento de más solo con la reserva en cero y todo apagado.
+static func _vitals_possible(claim: ActorState, host: ActorState) -> bool:
+	# El daño en el tiempo no depende del input: con la misma época, igual.
+	if claim.health != host.health or claim.deaths != host.deaths \
+			or claim.effect_total != host.effect_total or claim.effect_duration != host.effect_duration \
+			or claim.effect_elapsed != host.effect_elapsed:
+		return false
+	if claim.stamina < 0 or claim.stamina > host.stamina:
+		return false
+	if (claim.powers & ~ActorPowers.ALL) != 0 or (claim.powers != 0 and claim.stamina == 0):
+		return false
+	var exhausted := (claim.exhaustions - host.exhaustions) & 0xFF
+	return exhausted == 0 or (exhausted == 1 and claim.stamina == 0 and claim.powers == 0)
 
 
 ## Lo más que un input que llegó tarde puede cambiar la velocidad: arrancar a

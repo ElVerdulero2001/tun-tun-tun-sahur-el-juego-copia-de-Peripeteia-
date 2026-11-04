@@ -42,7 +42,9 @@ func _ready() -> void:
 	actor = lab._local_actor
 	_check(actor != null and net.replica.own != null and net.replica.own.columns == 12 and net.replica.own.rows == 16,
 			"jugando solo: el jugador tiene su grilla de 12 × 16")
-	_check(net.replica.world.size() == 13, "los 13 objetos de la zona están en el mundo (hay %d)" % net.replica.world.size())
+	var spawns := lab.get_node("ZonaDeInventario").find_children("*", "InvPickupSpawn", true, false).size()
+	_check(spawns >= 13 and net.replica.world.size() == spawns, "los %d objetos de la zona están en el mundo (hay %d)" % [
+			spawns, net.replica.world.size()])
 	var totals := _totals()
 	await _pickups()
 	await _stacks_and_split()
@@ -250,24 +252,28 @@ func _hotbar_use_and_dedup() -> void:
 	var bottle: int = bottles[0]
 	var r := await _req(Op.HOTBAR_SET, [0, bottle])
 	_check(r[0] and net.replica.loadout.hotbar[0] == bottle, "la botella al acceso 1")
-	var vitality := net.replica.loadout.test_vitality
+	# La botella cura 25 de salud (hasta el 2026-11-01 subía la vitalidad de
+	# prueba). Con la salud completa no se usaría: se la baja a 40.
+	var me := net.authority.actor_of(1)
+	me.state.health = 40 * ActorState.HEALTH_UNIT
 	# El mismo pedido dos veces (como un reintento): se usa una sola botella.
 	var seq := net.replica.request(Op.HOTBAR_PRESS, [0], [bottle], [0])
 	net._send_request(seq, Op.HOTBAR_PRESS, [0])
 	for i in 4:
 		await get_tree().physics_frame
-	_check(_stack(bottle).quantity == 2 and net.replica.loadout.test_vitality == vitality + 25,
-			"un pedido repetido no gasta dos veces: quedan %d, vitalidad %d" % [_stack(bottle).quantity, net.replica.loadout.test_vitality])
+	_check(_stack(bottle).quantity == 2 and me.state.health == 65 * ActorState.HEALTH_UNIT,
+			"un pedido repetido no gasta dos veces ni cura dos veces: quedan %d, salud %.1f" % [_stack(bottle).quantity, me.state.health / float(ActorState.HEALTH_UNIT)])
 	_check(net.authority.repeated >= 1, "el host vio el repetido")
-	net.authority.player_inventory(1).loadout.test_vitality = InvLoadout.TEST_VITALITY_MAX
+	me.state.health = lab.tuning.health_max * ActorState.HEALTH_UNIT
 	r = await _req(Op.USE, [bottle, _stack(bottle).ver], [bottle])
-	_check(not r[0] and _stack(bottle).quantity == 2, "con la vitalidad al máximo no se usa ni se gasta: %s" % r[1])
-	net.authority.player_inventory(1).loadout.test_vitality = 40
+	_check(not r[0] and r[1] == "ya tenés la salud completa" and _stack(bottle).quantity == 2,
+			"con la salud completa no se usa ni se gasta: %s" % r[1])
+	me.state.health = 40 * ActorState.HEALTH_UNIT
 	await _req(Op.HOTBAR_PRESS, [0], [bottle])
 	await _req(Op.HOTBAR_PRESS, [0], [bottle])
 	_check(not net.replica.own.has(bottle) and net.replica.loadout.hotbar[0] == 0,
 			"gastada la última, la pila se retira y su acceso se limpia")
-	_check(net.replica.loadout.test_vitality == 90, "vitalidad 40 + 25 + 25 = 90 (hay %d)" % net.replica.loadout.test_vitality)
+	_check(me.state.health == 90 * ActorState.HEALTH_UNIT, "salud 40 + 25 + 25 = 90 (hay %.1f)" % (me.state.health / float(ActorState.HEALTH_UNIT)))
 	r = await _req(Op.HOTBAR_PRESS, [0])
 	_check(not r[0] and r[1].begins_with("el acceso 1 está vacío"), "el acceso vacío no busca otra botella: %s" % r[1])
 	var screws := _own_uids(&"tornillos")

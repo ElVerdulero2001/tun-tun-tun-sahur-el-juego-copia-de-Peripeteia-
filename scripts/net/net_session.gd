@@ -11,7 +11,10 @@ extends Node
 ## conexión, el host deja el actor de ese jugador en el mundo, quieto, y lo
 ## espera `reconnect_wait` segundos; el cliente reintenta solo. Si vuelve con la
 ## misma llave, el host le da un actor nuevo con el estado del que lo esperaba:
-## sigue donde estaba.
+## sigue donde estaba. Desde el 2026-11-02, al empezar a esperarlo se le apagan
+## los estados (el súper y su pedido de cámara lenta, ver player_waiting): no
+## gasta estamina ni sostiene la cámara lenta de los demás mientras no está.
+## Su salud y su estamina se conservan.
 ##
 ## Junto con la llave va la huella de compatibilidad (SimFingerprint): si el
 ## Tuning, el código o el nivel del cliente no son los del host, el host no lo
@@ -33,6 +36,9 @@ signal connection_restored
 ## uno nuevo, con el mismo estado. El viejo ya no está en el árbol pero todavía
 ## existe: lo que la entidad tenía (su inventario) se puede pasar al nuevo.
 signal actor_replaced(old_actor: ActorBody, new_actor: ActorBody)
+## Host: a un jugador se le cortó la conexión y se lo empieza a esperar. Su
+## actor sigue en el mundo, quieto; el laboratorio le apaga los estados.
+signal player_waiting(peer_id: int)
 
 const ACTOR_SCENE := preload("res://scenes/actor/actor.tscn")
 const MAX_CLIENTS := 7
@@ -259,6 +265,7 @@ func _on_peer_lost(peer_id: int, close: bool) -> void:
 	if key != "" and reconnect_wait > 0.0 and not _leaving.has(peer_id):
 		_waiting[key] = [peer_id, Time.get_ticks_msec() + roundi(reconnect_wait * 1000.0)]
 		_set_status("HOST: se cortó el jugador %d; lo espero %d s" % [peer_id, roundi(reconnect_wait)])
+		player_waiting.emit(peer_id)
 		return
 	_leaving.erase(peer_id)
 	_remove_player(peer_id)
@@ -507,6 +514,9 @@ func _spawn_actor(data: Dictionary) -> Node:
 		# Nace apoyado: así coincide con lo que el host calcula en el primer tick.
 		actor.state.mode = ActorState.Mode.GROUND
 		actor.state.on_floor = true
+		# Salud y reserva completas, con los máximos del Tuning (igual en todas las máquinas).
+		if clock != null and clock.tuning != null:
+			ActorVitals.fill(actor.state, clock.tuning)
 		actor.state.quantize()
 	actor.position = BaseRegistry.world_position(actor.state)
 	if peer_id == multiplayer.get_unique_id():

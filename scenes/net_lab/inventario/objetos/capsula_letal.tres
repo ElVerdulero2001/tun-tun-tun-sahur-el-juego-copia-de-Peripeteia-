@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://cva2lqux2e78l"]
+
+[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
+[ext_resource type="Script" uid="uid://mdwue4ncgyw7" path="res://scripts/inventory/inv_consumable.gd" id="3_use"]
+
+[sub_resource type="Resource" id="Resource_use"]
+script = ExtResource("3_use")
+health = -1000
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_pill"]
+radius = 0.03
+height = 0.12
+radial_segments = 12
+rings = 4
+
+[resource]
+script = ExtResource("1_def")
+id = &"capsula_letal"
+display_name = "Cápsula letal"
+description = "Consumible de prueba: quita 1000 de salud, más que la completa: una te mata (muerte de prueba). Gasta una."
+stackable = true
+max_stack = 2
+abilities = Array[ExtResource("2_ability")]([SubResource("Resource_use")])
+mesh = SubResource("CapsuleMesh_pill")
+color = Color(0.55, 0.08, 0.08, 1)
+world_size = 0.12

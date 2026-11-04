@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://cij7xgrxu03k0"]
+
+[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="1_lk0rf"]
+[ext_resource type="PackedScene" uid="uid://bfbjsgji3vcwb" path="res://assets/models/no_collectibles/door_oxide3.glb" id="2_v45hw"]
+[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="3_3xb5d"]
+
+[resource]
+script = ExtResource("3_3xb5d")
+id = &"porton_de_musolini"
+display_name = "porton de musolini"
+description = "ultima comida de un mendigo"
+size = Vector2i(3, 4)
+stackable = true
+max_stack = 4
+model = ExtResource("2_v45hw")
+thumbnail_rotation = Vector3(0, 0, 0)
+thumbnail_zoom = 1.03
+thumbnail_auto_align = false

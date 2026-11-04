@@ -8,7 +8,8 @@ extends Resource
 ##
 ## Para crear un tipo: en FileSystem, clic derecho → Create New → Resource… →
 ## InvItemDef; completarlo en el Inspector y sumarlo a la lista del catálogo
-## (InvCatalog). El id tiene que ser único: es lo que viaja por red.
+## (InvCatalog). El id tiene que ser único: es lo que viaja por red. El panel
+## Objetos del editor (addons/inventario_objetos) hace todo eso con un botón.
 
 ## Identificador estable del tipo. Viaja por red; no se muestra.
 @export var id: StringName
@@ -51,6 +52,9 @@ extends Resource
 @export var thumbnail_rotation := Vector3(-20.0, 35.0, 0.0)
 ## Más de 1 acerca el modelo; menos, deja más margen.
 @export_range(0.3, 3.0, 0.05) var thumbnail_zoom := 1.0
+## Cuánto se corre el modelo dentro de la miniatura, en partes del cuadro:
+## (0.25, 0) lo lleva un cuarto del ancho a la derecha; y positivo, para abajo.
+@export var thumbnail_offset := Vector2.ZERO
 ## Si el lado largo del modelo no coincide con el de la huella, lo acuesta 90°.
 @export var thumbnail_auto_align := true
 
@@ -82,7 +86,8 @@ func appearance_key() -> String:
 		source = model.resource_path
 	elif mesh != null:
 		source = mesh.resource_path if mesh.resource_path != "" else "malla %d" % mesh.get_instance_id()
-	return "%s|%s|%s|%s|%s|%s" % [source, color.to_html(), size, thumbnail_rotation, thumbnail_zoom, thumbnail_auto_align]
+	return "%s|%s|%s|%s|%s|%s|%s" % [source, color.to_html(), size, thumbnail_rotation, thumbnail_zoom, thumbnail_offset,
+			thumbnail_auto_align]
 
 
 ## Lo que tiene que ser igual en el host y en los clientes (SimFingerprint).

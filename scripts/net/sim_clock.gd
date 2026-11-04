@@ -19,8 +19,9 @@ extends Node
 ## tick avanza TICK_DT por la escala. Siguen siendo 60 ticks por segundo real:
 ## lo que se achica es cuánto tiempo del mundo pasa en cada uno. Los tramos son
 ## los mismos en todas las máquinas, así que el tiempo del mundo de un tick
-## también. La misma tecla la prende y la apaga: un tramo queda abierto
-## (OPEN_END) hasta que el host programa su fin.
+## también. Un tramo queda abierto (OPEN_END) mientras algún jugador la pida,
+## hasta que el host programa su fin; la escala es una sola, y los tramos no
+## se superponen (con dos superpuestos, world_ticks descontaría dos veces).
 
 ## Al empezar cada tick, antes de mover actores. El cliente corrige y manda su input acá.
 signal tick_started(tick: int)
@@ -133,19 +134,23 @@ static func apply_tick_rate(rate: int, slow: float = 1.0) -> void:
 	Engine.time_scale = float(rate) / TICK_RATE * slow
 
 
-## Anota un tramo de cámara lenta del mundo, el que anunció el host, o le pone
-## fin a uno que seguía prendido (mismo inicio, otro fin). Devuelve los ticks
-## en que esto cambia la escala: el inicio de un tramo nuevo (y su fin, si ya
-## lo tiene) o el fin nuevo; vacío si ya estaba igual. Al que se conecta el
-## host le manda todos los tramos, y uno puede llegarle también en su anuncio.
+## Anota un tramo de cámara lenta del mundo, el que anunció el host, o le
+## cambia el fin a uno que ya tenía (mismo inicio, otro fin): se lo pone a uno
+## que seguía prendido o, desde el 2026-11-02, se lo saca para que siga (otro
+## jugador la pidió antes de que terminara). Devuelve los ticks en que esto
+## cambia la escala: el inicio de un tramo nuevo (y su fin, si ya lo tiene) o,
+## al cambiar el fin, el primero de los dos fines; vacío si ya estaba igual. Al
+## que se conecta el host le manda todos los tramos, y uno puede llegarle
+## también en su anuncio.
 static func add_world_slow(start: int, end: int, scale: float) -> Array:
 	for span in _world_slow:
 		if span[0] != start:
 			continue
 		if span[1] == end:
 			return []
+		var first := mini(span[1], end)
 		span[1] = end
-		return [end]
+		return [first]
 	_world_slow.append([start, end, scale])
 	_world_slow.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 	return [start] if end == OPEN_END else [start, end]

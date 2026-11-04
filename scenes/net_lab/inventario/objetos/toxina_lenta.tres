@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://86818wi1rcy4"]
+
+[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
+[ext_resource type="Script" uid="uid://mdwue4ncgyw7" path="res://scripts/inventory/inv_consumable.gd" id="3_use"]
+
+[sub_resource type="Resource" id="Resource_use"]
+script = ExtResource("3_use")
+health = 0
+damage_over_time = 20
+damage_seconds = 4.0
+
+[sub_resource type="SphereMesh" id="SphereMesh_toxin"]
+radius = 0.055
+height = 0.11
+radial_segments = 16
+rings = 8
+
+[resource]
+script = ExtResource("1_def")
+id = &"toxina_lenta"
+display_name = "Toxina lenta"
+description = "Consumible de prueba: quita 20 de salud de a poco, en 4 s (5 por segundo), y gasta una. Se usa con la salud completa; con la cámara lenta va más despacio; se acumulan, hasta 4 a la vez."
+stackable = true
+max_stack = 4
+abilities = Array[ExtResource("2_ability")]([SubResource("Resource_use")])
+mesh = SubResource("SphereMesh_toxin")
+color = Color(0.6, 0.85, 0.1, 1)
+world_size = 0.14

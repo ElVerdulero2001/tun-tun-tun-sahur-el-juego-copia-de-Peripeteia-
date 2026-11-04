@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://c8jj7h8vq1ccq"]
+
+[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="1_udtfr"]
+[ext_resource type="Script" uid="uid://mdwue4ncgyw7" path="res://scripts/inventory/inv_consumable.gd" id="2_aebsg"]
+[ext_resource type="PackedScene" uid="uid://c3mnxj2ogypfb" path="res://assets/models/no_collectibles/monitorcrt4.glb" id="3_xh8ik"]
+[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="4_vul83"]
+
+[sub_resource type="Resource" id="Resource_udtfr"]
+script = ExtResource("2_aebsg")
+health = 0
+damage_over_time = 80
+
+[resource]
+script = ExtResource("4_vul83")
+id = &"venen_lento"
+display_name = "venen lento"
+description = "veneno que saca vida de a poco"
+stackable = true
+max_stack = 8
+abilities = Array[ExtResource("1_udtfr")]([SubResource("Resource_udtfr")])
+model = ExtResource("3_xh8ik")
+thumbnail_rotation = Vector3(0, -90, 0)
+thumbnail_auto_align = false

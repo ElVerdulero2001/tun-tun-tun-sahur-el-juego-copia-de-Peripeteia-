@@ -32,6 +32,8 @@ const ITEM_SIGHT := 0.2
 
 var catalog: InvCatalog
 var actors_root: Node
+## Los valores del laboratorio: los máximos de salud y estamina (ActorVitals).
+var tuning: ActorTuning
 var pickup_range := 2.0
 var drop_distance := 1.0
 ## Manda un paquete a un jugador: func(peer: int, payload: Dictionary).
@@ -45,6 +47,8 @@ var containers := {}
 var accepted := 0
 var rejected := 0
 var repeated := 0
+## Muertes de prueba causadas por un consumible.
+var deaths := 0
 
 var _next_uid := 0
 var _open_of := {}  # peer -> id de la caja que tiene abierta
@@ -349,17 +353,28 @@ func _use(peer: int, inventory: InvInventory, uid: int, ver: int, kind: int) -> 
 	return _apply_ability(peer, inventory, stack, kind)
 
 
+## Valida y aplica en el mismo paso: el efecto en el personaje (su salud y su
+## estamina, ActorVitals), el gasto de la unidad y la barra. Un pedido
+## repetido no llega hasta acá (InvNet lo contesta con el resultado guardado),
+## así que un uso aceptado se aplica una sola vez.
 func _apply_ability(peer: int, inventory: InvInventory, stack: InvStack, kind: int) -> String:
 	var def := inventory.grid.def_of(stack.uid)
 	var ability := def.ability_of(kind) if def != null else null
 	if ability == null:
 		return "este objeto no se usa" if kind == InvAbility.Kind.USE else "este objeto no se equipa"
-	var reason := ability.check(inventory.loadout, stack)
+	var actor := actor_of(peer)
+	var vitals := ActorVitals.of(actor.state, tuning) if actor != null and tuning != null else null
+	var reason := ability.check(inventory.loadout, stack, vitals)
 	if reason != "":
 		return reason
-	var spent := ability.apply(inventory.loadout, stack)
+	var deaths_before := actor.state.deaths if actor != null else 0
+	var spent := ability.apply(inventory.loadout, stack, vitals)
 	if spent > 0:
 		InvOps.consume(inventory.grid, stack.uid, spent)
+	if actor != null and actor.state.deaths != deaths_before:
+		deaths += 1
+		print("[inventario] muerte de prueba del jugador %d (%s): se le apagaron los estados y la salud volvió a %d" % [
+				peer, def.display_name, roundi(actor.state.health / float(ActorState.HEALTH_UNIT))])
 	inventory.loadout.revision += 1
 	_dirty_players[peer] = true
 	return ""

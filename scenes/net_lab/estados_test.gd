@@ -54,6 +54,7 @@ func _ready() -> void:
 	await _consumables()
 	await _death()
 	await _damage_over_time()
+	await _without_waiting()
 	await _cut_and_leave()
 	print("[estados_test] %d comprobaciones, %d fallas" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -501,7 +502,79 @@ func _damage_over_time() -> void:
 	_check(actor.state.health == tuning.health_max * H, "y no sigue bajando después de morir")
 
 
-# --- 9. Corte y salida ----------------------------------------------------------------------------
+# --- 9. Sin esperar al host (2026-11-04) ------------------------------------------------------------
+
+func _count_shown(def_id: StringName) -> int:
+	return net.replica.shown_own().quantity_of(def_id)
+
+
+## Usar desde la interfaz (el menú y la barra): se ve gastado en el mismo
+## cuadro y el efecto llega en el tick siguiente, desde el input, sin pedido.
+## Recoger: se ve en la grilla ya, y si el host dice que no, vuelve al piso.
+## Jugando solo el host es esta misma máquina, pero el camino es el de la red.
+func _without_waiting() -> void:
+	actor.state.health = 50 * H
+	var kit := _own(&"botiquin")
+	var kits := _count_shown(&"botiquin")
+	var epoch := actor.state.epoch
+	_check(ui.use_item(kit), "usa un botiquín desde la interfaz")
+	_check(_count_shown(&"botiquin") == kits - 1 and net.replica.pending.is_empty() and not ui._waiting(kit),
+			"en el mismo cuadro se ve gastado, sin pedido ni \"esperando…\"")
+	await _ticks(2)
+	_check(actor.state.health == 100 * H and actor.state.epoch == epoch, "en el tick siguiente cura, sin subir la época: %.1f" % _health())
+	_check(net.replica.own.quantity_of(&"botiquin") == kits - 1 and net.replica._uses.is_empty(), "y el host gastó uno")
+	_check(not ui.use_item(kit) and ui.last_message().contains("salud completa") and _count_shown(&"botiquin") == kits - 1,
+			"con la salud completa no sale y lo dice: %s" % ui.last_message())
+	# Desde la barra: dos venenos en el mismo cuadro van uno por tick.
+	var poison := _own(&"veneno")
+	var poisons := _count_shown(&"veneno")
+	await _req(Op.HOTBAR_SET, [6, poison])
+	ui._press_slot(6)
+	ui._press_slot(6)
+	_check(_count_shown(&"veneno") == poisons - 2 and net.replica.pending.is_empty(), "dos venenos desde la barra: los dos se ven gastados, sin pedido")
+	await _ticks(1)
+	var after_one := actor.state.health
+	await _ticks(2)
+	_check(after_one == 60 * H and actor.state.health == 20 * H, "uno por tick: 100 → 60 → 20 (%.1f, %.1f)" % [after_one / float(H), _health()])
+	_check(net.replica.own.quantity_of(&"veneno") == poisons - 2, "el host gastó los dos")
+	# Uno que el host no puede usar (lo pide sin la interfaz): vuelve y lo dice.
+	actor.state.health = 100 * H
+	net.queue_use(kit, net.catalog.find(&"botiquin"))
+	_check(_count_shown(&"botiquin") == kits - 2, "se ve gastado")
+	await _ticks(2)
+	_check(_count_shown(&"botiquin") == kits - 1 and ui.last_message().contains("No se usó"), "el host no lo usa: vuelve a verse y lo dice: %s" % ui.last_message())
+	# Recoger: una botella del piso, ya en la grilla.
+	var bottle := 0
+	for uid in net.replica.world.keys():
+		if net.replica.world[uid]["stack"].def_id == &"botella":
+			bottle = uid
+			break
+	_check(bottle != 0, "hay una botella en el piso")
+	if bottle == 0:
+		return
+	var bottles := _count_shown(&"botella")
+	var quantity: int = net.replica.world[bottle]["stack"].quantity
+	var where: Vector3 = net.replica.world[bottle]["pos"]
+	# Lejos: el host dice que no y vuelve al piso.
+	await _teleport(where + Vector3(-6, 0, 0))
+	var seq := ui.pick_up_world(bottle)
+	_check(seq != 0 and _count_shown(&"botella") == bottles + quantity and net.replica.is_taken(bottle) and net.world_view(bottle) == null,
+			"lejos: en el mismo cuadro se ve en la grilla y no en el piso")
+	await _ticks(3)
+	_check(_answers.has(seq) and not _answers[seq][0] and _count_shown(&"botella") == bottles and net.world_view(bottle) != null,
+			"el host dice que no y vuelve al piso: %s" % [_answers.get(seq, [])])
+	_check(ui.last_message().contains("lejos"), "y lo dice: %s" % ui.last_message())
+	# Cerca: queda.
+	await _teleport(where + Vector3(-1, 0, 0))
+	seq = ui.pick_up_world(bottle)
+	_check(_count_shown(&"botella") == bottles + quantity and net.world_view(bottle) == null and not ui._waiting(_own(&"botella")),
+			"cerca: se ve en la grilla ya, sin \"esperando…\"")
+	await _ticks(3)
+	_check(_answers.has(seq) and _answers[seq][0] and net.replica.own.quantity_of(&"botella") == bottles + quantity
+			and net.replica.shown_own() == net.replica.own, "el host la confirma y no queda nada sin confirmar")
+
+
+# --- 10. Corte y salida ---------------------------------------------------------------------------
 
 func _cut_and_leave() -> void:
 	# A B se le corta la conexión: el host le apaga los estados.

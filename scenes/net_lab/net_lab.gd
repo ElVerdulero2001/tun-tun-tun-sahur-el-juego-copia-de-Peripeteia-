@@ -479,6 +479,7 @@ func _ready() -> void:
 	_clock.actors_root = _actors
 	_clock.tuning = tuning
 	_clock.input_provider = _input_for
+	_clock.before_step = _inventory.use_before_step
 	_clock.tick_started.connect(_on_tick_started)
 	_clock.tick_finished.connect(_on_tick_finished)
 	_clock.hard_resynced.connect(_on_hard_resynced)
@@ -692,14 +693,26 @@ func _input_for(actor: ActorBody, tick: int) -> ActorInput:
 		if _current_input != null and _current_input.tick == tick:
 			return _current_input
 		var own := _local_input(tick)
-		own.ability_presses = ability_presses
-		own.power_presses = power_presses
+		_add_player_presses(own, tick)
 		return own
 	var remote := _net_sync.input_for(actor.owner_peer_id, tick)
 	if remote != null:
 		return remote
-	return ActorInput.make(tick, Vector2.ZERO, 0.0, 0, actor.state.jump_presses_seen, actor.state.ability_presses_seen,
+	var still := ActorInput.make(tick, Vector2.ZERO, 0.0, 0, actor.state.jump_presses_seen, actor.state.ability_presses_seen,
 			actor.state.power_presses_seen)
+	still.use_presses = actor.state.use_presses_seen
+	return still
+
+
+## Lo que va en el input propio sea cual sea la prueba que arma el resto: los
+## poderes (Kp 1 y Kp 2) y, desde el 2026-11-04, el uso de un consumible, uno
+## por tick (InvNet.take_use).
+func _add_player_presses(input: ActorInput, tick: int) -> void:
+	input.ability_presses = ability_presses
+	input.power_presses = power_presses
+	_inventory.take_use(tick)
+	input.use_presses = _inventory.use_presses
+	input.use_uid = _inventory.use_uid
 
 
 ## Input de este jugador: del teclado, o del guion de prueba si se pidió.
@@ -1784,9 +1797,7 @@ func _on_tick_started(tick: int) -> void:
 			_prediction_start_tick = tick
 		_local_actor.simulated = true
 		_current_input = _local_input(tick)
-		# Los poderes viajan en el input, sea cual sea la prueba que arma el resto.
-		_current_input.ability_presses = ability_presses
-		_current_input.power_presses = power_presses
+		_add_player_presses(_current_input, tick)
 		_apply_client_events(_local_actor.state, tick)
 
 
@@ -2184,8 +2195,11 @@ func _on_own_state(host_tick: int, state_bytes: PackedByteArray, used_input_tick
 	_prediction.reconcile(_local_actor, host_tick, state_bytes, used_input_tick, current_tick, _step_local)
 
 
+## Cliente: repite un tick del propio actor, igual que SimClock: los eventos
+## del host, el uso de un consumible y el motor.
 func _step_local(input: ActorInput) -> void:
 	_apply_client_events(_local_actor.state, input.tick)
+	_inventory.use_before_step(_local_actor, input)
 	ActorMotor.step(_local_actor, _local_actor.state, input, tuning, SimClock.world_dt(input.tick))
 
 
@@ -2234,6 +2248,7 @@ func _on_local_actor_spawned(actor: ActorBody) -> void:
 		jump_presses = actor.state.jump_presses_seen
 		power_presses = actor.state.power_presses_seen
 		ability_presses = actor.state.ability_presses_seen
+		_inventory.use_presses = actor.state.use_presses_seen
 	if _session.reconnects > 0:
 		print("[net_lab] de vuelta, el actor propio es el %d en el tick %d: %s" % [actor.owner_peer_id, _clock.tick, actor.state.describe()])
 

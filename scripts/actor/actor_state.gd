@@ -31,8 +31,9 @@ const YAW_STEPS := 65536
 ## Largo de to_bytes(). Lo que llega por red con otro largo se descarta. Hasta
 ## el 2026-11-01 eran 93: la salud, la estamina y lo demás del jugador van al
 ## final, así los primeros 93 bytes siguen siendo los del movimiento. Desde el
-## 2026-11-02 a la tarde, con el daño en el tiempo, 152.
-const BYTE_SIZE := 152
+## 2026-11-02 a la tarde, con el daño en el tiempo, 152; desde el 2026-11-04,
+## con el contador de usos de consumibles, 153.
+const BYTE_SIZE := 153
 ## La salud se guarda en milésimas de punto: así el daño en el tiempo la baja
 ## un poquito en cada tick, parejo, sin saltos de a un punto.
 const HEALTH_UNIT := 1000
@@ -135,10 +136,14 @@ var boosted: bool:
 ## numérico) que ya se procesó, y el del de la cámara lenta (1).
 var power_presses_seen := 0
 var ability_presses_seen := 0
+## El último valor del contador de usos de consumibles (ActorInput.use_presses)
+## que ya se procesó, desde el 2026-11-04 (InvNet.use_before_step).
+var use_presses_seen := 0
 ## Salud, en milésimas de punto (HEALTH_UNIT por punto): de 0 al máximo del
-## Tuning (health_max, 100 puntos). No vuelve sola. La cambian los eventos del
-## host (consumibles, ActorVitals) y el daño en el tiempo, que descuenta el
-## motor; al llegar a cero, muerte de prueba y vuelve al máximo.
+## Tuning (health_max, 100 puntos). No vuelve sola. La cambian los consumibles
+## (ActorVitals: desde el 2026-11-04 se usan desde el input, igual en el host y
+## en la predicción), los eventos del host y el daño en el tiempo, que
+## descuenta el motor; al llegar a cero, muerte de prueba y vuelve al máximo.
 var health := START_HEALTH
 ## Daños en el tiempo encima (consumibles, desde el 2026-11-02), hasta
 ## MAX_EFFECTS a la vez, cada uno con su ritmo: cuánto quita en total, en
@@ -203,6 +208,7 @@ func quantize() -> void:
 	ladder_return &= 0xFFFF
 	powers &= 0xFF
 	ability_presses_seen &= 0xFF
+	use_presses_seen &= 0xFF
 	health = clampi(health, 0, 0x7FFFFFFF)
 	stamina = clampi(stamina, 0, 0x7FFFFFFF)
 	deaths &= 0xFF
@@ -221,6 +227,7 @@ func keep_player_state(from: ActorState) -> void:
 	jump_presses_seen = from.jump_presses_seen
 	power_presses_seen = from.power_presses_seen
 	ability_presses_seen = from.ability_presses_seen
+	use_presses_seen = from.use_presses_seen
 	powers = from.powers
 	health = from.health
 	effect_total = from.effect_total.duplicate()
@@ -273,6 +280,7 @@ func to_bytes() -> PackedByteArray:
 		b.put_32(maxi(effect_total[i], 0))
 		b.put_32(maxi(effect_duration[i], 0))
 		b.put_32(maxi(effect_elapsed[i], 0))
+	b.put_u8(use_presses_seen & 0xFF)
 	return b.data_array
 
 
@@ -315,16 +323,17 @@ static func from_bytes(bytes: PackedByteArray) -> ActorState:
 		s.effect_total[i] = b.get_32()
 		s.effect_duration[i] = b.get_32()
 		s.effect_elapsed[i] = b.get_32()
+	s.use_presses_seen = b.get_u8()
 	return s
 
 
 func describe() -> String:
-	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f rincón=%s súper=%s/%d lenta=%s/%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d saltó=%s derecho=%s vuelve=%d cayó_del_borde=%s salud=%.3f daño_en_el_tiempo=%s estamina=%.3f muertes=%d agotamientos=%d época=%d" % [
+	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f rincón=%s súper=%s/%d lenta=%s/%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d saltó=%s derecho=%s vuelve=%d cayó_del_borde=%s salud=%.3f daño_en_el_tiempo=%s estamina=%.3f usos=%d muertes=%d agotamientos=%d época=%d" % [
 		Mode.keys()[mode], Stance.keys()[stance], Stance.keys()[stance_wanted], on_floor, base_id,
 		anchor_id, anchor_t, anchor_point, hooked_by, regrab_id, regrab_left, "sí" if corner_inside else "no",
 		"sí" if boosted else "no", power_presses_seen, "sí" if powers & ActorPowers.SLOW else "no", ability_presses_seen,
 		position, velocity, facing_yaw, coyote_left, jump_buffer_left, jump_presses_seen, "sí" if jumped else "no", "sí" if straight_out else "no", ladder_return, "sí" if walked_off else "no",
-		health / float(HEALTH_UNIT), effect_total, stamina / float(ActorPowers.STAMINA_UNIT), deaths, exhaustions, epoch,
+		health / float(HEALTH_UNIT), effect_total, stamina / float(ActorPowers.STAMINA_UNIT), use_presses_seen, deaths, exhaustions, epoch,
 	]
 
 

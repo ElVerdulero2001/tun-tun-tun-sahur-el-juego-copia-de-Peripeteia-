@@ -65,6 +65,7 @@ var _world_set := {}
 var _world_gone := {}
 var _closed := {}  # peer -> [caja, motivo]
 var _equip_all := false
+var _use_answers := {}  # peer -> [hasta qué uso llegó, motivo si el último no se pudo]
 
 
 func alloc_uid() -> int:
@@ -356,28 +357,58 @@ func _use(peer: int, inventory: InvInventory, uid: int, ver: int, kind: int) -> 
 ## Valida y aplica en el mismo paso: el efecto en el personaje (su salud y su
 ## estamina, ActorVitals), el gasto de la unidad y la barra. Un pedido
 ## repetido no llega hasta acá (InvNet lo contesta con el resultado guardado),
-## así que un uso aceptado se aplica una sola vez.
-func _apply_ability(peer: int, inventory: InvInventory, stack: InvStack, kind: int) -> String:
+## así que un uso aceptado se aplica una sola vez. Por pedido es un evento del
+## host (sube la época); desde el input (use_from_input) se le pasa el estado
+## de ese tick y no lo es.
+func _apply_ability(peer: int, inventory: InvInventory, stack: InvStack, kind: int, state: ActorState = null,
+		host_event := true) -> String:
 	var def := inventory.grid.def_of(stack.uid)
 	var ability := def.ability_of(kind) if def != null else null
 	if ability == null:
 		return "este objeto no se usa" if kind == InvAbility.Kind.USE else "este objeto no se equipa"
-	var actor := actor_of(peer)
-	var vitals := ActorVitals.of(actor.state, tuning) if actor != null and tuning != null else null
+	if state == null:
+		var actor := actor_of(peer)
+		state = actor.state if actor != null else null
+	var vitals := ActorVitals.of(state, tuning) if state != null and tuning != null else null
+	if vitals != null:
+		vitals.host_event = host_event
 	var reason := ability.check(inventory.loadout, stack, vitals)
 	if reason != "":
 		return reason
-	var deaths_before := actor.state.deaths if actor != null else 0
+	var deaths_before := state.deaths if state != null else 0
 	var spent := ability.apply(inventory.loadout, stack, vitals)
 	if spent > 0:
 		InvOps.consume(inventory.grid, stack.uid, spent)
-	if actor != null and actor.state.deaths != deaths_before:
+	if state != null and state.deaths != deaths_before:
 		deaths += 1
 		print("[inventario] muerte de prueba del jugador %d (%s): se le apagaron los estados y la salud volvió a %d" % [
-				peer, def.display_name, roundi(actor.state.health / float(ActorState.HEALTH_UNIT))])
+				peer, def.display_name, roundi(state.health / float(ActorState.HEALTH_UNIT))])
 	inventory.loadout.revision += 1
 	_dirty_players[peer] = true
 	return ""
+
+
+## Usar un consumible desde el input del jugador (desde el 2026-11-04, ver
+## InvNet.use_before_step): corre en el tick en que se apretó, justo antes de
+## mover a su personaje, con el estado de ese tick. El cliente ya aplicó lo
+## mismo en su predicción, en ese mismo tick: por eso no es un evento del host
+## ni sube la época. Le manda al jugador su inventario y hasta qué uso llegó
+## ("u"), con el motivo si este no se pudo: con eso el cliente deja de mostrar
+## la unidad como gastada, y si no se usó, vuelve a verla.
+func use_from_input(peer: int, state: ActorState, uid: int) -> void:
+	var reason := "todavía no tenés personaje"
+	var inventory := player_inventory(peer)
+	if inventory != null:
+		var stack := inventory.grid.get_stack(uid)
+		reason = "ese objeto ya no está en tu inventario" if stack == null \
+				else _apply_ability(peer, inventory, stack, InvAbility.Kind.USE, state, false)
+		_dirty_players[peer] = true
+	if reason == "":
+		accepted += 1
+	else:
+		rejected += 1
+	_use_answers[peer] = [state.use_presses_seen, reason]
+	flush({})
 
 
 func _hotbar_set(peer: int, inventory: InvInventory, slot: int, uid: int) -> String:
@@ -594,6 +625,8 @@ func flush(results: Dictionary) -> void:
 		var payload := {}
 		if results.has(peer):
 			payload["r"] = results[peer]
+		if _use_answers.has(peer):
+			payload["u"] = _use_answers[peer]
 		var inventory := player_inventory(peer)
 		if _dirty_players.has(peer) and inventory != null:
 			payload["own"] = inventory.grid.snapshot()
@@ -617,4 +650,5 @@ func flush(results: Dictionary) -> void:
 	_world_set.clear()
 	_world_gone.clear()
 	_closed.clear()
+	_use_answers.clear()
 	_equip_all = false

@@ -15,8 +15,9 @@ const BUTTON_RUN := 1 << 2
 const BUTTON_THIRD_PERSON := 1 << 3
 const ALL_BUTTONS := BUTTON_JUMP | BUTTON_CROUCH | BUTTON_RUN | BUTTON_THIRD_PERSON
 const AXIS_STEPS := 127.0
-## Largo de write_to().
-const BYTE_SIZE := 12
+## Largo de write_to(): 12 hasta el 2026-11-04, cuando se sumó el uso de
+## consumibles (use_presses y use_uid).
+const BYTE_SIZE := 17
 
 var tick := 0
 ## Ejes de movimiento: x hacia la derecha, y hacia adelante, cada uno de -1 a 1.
@@ -38,6 +39,14 @@ var ability_presses := 0
 ## numérico), igual que el de salto. Lo usa el motor: cada jugador lo activa
 ## para sí mismo, sin esperar al host.
 var power_presses := 0
+## Contador de usos de consumibles, igual que el de salto, y el objeto del
+## último uso (su id en el inventario). Desde el 2026-11-04 un consumible se usa
+## así, sin esperar al host: cuando el contador cambia, el cliente aplica el
+## efecto en su predicción y el host, en el mismo tick, lo valida con el
+## inventario de verdad y gasta la unidad (InvNet.use_before_step). Va un uso
+## por tick.
+var use_presses := 0
+var use_uid := 0
 
 
 static func make(p_tick: int, p_move: Vector2, p_look_yaw: float, p_buttons: int, p_jump_presses: int, p_ability_presses: int = 0, p_power_presses: int = 0) -> ActorInput:
@@ -76,8 +85,8 @@ func is_possible() -> bool:
 	return move.length_squared() <= 1.01 and (buttons & ~ALL_BUTTONS) == 0
 
 
-## Escribe el input en 12 bytes. Como ya está cuantizado, leerlo del otro lado
-## da exactamente los mismos valores.
+## Escribe el input en BYTE_SIZE bytes. Como ya está cuantizado, leerlo del
+## otro lado da exactamente los mismos valores.
 func write_to(b: StreamPeerBuffer) -> void:
 	b.put_32(tick)
 	b.put_8(roundi(move.x * AXIS_STEPS))
@@ -87,6 +96,8 @@ func write_to(b: StreamPeerBuffer) -> void:
 	b.put_u8(jump_presses)
 	b.put_u8(ability_presses & 0xFF)
 	b.put_u8(power_presses & 0xFF)
+	b.put_u8(use_presses & 0xFF)
+	b.put_u32(use_uid & 0xFFFFFFFF)
 
 
 static func read_from(b: StreamPeerBuffer) -> ActorInput:
@@ -100,4 +111,6 @@ static func read_from(b: StreamPeerBuffer) -> ActorInput:
 	input.jump_presses = b.get_u8()
 	input.ability_presses = b.get_u8()
 	input.power_presses = b.get_u8()
+	input.use_presses = b.get_u8()
+	input.use_uid = b.get_u32()
 	return input

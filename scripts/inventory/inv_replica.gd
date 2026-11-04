@@ -9,14 +9,27 @@ extends RefCounted
 ##
 ## Pedidos pendientes: mientras el host no contesta uno, los objetos y accesos
 ## que toca quedan marcados, y otro pedido sobre ellos no sale (así un doble
-## clic no manda dos veces lo mismo).
+## clic no manda dos veces lo mismo). Recoger no los marca: lo recogido ya se
+## ve en la grilla y se puede manejar (ver shown_own).
+##
+## Lo que se ve sin esperar al host (desde el 2026-11-04): shown_own() es la
+## grilla propia confirmada con lo que esta máquina ya hizo y el host todavía
+## no confirmó: lo recogido adentro (con InvOps.insert, como lo va a meter el
+## host) y una unidad menos por cada consumible usado (InvNet.queue_use). Lo
+## recogido entero deja de verse en el mundo (is_taken). Cuando el host
+## contesta, lo predicho se borra y queda lo que confirmó: si dijo que no, el
+## objeto vuelve a verse en el piso o la unidad en la grilla.
 
 ## Cambió lo propio, la caja o la barra.
 signal changed
 signal world_changed
 signal equipment_changed
+## Cambió lo que se ve sin esperar al host (shown_own, is_taken).
+signal shown_changed
 ## El host contestó un pedido de esta máquina.
 signal answered(seq: int, ok: bool, reason: String)
+## El host no pudo usar un consumible que esta máquina ya mostraba usado.
+signal use_refused(reason: String)
 ## Se cerró la caja abierta (el jugador se alejó, la caja desapareció…).
 signal container_closed(id: int, reason: String)
 
@@ -43,6 +56,12 @@ var _next_seq := 0
 ## La caja que se cerró desde acá: lo que llegue de ella hasta volver a abrirla
 ## (un paquete que ya venía en viaje) no la vuelve a mostrar.
 var _ignored_box := 0
+## Consumibles usados que el host todavía no confirmó, en orden: {"uid",
+## "counter"}; el contador es -1 hasta que el uso sale en un input.
+var _uses: Array = []
+var _shown: InvGrid
+var _shown_dirty := true
+var _taken := {}  # id de un objeto del mundo -> true: recogido entero, sin confirmar
 
 
 func reset() -> void:
@@ -55,7 +74,9 @@ func reset() -> void:
 	world.clear()
 	equipment.clear()
 	pending.clear()
+	_uses.clear()
 	_next_seq = 0
+	_mark_shown()
 	changed.emit()
 	world_changed.emit()
 	equipment_changed.emit()
@@ -78,15 +99,86 @@ func request(op: int, args: Array, uids: Array = [], slots: Array = []) -> int:
 	_next_seq += 1
 	pending[_next_seq] = {"op": op, "uids": uids, "slots": slots, "msec": Time.get_ticks_msec()}
 	send.call(_next_seq, op, args)
+	if op == InvProtocol.Op.PICKUP:
+		_mark_shown()
 	changed.emit()
 	return _next_seq
 
 
+## Si ese objeto tiene un pedido sin contestar. Recoger no cuenta: lo recogido
+## ya se ve en la grilla y se maneja como lo demás (el host contesta los
+## pedidos en orden, así que el que sigue lo encuentra ya recogido).
 func is_uid_pending(uid: int) -> bool:
 	for seq in pending:
-		if uid in pending[seq]["uids"]:
+		if pending[seq]["op"] != InvProtocol.Op.PICKUP and uid in pending[seq]["uids"]:
 			return true
 	return false
+
+
+# --- Lo que se ve sin esperar al host --------------------------------------------
+
+## Un consumible de la grilla propia ya usado en esta máquina (InvNet.queue_use).
+func add_use(uid: int) -> void:
+	_uses.append({"uid": uid, "counter": -1})
+	_mark_shown()
+	changed.emit()
+
+
+## El uso más viejo sin contador salió en un input con este valor.
+func assign_use(counter: int) -> void:
+	for use: Dictionary in _uses:
+		if use["counter"] < 0:
+			use["counter"] = counter
+			return
+
+
+## Si ese objeto tiene un uso que el host todavía no confirmó.
+func has_use(uid: int) -> bool:
+	return _uses.any(func(use: Dictionary) -> bool: return use["uid"] == uid)
+
+
+## La grilla propia como se ve: la confirmada más lo que esta máquina ya hizo.
+## Sin nada de eso, es la misma `own`.
+func shown_own() -> InvGrid:
+	if _shown_dirty:
+		_rebuild_shown()
+	return _shown
+
+
+## Si ese objeto del mundo ya se recogió entero en esta máquina (no se dibuja
+## ni se puede mirar para agarrarlo).
+func is_taken(uid: int) -> bool:
+	if _shown_dirty:
+		_rebuild_shown()
+	return _taken.has(uid)
+
+
+func _mark_shown() -> void:
+	_shown_dirty = true
+	shown_changed.emit()
+
+
+func _rebuild_shown() -> void:
+	_shown_dirty = false
+	_taken.clear()
+	var pickups := pending.keys().filter(func(seq: int) -> bool: return pending[seq]["op"] == InvProtocol.Op.PICKUP)
+	if own == null or (pickups.is_empty() and _uses.is_empty()):
+		_shown = own
+		return
+	var grid := own.copy()
+	pickups.sort()
+	for seq in pickups:
+		var uids: Array = pending[seq]["uids"]
+		var item: Dictionary = world.get(uids[0], {}) if not uids.is_empty() else {}
+		if item.is_empty():
+			continue
+		var stack: InvStack = item["stack"]
+		var result := InvOps.insert(grid, stack.copy())
+		if result["reason"] == "" and result["taken"] >= stack.quantity:
+			_taken[stack.uid] = true
+	for use: Dictionary in _uses:
+		InvOps.consume(grid, use["uid"], 1)
+	_shown = grid
 
 
 func is_slot_pending(slot: int) -> bool:
@@ -112,6 +204,7 @@ func expire_pending() -> PackedInt32Array:
 			pending.erase(seq)
 			gone.append(seq)
 	if not gone.is_empty():
+		_mark_shown()
 		changed.emit()
 	return gone
 
@@ -165,11 +258,21 @@ func apply_commit(payload: Dictionary) -> void:
 		if result is Array and result.size() == 3:
 			pending.erase(result[0])
 			mine = true
+	# Hasta qué uso de consumible llegó el host: esos ya están en lo confirmado.
+	var refused := ""
+	var used: Variant = payload.get("u")
+	if used is Array and used.size() == 2 and typeof(used[0]) == TYPE_INT:
+		_uses = _uses.filter(func(use: Dictionary) -> bool:
+			return use["counter"] < 0 or ((used[0] - use["counter"]) & 0xFF) >= 128)
+		refused = str(used[1])
+		mine = true
 	if payload.has("eq") and payload["eq"] is Array:
 		for entry in payload["eq"]:
 			if entry is Array and entry.size() == 2:
 				equipment[entry[0]] = str(entry[1])
 		equipment_changed.emit()
+	if in_world or mine:
+		_mark_shown()
 	if in_world:
 		world_changed.emit()
 	if mine:
@@ -177,6 +280,8 @@ func apply_commit(payload: Dictionary) -> void:
 	for result in results:
 		if result is Array and result.size() == 3:
 			answered.emit(result[0], result[1], str(result[2]))
+	if refused != "":
+		use_refused.emit(refused)
 
 
 ## La interfaz cerró la caja (y le pidió al host que deje de mandarla). Se

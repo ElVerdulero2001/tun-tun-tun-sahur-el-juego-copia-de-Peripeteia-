@@ -7,10 +7,13 @@ extends RefCounted
 ## contrato entre el inventario y el estado del actor: no sabe de objetos.
 ##
 ## Viven en ActorState (health, stamina, los daños en el tiempo): así viajan en
-## los snapshots, se predicen y se repiten como el resto. Un consumible es un
-## evento del host: sube la época, como un empujón, y el cliente se entera con
-## la corrección. El daño en el tiempo, una vez puesto, lo descuenta el motor
-## en cada tick (step), igual en el host y en la predicción.
+## los snapshots, se predicen y se repiten como el resto. Desde el 2026-11-04 un
+## consumible se usa desde el input (InvNet.use_before_step): el host y la
+## predicción del cliente lo aplican en el mismo tick, sin subir la época
+## (host_event falso). Pedido al host (InvProtocol USE), sigue siendo un evento
+## del host: sube la época, como un empujón, y el cliente se entera con la
+## corrección. El daño en el tiempo, una vez puesto, lo descuenta el motor en
+## cada tick (step), igual en el host y en la predicción.
 ##
 ## Muerte de prueba (decidida por el usuario, 2026-11-02): cuando la salud
 ## llega a cero, en el mismo paso se registra la muerte (ActorState.deaths), se
@@ -28,6 +31,9 @@ const TIME_PER_TICK := 1000
 
 var state: ActorState
 var tuning: ActorTuning
+## Si aplicar es un evento del host (sube la época). Falso cuando el uso viene
+## del input y la predicción del cliente hace lo mismo en el mismo tick.
+var host_event := true
 
 
 static func of(p_state: ActorState, p_tuning: ActorTuning) -> ActorVitals:
@@ -90,13 +96,14 @@ static func _removed(total: int, duration: int, elapsed: int) -> int:
 	return total * mini(elapsed, duration) / duration
 
 
-## Solo el host: aplica un consumible, todo junto y en este orden: la
-## estamina, el cambio de salud de golpe y el daño en el tiempo (`over_time`
-## puntos en `seconds` segundos del mundo). Curar y recuperar no pasan del
-## máximo; si la salud llega a cero es una muerte de prueba, y un daño en el
-## tiempo del mismo consumible ya no se pone. Quien lo llama comprobó antes que
-## hay lugar para el daño en el tiempo (has_room_for_effect). Es un solo
-## evento: sube la época una vez. Devuelve si murió.
+## Aplica un consumible, todo junto y en este orden: la estamina, el cambio de
+## salud de golpe y el daño en el tiempo (`over_time` puntos en `seconds`
+## segundos del mundo). Curar y recuperar no pasan del máximo; si la salud
+## llega a cero es una muerte de prueba, y un daño en el tiempo del mismo
+## consumible ya no se pone. Quien lo llama comprobó antes que hay lugar para
+## el daño en el tiempo (has_room_for_effect). Lo hace el host y, con un uso
+## desde el input, también la predicción del cliente. Si es un evento del host
+## (host_event), sube la época una vez. Devuelve si murió.
 func apply(health_change: int, stamina_gain: int, over_time: int = 0, seconds: float = 0.0) -> bool:
 	if stamina_gain > 0:
 		var most := stamina_max() * ActorPowers.STAMINA_UNIT
@@ -113,7 +120,8 @@ func apply(health_change: int, stamina_gain: int, over_time: int = 0, seconds: f
 			state.effect_total[slot] = over_time * ActorState.HEALTH_UNIT
 			state.effect_duration[slot] = maxi(roundi(maxf(seconds, 0.0) * SimClock.TICK_RATE * TIME_PER_TICK), 1)
 			state.effect_elapsed[slot] = 0
-	state.epoch += 1
+	if host_event:
+		state.epoch += 1
 	return died
 
 

@@ -214,8 +214,9 @@ func _tick_in_range(tick: int) -> bool:
 ## Input de un jugador remoto para un tick del host, o null si nunca llegó
 ## ninguno. Si falta el de ese tick, se repite el último anterior: mismos
 ## botones mantenidos y mismo contador de pulsaciones, así no se inventa ni se
-## duplica un salto. Si el último es de hace más de STALE_INPUT_TICKS, queda
-## quieto: sin moverse ni botones, con los mismos contadores.
+## duplica un salto (ni un uso de consumible). Si el último es de hace más de
+## STALE_INPUT_TICKS, queda quieto: sin moverse ni botones, con los mismos
+## contadores.
 func input_for(peer_id: int, tick: int) -> ActorInput:
 	var by_tick: Dictionary = _inputs.get(peer_id, {})
 	var chosen: ActorInput = by_tick.get(tick)
@@ -231,9 +232,12 @@ func input_for(peer_id: int, tick: int) -> ActorInput:
 	if chosen == null:
 		return null
 	_used_input_tick[peer_id] = chosen.tick
-	if tick - chosen.tick > STALE_INPUT_TICKS:
-		return ActorInput.make(tick, Vector2.ZERO, chosen.look_yaw, 0, chosen.jump_presses, chosen.ability_presses, chosen.power_presses)
-	return ActorInput.make(tick, chosen.move, chosen.look_yaw, chosen.buttons, chosen.jump_presses, chosen.ability_presses, chosen.power_presses)
+	var stale := tick - chosen.tick > STALE_INPUT_TICKS
+	var input := ActorInput.make(tick, Vector2.ZERO if stale else chosen.move, chosen.look_yaw, 0 if stale else chosen.buttons,
+			chosen.jump_presses, chosen.ability_presses, chosen.power_presses)
+	input.use_presses = chosen.use_presses
+	input.use_uid = chosen.use_uid
+	return input
 
 
 ## El input más nuevo que llegó de un jugador, o null. Con él el host se entera

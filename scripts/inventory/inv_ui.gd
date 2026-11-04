@@ -3,8 +3,11 @@ extends Control
 
 ## Interfaz del inventario del jugador local: su grilla a la izquierda, la caja
 ## abierta a la derecha y la barra rápida abajo, con el mundo visible detrás.
-## Solo muestra lo que confirmó el host (InvReplica) y pide cambios: nunca
-## escribe ese estado.
+## Muestra lo que confirmó el host (InvReplica) y pide cambios: nunca escribe
+## ese estado. Desde el 2026-11-04, lo que se recoge y los consumibles que se
+## usan se ven al instante, sin esperar al host (InvReplica.shown_own): un
+## consumible se usa desde el input del personaje (InvNet.queue_use), no con
+## un pedido, y lo recogido se ve en la grilla mientras el host contesta.
 ##
 ## Un clic agarra un objeto y otro clic lo deja: no hay que mantener el botón.
 ## Tenerlo en la mano es una intención de esta máquina: el objeto sigue en su
@@ -108,6 +111,9 @@ func _ready() -> void:
 		net.replica.changed.connect(_on_replica_changed)
 		net.replica.world_changed.connect(queue_redraw)
 		net.replica.answered.connect(_on_answered)
+		net.replica.use_refused.connect(func(reason: String) -> void:
+			_say("No se usó: %s" % reason)
+			queue_redraw())
 		net.container_closed.connect(_on_container_closed)
 
 
@@ -254,9 +260,7 @@ func _interact() -> void:
 		_say("Mirá lo que querés agarrar o abrir: tiene que estar cerca y a la vista")
 		return
 	if target["kind"] == "item":
-		var pickup := _r().request(InvProtocol.Op.PICKUP, [target["id"]], [target["id"]])
-		if pickup != 0:
-			_sent[pickup] = {"op": InvProtocol.Op.PICKUP, "uid": target["id"], "name": target["name"]}
+		pick_up_world(target["id"], target["name"])
 		return
 	if _r().box_id == target["id"]:
 		open()
@@ -267,6 +271,26 @@ func _interact() -> void:
 	if seq != 0:
 		_sent[seq] = {"op": InvProtocol.Op.OPEN, "name": target["name"]}
 		open()
+
+
+## Recoger un objeto del mundo. Se ve en la grilla ya, como lo va a meter el
+## host (InvReplica.shown_own); si no entra, lo dice sin preguntarle. Si el
+## host dice que no (otro lo agarró primero, por ejemplo), vuelve al piso y lo
+## dice. Devuelve el número del pedido, o 0 si no salió.
+func pick_up_world(uid: int, shown_name := "") -> int:
+	var item: Dictionary = _r().world.get(uid, {})
+	var grid := _r().shown_own()
+	if item.is_empty() or grid == null:
+		return 0
+	var room := InvOps.insert(grid.copy(), (item["stack"] as InvStack).copy())
+	if room["reason"] != "":
+		_say(_sentence(room["reason"]))
+		return 0
+	var seq := _r().request(InvProtocol.Op.PICKUP, [uid], [uid])
+	if seq != 0:
+		_sent[seq] = {"op": InvProtocol.Op.PICKUP, "uid": uid, "name": shown_name}
+	queue_redraw()
+	return seq
 
 
 ## Lo que se está mirando con la cámara (InvNet.interaction_target), o vacío.
@@ -285,6 +309,16 @@ func _press_slot(slot: int) -> void:
 		_say("El acceso %s está vacío: hacé clic en un objeto de tu inventario y después en el acceso" % KEYS[slot])
 		return
 	var uid := loadout.hotbar[slot]
+	# Como el host (InvAuthority._hotbar_press): hace la primera capacidad. Un
+	# consumible se usa sin esperarlo; equipar sigue siendo un pedido.
+	var def := _r().shown_own().def_of(uid) if _r().shown_own() != null else null
+	if def != null:
+		for ability in def.abilities:
+			if ability != null:
+				if ability.kind() == InvAbility.Kind.USE:
+					use_item(uid)
+					return
+				break
 	var seq := _r().request(InvProtocol.Op.HOTBAR_PRESS, [slot], [uid], [slot])
 	if seq != 0:
 		_sent[seq] = {"op": InvProtocol.Op.HOTBAR_PRESS}
@@ -470,9 +504,18 @@ func _staying(ref: int, uid: int) -> int:
 	return maxi(left, 0)
 
 
-## Si ese objeto tiene algo pedido o en la fila: mientras tanto no se agarra.
-func _busy(uid: int) -> bool:
+## Si ese objeto tiene algo pedido o en la fila: se dibuja marcado como
+## pendiente.
+func _waiting(uid: int) -> bool:
 	return _r().is_uid_pending(uid) or _placing.any(func(entry: Dictionary) -> bool: return entry["uid"] == uid)
+
+
+## Si ese objeto no se puede agarrar ni mover todavía: tiene algo pedido o en
+## la fila, o un consumible usado que el host todavía no aplicó (un pedido que
+## llegara antes que el uso encontraría otra versión). Usarlo otra vez sí se
+## puede.
+func _busy(uid: int) -> bool:
+	return _waiting(uid) or _r().has_use(uid)
 
 
 ## A qué va lo que se tiene en la mano si se hace clic en `mouse`: {"kind":
@@ -796,8 +839,9 @@ func _open_menu(ref: int, uid: int) -> void:
 	var not_here := "" if own else "primero pasalo a tu inventario"
 	var use := def.ability_of(InvAbility.Kind.USE)
 	if use != null:
-		var reason := _first(wait, not_here, use.check(_r().loadout, stack, _vitals()) if _r().loadout != null else "")
-		_add_action(use.action_text(_r().loadout, stack), reason, _request_item.bind(InvProtocol.Op.USE, uid, stack.ver))
+		var reason := _first("esperando al host" if _waiting(uid) else "", not_here,
+				use.check(_r().loadout, stack, _vitals()) if _r().loadout != null else "")
+		_add_action(use.action_text(_r().loadout, stack), reason, func() -> void: use_item(uid))
 	var equip := def.ability_of(InvAbility.Kind.EQUIP)
 	if equip != null:
 		_add_action(equip.action_text(_r().loadout, stack), _first(wait, not_here),
@@ -838,6 +882,27 @@ func _add_action(text: String, reason: String, action: Callable) -> void:
 ## solo para habilitar Usar en el menú: lo que vale lo vuelve a mirar el host.
 func _vitals() -> ActorVitals:
 	return ActorVitals.of(actor.state, net.tuning) if is_instance_valid(actor) and net.tuning != null else null
+
+
+## Usa una unidad de un consumible propio sin esperar al host: se ve gastada
+## ya, y el uso sale en el input del próximo tick (InvNet.queue_use), donde el
+## host y esta máquina aplican el efecto a la vez. Antes se mira, con la salud
+## y la estamina de esta máquina, lo mismo que mira el host; si el host igual
+## no puede, la unidad vuelve a verse y se dice por qué. Devuelve si salió.
+func use_item(uid: int) -> bool:
+	var grid := _r().shown_own()
+	var stack := grid.get_stack(uid) if grid != null else null
+	var def := grid.def_of(uid) if stack != null else null
+	var use := def.ability_of(InvAbility.Kind.USE) if def != null else null
+	if use == null:
+		return false
+	var reason := use.check(_r().loadout, stack, _vitals())
+	if reason != "":
+		_say(_sentence(reason))
+		return false
+	net.queue_use(uid, def)
+	queue_redraw()
+	return true
 
 
 func _request_item(op: int, uid: int, ver: int) -> void:
@@ -1032,14 +1097,14 @@ func _grid(ref: int) -> InvGrid:
 	if net == null:
 		return null
 	if ref == InvProtocol.OWN:
-		return _r().own
+		return _r().shown_own()
 	return _r().box if ref == _r().box_id and ref != 0 else null
 
 
 ## Las grillas que se ven: la propia y, si hay, la caja abierta.
 func _refs() -> Array:
 	var list := []
-	if _r().own != null:
+	if _r().shown_own() != null:
 		list.append(InvProtocol.OWN)
 	if _r().box != null and _r().box_id != 0:
 		list.append(_r().box_id)
@@ -1054,7 +1119,7 @@ func _grid_of_uid(uid: int) -> InvGrid:
 
 
 func _layout() -> void:
-	var rows := _r().own.rows if _r().own != null else 16
+	var rows := _r().shown_own().rows if _r().shown_own() != null else 16
 	if _r().box != null:
 		rows = maxi(rows, _r().box.rows)
 	var available := size.y - 24.0 - HEADER - PAD * 2.0 - SLOT_SIZE - 64.0
@@ -1066,8 +1131,8 @@ func _grid_rect(ref: int) -> Rect2:
 	if grid == null:
 		return Rect2()
 	var origin := Vector2(24.0 + PAD, 24.0 + HEADER)
-	if ref != InvProtocol.OWN and _r().own != null:
-		origin.x += _r().own.columns * _cs + PAD * 2.0 + 28.0
+	if ref != InvProtocol.OWN and _r().shown_own() != null:
+		origin.x += _r().shown_own().columns * _cs + PAD * 2.0 + 28.0
 	return Rect2(origin, Vector2(grid.columns, grid.rows) * _cs)
 
 
@@ -1099,7 +1164,7 @@ func _item_at(point: Vector2) -> Array:
 ## terminan a la derecha las grillas abiertas (0 con el inventario cerrado); y
 ## "hotbar", la barra rápida.
 func hud_limits() -> Dictionary:
-	var rows := float(_r().own.rows if net != null and _r().own != null else net.player_rows if net != null else 16)
+	var rows := float(_r().shown_own().rows if net != null and _r().shown_own() != null else net.player_rows if net != null else 16)
 	var available := size.y - 24.0 - HEADER - PAD * 2.0 - SLOT_SIZE - 64.0
 	var cs := clampf(floorf(available / rows), 16.0, float(cell_size))
 	var right := 0.0
@@ -1211,7 +1276,7 @@ func _draw_item(ref: int, uid: int) -> void:
 			_badge(rect.position + Vector2(rect.size.x - 16, 2), KEYS[slot], Color(0.2, 0.45, 0.9))
 		if _r().loadout.equipped_uid == uid:
 			_badge(rect.position + Vector2(2, rect.size.y - 18), "EQ", Color(0.8, 0.45, 0.1))
-	if _busy(uid):
+	if _waiting(uid):
 		draw_rect(rect, Color(PENDING_COLOR, 0.25))
 		draw_rect(rect, PENDING_COLOR, false, 2.0)
 		_text(rect.position + Vector2(4, 16), "esperando…", font_size - 3, PENDING_COLOR)
@@ -1271,9 +1336,9 @@ func _draw_hotbar() -> void:
 		var rect := _slot_rect(i)
 		draw_rect(rect, Color(0, 0, 0, 0.5))
 		var uid := loadout.hotbar[i] if loadout != null else 0
-		var stack := _r().own.get_stack(uid) if uid != 0 and _r().own != null else null
+		var stack := _r().shown_own().get_stack(uid) if uid != 0 and _r().shown_own() != null else null
 		if stack != null:
-			var def := _r().own.def_of(uid)
+			var def := _r().shown_own().def_of(uid)
 			_draw_visual(rect.grow(-3), def, 0, 0.45 if _mode == Mode.SLOT_HOLD and _slot_from == i else 1.0)
 			if stack.quantity > 1:
 				_text_right(rect.end - Vector2(4, 4), "%d" % stack.quantity, font_size - 1, Color.WHITE)
@@ -1288,8 +1353,8 @@ func _draw_hotbar() -> void:
 	# se escribe a la derecha. (Hasta el 2026-11-01, a la izquierda decía la
 	# vitalidad de prueba, que ya no existe: ahora es la salud del HUD.)
 	var y := bar.position.y + 16
-	if loadout != null and loadout.equipped_uid != 0 and _r().own != null:
-		var def := _r().own.def_of(loadout.equipped_uid)
+	if loadout != null and loadout.equipped_uid != 0 and _r().shown_own() != null:
+		var def := _r().shown_own().def_of(loadout.equipped_uid)
 		_text(Vector2(bar.end.x + 14, y), "Equipado: %s" % (def.display_name if def != null else "?"), font_size - 1, Color(1.0, 0.75, 0.45))
 		y += 20
 	if is_open:
@@ -1329,8 +1394,8 @@ func _hover_name() -> String:
 	else:
 		var slot := _slot_at(_mouse)
 		var loadout := _r().loadout
-		if slot >= 0 and loadout != null and loadout.hotbar[slot] != 0 and _r().own != null:
-			def = _r().own.def_of(loadout.hotbar[slot])
+		if slot >= 0 and loadout != null and loadout.hotbar[slot] != 0 and _r().shown_own() != null:
+			def = _r().shown_own().def_of(loadout.hotbar[slot])
 	return def.display_name if def != null else ""
 
 

@@ -122,14 +122,18 @@ func _values_possible(claim: ActorState, host: ActorState, tuning: ActorTuning) 
 
 
 ## La salud, la estamina y los estados (desde el 2026-11-02). La salud y las
-## muertes solo las cambia el host (consumibles): con la misma época, iguales.
-## La estamina puede ser menos que la del host (prendió un estado antes de lo
-## que el host vio, con un input que llegó tarde: paga de más), nunca más: el
-## cliente no puede imponer reserva. Con la reserva en cero no hay estados
-## prendidos, y un agotamiento de más solo con la reserva en cero y todo apagado.
+## muertes las cambian los consumibles, que valida el host: desde el
+## 2026-11-04 se usan desde el input, en el mismo tick en el host y en la
+## predicción, así que tienen que ser iguales, y también hasta qué uso llegó
+## cada uno (un cliente que dijera menos haría que el host repitiera un uso, y
+## uno que dijera más, que se saltara uno). La estamina puede ser menos que la
+## del host (prendió un estado antes de lo que el host vio, con un input que
+## llegó tarde: paga de más), nunca más: el cliente no puede imponer reserva.
+## Con la reserva en cero no hay estados prendidos, y un agotamiento de más
+## solo con la reserva en cero y todo apagado.
 static func _vitals_possible(claim: ActorState, host: ActorState) -> bool:
 	# El daño en el tiempo no depende del input: con la misma época, igual.
-	if claim.health != host.health or claim.deaths != host.deaths \
+	if claim.health != host.health or claim.deaths != host.deaths or claim.use_presses_seen != host.use_presses_seen \
 			or claim.effect_total != host.effect_total or claim.effect_duration != host.effect_duration \
 			or claim.effect_elapsed != host.effect_elapsed:
 		return false

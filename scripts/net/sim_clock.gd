@@ -67,6 +67,10 @@ var tuning: ActorTuning
 ## Devuelve el input de un actor para un tick:
 ## func(actor: ActorBody, tick: int) -> ActorInput
 var input_provider: Callable
+## Opcional: lo que le pasa a un actor con su input justo antes de moverlo,
+## func(actor: ActorBody, input: ActorInput). El laboratorio lo usa para los
+## consumibles (desde el 2026-11-04), y lo repite igual al repetir ticks.
+var before_step: Callable
 ## Simulador de red (paso 5): el ping pasa por acá, así la medición incluye la demora simulada.
 var link: LinkSimulator
 
@@ -249,7 +253,10 @@ func _run_tick() -> void:
 			actor.apply_state(actor.state)
 			actor.reset_physics_interpolation()
 			actor.placed = true
-		ActorMotor.step(actor, actor.state, input_provider.call(actor, tick), tuning, world_dt(tick))
+		var input: ActorInput = input_provider.call(actor, tick)
+		if before_step.is_valid():
+			before_step.call(actor, input)
+		ActorMotor.step(actor, actor.state, input, tuning, world_dt(tick))
 		actor.present(actor.state)
 		actor.decay_visual_offset(TICK_DT)
 	tick_finished.emit(tick)

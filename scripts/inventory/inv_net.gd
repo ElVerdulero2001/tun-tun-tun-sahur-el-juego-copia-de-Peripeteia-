@@ -15,6 +15,19 @@ extends Node3D
 ## También arma lo que se ve en el mundo en cada máquina: los objetos sueltos y
 ## lo que tiene equipado cada personaje.
 ##
+## Sin esperar al host (desde el 2026-11-04, pedido del usuario):
+##
+## - Usar un consumible no es un pedido: viaja en el input del personaje, como
+##   el salto o Kp 2 (ActorInput.use_presses y use_uid), uno por tick. Justo
+##   antes de mover al personaje en ese tick (use_before_step), el host lo
+##   valida con el inventario de verdad, aplica el efecto y gasta la unidad, y
+##   el cliente aplica el mismo efecto en su predicción: la salud y la estamina
+##   cambian al instante y sin corrección. Si el host no lo pudo usar, la
+##   corrección del snapshot deshace el efecto y la unidad vuelve a verse.
+## - Recoger sigue siendo un pedido, pero lo que se ve no lo espera: mientras
+##   tanto la grilla propia se muestra con lo recogido adentro y el objeto deja
+##   de verse en el piso (InvReplica.shown_own).
+##
 ## Los inventarios son de cada entidad: al personaje el host le agrega un nodo
 ## InvInventory (INVENTORY_NODE) al aparecer; cada caja trae el suyo. Las cajas
 ## y los objetos iniciales se buscan en `world_root`, la zona de prueba.
@@ -65,6 +78,10 @@ var started := false
 ## Solo para pruebas en un proceso: jugadores que se dan por conectados sin
 ## red (peer -> true).
 var test_peers := {}
+## Contador de usos de consumibles del jugador local, de 0 a 255 y da la
+## vuelta, y el objeto del último uso: el laboratorio los pone en su input.
+var use_presses := 0
+var use_uid := 0
 
 var _containers: Array[InvContainer] = []
 var _spawns: Array[InvPickupSpawn] = []
@@ -76,6 +93,9 @@ var _commit_expected := 1
 var _commit_waiting := {}
 var _world_views := {}  # uid -> InvWorldItem
 var _world_layer: Node3D
+var _use_queue: Array = []  # [id, InvItemDef] que esperan su tick, en orden
+var _use_defs := {}  # valor del contador -> InvItemDef que se usó con él (para repetir ticks)
+var _use_tick := -1
 
 
 func _ready() -> void:
@@ -86,6 +106,7 @@ func _ready() -> void:
 	replica.catalog = catalog
 	replica.send = _send_request
 	replica.world_changed.connect(_sync_world_views)
+	replica.shown_changed.connect(_sync_world_views)
 	replica.equipment_changed.connect(_sync_equipment)
 	replica.container_closed.connect(func(id: int, reason: String) -> void: container_closed.emit(id, reason))
 	for problem in catalog.problems() if catalog != null else PackedStringArray(["no tiene catálogo"]):
@@ -117,6 +138,7 @@ func _collect(node: Node) -> void:
 func start(as_host: bool) -> void:
 	started = true
 	replica.reset()
+	_use_queue.clear()
 	_commit_expected = 1
 	_commit_waiting.clear()
 	_in_expected.clear()
@@ -156,6 +178,55 @@ func connection_lost() -> void:
 	replica.reset()
 	_commit_expected = 1
 	_commit_waiting.clear()
+	_use_queue.clear()
+
+
+# --- Consumibles sin esperar al host --------------------------------------------
+
+## Usa una unidad de ese objeto del inventario propio: sale en el input del
+## próximo tick libre (take_use). Quien llama ya comprobó que se puede usar
+## (InvUI.use_item). Desde ya se ve gastada (InvReplica.shown_own).
+func queue_use(uid: int, def: InvItemDef) -> void:
+	_use_queue.append([uid, def])
+	replica.add_use(uid)
+
+
+## El uso que va en el input propio de este tick, si hay alguno esperando: sube
+## el contador. Lo llama el laboratorio al armar ese input; otra vez en el
+## mismo tick no saca otro.
+func take_use(tick: int) -> void:
+	if tick == _use_tick or _use_queue.is_empty():
+		return
+	_use_tick = tick
+	var next: Array = _use_queue.pop_front()
+	use_presses = (use_presses + 1) & 0xFF
+	use_uid = next[0]
+	_use_defs[use_presses] = next[1]
+	replica.assign_use(use_presses)
+
+
+## Antes de mover a un actor en un tick (SimClock.before_step, y al repetir
+## ticks): si su input trae un uso nuevo, lo aplica. En el host, y jugando solo,
+## vale: lo valida con el inventario y gasta la unidad
+## (InvAuthority.use_from_input). En un cliente es la predicción del propio: el
+## mismo efecto en el mismo tick, con lo que se usó, sin tocar el inventario,
+## que lo cambia el host. Un input sin objeto no cuenta: así uno armado sin el
+## contador (las pruebas con guion) no hace nada.
+func use_before_step(actor: ActorBody, input: ActorInput) -> void:
+	if input.use_uid == 0 or input.use_presses == actor.state.use_presses_seen:
+		return
+	actor.state.use_presses_seen = input.use_presses
+	if authority != null:
+		authority.use_from_input(actor.owner_peer_id, actor.state, input.use_uid)
+		return
+	var def: InvItemDef = _use_defs.get(input.use_presses)
+	var ability := def.ability_of(InvAbility.Kind.USE) if def != null else null
+	if ability == null or tuning == null:
+		return
+	var vitals := ActorVitals.of(actor.state, tuning)
+	vitals.host_event = false
+	if ability.check(null, null, vitals) == "":
+		ability.apply(null, null, vitals)
 
 
 func container(id: int) -> InvContainer:
@@ -207,6 +278,8 @@ func interaction_target(actor: ActorBody, from: Vector3, look: Vector3, third_pe
 		best_t = wall
 		best = {"kind": "box", "id": box.container_id, "name": box.display_name}
 	for uid in replica.world:
+		if replica.is_taken(uid):
+			continue
 		var item: Dictionary = replica.world[uid]
 		var stack: InvStack = item["stack"]
 		var def := catalog.find(stack.def_id)
@@ -435,12 +508,16 @@ func _receive_reliable(packet: Callable) -> void:
 
 # --- Lo que se ve en el mundo ---------------------------------------------------
 
+## Lo que se ve suelto en el mundo: lo que dice el host, menos lo que esta
+## máquina ya recogió entero y el host todavía no confirmó.
 func _sync_world_views() -> void:
 	for uid in _world_views.keys():
-		if not replica.world.has(uid):
+		if not replica.world.has(uid) or replica.is_taken(uid):
 			_world_views[uid].queue_free()
 			_world_views.erase(uid)
 	for uid in replica.world:
+		if replica.is_taken(uid):
+			continue
 		var item: Dictionary = replica.world[uid]
 		var stack: InvStack = item["stack"]
 		var def := catalog.find(stack.def_id)

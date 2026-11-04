@@ -572,6 +572,22 @@ func _without_waiting() -> void:
 	await _ticks(3)
 	_check(_answers.has(seq) and _answers[seq][0] and net.replica.own.quantity_of(&"botella") == bottles + quantity
 			and net.replica.shown_own() == net.replica.own, "el host la confirma y no queda nada sin confirmar")
+	# Soltar: ya se ve en el piso, en el lugar donde la va a dejar el host.
+	var kept := _own(&"botella")
+	var before := _count_shown(&"botella")
+	seq = ui.drop_item(InvProtocol.OWN, kept, net.replica.shown_own().get_stack(kept).ver, 1)
+	var ghost := net.world_view(-seq)
+	_check(seq != 0 and ghost != null and _count_shown(&"botella") == before - 1 and not ui._waiting(kept),
+			"soltar una botella: en el mismo cuadro se ve en el piso y una menos en la grilla, sin \"esperando…\"")
+	var at := ghost.global_position if ghost != null else Vector3.INF
+	await _ticks(3)
+	var landed := 0
+	for uid in net.replica.world:
+		if net.replica.world[uid]["stack"].def_id == &"botella" and (net.replica.world[uid]["pos"] as Vector3).distance_to(at) < 0.002:
+			landed = uid
+	_check(_answers.has(seq) and _answers[seq][0] and landed != 0 and net.world_view(-seq) == null and net.world_view(landed) != null,
+			"el host la deja en ese mismo lugar")
+	_check(net.replica.shown_own() == net.replica.own and net.replica.predicted_drops().is_empty(), "y no queda nada sin confirmar")
 
 
 # --- 10. Corte y salida ---------------------------------------------------------------------------

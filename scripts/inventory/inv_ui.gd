@@ -489,7 +489,8 @@ func _held_quantity(hold: Dictionary) -> int:
 
 ## Cuántas unidades de esa pila quedan donde están: menos lo que ya se dejó en
 ## otro lado y está en fila o esperando al host. Asignarla a la barra no la
-## mueve.
+## mueve. Lo soltado al piso ya no está en la grilla que se ve
+## (InvReplica.shown_own): no se resta otra vez.
 func _staying(ref: int, uid: int) -> int:
 	var grid := _grid(ref)
 	var stack := grid.get_stack(uid) if grid != null else null
@@ -499,15 +500,15 @@ func _staying(ref: int, uid: int) -> int:
 	for entry: Dictionary in _placing:
 		if entry["uid"] == uid and entry["kind"] != "slot":
 			left -= stack.quantity if entry["all"] else entry["count"]
-	if _flight.get("uid", 0) == uid and _flight["moves"] and _r().pending.has(_flight["seq"]):
+	if _flight.get("uid", 0) == uid and _flight["moves"] and not _flight.get("shown", false) and _r().pending.has(_flight["seq"]):
 		left -= _flight["count"]
 	return maxi(left, 0)
 
 
-## Si ese objeto tiene algo pedido o en la fila: se dibuja marcado como
-## pendiente.
+## Si ese objeto tiene algo pedido o en la fila que todavía no se ve hecho: se
+## dibuja marcado como pendiente. Recoger, soltar y usar se ven hechos ya.
 func _waiting(uid: int) -> bool:
-	return _r().is_uid_pending(uid) or _placing.any(func(entry: Dictionary) -> bool: return entry["uid"] == uid)
+	return _r().is_uid_waiting(uid) or _placing.any(func(entry: Dictionary) -> bool: return entry["uid"] == uid)
 
 
 ## Si ese objeto no se puede agarrar ni mover todavía: tiene algo pedido o en
@@ -667,14 +668,21 @@ func _send_placing(entry: Dictionary) -> void:
 			uids = []
 			slots = [target["slot"]]
 		"world":
-			op = InvProtocol.Op.DROP
-			args = [entry["src"], uid, stack.ver, quantity]
+			var spot: Variant = net.predict_drop_spot(actor)
+			if spot == null:
+				_say("No hay lugar cerca para soltarlo")
+				_drop_placing_of(uid)
+				return
+			op = InvProtocol.Op.DROP_AT
+			args = InvProtocol.drop_args(entry["src"], uid, stack.ver, quantity, spot)
 	var seq := _r().request(op, args, uids, slots)
 	if seq == 0:
 		_say("Eso está esperando al host: no se movió")
 		_drop_placing_of(uid)
 		return
-	_flight = {"seq": seq, "uid": uid, "uids": uids, "count": quantity, "moves": target["kind"] != "slot"}
+	# Lo soltado al piso ya se ve afuera de la grilla (InvReplica.shown_own).
+	_flight = {"seq": seq, "uid": uid, "uids": uids, "count": quantity, "moves": target["kind"] != "slot",
+			"shown": op == InvProtocol.Op.DROP_AT}
 	_sent[seq] = {"op": op, "ref": target.get("ref", -1), "rect": _target_rect(target)}
 
 
@@ -851,7 +859,7 @@ func _open_menu(ref: int, uid: int) -> void:
 			"" if stack.quantity > 1 else "la pila tiene una sola unidad")
 	_add_action("Dividir…", split_reason, _open_dialog.bind("split", ref, uid))
 	_add_action("Soltar todo" if stack.quantity > 1 else "Soltar", wait,
-			func() -> void: _r().request(InvProtocol.Op.DROP, [ref, uid, stack.ver, stack.quantity], [uid]))
+			func() -> void: drop_item(ref, uid, stack.ver, stack.quantity))
 	if stack.quantity > 1:
 		_add_action("Soltar una cantidad…", wait, _open_dialog.bind("drop", ref, uid))
 	var slot := _r().loadout.slot_of(uid) if own and _r().loadout != null else -1
@@ -903,6 +911,20 @@ func use_item(uid: int) -> bool:
 	net.queue_use(uid, def)
 	queue_redraw()
 	return true
+
+
+## Soltar al piso desde una grilla (el menú o el diálogo de cantidad), sin
+## esperar al host: esta máquina elige el lugar como lo haría el host, lo
+## muestra ahí ya y se lo manda en el pedido (InvProtocol.Op.DROP_AT). Sin
+## lugar, lo dice sin preguntarle. Devuelve el número del pedido, o 0.
+func drop_item(ref: int, uid: int, ver: int, quantity: int) -> int:
+	var spot: Variant = net.predict_drop_spot(actor)
+	if spot == null:
+		_say("No hay lugar cerca para soltarlo")
+		return 0
+	var seq := _r().request(InvProtocol.Op.DROP_AT, InvProtocol.drop_args(ref, uid, ver, quantity, spot), [uid])
+	queue_redraw()
+	return seq
 
 
 func _request_item(op: int, uid: int, ver: int) -> void:
@@ -1002,7 +1024,7 @@ func _accept_dialog() -> void:
 	if kind == "split":
 		_begin_split_place(item["ref"], item["uid"], item["ver"], quantity)
 	else:
-		_r().request(InvProtocol.Op.DROP, [item["ref"], item["uid"], item["ver"], quantity], [item["uid"]])
+		drop_item(item["ref"], item["uid"], item["ver"], quantity)
 
 
 func _close_dialog() -> void:
@@ -1098,7 +1120,7 @@ func _grid(ref: int) -> InvGrid:
 		return null
 	if ref == InvProtocol.OWN:
 		return _r().shown_own()
-	return _r().box if ref == _r().box_id and ref != 0 else null
+	return _r().shown_box() if ref == _r().box_id and ref != 0 else null
 
 
 ## Las grillas que se ven: la propia y, si hay, la caja abierta.

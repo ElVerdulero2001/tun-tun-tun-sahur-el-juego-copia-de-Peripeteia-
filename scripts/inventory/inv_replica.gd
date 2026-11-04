@@ -14,11 +14,14 @@ extends RefCounted
 ##
 ## Lo que se ve sin esperar al host (desde el 2026-11-04): shown_own() es la
 ## grilla propia confirmada con lo que esta máquina ya hizo y el host todavía
-## no confirmó: lo recogido adentro (con InvOps.insert, como lo va a meter el
-## host) y una unidad menos por cada consumible usado (InvNet.queue_use). Lo
-## recogido entero deja de verse en el mundo (is_taken). Cuando el host
-## contesta, lo predicho se borra y queda lo que confirmó: si dijo que no, el
-## objeto vuelve a verse en el piso o la unidad en la grilla.
+## no confirmó, en el orden en que lo pidió: lo recogido adentro (con
+## InvOps.insert, como lo va a meter el host), lo soltado afuera (DROP_AT, con
+## InvOps.take) y una unidad menos por cada consumible usado
+## (InvNet.queue_use). shown_box() es lo mismo para la caja abierta, con lo
+## soltado desde ella. Lo recogido entero deja de verse en el mundo (is_taken)
+## y lo soltado ya se ve en el piso, en su lugar (predicted_drops). Cuando el
+## host contesta, lo predicho se borra y queda lo que confirmó: si dijo que no,
+## el objeto vuelve a verse en el piso o en la grilla.
 
 ## Cambió lo propio, la caja o la barra.
 signal changed
@@ -49,7 +52,7 @@ var box: InvGrid
 var world := {}
 ## peer -> id del tipo equipado ("" si nada)
 var equipment := {}
-## Pedidos sin contestar: número -> {"op", "uids", "slots", "box", "msec"}.
+## Pedidos sin contestar: número -> {"op", "args", "uids", "slots", "msec"}.
 var pending := {}
 
 var _next_seq := 0
@@ -60,8 +63,10 @@ var _ignored_box := 0
 ## "counter"}; el contador es -1 hasta que el uso sale en un input.
 var _uses: Array = []
 var _shown: InvGrid
+var _shown_box: InvGrid
 var _shown_dirty := true
 var _taken := {}  # id de un objeto del mundo -> true: recogido entero, sin confirmar
+var _drops: Array = []  # lo soltado sin confirmar: {"key": -número del pedido, "stack", "pos"}
 
 
 func reset() -> void:
@@ -97,12 +102,16 @@ func request(op: int, args: Array, uids: Array = [], slots: Array = []) -> int:
 	if op == InvProtocol.Op.OPEN:
 		_ignored_box = 0
 	_next_seq += 1
-	pending[_next_seq] = {"op": op, "uids": uids, "slots": slots, "msec": Time.get_ticks_msec()}
+	pending[_next_seq] = {"op": op, "args": args, "uids": uids, "slots": slots, "msec": Time.get_ticks_msec()}
 	send.call(_next_seq, op, args)
-	if op == InvProtocol.Op.PICKUP:
+	if op in PREDICTED:
 		_mark_shown()
 	changed.emit()
 	return _next_seq
+
+
+## Los pedidos que se ven hechos antes de que conteste el host.
+const PREDICTED := [InvProtocol.Op.PICKUP, InvProtocol.Op.DROP_AT]
 
 
 ## Si ese objeto tiene un pedido sin contestar. Recoger no cuenta: lo recogido
@@ -111,6 +120,15 @@ func request(op: int, args: Array, uids: Array = [], slots: Array = []) -> int:
 func is_uid_pending(uid: int) -> bool:
 	for seq in pending:
 		if pending[seq]["op"] != InvProtocol.Op.PICKUP and uid in pending[seq]["uids"]:
+			return true
+	return false
+
+
+## Si ese objeto tiene un pedido sin contestar que no se ve hecho todavía (lo
+## que la interfaz marca como "esperando…"): ni recoger ni soltar cuentan.
+func is_uid_waiting(uid: int) -> bool:
+	for seq in pending:
+		if not pending[seq]["op"] in PREDICTED and uid in pending[seq]["uids"]:
 			return true
 	return false
 
@@ -145,12 +163,28 @@ func shown_own() -> InvGrid:
 	return _shown
 
 
+## La caja abierta como se ve: la confirmada menos lo que esta máquina ya soltó
+## desde ella. Sin nada de eso, es la misma `box`.
+func shown_box() -> InvGrid:
+	if _shown_dirty:
+		_rebuild_shown()
+	return _shown_box
+
+
 ## Si ese objeto del mundo ya se recogió entero en esta máquina (no se dibuja
 ## ni se puede mirar para agarrarlo).
 func is_taken(uid: int) -> bool:
 	if _shown_dirty:
 		_rebuild_shown()
 	return _taken.has(uid)
+
+
+## Lo que esta máquina ya soltó y el host todavía no confirmó, para dibujarlo en
+## el piso: {"key": un número negativo (el del pedido), "stack", "pos"}.
+func predicted_drops() -> Array:
+	if _shown_dirty:
+		_rebuild_shown()
+	return _drops
 
 
 func _mark_shown() -> void:
@@ -161,24 +195,42 @@ func _mark_shown() -> void:
 func _rebuild_shown() -> void:
 	_shown_dirty = false
 	_taken.clear()
-	var pickups := pending.keys().filter(func(seq: int) -> bool: return pending[seq]["op"] == InvProtocol.Op.PICKUP)
-	if own == null or (pickups.is_empty() and _uses.is_empty()):
-		_shown = own
+	_drops = []
+	_shown = own
+	_shown_box = box
+	var predicted := pending.keys().filter(func(seq: int) -> bool: return pending[seq]["op"] in PREDICTED)
+	if own == null or (predicted.is_empty() and _uses.is_empty()):
 		return
-	var grid := own.copy()
-	pickups.sort()
-	for seq in pickups:
-		var uids: Array = pending[seq]["uids"]
-		var item: Dictionary = world.get(uids[0], {}) if not uids.is_empty() else {}
-		if item.is_empty():
+	_shown = own.copy()
+	predicted.sort()
+	for seq in predicted:
+		var entry: Dictionary = pending[seq]
+		var args: Array = entry["args"]
+		if entry["op"] == InvProtocol.Op.PICKUP:
+			var item: Dictionary = world.get(args[0], {})
+			if item.is_empty():
+				continue
+			var stack: InvStack = item["stack"]
+			var result := InvOps.insert(_shown, stack.copy())
+			if result["reason"] == "" and result["taken"] >= stack.quantity:
+				_taken[stack.uid] = true
 			continue
-		var stack: InvStack = item["stack"]
-		var result := InvOps.insert(grid, stack.copy())
-		if result["reason"] == "" and result["taken"] >= stack.quantity:
-			_taken[stack.uid] = true
+		# Soltar: de la grilla propia o de la caja abierta.
+		var from: InvGrid = _shown if args[0] == InvProtocol.OWN else null
+		if args[0] != InvProtocol.OWN and args[0] == box_id and box != null:
+			if _shown_box == box:
+				_shown_box = box.copy()
+			from = _shown_box
+		var stack := from.get_stack(args[1]) if from != null else null
+		if stack == null:
+			continue
+		var out := InvOps.take(from, stack.uid, stack.ver, mini(args[3], stack.quantity), -seq)
+		if out[1] != null:
+			var dropped: InvStack = (out[1] as InvStack).copy()
+			dropped.uid = -seq
+			_drops.append({"key": -seq, "stack": dropped, "pos": InvProtocol.drop_spot_of(args)})
 	for use: Dictionary in _uses:
-		InvOps.consume(grid, use["uid"], 1)
-	_shown = grid
+		InvOps.consume(_shown, use["uid"], 1)
 
 
 func is_slot_pending(slot: int) -> bool:
@@ -290,6 +342,7 @@ func forget_box() -> void:
 	_ignored_box = box_id
 	box_id = 0
 	box = null
+	_mark_shown()
 	changed.emit()
 
 

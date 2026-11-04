@@ -192,6 +192,7 @@ func _client() -> void:
 	await _lethal()
 	await _host_says_no()
 	await _over_time()
+	await _drop_things()
 	var actor := _actor()
 	_check(net.replica.shown_own() == net.replica.own, "al final no queda nada sin confirmar")
 	_log("FINAL %s %s" % [vitals_digest(actor.state), grid_digest(net.replica.own)])
@@ -328,6 +329,48 @@ func _host_says_no() -> void:
 			"el host no lo usó y la corrección lo deshace: %.1f, correcciones %d → %d" % [actor.state.health / float(H),
 			corrections, lab._prediction.corrections])
 	_check(ui._toast.contains("No se usó") and ui._toast.contains("no está en tu inventario"), "y lo dice: %s" % ui._toast)
+
+
+func _world_at(def_id: StringName, at: Vector3) -> int:
+	for uid in net.replica.world:
+		if net.replica.world[uid]["stack"].def_id == def_id and (net.replica.world[uid]["pos"] as Vector3).distance_to(at) < 0.002:
+			return uid
+	return 0
+
+
+## Soltar (2026-11-04, segunda parte): desde el menú y desde la mano, ya se ve
+## en el piso, y el host lo deja en ese mismo lugar.
+func _drop_things() -> void:
+	var poison := _first_of(net.replica.own, &"veneno")
+	var left := _count(net.replica.own, &"veneno")
+	var sent := Time.get_ticks_msec()
+	var seq := ui.drop_item(InvProtocol.OWN, poison, net.replica.shown_own().get_stack(poison).ver, 1)
+	var ghost := net.world_view(-seq)
+	_check(seq != 0 and ghost != null and _count(net.replica.shown_own(), &"veneno") == left - 1 and _count(net.replica.own, &"veneno") == left,
+			"soltar un veneno: en el mismo cuadro ya está en el piso y hay uno menos en la grilla, y el host todavía no contestó")
+	_check(not ui._waiting(poison), "sin \"esperando…\" en lo que queda")
+	var at := ghost.global_position if ghost != null else Vector3.INF
+	_check(await _until(func() -> bool: return _answers.has(seq), 5.0) and _answers[seq][0], "el host lo confirma")
+	_log("soltar desde el menú: el host contestó a los %d ms" % (Time.get_ticks_msec() - sent))
+	var landed := _world_at(&"veneno", at)
+	_check(landed != 0 and net.world_view(-seq) == null and net.world_view(landed) != null, "y queda en el mismo lugar donde se veía")
+	# Desde la mano: el botiquín entero, con un clic afuera de la grilla.
+	var kit := _first_of(net.replica.own, &"botiquin")
+	ui.open()
+	ui._pick_up(InvProtocol.OWN, kit)
+	ui._mouse = Vector2(ui.size.x - 10.0, 10.0)
+	sent = Time.get_ticks_msec()
+	ui._place_all()
+	var flight: int = ui._flight.get("seq", 0)
+	ghost = net.world_view(-flight) if flight != 0 else null
+	_check(ghost != null and _count(net.replica.shown_own(), &"botiquin") == 0, "desde la mano: el botiquín ya está en el piso y no en la grilla")
+	at = ghost.global_position if ghost != null else Vector3.INF
+	_check(await _until(func() -> bool: return _answers.has(flight), 5.0) and _answers[flight][0], "el host lo confirma")
+	_log("soltar desde la mano: el host contestó a los %d ms" % (Time.get_ticks_msec() - sent))
+	_check(_world_at(&"botiquin", at) != 0 and net.world_view(-flight) == null, "y queda en el mismo lugar donde se veía")
+	ui.close()
+	await _ticks(10)
+	_check(net.replica.predicted_drops().is_empty() and ui._flight.is_empty(), "no queda nada sin confirmar")
 
 
 func _over_time() -> void:

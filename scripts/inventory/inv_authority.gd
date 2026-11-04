@@ -29,6 +29,10 @@ const CHEST := 0.9
 const EYES_BELOW_TOP := 0.15
 ## A qué altura sobre su lugar se mira un objeto suelto.
 const ITEM_SIGHT := 0.2
+## Cuánto más lejos que lo normal puede estar del personaje, en el host, el
+## lugar que eligió el cliente para soltar (DROP_AT): lo que pudo moverse el
+## personaje entre que el cliente lo eligió y el host lo mira, en metros.
+const DROP_LAG_MARGIN := 1.0
 
 var catalog: InvCatalog
 var actors_root: Node
@@ -240,6 +244,8 @@ func _run(peer: int, op: int, a: Array) -> String:
 				return InvOps.split(src, a[1], a[2], a[3], dst, Vector2i(a[5], a[6]), a[7], alloc_uid()))
 		InvProtocol.Op.DROP:
 			return _drop(peer, a[0], a[1], a[2], a[3])
+		InvProtocol.Op.DROP_AT:
+			return _drop(peer, a[0], a[1], a[2], a[3], InvProtocol.drop_spot_of(a))
 		InvProtocol.Op.PICKUP:
 			return _pickup(peer, inventory, a[0])
 		InvProtocol.Op.USE:
@@ -301,8 +307,10 @@ func _mark(peer: int, ref: int) -> void:
 
 
 ## Soltar al piso, desde el inventario propio o desde una caja abierta: cae
-## adelante del personaje, como siempre.
-func _drop(peer: int, ref: int, uid: int, ver: int, quantity: int) -> String:
+## adelante del personaje, como siempre. Con `proposed` (DROP_AT, desde el
+## 2026-11-04), donde el cliente ya lo muestra, si ese lugar sirve
+## (drop_spot_ok); si no, donde lo elige el host.
+func _drop(peer: int, ref: int, uid: int, ver: int, quantity: int, proposed: Variant = null) -> String:
 	var src := _grid_for(peer, ref)
 	if src[1] != "":
 		return src[1]
@@ -310,7 +318,7 @@ func _drop(peer: int, ref: int, uid: int, ver: int, quantity: int) -> String:
 	var reason := InvOps.can_take(grid, uid, ver, quantity)
 	if reason != "":
 		return reason
-	var spot: Variant = _drop_spot(peer)
+	var spot: Variant = proposed if proposed != null and drop_spot_ok(peer, proposed) else _drop_spot(peer)
 	if spot == null:
 		return "no hay lugar cerca para soltarlo"
 	var out := InvOps.take(grid, uid, ver, quantity, alloc_uid())
@@ -500,53 +508,86 @@ static func sees(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3, e
 	return space.intersect_ray(query).is_empty()
 
 
-## Dónde cae lo que se suelta: adelante del personaje, o alrededor si ahí no se
-## puede, siempre en el mismo orden. Tiene que verse desde el pecho (no se
-## suelta atrás de una pared), tener piso abajo y lugar libre: ni dentro del
-## personaje, ni de otro, ni de una pared o una caja, ni encima de otro objeto
-## suelto. null si no hay ningún lugar.
 func _drop_spot(peer: int) -> Variant:
 	var actor := actor_of(peer)
 	if actor == null or _space == null:
 		return null
+	return find_drop_spot(_space, BaseRegistry.world_position(actor.state), actor.state.facing_yaw, drop_distance, _crowded)
+
+
+## Si el lugar donde el cliente ya muestra lo que soltó (DROP_AT) sirve: cerca
+## del personaje, con un margen por la demora (el cliente lo eligió con su
+## personaje unos ticks por delante del host), y el resto como en
+## find_drop_spot, mirado desde el pecho del personaje en el host. Así queda
+## donde se ve y no salta.
+func drop_spot_ok(peer: int, spot: Vector3) -> bool:
+	var actor := actor_of(peer)
+	if actor == null or _space == null or not spot.is_finite():
+		return false
 	var feet := BaseRegistry.world_position(actor.state)
-	var yaw := actor.state.facing_yaw
+	if Vector2(spot.x - feet.x, spot.z - feet.z).length() > drop_distance + 0.5 + DROP_LAG_MARGIN \
+			or absf(spot.y - feet.y) > 1.5 + DROP_LAG_MARGIN:
+		return false
+	var found: Variant = _drop_place(_space, feet + Vector3.UP * CHEST, spot, _crowded, _drop_probe())
+	return found != null and (found as Vector3).distance_to(spot) < 0.05
+
+
+## Dónde cae lo que suelta un personaje con los pies en `feet`, mirando hacia
+## `yaw`: adelante, o alrededor si ahí no se puede, siempre en el mismo orden.
+## Tiene que verse desde el pecho (no se suelta atrás de una pared), tener piso
+## abajo y lugar libre: ni dentro del personaje, ni de otro, ni de una pared o
+## una caja, ni encima de otro objeto suelto (`crowded`, func(lugar) -> bool).
+## null si no hay ningún lugar. La usa el host y, desde el 2026-11-04, también
+## el cliente, para mostrar lo que suelta sin esperar (InvNet.predict_drop_spot).
+static func find_drop_spot(space: PhysicsDirectSpaceState3D, feet: Vector3, yaw: float, distance: float, crowded: Callable) -> Variant:
 	var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
 	var chest := feet + Vector3.UP * CHEST
+	var probe := _drop_probe()
+	for reach: float in [distance, distance + 0.5, distance * 0.7]:
+		for degrees: float in [0.0, 30.0, -30.0, 60.0, -60.0, 90.0, -90.0, 120.0, -120.0, 150.0, -150.0, 180.0]:
+			var spot: Variant = _drop_place(space, chest, feet + forward.rotated(Vector3.UP, deg_to_rad(degrees)) * reach, crowded, probe)
+			if spot != null:
+				return spot
+	return null
+
+
+## El lugar sobre el piso justo abajo de `place`, si se puede soltar ahí: o null.
+static func _drop_place(space: PhysicsDirectSpaceState3D, chest: Vector3, place: Vector3, crowded: Callable,
+		probe: PhysicsShapeQueryParameters3D) -> Variant:
+	if not space.intersect_ray(PhysicsRayQueryParameters3D.create(chest, place + Vector3.UP * 0.3, WORLD_MASK)).is_empty():
+		return null
+	var floor_hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(place + Vector3.UP * 0.6, place + Vector3.DOWN * 1.5,
+			WORLD_MASK))
+	if floor_hit.is_empty():
+		return null
+	var normal: Vector3 = floor_hit["normal"]
+	if normal.y < 0.7:
+		return null
+	var spot: Vector3 = floor_hit["position"]
+	probe.transform = Transform3D(Basis.IDENTITY, spot + Vector3.UP * 0.25)
+	if not space.intersect_shape(probe, 1).is_empty():
+		return null
+	if crowded.call(spot):
+		return null
+	return spot
+
+
+static func _drop_probe() -> PhysicsShapeQueryParameters3D:
 	var box := BoxShape3D.new()
 	box.size = Vector3(0.4, 0.4, 0.4)
 	var probe := PhysicsShapeQueryParameters3D.new()
 	probe.shape = box
 	probe.collision_mask = SOLID_MASK
-	for distance: float in [drop_distance, drop_distance + 0.5, drop_distance * 0.7]:
-		for degrees: float in [0.0, 30.0, -30.0, 60.0, -60.0, 90.0, -90.0, 120.0, -120.0, 150.0, -150.0, 180.0]:
-			var place := feet + forward.rotated(Vector3.UP, deg_to_rad(degrees)) * distance
-			if not _ray(chest, place + Vector3.UP * 0.3, WORLD_MASK).is_empty():
-				continue
-			var floor_hit := _ray(place + Vector3.UP * 0.6, place + Vector3.DOWN * 1.5, WORLD_MASK)
-			if floor_hit.is_empty():
-				continue
-			var normal: Vector3 = floor_hit["normal"]
-			if normal.y < 0.7:
-				continue
-			var spot: Vector3 = floor_hit["position"]
-			probe.transform = Transform3D(Basis.IDENTITY, spot + Vector3.UP * 0.25)
-			if not _space.intersect_shape(probe, 1).is_empty():
-				continue
-			if _crowded(spot):
-				continue
-			return spot
-	return null
-
-
-func _ray(from: Vector3, to: Vector3, mask: int) -> Dictionary:
-	var query := PhysicsRayQueryParameters3D.create(from, to, mask)
-	return _space.intersect_ray(query)
+	return probe
 
 
 func _crowded(spot: Vector3) -> bool:
-	for uid in world:
-		var other: Vector3 = world[uid]["pos"]
+	return crowded_by(spot, world.values().map(func(item: Dictionary) -> Vector3: return item["pos"]))
+
+
+## Si en `spot` ya hay algo suelto, de lo que está en `places`.
+static func crowded_by(spot: Vector3, places: Array) -> bool:
+	for other: Vector3 in places:
 		if Vector2(other.x - spot.x, other.z - spot.z).length() < 0.35 and absf(other.y - spot.y) < 0.5:
 			return true
 	return false

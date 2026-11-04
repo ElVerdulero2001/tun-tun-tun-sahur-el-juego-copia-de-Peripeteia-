@@ -24,6 +24,10 @@ enum Op {
 	HOTBAR_PRESS,  ## [acceso]: usa o equipa lo que tiene
 	OPEN,  ## [id de la caja]
 	CLOSE,  ## [id de la caja]
+	## Desde el 2026-11-04: como DROP, con el lugar donde esta máquina ya lo
+	## muestra en el piso, en milímetros. El host lo deja ahí si ese lugar sirve
+	## (InvAuthority.drop_spot_ok); si no, elige él, como en DROP.
+	DROP_AT,  ## [origen, id, versión, cantidad, x, y, z]
 }
 
 const OWN := 0
@@ -43,7 +47,19 @@ const ARGS := {
 	Op.HOTBAR_PRESS: [TYPE_INT],
 	Op.OPEN: [TYPE_INT],
 	Op.CLOSE: [TYPE_INT],
+	Op.DROP_AT: [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT],
 }
+
+## El lugar de DROP_AT viaja en milímetros.
+const DROP_STEP := 0.001
+
+
+static func drop_args(ref: int, uid: int, ver: int, quantity: int, spot: Vector3) -> Array:
+	return [ref, uid, ver, quantity, roundi(spot.x / DROP_STEP), roundi(spot.y / DROP_STEP), roundi(spot.z / DROP_STEP)]
+
+
+static func drop_spot_of(args: Array) -> Vector3:
+	return Vector3(args[4], args[5], args[6]) * DROP_STEP
 
 
 static func encode_request(seq: int, op: int, args: Array) -> PackedByteArray:

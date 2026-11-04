@@ -27,6 +27,10 @@ extends Node3D
 ## - Recoger sigue siendo un pedido, pero lo que se ve no lo espera: mientras
 ##   tanto la grilla propia se muestra con lo recogido adentro y el objeto deja
 ##   de verse en el piso (InvReplica.shown_own).
+## - Soltar también: esta máquina elige el lugar con la misma regla que el host
+##   (predict_drop_spot), lo dibuja ahí ya y se lo manda en el pedido
+##   (InvProtocol.Op.DROP_AT). El host lo deja en ese lugar si sirve; si no,
+##   elige él y el objeto aparece donde dice el host.
 ##
 ## Los inventarios son de cada entidad: al personaje el host le agrega un nodo
 ## InvInventory (INVENTORY_NODE) al aparecer; cada caja trae el suyo. Las cajas
@@ -203,6 +207,19 @@ func take_use(tick: int) -> void:
 	use_uid = next[0]
 	_use_defs[use_presses] = next[1]
 	replica.assign_use(use_presses)
+
+
+## Dónde caería lo que suelta este personaje, como lo va a buscar el host
+## (InvAuthority.find_drop_spot), con lo que esta máquina ve suelto, también lo
+## que ya soltó y el host todavía no confirmó. null si no hay lugar.
+func predict_drop_spot(actor: ActorBody) -> Variant:
+	if actor == null or not actor.is_inside_tree():
+		return null
+	var places := replica.world.keys().filter(func(uid: int) -> bool: return not replica.is_taken(uid)) \
+			.map(func(uid: int) -> Vector3: return replica.world[uid]["pos"])
+	places.append_array(replica.predicted_drops().map(func(drop: Dictionary) -> Vector3: return drop["pos"]))
+	return InvAuthority.find_drop_spot(get_world_3d().direct_space_state, BaseRegistry.world_position(actor.state),
+			actor.state.facing_yaw, drop_distance, InvAuthority.crowded_by.bind(places))
 
 
 ## Antes de mover a un actor en un tick (SimClock.before_step, y al repetir
@@ -509,16 +526,21 @@ func _receive_reliable(packet: Callable) -> void:
 # --- Lo que se ve en el mundo ---------------------------------------------------
 
 ## Lo que se ve suelto en el mundo: lo que dice el host, menos lo que esta
-## máquina ya recogió entero y el host todavía no confirmó.
+## máquina ya recogió entero y el host todavía no confirmó, más lo que ya soltó
+## y el host todavía no confirmó (con un número negativo, el de su pedido).
 func _sync_world_views() -> void:
+	var shown := {}
+	for uid in replica.world:
+		if not replica.is_taken(uid):
+			shown[uid] = replica.world[uid]
+	for drop: Dictionary in replica.predicted_drops():
+		shown[drop["key"]] = drop
 	for uid in _world_views.keys():
-		if not replica.world.has(uid) or replica.is_taken(uid):
+		if not shown.has(uid):
 			_world_views[uid].queue_free()
 			_world_views.erase(uid)
-	for uid in replica.world:
-		if replica.is_taken(uid):
-			continue
-		var item: Dictionary = replica.world[uid]
+	for uid in shown:
+		var item: Dictionary = shown[uid]
 		var stack: InvStack = item["stack"]
 		var def := catalog.find(stack.def_id)
 		var view: InvWorldItem = _world_views.get(uid)

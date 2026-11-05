@@ -7,7 +7,7 @@ Esta guía es para retomar el laboratorio después de un tiempo sin tener que le
 
 **Para pedirle algo a Claude en otra conversación:** "leé `docs/net/guia_del_laboratorio.md` y ayudame a …". Si hace falta más detalle, la sección 12 de esta guía dice en qué parte del historial buscarlo.
 
-Escrita el 2026-10-15 y puesta al día el 2026-10-22 dos veces (la segunda, a la noche, con la cuarta vuelta de la escalera, el súper, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado), el 2026-10-24 (el súper en todas las velocidades), el 2026-10-30 dos veces (el mantle, la unión de dos cajas apiladas y frenar en la salida por arriba de la escalera; a la tarde, lo que salió de la auditoría de GPT del parkour), el 2026-10-31 tres veces (todo commiteado y subido a GitHub; a la noche, el inventario de grilla, sección 14, y después su segunda vuelta con tus notas de prueba) y el 2026-11-01 (la tercera y la cuarta vuelta del inventario, su commit y el panel Objetos para crear objetos, y a la noche su segunda versión, con contenedores y vista previa) y el 2026-11-02 (la salud, la estamina, los estados y el HUD, sección 15, y las burbujitas de ayuda del panel Objetos). Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
+Escrita el 2026-10-15 y puesta al día el 2026-10-22 dos veces (la segunda, a la noche, con la cuarta vuelta de la escalera, el súper, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado), el 2026-10-24 (el súper en todas las velocidades), el 2026-10-30 dos veces (el mantle, la unión de dos cajas apiladas y frenar en la salida por arriba de la escalera; a la tarde, lo que salió de la auditoría de GPT del parkour), el 2026-10-31 tres veces (todo commiteado y subido a GitHub; a la noche, el inventario de grilla, sección 14, y después su segunda vuelta con tus notas de prueba) y el 2026-11-01 (la tercera y la cuarta vuelta del inventario, su commit y el panel Objetos para crear objetos, y a la noche su segunda versión, con contenedores y vista previa) y el 2026-11-02 (la salud, la estamina, los estados y el HUD, sección 15, y las burbujitas de ayuda del panel Objetos) y el 2026-11-04 (los commits, usar y recoger sin esperar al host, y después soltar sin esperar, la medición de recoger contra soltar y el arreglo del aviso de tu captura). Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
 
 ---
 
@@ -600,13 +600,26 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 | Commits | 15 |
 | Pendientes y límites | 16 |
 | Los scripts de las pruebas | Apéndice B |
+| El inventario de grilla (en el historial, lo que toca a la red; el detalle, en `inventario_de_grilla.md`) | 8.37 |
+| El panel Objetos | 8.38 |
+| La salud, la estamina, los estados y el HUD; la cámara lenta de cada uno | 8.39 |
+| El daño en el tiempo | 8.40 |
+| Usar, recoger y soltar sin esperar al host | 8.41 |
+| La auditoría de GPT del inventario, la salud y la red | 8.42 |
 
 ---
 
-## 13. Dónde quedó (2026-11-02)
+## 13. Dónde quedó (2026-11-04)
 
-- **Sin commit, a la espera de tu prueba:** la salud, la estamina, los estados, el HUD y la cámara lenta de cada uno (sección 15), del 2026-11-02. Tu pedido decía que no se commitee por esta tarea. También siguen sin commit la segunda versión del panel Objetos y sus cambios en el inventario (sección 14), y sus burbujitas de ayuda, del 2026-11-02.
-- **Últimos commits** (2026-11-01), cuando pediste "Sí, commitealo", después de probar el inventario ("todo funciona correctamente"). Subidos a GitHub cuando pediste "Sí, subilo".
+- **Los arreglos de la auditoría de GPT** del inventario, la salud y la red (2026-11-04, a la noche; sección 13 de `hud_salud_estamina_y_estados.md`): cada uso llega al host aunque se pierda un tick, el host hace recoger, soltar y usar en el orden en que los hiciste, la grilla que ves sigue ese orden, la muerte gana a Kp 1 y Kp 2 en el mismo tick, y las pruebas de red ya no dan bien si se les acaba el tiempo. Probados en esta PC y por vos en las dos PC, con Alt + 4 (en cuatro pasos de a uno): funciona. En la notebook hace falta `actualizar_lab.bat`, porque cambió lo que viaja en el input. **Sin commit**: el código y estos documentos.
+- **Usar y recoger sin esperar al host** (sección 15), del 2026-11-04: lo probaste en las dos PC con +200 ms ("funciona correctamente") y quedó en el commit local `c392774`, solo el código. Los documentos de ese día, sin commit.
+- **Soltar sin esperar al host** (sección 15), del 2026-11-04: lo probaste en las dos PC y funciona; commit local `2cf8fb1`. El arreglo del aviso de tu captura 1084, en `858df9a`. Los documentos de ese día, sin commit.
+- **Commits del 2026-11-04,** cuando pediste el commit después de probar en red (solo locales, sin subir):
+    - `593b325`, la salud, la estamina, los estados, el HUD, la cámara lenta de cada uno, los consumibles y el daño en el tiempo (sección 15);
+    - `9a7219f`, el panel Objetos entero, con sus burbujitas de ayuda (sección 14);
+    - `0072b36`, sus documentos y esta guía.
+- **En GitHub** sigue hasta `48e666b` (el inventario del 2026-11-01).
+- **Commits del 2026-11-01,** cuando pediste "Sí, commitealo", después de probar el inventario ("todo funciona correctamente"). Subidos a GitHub cuando pediste "Sí, subilo".
     - `12fa57b`, el inventario de grilla entero (sección 14): su código, la zona, los objetos, la caja, sus pruebas y los cambios en `net_lab.tscn`, `net_lab.gd`, `lab_camera.gd`, `net_session.gd`, `sim_fingerprint.gd` y `project.godot`;
     - `ca2186d`, su documento (`inventario_de_grilla.md`), tu pedido original (`prompt_claude_inventario_grilla.md`) y la sección 14 de esta guía;
     - y el de esta puesta al día de la guía.
@@ -635,8 +648,8 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 - **Lo del 2026-10-22** (sección 8.31 del historial): la escalera sin empujón arriba, la punta, de costado y sin trabas; el súper por 1,5 en todo; la casilla de la velocidad terminal; el freno al caerse de un borde; y la pista de salto agachado. Lo probaste en las dos PC a las 20:37: "todo funciona correctamente", salvo la salida por arriba de la escalera suelta, que te dejaba caer del otro lado. Arreglada a las 20:50 (sección 5). En tu prueba del 2026-10-23 quedabas parado arriba, pero te atravesaba el peldaño de más arriba, que era solo dibujo: desde entonces los peldaños llegan solo hasta el alto. Probado sin red. El 2026-10-23, además: el grosor del peldaño de arriba (**Top Rung Depth**) y la salida por arriba sin saltito, pasando al rellano agarrado de la escalera (sección 5). Probado en las dos PC el 2026-10-23 a la noche ("perfecto, ahora funciona perfectamente") y commiteado en `1324a69`; el 2026-10-24, "hice las pruebas en red, funciona correctamente todo".
 - **Lo del 2026-10-24** (sección 8.32 del historial): el súper en todas las velocidades, también la escalera (sección 3). Probado en las dos PC, en casa ("todo funciona correctamente"), y commiteado en `3fae993`.
 - **Lo del 2026-10-25 al 2026-10-28** (secciones 8.33 a 8.35 del historial): el mantle (sección 9); la unión de dos cajas apiladas, que ya no es un filo (sección 11); y la salida por arriba de la escalera, que termina si frenás con el cuerpo ya sobre el piso (sección 5). El mantle y las cajas, probados en las dos PC el 2026-10-28 y commiteados en `eb473ca`; la escalera, probada el 2026-10-30 ("funciona correctamente") y commiteada en `fde8f9a`.
-- **Sin commit:** nada del laboratorio. `docs/net/auditoria_parkour_2026-10-30.md` aparece borrado en tu disco, pero sigue en el repositorio: el borrado no es de Claude y no entró en ningún commit. Quedan sin seguir, porque elegiste dejarlos afuera, `tmp/` (la copia del código y los logs de las revisiones de GPT), `archive/` (logs viejos de pruebas) y un `.TMP` que dejó el editor; y también `output/pdf/`, los PDF del diseño del Parkour V2, que no estaban en la lista.
-- **Pendientes:** la prueba a distancia con tu amigo (con un `.exe` nuevo; las del 2026-10-24 fueron en casa); ajustar jugando los números del mantle, si hace falta (los eligió Claude); seguir probando si el cilindro es muy permisivo, con más escenarios; la cuerda con la cámara ("no lo vamos a tocar ahora"); las pruebas de empujones al que cuelga de un compañero, que ya no llegan a colgarse (de antes, sin investigar); el punto 4 de la revisión externa, para cuando pase al juego; y de la auditoría de GPT, endurecer la validación del host solo si algún día importan los tramposos (entre amigos no hace falta). La lista completa, en la sección 16 del historial.
+- **Sin commit:** los arreglos de la auditoría del 2026-11-04 (primer punto de esta lista), con su informe (`docs/net/auditoria_inventario_salud_red_2026-11-04.md`), y los documentos de ese día. `docs/net/auditoria_parkour_2026-10-30.md` aparece borrado en tu disco, pero sigue en el repositorio: el borrado no es de Claude y no entró en ningún commit. Quedan sin seguir, porque elegiste dejarlos afuera, `tmp/` (la copia del código y los logs de las revisiones de GPT), `archive/` (logs viejos de pruebas) y un `.TMP` que dejó el editor; y también `output/pdf/`, los PDF del diseño del Parkour V2, que no estaban en la lista.
+- **Pendientes:** la prueba a distancia con tu amigo (con un `.exe` nuevo; las del 2026-10-24 fueron en casa); ajustar jugando los números del mantle, si hace falta (los eligió Claude); seguir probando si el cilindro es muy permisivo, con más escenarios; la cuerda con la cámara ("no lo vamos a tocar ahora"); las pruebas de empujones al que cuelga de un compañero, que ya no llegan a colgarse (de antes, sin investigar); el punto 4 de la revisión externa, para cuando pase al juego; y de la auditoría de GPT, endurecer la validación del host solo si algún día importan los tramposos (entre amigos no hace falta). De la auditoría del inventario (2026-11-04), para cuando haya partidas largas o mapas grandes: resumir el historial viejo de la cámara lenta sin mover las plataformas (ESC-02), y medir cuánto ocupa cada paquete del inventario antes de grillas o mapas con muchos objetos (lo que quedó de ESC-01). La lista completa, en la sección 16 del historial.
 
 ---
 
@@ -673,7 +686,8 @@ Pedido el 2026-10-31 (`docs/net/prompt_claude_inventario_grilla.md`), hecho desd
     - El tamaño de las celdas, en **Hud → InventarioUI**.
     - Los de cada caja, en la caja; los de cada objeto, en su `.tres`.
 - **La huella** tiene una quinta parte, "el inventario": si las dos PC no tienen los mismos objetos, cajas o valores, la notebook no entra.
-- **Probado** con pruebas automáticas, en un proceso y con tres procesos en esta PC (con internet simulada, un corte y uno que entra tarde). **Falta** tu prueba jugando, con el mouse y mirando con la cámara de verdad, y en las dos PC.
+- **Probado** con pruebas automáticas, en un proceso y con tres procesos en esta PC (con internet simulada, un corte y uno que entra tarde). **Falta** tu prueba jugando, con el mouse y mirando con la cámara de verdad, y en las dos PC. *(Escrito el 2026-11-01; ese día y el anterior lo probaste jugando, y el 2026-11-04 usaste, recogiste y soltaste en las dos PC.)*
+- **Auditoría de GPT** (2026-11-04, a la noche): el host hace recoger, soltar y usar en el orden en que los hiciste, y la grilla que ves también. Un modelo con scripts no se usa como apariencia: se ve la caja de su color y se avisa. Detalle en `inventario_de_grilla.md` y en la sección 13 de `hud_salud_estamina_y_estados.md`.
 
 ---
 
@@ -720,5 +734,19 @@ Pedido el 2026-11-02 (`docs/net/prompt_claude_hud_salud_estamina_y_estados.md`).
     - en el nodo **Tuning**: grupo **Salud y estamina** (**Health Max**, **Stamina Max**), **Slow Stamina Cost** (en **Cámara lenta**) y **Boost Stamina Cost** (en **Súper salto y velocidad**);
     - en el nodo **Hud → Instrumentos**: el tamaño, la duración del aviso de muerte y el sonido.
 - **Si se te corta la conexión,** el host te apaga los estados mientras te espera (elección de Claude): no gastás ni sostenés la cámara lenta de los demás.
-- **Probado** sin red (85 de 85, con el daño en el tiempo) y en trece casos con host y cliente en esta PC, también con internet mala. **Falta** tu prueba, solo y en las dos PC: el recorrido está en la sección 2 de ese documento.
+- **Usar, recoger y soltar sin esperar al host** (2026-11-04, pedido tuyo; sección 12 del documento):
+    - un consumible ya no se le pide al host: va en el input, como Kp 1 y Kp 2, y tu PC y el host lo aplican en el mismo tick. La unidad se ve gastada en el mismo cuadro, y la salud cambia en el tick siguiente;
+    - lo que recogés se ve en tu grilla en el mismo cuadro y deja de verse en el piso;
+    - si el host dice que no, se deshace solo y sale un aviso;
+    - soltar, después de tu prueba: tu PC elige el lugar con la misma regla que el host y lo dibuja ahí ya, y el host lo deja en ese lugar si sirve;
+    - desde el host, recoger y soltar se ven con la misma demora: medido con +200 ms en las dos, entre 232 y 240 ms. **Soltar** del menú sale al soltar el clic y la E al apretarla; esa es la única diferencia.
+- **Probado** sin red y en trece casos con host y cliente en esta PC, también con internet mala, y en la prueba de usar, recoger y soltar (`inventario/pruebas/inv_instant_test.tscn`). Hoy, con los arreglos de la auditoría: estados 129 de 129 y esa prueba 83 de 83 (antes, 104 y 69). Tus pruebas en las dos PC del 2026-11-04 salieron bien: la del uso sin esperar, con +200 ms en las dos, la de soltar y la de los arreglos de la auditoría.
+- **Los arreglos de la auditoría de GPT** (2026-11-04, a la noche; sección 13 del documento):
+    - cada uso viaja hasta que el host lo contesta, y el host contesta uno por uno: si se pierde el tick de uno, no se pierde el uso;
+    - el host hace recoger, soltar y usar en el orden en que los hiciste: recoger algo y usarlo enseguida ya no termina en "No se usó";
+    - si morís en el mismo tick en que apretás Kp 1 o Kp 2, la muerte gana y quedan apagados;
+    - la barra rápida respeta el "esperando…" igual que el menú.
+
+    Probado en esta PC: estados 129 de 129, modelo 91 de 91, usar y recoger en red 83 de 83 (también con 300 ms y 8 % de pérdida), y lo de antes igual. Lo probaste en las dos PC el mismo día: funciona.
+- **El aviso de tu captura 1084** (una variable `stack` repetida en `inv_replica.gd`) está arreglado en `858df9a`. Cargando con el depurador los scripts de estos días, no queda ningún aviso.
 - **La cámara "todavía más lenta"** que viste con dos jugadores no se pudo reproducir con el código de antes. Lo que sí pasaba era que el segundo, al pedirla, la apagaba. Detalle en la sección 7 de ese documento.

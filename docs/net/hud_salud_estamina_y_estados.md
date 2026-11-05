@@ -11,6 +11,8 @@ Lo que trae:
 - **Objetos** que curan, dañan o devuelven estamina.
 - **Daño en el tiempo** (agregado el 2026-11-02 a la tarde, sección 11): un consumible que quita salud de a poco, parejo, durante un tiempo.
 - **La cámara lenta compartida, corregida.**
+- **Usar, recoger y soltar sin esperar al host** (agregado el 2026-11-04, sección 12): la salud cambia, lo recogido aparece en la grilla y lo soltado en el piso en el momento, sin "esperando…".
+- **Los arreglos de la auditoría de GPT** (2026-11-04, a la noche, sección 13): cada uso llega al host aunque se pierda un tick, el host hace las cosas en el orden en que las hiciste, y la muerte gana a Kp 1 y Kp 2 en el mismo tick.
 
 ---
 
@@ -215,9 +217,9 @@ Para cambiar uno que ya existe: el buscador de arriba (por ejemplo "botiquín"),
     - `deaths` y `exhaustions`, los contadores de avisos.
 
     Viajan en cada snapshot, se predicen y se repiten como el resto: la regla de oro del laboratorio ("nada que influya en el movimiento futuro vive fuera de este objeto").
-- **Los primeros 93 bytes del estado son los de siempre**, con el mismo movimiento. Lo nuevo va al final: el estado pasó de 93 a 102 bytes y, con el daño en el tiempo, a 152. `boosted` sigue existiendo, como el bit del súper.
+- **Los primeros 93 bytes del estado son los de siempre**, con el mismo movimiento. Lo nuevo va al final: el estado pasó de 93 a 102 bytes; con el daño en el tiempo, a 152, y desde el 2026-11-04, a 153 (hasta qué uso de consumible llegó, sección 12). `boosted` sigue existiendo, como el bit del súper.
 - **En el motor (`ActorMotor`, etapa 3) y `ActorPowers`:** cada pulsación nueva del 1 o del 2 prende o apaga su estado. Con la reserva en cero no se prende. Después se cobra el tick: la suma de los costos de lo prendido. Si la reserva llega a cero, `powers` vuelve a 0 y `exhaustions` sube uno. Lo predice tu PC al instante, y el host hace la misma cuenta con tu input.
-- **En el host, por el inventario (`ActorVitals`):** un consumible cambia la salud y la estamina como un evento del host, que sube la época, como un empujón. Si la salud llega a cero, en ese mismo paso:
+- **Por el inventario (`ActorVitals`):** un consumible cambia la salud y la estamina. Hasta el 2026-11-04 era un evento del host, que subía la época, como un empujón; desde entonces se usa desde tu input, y tu PC y el host lo aplican en el mismo tick, sin subir la época (sección 12). Si la salud llega a cero, en ese mismo paso:
     - `deaths` sube uno;
     - se apagan tus estados;
     - la salud vuelve al máximo.
@@ -239,11 +241,11 @@ Para cambiar uno que ya existe: el buscador de arriba (por ejemplo "botiquín"),
 ### Lo que valida el host
 
 - **El cliente no puede inventarse salud ni reserva.** Cuando el host adopta lo que predijo un cliente (paso 7 del laboratorio), ahora exige (`ClaimAdoption._vitals_possible`):
-    - la misma salud y las mismas muertes;
+    - la misma salud, las mismas muertes y, desde el 2026-11-04, hasta el mismo uso de consumible;
     - una estamina que no sea más que la del host;
     - ningún estado prendido con la reserva en cero;
     - como mucho un agotamiento de más, y solo con todo apagado.
-- **El consumible:** que el objeto sea tuyo, con la versión que viste, que tenga la capacidad y que haga algo. Aplica el efecto y gasta la unidad en el mismo paso. Un pedido repetido no se vuelve a aplicar: se contesta con el resultado guardado.
+- **El consumible:** que el objeto esté en tu inventario, que tenga la capacidad y que haga algo. Aplica el efecto y gasta la unidad en el mismo paso. Desde el input, cada uso se aplica una vez: el estado guarda hasta qué uso llegó. Por pedido (lo usan las pruebas), además con la versión que viste, y un pedido repetido no se vuelve a aplicar: se contesta con el resultado guardado.
 - **La huella de compatibilidad:** incluye los costos y los máximos (están en el Tuning), los efectos de cada consumible (en el catálogo) y el formato nuevo del estado (en el código).
 
 ### Agregar otro estado (la invisibilidad, por ejemplo)
@@ -348,7 +350,7 @@ No se tocaron el nivel, el personaje (`actor.tscn`), `project.godot`, la exporta
 
 ## 10. Límites y lo que falta
 
-- **Falta tu prueba,** solo y en las dos PC (la lista de la sección 2), y con el `.exe` exportado.
+- **Tu prueba** (escrito el 2026-11-02): faltaba, solo y en las dos PC (la lista de la sección 2). El 2026-11-04 la hiciste en red: "todas funcionan correctamente". Falta con el `.exe` exportado.
 - **La cámara más lenta que viste no se reprodujo** (sección 7).
 - **Un agotamiento predicho que el host corrige** (por ejemplo, porque te llegó una bebida justo antes) ya sonó. Si después te agotás de verdad con el mismo número, no vuelve a sonar. Es raro: hace falta un consumible en el mismo momento.
 - **Si uno suelta la cámara lenta y otro la pide un instante después,** pero ya tarde para avisar a todos que el tramo sigue, el mundo va normal unos pocos ticks (como mucho lo que tarda en avisarse, 0,1 a 0,3 s) y vuelve a ir lento.
@@ -377,7 +379,7 @@ Pediste un consumible que haga daño en el tiempo: "4 de daño cada 2 segundos, 
 
 - **La salud se guarda en milésimas de punto,** así cada tick quita un poco (con 5 por segundo, 0,083 por tick). El instrumento y el panel siguen en puntos.
 - **Cada daño guarda su total, su duración y cuánto lleva,** y cada tick quita la parte exacta del total que le toca. Así baja parejo desde el primer tick, también con daños chicos y largos (1 punto en 600 s), y al terminar quitó justo el total. La primera versión repartía lo que quedaba y se atrasaba un 0,4 %; con daños chicos, mucho más.
-- **Lo descuenta el motor en cada tick** (`ActorVitals.step`, en la etapa 1, con el tiempo del mundo), igual en el host y en la predicción. El consumible solo lo pone, como un evento del host. Por eso no trae correcciones mientras baja, y repetir ticks no lo cobra dos veces.
+- **Lo descuenta el motor en cada tick** (`ActorVitals.step`, en la etapa 1, con el tiempo del mundo), igual en el host y en la predicción. El consumible solo lo pone: hasta el 2026-11-04, como un evento del host; desde entonces, en el mismo tick en tu PC y en el host (sección 12). Por eso no trae correcciones mientras baja, y repetir ticks no lo cobra dos veces.
 - **Si mata,** es la muerte de prueba de siempre: se cortan todos los daños en el tiempo, se apagan tus estados y la salud vuelve al máximo. La predice tu PC: el aviso sale al instante.
 - **Con daño de golpe y daño en el tiempo en el mismo consumible,** primero el de golpe. Si te mata, el daño en el tiempo ya no se pone.
 - **El objeto de prueba:** la **Toxina lenta** (20 en 4 s, 5 por segundo), en la zona de inventario, en la tercera columna, después de la cápsula letal.
@@ -388,7 +390,7 @@ Pediste un consumible que haga daño en el tiempo: "4 de daño cada 2 segundos, 
 
 **Cómo se ve jugando:** la aguja de la salud baja sola, despacio. En el panel de valores (**F1**) aparece "DAÑO EN EL TIEMPO: N encima · quitan X de salud más · el más largo termina en Y s del mundo".
 
-**En la red:** el daño en el tiempo viaja en el estado del personaje (152 bytes), y la adopción exige que coincida con el del host. Lo pone solo el host, con el consumible, y sube la época.
+**En la red:** el daño en el tiempo viaja en el estado del personaje (152 bytes; 153 desde el 2026-11-04), y la adopción exige que coincida con el del host. Lo pone el consumible: hasta el 2026-11-04 solo el host, subiendo la época; desde entonces, tu PC y el host en el mismo tick (sección 12).
 
 **Probado:**
 
@@ -399,4 +401,208 @@ Pediste un consumible que haga daño en el tiempo: "4 de daño cada 2 segundos, 
 | El panel Objetos (en una copia) | El consumible tiene cuatro números; un daño en el tiempo sin duración no se guarda; el veneno de prueba quita 30 de golpe y 10 en 1 s, y la línea del panel lo dice. Jugando, baja 10 más en un segundo. **145 de 145** y **26 de 26**. Una comprobación de los contenedores ("la zona sigue marcada sin guardar") falló en una de tres corridas: es la marca de "sin guardar" del editor sin ventana, no algo de esto |
 | Repetición, mantle, agarre, inventario, tres procesos | Iguales. La huella completa de la repetición pasa a `85afb38454f8bb04` (el estado más largo y tus costos de 0,8); los 93 bytes del movimiento siguen dando `7d3d417dd954d05b` |
 
-**Falta:** tu prueba, solo y en las dos PC. Recorrido corto: recogé las **Toxinas lentas**, usá una y mirá bajar la aguja; usá dos seguidas; usá una con la cámara lenta prendida; con poca salud, usá varias hasta morir.
+**Falta** (escrito el 2026-11-02; el 2026-11-04 la hiciste en red y anduvo): tu prueba, solo y en las dos PC. Recorrido corto: recogé las **Toxinas lentas**, usá una y mirá bajar la aguja; usá dos seguidas; usá una con la cámara lenta prendida; con poca salud, usá varias hasta morir.
+
+---
+
+## 12. Usar, recoger y soltar sin esperar al host (2026-11-04)
+
+Probaste todo en red y anduvo. Notaste que al usar un veneno salía "esperando…", que con más latencia tardaba más, y que al recoger pasaba lo mismo. Era así: usar y recoger eran pedidos al host, y tu PC no mostraba nada hasta la respuesta, un viaje de ida y vuelta (tu ping). Pediste sacarlo, **también para la salud** (lo elegiste entre las dos opciones).
+
+**Cómo funciona ahora:**
+
+- **Usar un consumible** (desde el menú o la barra rápida) ya no es un pedido. Viaja con las teclas de tu personaje, en el input de cada tick, como Kp 1 y Kp 2.
+    - Tu PC aplica el efecto en el tick siguiente al clic, y la unidad se ve gastada en el mismo cuadro.
+    - El host, cuando le llega ese input, hace lo mismo en ese mismo tick: mira que el objeto esté en tu inventario, aplica el efecto y gasta la unidad.
+    - Como los dos hacen lo mismo en el mismo tick, la respuesta del host no trae corrección.
+- **Recoger** sigue siendo un pedido, porque el host decide quién llegó primero. Pero lo que se ve no lo espera:
+    - lo recogido aparece en tu grilla en el mismo cuadro, donde lo va a poner el host, y deja de verse en el piso;
+    - si no entra, lo dice sin preguntarle al host.
+- **El "esperando…" amarillo** queda solo para los pedidos que todavía esperan: mover, dividir y equipar. Soltar también esperaba, hasta el cambio de más abajo ("Soltar sin esperar").
+
+**Si el host dice que no** (casi nunca; por ejemplo, tu compañero agarró el objeto primero):
+
+- **Al recoger:** el objeto vuelve al piso y sale el aviso.
+- **Al usar:** la unidad vuelve a verse y sale "No se usó: …". Si tu PC ya había aplicado el efecto, la corrección del host lo deshace.
+
+**Lo que eligió Claude:**
+
+- **Un uso por tick.** Dos clics en el mismo cuadro van en ticks seguidos (1/60 s), y el segundo se mira con lo que dejó el primero. Por ejemplo, dos botiquines con 60 de salud: el primero cura hasta 100 y el segundo no se usa, en las dos PC, y vuelve a verse.
+- **Mientras el host no confirma un uso, esa pila no se agarra ni se mueve.** Dice "Ese objeto está esperando al host", porque un movimiento que llegara antes que el uso encontraría otra versión. Usarla otra vez sí se puede. Dura lo que tarda el host, un ping.
+- **Equipar sigue siendo un pedido:** no cambia la salud.
+- **El pedido de usar** (`InvProtocol` USE) sigue andando, para las pruebas: es un evento del host, como antes.
+- **Si el input del tick del uso le llega tarde al host** (internet muy mala), el host lo aplica unos ticks después y hay una corrección chica. Las pruebas con 300 ms y 8 % de pérdida no la tuvieron. *Corrección del mismo día (sección 13): esto valía solo si el uso tardío seguía siendo el último. Con dos usos seguidos, el host podía saltearse el primero. Ya no pasa.*
+
+**En la red:**
+
+- El input tiene 5 bytes más: el contador de usos y el objeto, 17 en vez de 12. *Desde la sección 13: 14 bytes, más 8 por cada uso que el host todavía no confirmó.*
+- El estado tiene uno más, 153: hasta qué uso llegó. La adopción exige que coincida con el del host.
+- Un uso desde el input no sube la época.
+- La huella cambió: las dos PC tienen que tener esta versión (en la notebook, `actualizar_lab.bat`).
+
+**Dónde está:**
+
+| Archivo | Qué cambió |
+| --- | --- |
+| `scripts/actor/actor_input.gd` | `use_presses` y `use_uid` (desde la sección 13, `uses` en vez de `use_uid`) |
+| `scripts/actor/actor_state.gd` | `use_presses_seen` (153 bytes) |
+| `scripts/actor/actor_vitals.gd` | `host_event`: si aplicar sube la época |
+| `scripts/net/sim_clock.gd` | `before_step`: lo que se le aplica a un actor justo antes de moverlo |
+| `scripts/net/net_sync.gd` | El host repite el uso junto con lo demás del input |
+| `scripts/net/claim_adoption.gd` | La adopción exige el mismo uso |
+| `scripts/inventory/inv_net.gd` | `queue_use`, `take_use` y `use_before_step`; lo recogido no se dibuja en el piso (desde la sección 13, `fill_input` en vez de `take_use`) |
+| `scripts/inventory/inv_authority.gd` | `use_from_input`, y en el paquete, hasta qué uso llegó |
+| `scripts/inventory/inv_replica.gd` | `shown_own`: la grilla como se ve, con lo recogido y lo usado; `is_taken` |
+| `scripts/inventory/inv_ui.gd` | `use_item` y `pick_up_world`; la grilla se dibuja con `shown_own`; el amarillo solo para los pedidos |
+| `scenes/net_lab/net_lab.gd` | El uso va en el input propio y se aplica también al repetir ticks |
+| `scenes/net_lab/estados_test.gd` | Sección 9 nueva |
+| `scenes/net_lab/inventario/pruebas/inv_instant_test.gd` y `.tscn` | La prueba nueva en red |
+
+**Probado:**
+
+| Prueba | Resultado |
+| --- | --- |
+| `estados_test.tscn`, sección 9 nueva | **101 de 101.** Lo nuevo: <ul><li>un botiquín desde la interfaz: gastado en el mismo cuadro, sin pedido; cura en el tick siguiente sin subir la época;</li><li>con la salud completa no sale y lo dice;</li><li>dos venenos desde la barra, uno por tick: 100 → 60 → 20;</li><li>uno que el host no puede usar vuelve y lo dice;</li><li>una botella lejos: se ve en la grilla, el host dice que no y vuelve al piso con el aviso; cerca, queda.</li></ul> |
+| `inv_instant_test.tscn` (nueva), host y cliente en esta PC; el cliente con 120 ms, ±40 ms y 2 % de pérdida | **61 de 61.** <ul><li>Recoger cuatro consumibles: en la grilla en el mismo cuadro; el host contestó a los 166–214 ms.</li><li>Un veneno: −40 en el tick siguiente, sin corrección; el host lo confirmó a los 166 ms.</li><li>Dos botiquines con 60 y dos venenos seguidos (100 → 60 → 20).</li><li>La cápsula desde la barra: la muerte y el aviso al instante.</li><li>Uno que el host no pudo usar: la corrección lo deshace. Es la única corrección de la prueba.</li><li>La toxina: sin correcciones mientras baja, y quitó justo 20.</li><li>Al final, la salud, las muertes, los usos y el inventario dan igual en el host y en el cliente.</li></ul> |
+| La misma, con 300 ms, ±80 ms y 8 % de pérdida | **61 de 61.** El host contestaba a los 317–434 ms: eso es lo que antes se esperaba |
+| Lo de antes | Sin cambios: <ul><li>inventario 166 de 166, modelo 70 de 70, visual 7 de 7;</li><li>tres procesos: host 18, A 24 y B 7;</li><li>mantle 50 casos, agarre 22 de 22;</li><li>los 13 casos de red de la cámara lenta y los venenos, con las mismas correcciones que antes.</li></ul>La huella completa de la repetición pasa a `f9b53da25ac45f16` (el estado tiene un byte más); los 93 bytes del movimiento siguen dando `7d3d417dd954d05b`. El panel Objetos no cambió y sus pruebas no se volvieron a correr |
+
+**Límite nuevo:** si tu PC predice una muerte por consumible y el host no la aplica (rarísimo: el objeto ya no estaba en tu inventario), el aviso ya salió. Si después morís de verdad con el mismo número, ese aviso no vuelve a salir. Es lo mismo que el agotamiento de la sección 10.
+
+**Tu prueba:** en las dos PC, con +200 ms en las dos, el mismo 2026-11-04: "funciona correctamente". Commit local `c392774`, solo el código.
+
+### Soltar sin esperar (2026-11-04, después de tu prueba)
+
+Notaste que soltar algo con mucha latencia tardaba en aparecer en el piso: el host elegía el lugar y recién con su respuesta tu PC lo dibujaba. Ahora:
+
+- **Tu PC elige el lugar** con la misma regla que el host: adelante del personaje o alrededor, con piso, a la vista y sin otro objeto encima. Lo dibuja ahí en el mismo cuadro y lo saca de la grilla.
+- **Se lo manda al host en el pedido** (`DROP_AT`, nuevo). El host lo deja en ese mismo lugar si sirve, mirado desde tu personaje en el host, así no salta. Si no sirve, elige él, como antes, y el objeto aparece donde dice el host.
+- **Vale para las tres maneras de soltar:** desde la mano con un clic afuera de la grilla, **Soltar** del menú y **Soltar una cantidad…**. También desde una caja abierta.
+- **Sin lugar,** lo dice en el momento ("No hay lugar cerca para soltarlo"), sin preguntarle al host.
+
+**Lo que eligió Claude:** el lugar que elige tu PC puede estar hasta 1 m más lejos de lo normal de tu personaje en el host. Es lo que pudo moverse el personaje mientras viajaba el pedido. El pedido viejo, donde el host elige el lugar (`DROP`), sigue andando para las pruebas.
+
+**Dónde está:**
+
+| Archivo | Qué cambió |
+| --- | --- |
+| `scripts/inventory/inv_protocol.gd` | El pedido `DROP_AT`, con el lugar en milímetros (`drop_args`, `drop_spot_of`) |
+| `scripts/inventory/inv_authority.gd` | La regla del lugar pasó a una función que usan los dos (`find_drop_spot`); `drop_spot_ok` mira si el lugar que manda tu PC sirve, con el margen de 1 m (`DROP_LAG_MARGIN`) |
+| `scripts/inventory/inv_net.gd` | `predict_drop_spot`: el lugar que elige tu PC; el piso se dibuja con lo soltado sin confirmar |
+| `scripts/inventory/inv_replica.gd` | `predicted_drops`: lo soltado que el host todavía no confirmó; sale de la grilla en el mismo cuadro |
+| `scripts/inventory/inv_ui.gd` | `drop_item`: las tres maneras de soltar mandan `DROP_AT`, sin "esperando…" |
+| `scenes/net_lab/estados_test.gd` | Soltar una botella, en la sección 9 |
+| `scenes/net_lab/inventario/pruebas/inv_instant_test.gd` | Soltar desde el menú y desde la mano, y las horas para medir |
+
+**Probado:**
+
+| Prueba | Resultado |
+| --- | --- |
+| `estados_test.tscn` | **104 de 104.** Lo nuevo: soltar una botella, que se ve en el piso en el mismo cuadro y una menos en la grilla, sin "esperando…"; el host la deja en ese mismo lugar y no queda nada sin confirmar |
+| `inv_instant_test.tscn`, con 120 ms, ±40 ms y 2 % de pérdida, y con 300 ms, ±80 ms y 8 % | **69 de 69** las dos veces. Un veneno desde el menú y el botiquín entero desde la mano: en el piso en el mismo cuadro, y el host los dejó en el mismo lugar, a menos de 2 mm. Contestó entre 166 y 331 ms. Al final, todo igual en el host y en el cliente |
+| Lo de antes | Inventario 166 de 166, tres procesos 18, 24 y 7, visual 7 de 7 |
+
+**Tu prueba:** en las dos PC, el mismo día: funciona. Commit local `2cf8fb1`.
+
+**Recoger y soltar, vistos desde el host.** Te pareció que recoger se ve antes que soltar. Lo medí con las dos PC en +200 ms, en `inv_instant_test`. Cada proceso anota la hora de la PC: el cliente cuando pide y el host cuando ve el cambio en el piso.
+
+| Acción del cliente | Lo ve el host a los |
+| --- | --- |
+| Recoger (cuatro veces) | 232, 233, 240 y 240 ms |
+| Soltar desde el menú | 238 ms |
+| Soltar desde la mano | 238 ms |
+
+Tardan lo mismo: es el viaje del pedido de ida. Lo único distinto: **Soltar** del menú sale al soltar el botón del mouse, como todo botón, y la E sale al apretarla. Esa diferencia es lo que tardás en soltar el clic. La prueba sigue anotando esas horas (las líneas "PIDE a las …" del cliente y "PISO a las …" del host), por si hay que volver a medirlo.
+
+**El aviso de tu captura 1084** ("The variable "stack" is declared below in the parent block") era mío, de `inv_replica.gd`: dos variables con el mismo nombre en la misma vuelta. Funcionaba bien, pero se podían confundir. Le cambié el nombre a una (commit local `858df9a`). Cargando con el depurador todos los scripts que toqué estos días, no queda ningún aviso.
+
+---
+
+## 13. Los arreglos de la auditoría de GPT (2026-11-04, a la noche)
+
+GPT revisó el inventario, la salud y la red en [`auditoria_inventario_salud_red_2026-11-04.md`](auditoria_inventario_salud_red_2026-11-04.md). Pediste revisar cada punto y arreglar lo necesario. Los nueve puntos se comprobaron contra el código: los cinco que marca como errores de hoy eran ciertos. De los cuatro riesgos a futuro, elegiste arreglar ahora tres chicos (ARQ-01, EDT-01 y ESC-01) y dejar anotado el cuarto (ESC-02). Lo que ves al jugar no cambia: usar, recoger y soltar siguen siendo instantáneos.
+
+### Lo que estaba mal y cómo quedó
+
+| Punto | Qué pasaba | Cómo quedó |
+| --- | --- | --- |
+| **INV-01** | El input llevaba solo el **último** uso. Si usabas dos cosas en ticks seguidos y el host se perdía el tick de la primera (el input llegó tarde), hacía solo la segunda. Además daba las dos por hechas, sin aviso. | Cada uso tiene su número y viaja en **todos** los inputs hasta que el host lo contesta. El host hace todos los que le faltan, en orden, y contesta **uno por uno** (el que no pudo, con su motivo). |
+| **INV-02** | Recoger va por un camino (pedido) y usar por otro (input). Si recogías algo y lo usabas enseguida, el uso podía llegar antes: el host decía "ya no está en tu inventario" y la salud volvía. Además, la tecla de la barra rápida dejaba usar algo que estaba "esperando…" (el menú no). | El host respeta **el orden en que hiciste las cosas**: un uso espera a que el host procese lo que pediste antes, y un pedido espera a los usos de antes. La barra rápida respeta el "esperando…" igual que el menú. |
+| **INV-03** | La grilla que ves sin esperar al host se armaba con todo lo recogido y soltado primero, y los usos al final. Si usabas la última unidad de una pila y después recogías otra del mismo tipo, veías la pila vieja llena. | Recoger, soltar y usar van en **un solo registro, con su orden**. Lo que ves es lo mismo que hacer las acciones una por una, y es lo que va a hacer el host. |
+| **INV-04** | Si morías en el mismo tick en que apretabas Kp 1 y Kp 2 (con una cápsula, o con el daño en el tiempo), las teclas volvían a prender los estados después de la muerte. | **La muerte gana:** en ese tick las teclas se cuentan como apretadas pero no prenden nada. El tick termina con todo apagado. Una pulsación del tick siguiente ya vale. |
+| **PRU-01** | Dos pruebas de red (`inv_instant_test` e `inv_pair_test`) daban "bien" aunque se les acabara el tiempo sin terminar. | Si se acaba el tiempo, si el recorrido no llega al final o si no comprobó nada, salen con error. |
+| **ARQ-01** | Al usar sin esperar, tu PC aplicaba el efecto sin mirar la pila ni la barra. Hoy los consumibles no las miran, pero una capacidad futura (una carga, una munición) se rompería. | Cada capacidad dice si se puede **adelantar** (`predictable`). Los consumibles, sí. Una que no, sale como pedido y espera al host. Tu PC adelanta con una copia de la pila y la barra como estaban al usarla. |
+| **EDT-01** | El documento del inventario decía que de un modelo "no corren sus scripts". No era del todo cierto: armar la miniatura o el objeto en el piso creaba la escena, y eso corre su `_init`. | Un modelo **con scripts** no se usa como apariencia: ni siquiera se crea. Se ve la caja de su color, y lo avisan el catálogo (en la consola) y la vista previa del panel **Objetos**. Los modelos de hoy son `.glb` sin scripts: no cambia nada. |
+| **ESC-01** | Cada consumible usado redibujaba todos los objetos sueltos del mundo, y cada paquete del host podía redibujarlos dos veces. | Usar no redibuja el piso, y un paquete lo redibuja una sola vez. Varios usos en el mismo tick salen en un solo paquete del host. |
+| **ESC-02** | La lista de tramos de cámara lenta crece toda la partida. | **Sin cambios, como elegiste.** Importa con partidas largas o guardadas: hay que resumir los tramos viejos sin mover las plataformas. Queda en "Límites" (abajo). |
+
+### Lo que eligió Claude
+
+- **Hasta 32 usos sin confirmar** en tu PC (en fila o en viaje); con más, dice "Esperá: hay muchos usos que el host todavía no confirmó". De esos, **hasta 8 viajan a la vez** en el input. Con la regla de un uso por tick, 8 son más de lo que tarda el host en contestar con 120 ms de ping. Así el número de cada uso, que da la vuelta en 256, nunca se confunde (GPT mostró que con 130 seguidos sí).
+- **3 segundos de espera como mucho.** Si un uso espera un pedido que no llega, o al revés, a los 3 s el host sigue sin él: el uso se rechaza ("no llegó a tiempo lo que hiciste antes") y el pedido se procesa igual. Con un jugador normal no pasa: es para que nada quede trabado.
+- **Un uso que el host no encuentra en el input** se contesta como perdido ("se perdió en el camino: probá de nuevo"). Con este juego no pasa, porque cada uso viaja hasta que el host lo contesta.
+- **El uso que espera** se ve hecho en tu PC igual que siempre. En el host se hace unos ticks después y llega una corrección que no se nota: tu PC vuelve a aplicar el uso al repetir los ticks.
+- **Las capacidades nuevas no se adelantan,** salvo que digan que sí (`predictable`). Así una que dependa de la pila no se rompe por olvido.
+
+### En la red
+
+- **El input:** 14 bytes, más 8 por cada uso sin confirmar (casi siempre ninguno o uno). Antes eran 17 fijos.
+- **Cada pedido lleva el número del último uso** hecho antes que él.
+- **El paquete del host** dice hasta qué uso llegó y cuáles no pudo hacer, cada uno con su motivo.
+- **El estado del personaje no cambió** (153 bytes): la repetición da la misma huella, `f9b53da25ac45f16`.
+- **Las dos PC tienen que tener esta versión:** en la notebook, `actualizar_lab.bat`, y para jugar a distancia, un `.exe` nuevo. Con versiones distintas la huella no deja entrar.
+
+### Dónde está
+
+| Archivo | Qué cambió |
+| --- | --- |
+| `scripts/actor/actor_input.gd` | `uses`: los usos sin confirmar, cada uno con su objeto y el pedido anterior; `read_from` descarta un input cortado o con más de 8 |
+| `scripts/actor/actor_powers.gd`, `actor_motor.gd` | INV-04: si murió en el tick, las teclas no prenden nada |
+| `scripts/net/sim_clock.gd`, `scenes/net_lab/net_lab.gd` | Le avisan al motor si el actor murió antes de moverse (por un consumible); el laboratorio arma el input con `InvNet.fill_input` |
+| `scripts/net/net_sync.gd` | Lee el input nuevo; el input repetido trae los mismos usos |
+| `scripts/inventory/inv_net.gd` | `queue_use`, `fill_input`, `use_before_step` (todos los usos que faltan, en orden, esperando al pedido anterior) y la fila de pedidos que espera al uso anterior |
+| `scripts/inventory/inv_replica.gd` | Un solo registro con el orden; los usos con su número y su pedido anterior; la respuesta uso por uso; `world_view_changed` |
+| `scripts/inventory/inv_authority.gd` | `use_from_input` anota la respuesta de cada uso; `use_refused` |
+| `scripts/inventory/inv_protocol.gd` | El pedido lleva el uso anterior |
+| `scripts/inventory/inv_ui.gd` | `use_item` respeta el "esperando…" y el límite de 32; lo que no se adelanta sale como pedido |
+| `scripts/inventory/inv_ability.gd`, `inv_consumable.gd` | `predictable` |
+| `scripts/inventory/inv_visuals.gd`, `inv_catalog.gd`, `addons/inventario_objetos/vista_previa.gd` | Modelos con scripts: no se usan, y se avisa |
+| `scenes/net_lab/estados_test.gd`, `inventario/pruebas/inv_model_test.gd`, `inv_instant_test.gd`, `inv_pair_test.gd` | Las pruebas nuevas y el tiempo agotado como falla |
+
+### Probado (2026-11-04, en esta PC)
+
+| Prueba | Resultado |
+| --- | --- |
+| `inv_model_test` | **91 de 91** (antes 70). Lo nuevo: lo que se ve igual que hacer las acciones una por una, comparando id, cantidad, versión, celda y giro (usar lo último y recoger; recoger y usar; soltar parte y usar; un recoger rechazado en el medio); la respuesta uso por uso con el número dando la vuelta (254, 255, 0); el input de ida y vuelta, y uno cortado o con 9 usos se descarta; un modelo con `_init` no lo corre, no se usa y el catálogo lo avisa, y uno sin scripts se arma como siempre |
+| `estados_test` | **129 de 129** (antes 104). Lo nuevo: <ul><li>la cápsula y el daño en el tiempo matando en el mismo tick de Kp 1 y Kp 2: todo apagado, también después; B sigue con su cámara lenta; una pulsación posterior sí prende;</li><li>dos usos que llegan juntos: veneno y después botiquín, 60 → 20 → 70; el mismo input otra vez no repite nada, y uno viejo tampoco;</li><li>dos que faltan en el input se contestan como perdidos;</li><li>un uso que espera su pedido, y un pedido que espera su uso;</li><li>los dos que nunca llegan, a los 3 s;</li><li>el límite de 32.</li></ul> |
+| `inv_instant_test`, host y cliente | **83 de 83** (antes 69) con 120 ms, ±40 ms y 2 % de pérdida, y también con 300 ms, ±40 ms y 8 %. Lo nuevo es el caso de GPT: recoger un veneno que no tenías y usarlo enseguida, con el pedido de recoger 350 ms más tarde que el input. Se ve usado en el tick siguiente, el host lo hace después de recogerlo y no sale "No se usó" |
+| El tiempo agotado | El host solo, sin cliente y con 3 s de límite: las dos pruebas de red salen **con error** (antes salían bien) |
+| `inv_lab_test`, `inv_pair_test` (tres procesos) | 166 de 166; host 18, A 24 y B 7, sin fallas: iguales |
+| Repetición, mantle, agarre por encima del filo | Iguales: huella `f9b53da25ac45f16`, 50 casos, 22 de 22 |
+| El panel **Objetos**, en una copia del proyecto | 159 de 159 en el editor y 26 de 26 jugando: iguales |
+| Que las pruebas nuevas de verdad detecten | Con el arreglo de INV-04 apagado, la prueba de estados falla (termina con los dos estados prendidos, como dijo GPT). Con los usos al final, como antes, la del modelo falla (se ve la pila vieja ×5) |
+| Avisos de GDScript | Cargando con el depurador todos los scripts tocados: ninguno |
+
+### Lo que no se probó y lo que queda
+
+- **Con el `.exe`.** En las dos PC lo probaste el mismo día (abajo, "Resultado").
+- **INV-01 e INV-04 no se pueden provocar a mano:** hace falta que el host se pierda un tick justo, o morir en el mismo 1/60 s en que apretás las teclas. Los cubren las pruebas automáticas.
+- **ESC-02** (el historial de la cámara lenta): queda para cuando haya partidas largas o guardadas.
+- **ESC-01, lo que no se hizo:** el host sigue mandando la grilla entera con cada cambio, y redibujar el piso todavía recorre todos los objetos sueltos. Con la zona del laboratorio no pesa. Antes de mapas con muchos objetos o grillas grandes, hay que medir cuánto ocupa cada paquete y cuánto tarda cada acción.
+
+### Tu prueba en las dos PC
+
+Lo de siempre tiene que seguir andando igual. En la notebook, primero `actualizar_lab.bat`.
+
+1. En las dos PC, abrí Godot, elegí **net_lab** y apretá **F6**. En esta PC, **Crear partida**; en la notebook, **Unirse** con la IP de siempre.
+2. En las dos, **Alt + 4** (internet mala, +200 ms), como en tu prueba anterior.
+3. Caminá hasta la **Zona de inventario**. Mirá un **Frasco de veneno**, apretá **E** y enseguida **Tab**. Hacé clic derecho sobre el veneno → **Usar**, lo más rápido que puedas. La salud baja 40 en el momento y no sale "No se usó".
+4. Recogé un **Botiquín** y usalo: la salud vuelve a 100. Después, con el inventario abierto (**Tab**), hacé clic en el veneno y clic en el acceso **1** de la barra de abajo. Cerrá con **Tab** y apretá **1** dos veces rápido: baja a 60 y a 20, sin avisos.
+5. Prendé el súper (**Kp 2**) y la cámara lenta (**Kp 1**). Recogé la **Cápsula letal** y usala: "Moriste" y los dos estados apagados. Después, **Kp 2** sí prende el súper.
+6. Soltá algo y recogelo, como siempre.
+
+Si algo se ve distinto de antes, mandame la captura o el video.
+
+**Resultado (2026-11-04):** esta lista resultó larga. La hiciste en cuatro pasos, de a uno, con **Alt + 4** en las dos: recoger y usar enseguida desde la notebook, morir con el súper prendido, soltar y recoger, y recoger y usar enseguida desde el host. **Todo funcionó.** "Lo más rápido que puedas" no hacía falta: lo que pasa en el mismo 1/60 s nadie lo hace a mano, y eso lo cubren las pruebas automáticas.
+
+Notaste que, con las dos en Alt + 4, la cámara lenta tarda en arrancar también en el host. No es de este cambio, y el host no trabaja como cliente. La cámara lenta es del mundo: el host la programa para un poco más adelante, así llega el aviso a la notebook y arranca en el mismo tick en las dos. Con las dos en Alt + 4 se suman las dos demoras y la espera crece. Es de las "Mecánicas que dependen de un buen internet" de la guía.

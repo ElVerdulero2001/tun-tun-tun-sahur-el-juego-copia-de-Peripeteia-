@@ -104,6 +104,30 @@ Algunas cambian con lo que está abierto: la de **ID** dice si se puede cambiar,
 
 Lo que eligió Claude: **siguen a la vista** los avisos, que cambian con lo que escribís: lo que falta para guardar, lo que no entra en una grilla, la línea del consumible que dice lo que hace, el resultado de guardar o colocar, lo que no se pudo dibujar en la vista previa y que la caja base no se cambia. La sección **Ayuda** del final, plegada, quedó igual. La burbujita está en `addons/inventario_objetos/ayuda.gd`.
 
+### Usar, recoger y soltar sin esperar al host (2026-11-04)
+
+Probaste todo en red y anduvo, pero al usar un veneno salía "esperando…" un momento, más largo con más latencia, y al recoger pasaba lo mismo. Era el viaje de ida y vuelta al host. Pediste sacarlo, también para la salud. El detalle está en la sección 12 de [`hud_salud_estamina_y_estados.md`](hud_salud_estamina_y_estados.md); para el inventario cambió esto:
+
+- **Usar un consumible** (menú o barra rápida) ya no es un pedido: va en el input del personaje y lo aplican tu PC y el host en el mismo tick. La unidad se ve gastada en el mismo cuadro y la salud cambia en el tick siguiente.
+- **Recoger** sigue siendo un pedido, pero lo recogido se ve en la grilla en el mismo cuadro y deja de verse en el piso. Si el host dice que no, vuelve al piso con el aviso.
+- **El amarillo de "esperando…"** queda para mover, dividir y equipar. Soltar también esperaba, hasta el cambio de abajo.
+- **Lo eligió Claude:** un uso por tick; mientras el host no confirma un uso (un ping), esa pila no se agarra ni se mueve, pero se puede volver a usar.
+
+Probado sin red (`estados_test`, 101 de 101) y con host y cliente en esta PC, con internet mala (`pruebas/inv_instant_test.tscn`, 61 de 61, también con 300 ms y 8 % de pérdida). Las pruebas de antes, iguales. Lo probaste en las dos PC con +200 ms: funciona correctamente. Commit local `c392774`.
+
+Después pediste lo mismo para **soltar**, que con latencia tardaba en aparecer en el piso. Ahora tu PC elige el lugar con la misma regla que el host y lo dibuja ahí ya. Se lo manda en un pedido nuevo (`DROP_AT`), y el host lo deja en ese lugar si sirve, así no salta. Vale desde la mano, desde **Soltar** del menú y desde **Soltar una cantidad…**, también desde una caja. Probado sin red (104 de 104) y en red con 120 y 300 ms (69 de 69), y por vos en las dos PC: funciona (commit local `2cf8fb1`). Medido con +200 ms en las dos, el host ve recoger y soltar a la misma demora, entre 232 y 240 ms. El detalle está en la sección 12 de [`hud_salud_estamina_y_estados.md`](hud_salud_estamina_y_estados.md).
+
+### Los arreglos de la auditoría de GPT (2026-11-04, a la noche)
+
+GPT revisó el inventario, la salud y la red ([`auditoria_inventario_salud_red_2026-11-04.md`](auditoria_inventario_salud_red_2026-11-04.md)). Los cinco errores que marcó eran ciertos y están arreglados. De los cuatro riesgos a futuro, elegiste tres para ahora. El detalle punto por punto, las pruebas y tu recorrido de prueba están en la sección 13 de [`hud_salud_estamina_y_estados.md`](hud_salud_estamina_y_estados.md). Para el inventario cambió esto:
+
+- **El host hace las cosas en el orden en que las hiciste.** Recoger o soltar (pedidos) y usar (en el input) viajan por caminos distintos. Ahora un uso espera a que el host procese lo que pediste antes, y un pedido espera a los usos de antes. Antes, recoger algo y usarlo enseguida podía terminar en "No se usó: ese objeto ya no está en tu inventario".
+- **Cada uso llega:** viaja en todos los inputs hasta que el host lo contesta, y el host contesta uno por uno.
+- **La grilla que ves sigue ese mismo orden.** Antes, usar lo último de una pila y recoger otra igual mostraba la pila vieja llena.
+- **La barra rápida respeta el "esperando…"** igual que el menú.
+- **Un modelo con scripts no se usa como apariencia** (sección 4): se ve la caja de su color y se avisa. Los de hoy son `.glb` y no cambian.
+- **Usar un consumible no redibuja los objetos del piso.**
+
 ---
 
 ## 1. Dónde está cada cosa
@@ -141,6 +165,7 @@ Lo que eligió Claude: **siguen a la vista** los avisos, que cambian con lo que 
 - Por cada operación sale **un solo paquete por jugador**, con su resultado, sus inventarios, la caja abierta, los objetos del mundo y el equipo. Una transferencia entre dos inventarios llega junta: nunca se ve a medias.
 - Los paquetes van numerados y cada máquina los aplica en orden (`InvReplica`), aunque el simulador de red los desordene.
 - El jugador del host y "Jugar solo" usan el mismo camino, sin red.
+- **Usar un consumible** no es un pedido: va en el input del personaje (desde el 2026-11-04). Cada pedido lleva el número del último uso hecho antes, y cada uso, el número del último pedido hecho antes. El host no hace uno antes que el otro: así los dos caminos se hacen en el orden en que jugaste (auditoría del 2026-11-04). Si lo que se espera no llega en 3 s, el host sigue sin él.
 
 **Presentación local:** la interfaz lee lo que confirmó el host y pide cambios; nunca escribe ese estado. Los objetos sueltos en el mundo y lo equipado se dibujan en cada máquina con lo que cuenta el host. Las miniaturas se hacen en cada máquina y no viajan por red.
 
@@ -154,7 +179,7 @@ Lo que eligió Claude: **siguen a la vista** los avisos, que cambian con lo que 
 | Apilar | Igual que mover, más: mismo tipo, mismo estado y lugar en la pila de destino. Pasa la cantidad pedida (con clic, toda la pila; con clic derecho, las unidades), hasta llenarla; el resto se queda |
 | Dividir | Cantidad entera entre 1 y la cantidad menos 1, y lugar libre para la pila nueva, que recibe un id nuevo |
 | Recoger | Que el objeto siga en el mundo, que el pecho del personaje esté a menos de **Pickup Range** (2 m) y que el personaje lo vea desde los ojos, sin una pared en el medio. Primero completa pilas compatibles y después busca lugar libre, siempre en el mismo orden. Si entra solo una parte, el resto queda en el mundo |
-| Soltar | Desde el inventario propio o desde la caja que tiene abierta y al alcance. Cantidad válida y un lugar en el piso cerca del personaje, calculado por el host: que se vea desde el pecho, con piso abajo y sin pisar personajes, paredes, cajas ni otro objeto suelto. Si no hay lugar, no se suelta nada |
+| Soltar | Desde el inventario propio o desde la caja que tiene abierta y al alcance. Cantidad válida y un lugar en el piso cerca del personaje: que se vea desde el pecho, con piso abajo y sin pisar personajes, paredes, cajas ni otro objeto suelto. Si no hay lugar, no se suelta nada. Desde el 2026-11-04 el lugar lo elige tu PC con esa misma regla y lo manda en el pedido (`DROP_AT`); el host lo acepta si cumple la regla mirado desde tu personaje en el host, con 1 m de margen por la demora, y si no, elige él |
 | Usar, equipar | Que el objeto esté en el inventario propio, que tenga esa capacidad y que se pueda (por ejemplo, con la salud completa, la botella no se usa ni se gasta). El efecto en la salud y la estamina y el gasto de la unidad van en el mismo paso |
 | Barra rápida | Que el acceso exista y que el objeto sea del inventario propio |
 | Abrir una caja | Que exista, que los pies del jugador estén a menos de su **Access Range** (2,2 m) del centro y que la vea desde los ojos, sin una pared en el medio. Si se aleja o la caja desaparece, se le cierra (para cerrarse alcanza con alejarse: no hace falta dejar de mirarla) |
@@ -215,7 +240,7 @@ Si la notebook no entra y dice "difiere en el inventario", las dos copias no tie
 | **Alt + 1 a 5** | La simulación de internet (antes, 1 a 5 sin Alt) |
 | **Y**, **U** (solo el host) | Empujón inmediato y programado (antes, E y R) |
 
-Lo que está esperando al host se ve con un borde amarillo y dice "esperando…". Mientras tanto ese objeto no se puede volver a agarrar. Lo que dejaste con clic derecho y todavía no salió se marca con borde amarillo y "+N".
+Lo que está esperando al host se ve con un borde amarillo y dice "esperando…". Mientras tanto ese objeto no se puede volver a agarrar. Lo que dejaste con clic derecho y todavía no salió se marca con borde amarillo y "+N". Desde el 2026-11-04, usar un consumible, recoger y soltar no esperan: se ven en el momento (sección "Usar, recoger y soltar sin esperar al host", arriba).
 
 ### Qué hay en la zona
 
@@ -269,7 +294,7 @@ Si algo no se entiende, hacé clic en el **?** que tiene al lado: abre la explic
     - **Se apila, hasta**: cuántos entran en una pila. Sin tildar, va de a uno.
     - Si no entra en la grilla del jugador (12 × 16) o en alguna caja conocida, lo avisa; igual se puede guardar.
 4. **Apariencia**: cómo se ve en el piso, en la mano y en la miniatura.
-    - **Modelo**: arrastrá un `.glb` o `.tscn` desde **FileSystem**. No se copia ni se cambia. Solo se usan sus mallas: no corren sus scripts, ni su física, ni sus efectos.
+    - **Modelo**: arrastrá un `.glb` o `.tscn` desde **FileSystem**. No se copia ni se cambia. Solo se usan sus mallas: no corren su física ni sus efectos. **Tiene que ser un modelo sin scripts** (un `.glb` importado no trae): armar la miniatura o el objeto en el piso crea la escena, y eso correría la lógica de sus scripts. Uno con scripts no se usa: se ve la caja de su color, la vista previa lo dice y el catálogo lo avisa en la consola (desde la auditoría del 2026-11-04; antes este texto decía que sus scripts no corrían, y no era del todo cierto).
     - Sin modelo aparecen **Forma simple** (caja, cilindro, esfera o cápsula, con sus medidas, o una malla de un archivo) y **Color**. Con modelo no se muestran, porque no se usan. Sin modelo ni forma, se ve como una caja de su color.
     - **Tamaño en el piso**: cuánto mide su lado más largo cuando está suelto en el mundo, en metros.
 5. **Miniatura del inventario**: la imagen que se ve en la grilla, grande, con las líneas de sus celdas. Se acomoda con el mouse:
@@ -429,15 +454,19 @@ Al ser código de `scripts/inventory`, cambia la parte "el código" de la huella
 | Revisión con ventana del editor, con fotos | El panel a la vista, oculto y con la ventana chica: la vista 3D mide lo mismo (883 × 472) y el panel entra en su ancho de siempre (260 px; lo de adentro pide 225), también con un nombre larguísimo. La vista previa dibuja el objeto, en el piso y en la mano, y la caja con su alcance. Las miniaturas se hacen en el editor, y cambiar de ítem borra la anterior. Ver "Lo que se arregló mirando las fotos" | Revisadas |
 | Revisión con ventana de la miniatura | Arrastrar con el mouse la gira y cuenta como cambio. Al pasar de automático a manual, la imagen no salta: el machete, acostado solo, queda igual. La imagen del panel es la del juego: la misma medida y diferencia 0. Correrla 0,25 mueve lo dibujado un cuarto del ancho exacto. La puerta de frente se ve derecha, también girada 90° en la vista previa. Fotos de Apariencia con y sin modelo | Revisadas |
 | Las de siempre, después del cambio en `scripts/inventory` | Modelo, laboratorio, visual y tres procesos | **70 de 70**, **166 de 166**, **7 de 7** (capturas revisadas: el giro de la imagen se ve igual), **host 18, A 24 y B 7**; lo mismo otra vez después de acomodar la miniatura |
-| Las del laboratorio | Repetición, mantle y agarre por encima del filo | Iguales que antes: la repetición coincide con la misma huella (`7d3d417dd954d05b`), el mantle da 50 casos y el agarre, 22 de 22. No usan nada de lo que cambió con el panel: no se volvieron a correr |
+| `inv_instant_test.tscn` (2026-11-04), host y cliente en esta PC; el cliente con internet mala | Usar, recoger y soltar sin esperar: en la grilla y en el piso en el mismo cuadro, sin "esperando…"; la salud en el tick siguiente; dos usos seguidos, uno por tick; uno que el host no puede usar vuelve con un aviso; uno que solo predijo tu PC se corrige solo; la muerte y la toxina; soltar desde el menú y desde la mano, y el host lo deja en el mismo lugar; al final, todo igual en el host y en el cliente. Anota las horas del pedido y del cambio en el piso, para medir la demora | **69 de 69** con 120 ms, ±40 ms y 2 % de pérdida, y con 300 ms, ±80 ms y 8 % (2026-11-04) |
+| Las del laboratorio | Repetición, mantle y agarre por encima del filo | Iguales que antes: la repetición coincide con la misma huella (`7d3d417dd954d05b`, la de ese día; desde que el estado lleva la salud, la huella completa es otra: `f9b53da25ac45f16` desde el 2026-11-04), el mantle da 50 casos y el agarre, 22 de 22. No usan nada de lo que cambió con el panel: no se volvieron a correr |
+| Después de los arreglos de la auditoría de GPT (2026-11-04, a la noche) | `inv_model_test` suma lo que se ve comparado con hacer las acciones una por una (id, cantidad, versión, celda y giro), la respuesta uso por uso con el número dando la vuelta, el input con sus usos y los modelos con scripts. `inv_instant_test` suma el caso de GPT: recoger y usar enseguida, con el pedido de recoger 350 ms tarde. Las dos de red, solas y con 3 s de límite, tienen que salir con error. El resto, igual que antes | **91 de 91**; **83 de 83** con 120 ms y con 300 ms y 8 %; las dos de red salen con error al agotarse el tiempo (antes, bien); **166 de 166**; **host 18, A 24 y B 7**; el panel **159 de 159** y **26 de 26**; repetición `f9b53da25ac45f16`, mantle 50, agarre 22 de 22. Detalle en la sección 13 de `hud_salud_estamina_y_estados.md` |
 
 **Lo que se arregló mirando las fotos (2026-11-01):** en la primera foto, el contenido del panel era más ancho que el panel y se cortaba a la derecha. Por eso los campos van uno abajo del otro, con su nombre arriba, y los números usan el control angosto del Inspector. Los x, y, z van uno por renglón y las listas recortan su texto. El editor nunca se estiró: la vista 3D medía lo mismo con el panel a la vista y oculto.
 
-**Para correrlas** (Claude): `--headless --path . --scene res://scenes/net_lab/inventario/pruebas/inv_model_test.tscn`; la del laboratorio, igual con `--fixed-fps 60`. La de pareja necesita tres procesos en tiempo real: host con `-- --host --port=7781 --test-spawn-at=34,10 --inv-pair=host`; A con `-- --client --address=127.0.0.1 --port=7781 --test-relay=7791 --test-cut-at=28 --test-cut-for=8 --sim-rtt=120 --sim-jitter=40 --sim-loss=2 --inv-pair=a`; y B a los 22 s con `-- --client --address=127.0.0.1 --port=7781 --inv-pair=b`. La visual, sin `--headless`, con `-- --out=CARPETA`.
+**Para correrlas** (Claude): `--headless --path . --scene res://scenes/net_lab/inventario/pruebas/inv_model_test.tscn`; la del laboratorio, igual con `--fixed-fps 60`. La de pareja necesita tres procesos en tiempo real: host con `-- --host --port=7781 --test-spawn-at=34,10 --inv-pair=host`; A con `-- --client --address=127.0.0.1 --port=7781 --test-relay=7791 --test-cut-at=28 --test-cut-for=8 --sim-rtt=120 --sim-jitter=40 --sim-loss=2 --inv-pair=a`; y B a los 22 s con `-- --client --address=127.0.0.1 --port=7781 --inv-pair=b`. La de usar, recoger y soltar (`inv_instant_test.tscn`), dos procesos en tiempo real: host con `-- --host --port=7861 --test-spawn-at=34,10 --inv-instant=host` y cliente con `-- --client --address=127.0.0.1 --port=7861 --sim-rtt=120 --sim-jitter=40 --sim-loss=2 --inv-instant=client`; para medir como en tus dos PC, `--sim-rtt=200` en los dos. Las dos de red aceptan `--inv-timeout=SEGUNDOS` para acortar su límite de 100 s: el host solo, con 3, tiene que salir con error. La visual, sin `--headless`, con `-- --out=CARPETA`.
 
 Las del panel escriben archivos: **solo en una copia del proyecto**. En la copia, importar primero con los plugins apagados; después activar el panel y la prueba con un `plugin.cfg` que diga `script="prueba_del_creador.gd"`, puesto en `addons/inventario_objetos/pruebas/`. En el proyecto de verdad no tiene `plugin.cfg`, así que no aparece en la lista de plugins. Se corre `--headless --editor --path <copia>`, y después, en la misma copia, `--headless --fixed-fps 60 --scene res://addons/inventario_objetos/pruebas/prueba_del_creador_juego.tscn`.
 
 ### Lo que no se probó
+
+Esta lista se escribió el 2026-11-01 y se fue sumando. Después, varias cosas sí se probaron: jugaste con el mouse y la cámara en tus pruebas del 2026-10-31 y el 2026-11-01 ("todo funciona correctamente"), y el 2026-11-04 usaste, recogiste y soltaste en las dos PC con +200 ms. Los arreglos de la auditoría también los probaste en las dos PC, el 2026-11-04 a la noche: funcionan. Siguen sin probar el `.exe` exportado y lo creado con el panel en las dos PC.
 
 - **Con el mouse, a mano.** Los clics, el menú y los diálogos se probaron llamando a la interfaz desde las pruebas, y se miraron en capturas, pero nadie hizo clic con el mouse de verdad. Falta tu prueba jugando.
 - **Mirar con la cámara de verdad.** La regla se probó dándole la mira armada a mano; que la mira de la cámara arranque a la altura de la cabeza, solo con la cámara quieta. Falta probarlo jugando, en primera y en tercera persona.
@@ -447,6 +476,7 @@ Las del panel escriben archivos: **solo en una copia del proyecto**. En la copia
 - **El barrido de bordes** (7 min) no se corrió: no usa nada de lo que cambió.
 - **El panel Objetos con el mouse.** Las pruebas escriben en sus campos, aprietan sus botones y abren su diálogo; las fotos se revisaron. Pero nadie arrastró un modelo desde FileSystem, giró la vista previa con el mouse ni apretó los botones del diálogo con un clic de verdad. Falta tu prueba creando algo.
 - **Lo creado con el panel, en las dos PC.** Se probó con tres procesos en esta PC, en la copia.
+- **Los arreglos de la auditoría de GPT (2026-11-04), con el `.exe`.** En las dos PC los probaste el mismo día y funcionan (sección 13 de `hud_salud_estamina_y_estados.md`).
 
 ### Decisiones chicas y límites (las eligió Claude)
 
@@ -460,6 +490,8 @@ Las del panel escriben archivos: **solo en una copia del proyecto**. En la copia
 - **Una caja abierta por jugador:** abrir otra cierra la anterior.
 - **Un objeto va en un solo acceso de la barra:** asignarlo a otro lo saca del anterior.
 - **Un pedido sin respuesta en 10 s** deja de figurar como pendiente.
+- **Usos de consumibles sin confirmar** (2026-11-04): hasta 32 en tu PC, y de esos, hasta 8 viajando a la vez. Un uso que espera un pedido que no llega, o un pedido que espera un uso, sigue sin él a los 3 s.
+- **Una capacidad nueva no se adelanta** (no se aplica en tu PC antes del host) salvo que diga que sí (`InvAbility.predictable`): sale como pedido y espera al host. Los consumibles sí se adelantan.
 - **El alcance de una caja** se mide de los pies al centro de la caja; el de un objeto, del pecho al objeto. La vista, desde los ojos, que bajan al agacharse: un objeto detrás de un murito bajo se puede agarrar si se lo ve por encima.
 - **El cono de la tercera persona** mide hacia donde mira el cuerpo, que gira hacia donde caminás. Quieto, si giraste la cámara sin caminar, lo de atrás no se elige hasta que des un paso hacia ahí.
 - **Dos pilas se juntan** si tienen el mismo tipo y el mismo estado, clave por clave. El nombre o la miniatura no cuentan.

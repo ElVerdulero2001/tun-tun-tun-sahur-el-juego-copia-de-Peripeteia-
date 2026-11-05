@@ -18,12 +18,20 @@ extends Node3D
 ## Sin esperar al host (desde el 2026-11-04, pedido del usuario):
 ##
 ## - Usar un consumible no es un pedido: viaja en el input del personaje, como
-##   el salto o Kp 2 (ActorInput.use_presses y use_uid), uno por tick. Justo
+##   el salto o Kp 2 (ActorInput.use_presses y uses), uno nuevo por tick. Justo
 ##   antes de mover al personaje en ese tick (use_before_step), el host lo
 ##   valida con el inventario de verdad, aplica el efecto y gasta la unidad, y
 ##   el cliente aplica el mismo efecto en su predicción: la salud y la estamina
 ##   cambian al instante y sin corrección. Si el host no lo pudo usar, la
 ##   corrección del snapshot deshace el efecto y la unidad vuelve a verse.
+## - Cada uso tiene su número y viaja en todos los inputs hasta que el host lo
+##   contesta, con su resultado propio (desde la auditoría del 2026-11-04,
+##   INV-01): si el host se pierde el tick en que salió, lo hace en el primero
+##   que le llega, junto con los que vinieron después, en orden. Y como recoger
+##   o soltar van por otro camino (pedidos), el host respeta el orden en que el
+##   jugador hizo las cosas (INV-02): un uso espera a que el host procese el
+##   último pedido hecho antes que él, y un pedido, al último uso hecho antes.
+##   Lo que se ve no espera nada de eso.
 ## - Recoger sigue siendo un pedido, pero lo que se ve no lo espera: mientras
 ##   tanto la grilla propia se muestra con lo recogido adentro y el objeto deja
 ##   de verse en el piso (InvReplica.shown_own).
@@ -42,6 +50,14 @@ const INVENTORY_NODE := &"Inventario"
 const EQUIP_NODE := &"Equipado"
 ## Pedidos que pueden esperar a uno anterior que todavía no llegó.
 const MAX_WAITING := 64
+## Usos de consumibles sin confirmar en esta máquina (en fila o en viaje): con
+## estos, no sale otro hasta que el host conteste alguno. Así el número de uso,
+## que da la vuelta en 256, nunca se confunde (auditoría del 2026-11-04, INV-01).
+const MAX_USES_WAITING := 32
+## Host: cuánto puede esperar un uso al pedido anterior, o un pedido al uso
+## anterior, antes de seguir sin él, en milisegundos. Lo normal es que llegue
+## enseguida; esto es para que nada quede trabado para siempre.
+const ORDER_WAIT_MSEC := 3000
 ## Hasta dónde se busca, sobre la línea de la mira, lo que se mira.
 const AIM_LENGTH := 6.0
 
@@ -82,23 +98,29 @@ var started := false
 ## Solo para pruebas en un proceso: jugadores que se dan por conectados sin
 ## red (peer -> true).
 var test_peers := {}
-## Contador de usos de consumibles del jugador local, de 0 a 255 y da la
-## vuelta, y el objeto del último uso: el laboratorio los pone en su input.
+## Número del último uso de consumible del jugador local que salió en un
+## input, de 0 a 255 y da la vuelta: el laboratorio lo pone en su input, con
+## los usos que el host todavía no confirmó (fill_input).
 var use_presses := 0
-var use_uid := 0
 
 var _containers: Array[InvContainer] = []
 var _spawns: Array[InvPickupSpawn] = []
-var _inbox: Array = []  # host: [peer, número, operación, argumentos], en orden
+var _inbox: Array = []  # host: [peer, número, operación, argumentos, uso anterior], en orden
 var _in_expected := {}  # host: peer -> próximo número de pedido
-var _in_waiting := {}  # host: peer -> {número: [número, operación, argumentos]}
+var _in_waiting := {}  # host: peer -> {número: [número, operación, argumentos, uso anterior]}
+var _done_seq := {}  # host: peer -> número del último pedido procesado
+var _use_wait := {}  # host: peer -> [número de uso, desde cuándo en ms]: esperando un pedido anterior
+var _request_wait := {}  # host: peer -> [número de pedido, desde cuándo en ms]: esperando un uso anterior
 var _out_seq := {}  # host: peer -> último número de paquete mandado
 var _commit_expected := 1
 var _commit_waiting := {}
 var _world_views := {}  # uid -> InvWorldItem
 var _world_layer: Node3D
-var _use_queue: Array = []  # [id, InvItemDef] que esperan su tick, en orden
-var _use_defs := {}  # valor del contador -> InvItemDef que se usó con él (para repetir ticks)
+var _use_counter := 0  # número del último uso puesto en fila en esta máquina
+## Número de uso -> lo que hace falta para predecirlo, como estaba al usarlo:
+## [InvItemDef, copia de la pila, la barra en snapshot]. Se usa también al
+## repetir ticks, siempre con copias nuevas (ARQ-01).
+var _use_info := {}
 var _use_tick := -1
 
 
@@ -109,8 +131,9 @@ func _ready() -> void:
 	add_child(_world_layer)
 	replica.catalog = catalog
 	replica.send = _send_request
-	replica.world_changed.connect(_sync_world_views)
-	replica.shown_changed.connect(_sync_world_views)
+	# Una vez por paquete del host o por pedido, y no por cada consumible usado
+	# (auditoría del 2026-11-04, ESC-01).
+	replica.world_view_changed.connect(_sync_world_views)
 	replica.equipment_changed.connect(_sync_equipment)
 	replica.container_closed.connect(func(id: int, reason: String) -> void: container_closed.emit(id, reason))
 	for problem in catalog.problems() if catalog != null else PackedStringArray(["no tiene catálogo"]):
@@ -142,11 +165,13 @@ func _collect(node: Node) -> void:
 func start(as_host: bool) -> void:
 	started = true
 	replica.reset()
-	_use_queue.clear()
 	_commit_expected = 1
 	_commit_waiting.clear()
 	_in_expected.clear()
 	_in_waiting.clear()
+	_done_seq.clear()
+	_use_wait.clear()
+	_request_wait.clear()
 	_out_seq.clear()
 	_inbox.clear()
 	if not as_host:
@@ -182,31 +207,49 @@ func connection_lost() -> void:
 	replica.reset()
 	_commit_expected = 1
 	_commit_waiting.clear()
-	_use_queue.clear()
 
 
 # --- Consumibles sin esperar al host --------------------------------------------
 
-## Usa una unidad de ese objeto del inventario propio: sale en el input del
-## próximo tick libre (take_use). Quien llama ya comprobó que se puede usar
-## (InvUI.use_item). Desde ya se ve gastada (InvReplica.shown_own).
-func queue_use(uid: int, def: InvItemDef) -> void:
-	_use_queue.append([uid, def])
-	replica.add_use(uid)
+## Usa una unidad de ese objeto del inventario propio: le da su número y sale
+## en el input del próximo tick libre (fill_input). Quien llama ya comprobó que
+## se puede usar (InvUI.use_item). Desde ya se ve gastada (InvReplica.shown_own).
+## Devuelve falso, sin hacer nada, si ya hay MAX_USES_WAITING sin confirmar.
+func queue_use(uid: int, def: InvItemDef) -> bool:
+	if replica.uses_waiting() >= MAX_USES_WAITING:
+		return false
+	_use_counter = (_use_counter + 1) & 0xFF
+	var shown := replica.shown_own()
+	var stack := shown.get_stack(uid) if shown != null else null
+	var bar: Variant = null
+	if replica.loadout != null:
+		bar = replica.loadout.snapshot()
+	_use_info[_use_counter] = [def, stack.copy() if stack != null else null, bar]
+	replica.add_use(uid, _use_counter)
+	return true
 
 
-## El uso que va en el input propio de este tick, si hay alguno esperando: sube
-## el contador. Lo llama el laboratorio al armar ese input; otra vez en el
-## mismo tick no saca otro.
-func take_use(tick: int) -> void:
-	if tick == _use_tick or _use_queue.is_empty():
-		return
-	_use_tick = tick
-	var next: Array = _use_queue.pop_front()
-	use_presses = (use_presses + 1) & 0xFF
-	use_uid = next[0]
-	_use_defs[use_presses] = next[1]
-	replica.assign_use(use_presses)
+## Pone en el input propio de este tick el número del último uso que salió y
+## los que el host todavía no confirmó. Si hay uno esperando en fila, sale en
+## este tick (uno nuevo por tick; otra vez en el mismo tick no saca otro), salvo
+## que ya viajen ActorInput.MAX_USES sin confirmar. Lo llama el laboratorio al
+## armar ese input.
+func fill_input(input: ActorInput) -> void:
+	if input.tick != _use_tick:
+		var counter := replica.send_next_use(ActorInput.MAX_USES)
+		if counter >= 0:
+			_use_tick = input.tick
+			use_presses = counter
+	input.use_presses = use_presses
+	input.uses = replica.uses_in_flight()
+
+
+## El personaje propio apareció (al entrar o al volver de un corte): los
+## números de uso siguen desde el último que procesó el host, así ninguno
+## viejo parece nuevo.
+func sync_use_counter(seen: int) -> void:
+	use_presses = seen & 0xFF
+	_use_counter = seen & 0xFF
 
 
 ## Dónde caería lo que suelta este personaje, como lo va a buscar el host
@@ -223,27 +266,100 @@ func predict_drop_spot(actor: ActorBody) -> Variant:
 
 
 ## Antes de mover a un actor en un tick (SimClock.before_step, y al repetir
-## ticks): si su input trae un uso nuevo, lo aplica. En el host, y jugando solo,
-## vale: lo valida con el inventario y gasta la unidad
-## (InvAuthority.use_from_input). En un cliente es la predicción del propio: el
-## mismo efecto en el mismo tick, con lo que se usó, sin tocar el inventario,
-## que lo cambia el host. Un input sin objeto no cuenta: así uno armado sin el
-## contador (las pruebas con guion) no hace nada.
+## ticks): hace, en orden, los usos que su input trae y que todavía no se
+## hicieron (del siguiente al último visto, ActorState.use_presses_seen, hasta
+## use_presses). Casi siempre es uno; son más si el host se perdió el tick en
+## que salió alguno. En el host, y jugando solo, valen: cada uno se valida con
+## el inventario y gasta la unidad (InvAuthority.use_from_input), pero no antes
+## de procesar el último pedido que el jugador hizo antes de usarlo (si todavía
+## no llegó, ese uso y los que siguen esperan al tick siguiente). En un cliente
+## es la predicción del propio: el mismo efecto, con lo que se usó, sin tocar
+## el inventario, que lo cambia el host. Un input sin usos no cuenta: así uno
+## armado sin ellos (las pruebas con guion) no hace nada.
 func use_before_step(actor: ActorBody, input: ActorInput) -> void:
-	if input.use_uid == 0 or input.use_presses == actor.state.use_presses_seen:
+	if input.uses.is_empty():
 		return
-	actor.state.use_presses_seen = input.use_presses
-	if authority != null:
-		authority.use_from_input(actor.owner_peer_id, actor.state, input.use_uid)
+	var state := actor.state
+	var count := (input.use_presses - state.use_presses_seen) & 0xFF
+	# Uno que va atrás de lo ya hecho (un input viejo) no hace nada.
+	if count == 0 or count >= 128:
 		return
-	var def: InvItemDef = _use_defs.get(input.use_presses)
+	if authority == null:
+		for i in count:
+			state.use_presses_seen = (state.use_presses_seen + 1) & 0xFF
+			_predict_use(state, state.use_presses_seen)
+		return
+	var peer := actor.owner_peer_id
+	var carried := input.uses.size()
+	var answered := false
+	for i in count:
+		var number := (state.use_presses_seen + 1) & 0xFF
+		var index := carried - 1 - ((input.use_presses - number) & 0xFF)
+		if index < 0:
+			# No viene en el input: con un jugador de este juego no pasa, porque
+			# cada uso viaja hasta que el host lo contesta.
+			state.use_presses_seen = number
+			authority.use_refused(peer, number, "se perdió en el camino: probá de nuevo")
+			answered = true
+			continue
+		var use: Array = input.uses[index]
+		if not _request_done(peer, use[1]):
+			if not _waited_too_long(_use_wait, peer, number):
+				break
+			push_warning("[inventario] el uso %d del jugador %d esperó demasiado al pedido %d" % [number, peer, use[1]])
+			state.use_presses_seen = number
+			authority.use_refused(peer, number, "no llegó a tiempo lo que hiciste antes")
+			answered = true
+			continue
+		_use_wait.erase(peer)
+		state.use_presses_seen = number
+		authority.use_from_input(peer, state, use[0], number)
+		answered = true
+	if answered:
+		authority.flush({})
+
+
+## Cliente: el efecto de un uso propio en la predicción, con el tipo, la pila y
+## la barra como estaban al usarlo (copias nuevas cada vez: al repetir ticks se
+## vuelve a aplicar igual). Solo lo que la capacidad dice que se puede predecir.
+func _predict_use(state: ActorState, number: int) -> void:
+	var info: Array = _use_info.get(number, [])
+	var def: InvItemDef = info[0] if not info.is_empty() else null
 	var ability := def.ability_of(InvAbility.Kind.USE) if def != null else null
-	if ability == null or tuning == null:
+	if ability == null or not ability.predictable() or tuning == null:
 		return
-	var vitals := ActorVitals.of(actor.state, tuning)
+	var stack: InvStack = info[1].copy() if info[1] != null else null
+	var loadout := InvLoadout.from_snapshot(info[2]) if info[2] != null else null
+	var vitals := ActorVitals.of(state, tuning)
 	vitals.host_event = false
-	if ability.check(null, null, vitals) == "":
-		ability.apply(null, null, vitals)
+	if ability.check(loadout, stack, vitals) == "":
+		ability.apply(loadout, stack, vitals)
+
+
+## Host: si ya se procesó el pedido `seq` de ese jugador (0 o menos: ninguno).
+func _request_done(peer: int, seq: int) -> bool:
+	return seq <= 0 or _done_seq.get(peer, 0) >= seq
+
+
+## Host: si ese jugador ya hizo el uso `number` (-1: ninguno). Sin personaje,
+## no hay uso que esperar.
+func _use_done(peer: int, number: int) -> bool:
+	if number < 0:
+		return true
+	var actor := authority.actor_of(peer)
+	return actor == null or ((actor.state.use_presses_seen - number) & 0xFF) < 128
+
+
+## Host: el uso o el pedido `what` de ese jugador, trabado esperando a otro,
+## lleva más de ORDER_WAIT_MSEC así. La primera vez anota desde cuándo (en
+## `table`: _use_wait o _request_wait).
+func _waited_too_long(table: Dictionary, peer: int, what: int) -> bool:
+	var now := Time.get_ticks_msec()
+	var wait: Array = table.get(peer, [])
+	if wait.is_empty() or wait[0] != what:
+		table[peer] = [what, now]
+		return false
+	return now - wait[1] > ORDER_WAIT_MSEC
 
 
 func container(id: int) -> InvContainer:
@@ -370,9 +486,7 @@ func actor_replaced(old_actor: ActorBody, new_actor: ActorBody) -> void:
 func _on_peer_connected(peer: int) -> void:
 	if authority == null:
 		return
-	_out_seq.erase(peer)
-	_in_expected.erase(peer)
-	_in_waiting.erase(peer)
+	_forget_order(peer)
 	# Después de que la sesión le dé su actor (o le devuelva el de antes).
 	authority.welcome.call_deferred(peer)
 
@@ -381,10 +495,18 @@ func _on_peer_disconnected(peer: int) -> void:
 	if authority == null:
 		return
 	authority.forget_peer(peer)
+	_forget_order(peer)
+	_inbox = _inbox.filter(func(item: Array) -> bool: return item[0] != peer)
+
+
+## Host: los números de pedido de ese jugador empiezan de nuevo.
+func _forget_order(peer: int) -> void:
 	_out_seq.erase(peer)
 	_in_expected.erase(peer)
 	_in_waiting.erase(peer)
-	_inbox = _inbox.filter(func(item: Array) -> bool: return item[0] != peer)
+	_done_seq.erase(peer)
+	_use_wait.erase(peer)
+	_request_wait.erase(peer)
 
 
 ## Host: cuando la sesión corta a alguien por silencio (NetSession), Godot no
@@ -398,12 +520,12 @@ func _forget_gone_peers() -> void:
 			_on_peer_disconnected(peer)
 
 
-func _send_request(seq: int, op: int, args: Array) -> void:
+func _send_request(seq: int, op: int, args: Array, after_use := -1) -> void:
 	if authority != null:
 		# El jugador del host: sin red, pero por la misma fila y el mismo control de repetidos.
-		_queue_request(multiplayer.get_unique_id(), [seq, op, args])
+		_queue_request(multiplayer.get_unique_id(), [seq, op, args, after_use])
 		return
-	var data := InvProtocol.encode_request(seq, op, args)
+	var data := InvProtocol.encode_request(seq, op, args, after_use)
 	_send_reliable(func() -> void: _inv_request.rpc_id(1, data))
 
 
@@ -449,15 +571,37 @@ func _queue_request(peer: int, parsed: Array) -> void:
 
 
 ## Host: procesa los pedidos en fila. Va en el cuadro de física porque soltar
-## algo consulta el espacio físico.
+## algo consulta el espacio físico. Un pedido hecho después de usar un
+## consumible espera a que el host haga ese uso (llega por el input, por otro
+## camino): ese pedido y los que siguen del mismo jugador quedan en la fila
+## para el cuadro siguiente; los de los demás jugadores siguen. Si espera más
+## de ORDER_WAIT_MSEC, se procesa igual.
 func _physics_process(_delta: float) -> void:
 	if authority == null:
 		return
 	_forget_gone_peers()
 	var space := get_world_3d().direct_space_state
-	while not _inbox.is_empty():
-		var item: Array = _inbox.pop_front()
-		authority.handle(item[0], item[1], item[2], item[3], space)
+	var held := {}  # peer -> true: tiene un pedido esperando un uso
+	var kept: Array = []
+	var queue := _inbox
+	_inbox = []
+	for item: Array in queue:
+		var peer: int = item[0]
+		var after_use: int = item[4] if item.size() > 4 else -1
+		if held.has(peer):
+			kept.append(item)
+			continue
+		if not _use_done(peer, after_use):
+			if not _waited_too_long(_request_wait, peer, item[1]):
+				held[peer] = true
+				kept.append(item)
+				continue
+			push_warning("[inventario] el pedido %d del jugador %d esperó demasiado al uso %d" % [item[1], peer, after_use])
+		_request_wait.erase(peer)
+		authority.handle(peer, item[1], item[2], item[3], space)
+		_done_seq[peer] = maxi(_done_seq.get(peer, 0), item[1])
+	# Lo que llegó mientras tanto va después de lo que quedó esperando.
+	_inbox = kept + _inbox
 	authority.watch_access()
 
 

@@ -2,9 +2,16 @@ class_name InvProtocol
 extends RefCounted
 
 ## Forma de los pedidos que un jugador le hace al host. Viajan como
-## [número de pedido, operación, argumentos], solo con números enteros: nunca
-## nodos, recursos ni rutas. El host descarta lo que no tenga exactamente esta
-## forma.
+## [número de pedido, operación, argumentos, uso anterior], solo con números
+## enteros: nunca nodos, recursos ni rutas. El host descarta lo que no tenga
+## exactamente esta forma.
+##
+## El uso anterior (desde la auditoría del 2026-11-04, INV-02 e INV-03) es el
+## número del último consumible que ese jugador usó antes de hacer el pedido
+## (ActorInput.use_presses), o -1 si no usó ninguno desde que se conectó: el
+## host no procesa el pedido antes de procesar ese uso. Así los pedidos y los
+## usos, que viajan por caminos distintos, se hacen en el host en el mismo
+## orden en que los hizo el jugador.
 ##
 ## Un inventario se nombra con un número: 0 es el propio (el host sabe de quién
 ## es por la conexión), uno positivo es una caja, y uno negativo sería el de
@@ -62,18 +69,19 @@ static func drop_spot_of(args: Array) -> Vector3:
 	return Vector3(args[4], args[5], args[6]) * DROP_STEP
 
 
-static func encode_request(seq: int, op: int, args: Array) -> PackedByteArray:
-	return var_to_bytes([seq, op, args])
+static func encode_request(seq: int, op: int, args: Array, after_use := -1) -> PackedByteArray:
+	return var_to_bytes([seq, op, args, after_use])
 
 
-## [número, operación, argumentos], o vacío si no tiene la forma esperada.
+## [número, operación, argumentos, uso anterior], o vacío si no tiene la forma
+## esperada.
 static func parse_request(data: PackedByteArray) -> Array:
 	if data.size() < 4 or data.size() > MAX_REQUEST_BYTES:
 		return []
 	# Sin objetos: bytes_to_var no los arma, así que un pedido no puede traer uno.
 	var value: Variant = bytes_to_var(data)
-	if not value is Array or value.size() != 3 or typeof(value[0]) != TYPE_INT or typeof(value[1]) != TYPE_INT \
-			or not value[2] is Array:
+	if not value is Array or value.size() != 4 or typeof(value[0]) != TYPE_INT or typeof(value[1]) != TYPE_INT \
+			or not value[2] is Array or typeof(value[3]) != TYPE_INT or value[3] < -1 or value[3] > 0xFF:
 		return []
 	var op: int = value[1]
 	if value[0] <= 0 or not ARGS.has(op):
@@ -85,4 +93,4 @@ static func parse_request(data: PackedByteArray) -> Array:
 	for i in types.size():
 		if typeof(args[i]) != types[i]:
 			return []
-	return [value[0], op, args]
+	return [value[0], op, args, value[3]]

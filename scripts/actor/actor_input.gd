@@ -15,9 +15,15 @@ const BUTTON_RUN := 1 << 2
 const BUTTON_THIRD_PERSON := 1 << 3
 const ALL_BUTTONS := BUTTON_JUMP | BUTTON_CROUCH | BUTTON_RUN | BUTTON_THIRD_PERSON
 const AXIS_STEPS := 127.0
-## Largo de write_to(): 12 hasta el 2026-11-04, cuando se sumó el uso de
-## consumibles (use_presses y use_uid).
-const BYTE_SIZE := 17
+## Largo de write_to() sin usos de consumibles: 12 hasta el 2026-11-04, cuando
+## se sumó el uso (17, con un solo objeto); 14 desde la auditoría de ese mismo
+## día (el contador y cuántos usos van), más USE_BYTES por cada uso que va.
+const BYTE_SIZE := 14
+const USE_BYTES := 8
+## Como mucho, cuántos usos sin confirmar viajan en un input. La interfaz no
+## deja más de InvNet.MAX_USES_WAITING sin confirmar, y de esos salen a lo sumo
+## estos; los demás esperan a que el host confirme alguno.
+const MAX_USES := 8
 
 var tick := 0
 ## Ejes de movimiento: x hacia la derecha, y hacia adelante, cada uno de -1 a 1.
@@ -39,14 +45,20 @@ var ability_presses := 0
 ## numérico), igual que el de salto. Lo usa el motor: cada jugador lo activa
 ## para sí mismo, sin esperar al host.
 var power_presses := 0
-## Contador de usos de consumibles, igual que el de salto, y el objeto del
-## último uso (su id en el inventario). Desde el 2026-11-04 un consumible se usa
-## así, sin esperar al host: cuando el contador cambia, el cliente aplica el
-## efecto en su predicción y el host, en el mismo tick, lo valida con el
-## inventario de verdad y gasta la unidad (InvNet.use_before_step). Va un uso
-## por tick.
+## Contador de usos de consumibles, igual que el de salto: el número del uso
+## más nuevo que salió. Desde el 2026-11-04 un consumible se usa así, sin
+## esperar al host: cuando el contador cambia, el cliente aplica el efecto en
+## su predicción y el host lo valida con el inventario de verdad y gasta la
+## unidad (InvNet.use_before_step). Sale un uso nuevo por tick.
 var use_presses := 0
-var use_uid := 0
+## Los usos que el host todavía no confirmó, del más viejo al más nuevo: el
+## último es el del número use_presses, el anterior el de use_presses - 1, y
+## así. Cada uno es [id del objeto, número del último pedido al host hecho
+## antes de usarlo]. Hasta el 2026-11-04 iba solo el último uso; si el host se
+## salteaba el tick del anterior, ese uso se perdía (auditoría, INV-01). Ahora
+## cada uso viaja en todos los inputs hasta que el host lo confirma, y el host
+## no lo valida antes de procesar ese pedido (INV-02: lo recogido justo antes).
+var uses: Array = []
 
 
 static func make(p_tick: int, p_move: Vector2, p_look_yaw: float, p_buttons: int, p_jump_presses: int, p_ability_presses: int = 0, p_power_presses: int = 0) -> ActorInput:
@@ -82,11 +94,11 @@ func is_held(button: int) -> bool:
 ## cuantización) y solo botones que existen. Lo que llega por red y no lo
 ## cumple no es de este juego.
 func is_possible() -> bool:
-	return move.length_squared() <= 1.01 and (buttons & ~ALL_BUTTONS) == 0
+	return move.length_squared() <= 1.01 and (buttons & ~ALL_BUTTONS) == 0 and uses.size() <= MAX_USES
 
 
-## Escribe el input en BYTE_SIZE bytes. Como ya está cuantizado, leerlo del
-## otro lado da exactamente los mismos valores.
+## Escribe el input en BYTE_SIZE bytes, más USE_BYTES por cada uso. Como ya
+## está cuantizado, leerlo del otro lado da exactamente los mismos valores.
 func write_to(b: StreamPeerBuffer) -> void:
 	b.put_32(tick)
 	b.put_8(roundi(move.x * AXIS_STEPS))
@@ -97,10 +109,18 @@ func write_to(b: StreamPeerBuffer) -> void:
 	b.put_u8(ability_presses & 0xFF)
 	b.put_u8(power_presses & 0xFF)
 	b.put_u8(use_presses & 0xFF)
-	b.put_u32(use_uid & 0xFFFFFFFF)
+	var count := mini(uses.size(), MAX_USES)
+	b.put_u8(count)
+	for i in range(uses.size() - count, uses.size()):
+		b.put_u32(uses[i][0] & 0xFFFFFFFF)
+		b.put_u32(uses[i][1] & 0xFFFFFFFF)
 
 
+## El input que escribió write_to(), o null si no tiene esa forma (más usos de
+## los que pueden ir, o cortado).
 static func read_from(b: StreamPeerBuffer) -> ActorInput:
+	if b.get_available_bytes() < BYTE_SIZE:
+		return null
 	var input := ActorInput.new()
 	input.tick = b.get_32()
 	var x := b.get_8() / AXIS_STEPS
@@ -112,5 +132,10 @@ static func read_from(b: StreamPeerBuffer) -> ActorInput:
 	input.ability_presses = b.get_u8()
 	input.power_presses = b.get_u8()
 	input.use_presses = b.get_u8()
-	input.use_uid = b.get_u32()
+	var count := b.get_u8()
+	if count > MAX_USES or b.get_available_bytes() < count * USE_BYTES:
+		return null
+	for i in count:
+		var uid := b.get_u32()
+		input.uses.append([uid, b.get_u32()])
 	return input

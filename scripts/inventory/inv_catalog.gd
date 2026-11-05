@@ -20,7 +20,8 @@ func find(def_id: StringName) -> InvItemDef:
 	return _by_id.get(def_id)
 
 
-## Avisos de un catálogo mal armado: ids vacíos o repetidos.
+## Avisos de un catálogo mal armado: ids vacíos o repetidos, y modelos con
+## scripts, que no se usan como apariencia (InvVisuals).
 func problems() -> PackedStringArray:
 	var found := PackedStringArray()
 	var seen := {}
@@ -33,6 +34,9 @@ func problems() -> PackedStringArray:
 		elif seen.has(item.id):
 			found.append("el id %s está repetido" % item.id)
 		seen[item.id] = true
+		if item.model != null and InvVisuals.has_scripts(item.model):
+			found.append("el modelo de %s (%s) tiene scripts: no se usa, se ve la caja de su color" % [item.id,
+					item.model.resource_path])
 	return found
 
 

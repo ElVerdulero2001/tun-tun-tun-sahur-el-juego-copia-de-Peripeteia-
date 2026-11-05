@@ -14,14 +14,19 @@ extends RefCounted
 ##
 ## Lo que se ve sin esperar al host (desde el 2026-11-04): shown_own() es la
 ## grilla propia confirmada con lo que esta máquina ya hizo y el host todavía
-## no confirmó, en el orden en que lo pidió: lo recogido adentro (con
+## no confirmó, en el orden en que lo hizo: lo recogido adentro (con
 ## InvOps.insert, como lo va a meter el host), lo soltado afuera (DROP_AT, con
 ## InvOps.take) y una unidad menos por cada consumible usado
-## (InvNet.queue_use). shown_box() es lo mismo para la caja abierta, con lo
-## soltado desde ella. Lo recogido entero deja de verse en el mundo (is_taken)
-## y lo soltado ya se ve en el piso, en su lugar (predicted_drops). Cuando el
-## host contesta, lo predicho se borra y queda lo que confirmó: si dijo que no,
-## el objeto vuelve a verse en el piso o en la grilla.
+## (InvNet.queue_use). Recoger, soltar y usar van en un solo registro con su
+## orden (`order`): hasta la auditoría del mismo día se aplicaban primero
+## todos los pedidos y después todos los usos, y usar lo último de una pila y
+## después recoger otra igual mostraba la pila vieja llena (INV-03). El host
+## los hace en ese mismo orden (InvProtocol, uso anterior). shown_box() es lo
+## mismo para la caja abierta, con lo soltado desde ella. Lo recogido entero
+## deja de verse en el mundo (is_taken) y lo soltado ya se ve en el piso, en su
+## lugar (predicted_drops). Cuando el host contesta, lo predicho se borra y
+## queda lo que confirmó: si dijo que no, el objeto vuelve a verse en el piso o
+## en la grilla.
 
 ## Cambió lo propio, la caja o la barra.
 signal changed
@@ -29,9 +34,14 @@ signal world_changed
 signal equipment_changed
 ## Cambió lo que se ve sin esperar al host (shown_own, is_taken).
 signal shown_changed
+## Puede haber cambiado lo que se ve suelto en el mundo: lo que dice el host,
+## lo recogido entero y lo soltado sin confirmar. Una vez por paquete del host
+## o por pedido; usar un consumible no lo cambia (auditoría, ESC-01).
+signal world_view_changed
 ## El host contestó un pedido de esta máquina.
 signal answered(seq: int, ok: bool, reason: String)
-## El host no pudo usar un consumible que esta máquina ya mostraba usado.
+## El host no pudo usar un consumible que esta máquina ya mostraba usado (uno
+## por uso, con su número).
 signal use_refused(reason: String)
 ## Se cerró la caja abierta (el jugador se alejó, la caja desapareció…).
 signal container_closed(id: int, reason: String)
@@ -52,7 +62,7 @@ var box: InvGrid
 var world := {}
 ## peer -> id del tipo equipado ("" si nada)
 var equipment := {}
-## Pedidos sin contestar: número -> {"op", "args", "uids", "slots", "msec"}.
+## Pedidos sin contestar: número -> {"op", "args", "uids", "slots", "msec", "order"}.
 var pending := {}
 
 var _next_seq := 0
@@ -60,8 +70,14 @@ var _next_seq := 0
 ## (un paquete que ya venía en viaje) no la vuelve a mostrar.
 var _ignored_box := 0
 ## Consumibles usados que el host todavía no confirmó, en orden: {"uid",
-## "counter"}; el contador es -1 hasta que el uso sale en un input.
+## "counter" (su número de uso), "after" (el último pedido hecho antes),
+## "order", "sent" (ya salió en un input)}.
 var _uses: Array = []
+## Número del último uso puesto en fila desde que se conectó, o -1: cada pedido
+## lo lleva, para que el host no lo procese antes de ese uso.
+var _last_use := -1
+## Orden común de pedidos y usos hechos en esta máquina (INV-03).
+var _order := 0
 var _shown: InvGrid
 var _shown_box: InvGrid
 var _shown_dirty := true
@@ -80,6 +96,7 @@ func reset() -> void:
 	equipment.clear()
 	pending.clear()
 	_uses.clear()
+	_last_use = -1
 	_next_seq = 0
 	_mark_shown()
 	changed.emit()
@@ -102,8 +119,10 @@ func request(op: int, args: Array, uids: Array = [], slots: Array = []) -> int:
 	if op == InvProtocol.Op.OPEN:
 		_ignored_box = 0
 	_next_seq += 1
-	pending[_next_seq] = {"op": op, "args": args, "uids": uids, "slots": slots, "msec": Time.get_ticks_msec()}
-	send.call(_next_seq, op, args)
+	_order += 1
+	pending[_next_seq] = {"op": op, "args": args, "uids": uids, "slots": slots, "msec": Time.get_ticks_msec(),
+			"order": _order}
+	send.call(_next_seq, op, args, _last_use)
 	if op in PREDICTED:
 		_mark_shown()
 	changed.emit()
@@ -135,19 +154,44 @@ func is_uid_waiting(uid: int) -> bool:
 
 # --- Lo que se ve sin esperar al host --------------------------------------------
 
-## Un consumible de la grilla propia ya usado en esta máquina (InvNet.queue_use).
-func add_use(uid: int) -> void:
-	_uses.append({"uid": uid, "counter": -1})
-	_mark_shown()
+## Un consumible de la grilla propia ya usado en esta máquina, con su número
+## de uso (InvNet.queue_use). Va después del último pedido hecho.
+func add_use(uid: int, counter: int) -> void:
+	_order += 1
+	_uses.append({"uid": uid, "counter": counter, "after": _next_seq, "order": _order, "sent": false})
+	_last_use = counter
+	_mark_shown(false)
 	changed.emit()
 
 
-## El uso más viejo sin contador salió en un input con este valor.
-func assign_use(counter: int) -> void:
+## El uso más viejo que todavía no salió, si viajan menos de `in_flight` sin
+## confirmar: queda como enviado y devuelve su número; si no, -1.
+func send_next_use(in_flight: int) -> int:
+	var sent := 0
 	for use: Dictionary in _uses:
-		if use["counter"] < 0:
-			use["counter"] = counter
-			return
+		if use["sent"]:
+			sent += 1
+		elif sent < in_flight:
+			use["sent"] = true
+			return use["counter"]
+		else:
+			break
+	return -1
+
+
+## Los usos que ya salieron y el host todavía no contestó, del más viejo al más
+## nuevo, como van en el input: [id del objeto, último pedido antes del uso].
+func uses_in_flight() -> Array:
+	var list := []
+	for use: Dictionary in _uses:
+		if use["sent"]:
+			list.append([use["uid"], use["after"]])
+	return list
+
+
+## Cuántos usos esperan al host, en fila o en viaje.
+func uses_waiting() -> int:
+	return _uses.size()
 
 
 ## Si ese objeto tiene un uso que el host todavía no confirmó.
@@ -187,23 +231,39 @@ func predicted_drops() -> Array:
 	return _drops
 
 
-func _mark_shown() -> void:
+## Lo que se ve hay que rearmarlo. `world_too`: también puede haber cambiado
+## lo que se ve suelto en el mundo (no con un consumible usado).
+func _mark_shown(world_too := true) -> void:
 	_shown_dirty = true
 	shown_changed.emit()
+	if world_too:
+		world_view_changed.emit()
 
 
+## Rearma lo que se ve desde lo confirmado, haciendo lo que esta máquina hizo y
+## el host todavía no confirmó en el orden en que lo hizo: recoger, soltar y
+## usar mezclados, como el host los va a hacer.
 func _rebuild_shown() -> void:
 	_shown_dirty = false
 	_taken.clear()
 	_drops = []
 	_shown = own
 	_shown_box = box
-	var predicted := pending.keys().filter(func(seq: int) -> bool: return pending[seq]["op"] in PREDICTED)
-	if own == null or (predicted.is_empty() and _uses.is_empty()):
+	var steps := []  # [orden, número de pedido o 0, uso o null]
+	for seq in pending:
+		if pending[seq]["op"] in PREDICTED:
+			steps.append([pending[seq]["order"], seq, null])
+	for use: Dictionary in _uses:
+		steps.append([use["order"], 0, use])
+	if own == null or steps.is_empty():
 		return
 	_shown = own.copy()
-	predicted.sort()
-	for seq in predicted:
+	steps.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	for step: Array in steps:
+		if step[2] != null:
+			InvOps.consume(_shown, step[2]["uid"], 1)
+			continue
+		var seq: int = step[1]
 		var entry: Dictionary = pending[seq]
 		var args: Array = entry["args"]
 		if entry["op"] == InvProtocol.Op.PICKUP:
@@ -229,8 +289,14 @@ func _rebuild_shown() -> void:
 			var dropped: InvStack = (out[1] as InvStack).copy()
 			dropped.uid = -seq
 			_drops.append({"key": -seq, "stack": dropped, "pos": InvProtocol.drop_spot_of(args)})
-	for use: Dictionary in _uses:
-		InvOps.consume(_shown, use["uid"], 1)
+
+
+## Si hay algún recoger o soltar sin contestar (lo que cambia lo que se ve en el mundo).
+func _has_predicted() -> bool:
+	for seq in pending:
+		if pending[seq]["op"] in PREDICTED:
+			return true
+	return false
 
 
 func is_slot_pending(slot: int) -> bool:
@@ -306,17 +372,26 @@ func apply_commit(payload: Dictionary) -> void:
 		mine = true
 		container_closed.emit(id, str(payload["closed"][1]))
 	var results: Array = payload.get("r", []) if payload.get("r") is Array else []
+	var world_view := in_world or payload.has("closed")
 	for result in results:
 		if result is Array and result.size() == 3:
+			if pending.has(result[0]) and pending[result[0]]["op"] in PREDICTED:
+				world_view = true
 			pending.erase(result[0])
 			mine = true
-	# Hasta qué uso de consumible llegó el host: esos ya están en lo confirmado.
-	var refused := ""
+	# Hasta qué uso de consumible llegó el host, y los que no pudo hacer, cada
+	# uno con su número y su motivo: [último hecho, [[número, motivo], ...]].
+	# Los hechos ya están en lo confirmado. Solo pueden estar hechos los que
+	# salieron; como nunca hay más de InvNet.MAX_USES_WAITING sin confirmar, el
+	# número, que da la vuelta en 256, no se confunde (INV-01).
+	var refused := PackedStringArray()
 	var used: Variant = payload.get("u")
-	if used is Array and used.size() == 2 and typeof(used[0]) == TYPE_INT:
+	if used is Array and used.size() == 2 and typeof(used[0]) == TYPE_INT and used[1] is Array:
 		_uses = _uses.filter(func(use: Dictionary) -> bool:
-			return use["counter"] < 0 or ((used[0] - use["counter"]) & 0xFF) >= 128)
-		refused = str(used[1])
+			return not use["sent"] or ((used[0] - use["counter"]) & 0xFF) >= 128)
+		for entry in used[1]:
+			if entry is Array and entry.size() == 2 and typeof(entry[0]) == TYPE_INT:
+				refused.append(str(entry[1]))
 		mine = true
 	if payload.has("eq") and payload["eq"] is Array:
 		for entry in payload["eq"]:
@@ -324,7 +399,7 @@ func apply_commit(payload: Dictionary) -> void:
 				equipment[entry[0]] = str(entry[1])
 		equipment_changed.emit()
 	if in_world or mine:
-		_mark_shown()
+		_mark_shown(world_view or (mine and _has_predicted()))
 	if in_world:
 		world_changed.emit()
 	if mine:
@@ -332,8 +407,8 @@ func apply_commit(payload: Dictionary) -> void:
 	for result in results:
 		if result is Array and result.size() == 3:
 			answered.emit(result[0], result[1], str(result[2]))
-	if refused != "":
-		use_refused.emit(refused)
+	for reason in refused:
+		use_refused.emit(reason)
 
 
 ## La interfaz cerró la caja (y le pidió al host que deje de mandarla). Se

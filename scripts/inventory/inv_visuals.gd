@@ -3,18 +3,28 @@ extends RefCounted
 
 ## Arma lo que se ve de un tipo de objeto, para el mundo, la mano y la
 ## miniatura: solo sus mallas, copiadas a nodos nuevos. El modelo original se
-## instancia afuera del juego y se borra sin entrar al árbol: no corren sus
-## scripts, ni su física, ni sus efectos.
+## instancia afuera del juego y se borra sin entrar al árbol: no corre su
+## física, ni sus efectos, ni nada de lo que pasa al entrar al árbol (_ready,
+## _process).
+##
+## Instanciar sí crearía sus scripts (su _init, sus setters). Por eso, desde la
+## auditoría del 2026-11-04 (EDT-01), un modelo con scripts en algún nodo (o en
+## una escena que instancia o hereda) no se usa como apariencia: ni se
+## instancia; se ve como si no tuviera modelo (la caja de su color) y el
+## catálogo lo avisa. Un .glb importado no trae scripts.
+
+## Modelo -> si tiene scripts (se mira una sola vez por modelo).
+static var _scripted := {}
 
 
 ## Un nodo con las mallas del tipo (su modelo, o su malla suelta). Vacío si no
-## tiene ninguna de las dos.
+## tiene ninguna de las dos (o si su modelo tiene scripts y no tiene malla).
 static func build(def: InvItemDef) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Modelo"
 	if def == null:
 		return root
-	if def.model != null:
+	if usable_model(def) != null:
 		var instance := def.model.instantiate()
 		if instance != null:
 			_copy_meshes(instance, Transform3D.IDENTITY, root)
@@ -98,4 +108,39 @@ static func placeholder(def: InvItemDef, size: float) -> Node3D:
 
 
 static func has_visual(def: InvItemDef) -> bool:
-	return def != null and (def.model != null or def.mesh != null)
+	return def != null and (usable_model(def) != null or def.mesh != null)
+
+
+## El modelo del tipo, si se puede usar como apariencia: sin scripts. O null.
+static func usable_model(def: InvItemDef) -> PackedScene:
+	return def.model if def != null and def.model != null and not has_scripts(def.model) else null
+
+
+## Si la escena tiene algún script en sus nodos, en una escena que instancia o
+## en la que hereda. Se mira su descripción (SceneState), sin instanciarla.
+static func has_scripts(scene: PackedScene) -> bool:
+	if scene == null:
+		return false
+	# En el editor la escena se puede cambiar mientras tanto: se mira siempre.
+	if Engine.is_editor_hint():
+		return _state_has_scripts(scene.get_state(), 0)
+	if not _scripted.has(scene):
+		_scripted[scene] = _state_has_scripts(scene.get_state(), 0)
+	return _scripted[scene]
+
+
+static func _state_has_scripts(state: SceneState, depth: int) -> bool:
+	# Más hondo que esto no es un modelo normal: se lo trata como con scripts.
+	if depth > 16:
+		return true
+	if state == null:
+		return false
+	for node in state.get_node_count():
+		for property in state.get_node_property_count(node):
+			if state.get_node_property_name(node, property) == &"script" \
+					and state.get_node_property_value(node, property) is Script:
+				return true
+		var nested := state.get_node_instance(node)
+		if nested != null and _state_has_scripts(nested.get_state(), depth + 1):
+			return true
+	return _state_has_scripts(state.get_base_scene_state(), depth + 1)

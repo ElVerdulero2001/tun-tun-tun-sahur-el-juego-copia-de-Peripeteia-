@@ -705,14 +705,12 @@ func _input_for(actor: ActorBody, tick: int) -> ActorInput:
 
 
 ## Lo que va en el input propio sea cual sea la prueba que arma el resto: los
-## poderes (Kp 1 y Kp 2) y, desde el 2026-11-04, el uso de un consumible, uno
-## por tick (InvNet.take_use).
-func _add_player_presses(input: ActorInput, tick: int) -> void:
+## poderes (Kp 1 y Kp 2) y, desde el 2026-11-04, los usos de consumibles que el
+## host todavía no confirmó, con uno nuevo por tick (InvNet.fill_input).
+func _add_player_presses(input: ActorInput, _tick: int) -> void:
 	input.ability_presses = ability_presses
 	input.power_presses = power_presses
-	_inventory.take_use(tick)
-	input.use_presses = _inventory.use_presses
-	input.use_uid = _inventory.use_uid
+	_inventory.fill_input(input)
 
 
 ## Input de este jugador: del teclado, o del guion de prueba si se pidió.
@@ -2199,8 +2197,10 @@ func _on_own_state(host_tick: int, state_bytes: PackedByteArray, used_input_tick
 ## del host, el uso de un consumible y el motor.
 func _step_local(input: ActorInput) -> void:
 	_apply_client_events(_local_actor.state, input.tick)
+	var deaths := _local_actor.state.deaths
 	_inventory.use_before_step(_local_actor, input)
-	ActorMotor.step(_local_actor, _local_actor.state, input, tuning, SimClock.world_dt(input.tick))
+	ActorMotor.step(_local_actor, _local_actor.state, input, tuning, SimClock.world_dt(input.tick),
+			_local_actor.state.deaths != deaths)
 
 
 ## Host: quién cuelga de quién (ActorMotor.assign_hooks). Corre al empezar el
@@ -2248,7 +2248,7 @@ func _on_local_actor_spawned(actor: ActorBody) -> void:
 		jump_presses = actor.state.jump_presses_seen
 		power_presses = actor.state.power_presses_seen
 		ability_presses = actor.state.ability_presses_seen
-		_inventory.use_presses = actor.state.use_presses_seen
+		_inventory.sync_use_counter(actor.state.use_presses_seen)
 	if _session.reconnects > 0:
 		print("[net_lab] de vuelta, el actor propio es el %d en el tick %d: %s" % [actor.owner_peer_id, _clock.tick, actor.state.describe()])
 

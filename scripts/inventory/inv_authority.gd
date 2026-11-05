@@ -69,7 +69,7 @@ var _world_set := {}
 var _world_gone := {}
 var _closed := {}  # peer -> [caja, motivo]
 var _equip_all := false
-var _use_answers := {}  # peer -> [hasta qué uso llegó, motivo si el último no se pudo]
+var _use_answers := {}  # peer -> [hasta qué uso llegó, [[número, motivo], ...] de los que no se pudieron]
 
 
 func alloc_uid() -> int:
@@ -397,26 +397,39 @@ func _apply_ability(peer: int, inventory: InvInventory, stack: InvStack, kind: i
 
 
 ## Usar un consumible desde el input del jugador (desde el 2026-11-04, ver
-## InvNet.use_before_step): corre en el tick en que se apretó, justo antes de
-## mover a su personaje, con el estado de ese tick. El cliente ya aplicó lo
-## mismo en su predicción, en ese mismo tick: por eso no es un evento del host
-## ni sube la época. Le manda al jugador su inventario y hasta qué uso llegó
-## ("u"), con el motivo si este no se pudo: con eso el cliente deja de mostrar
-## la unidad como gastada, y si no se usó, vuelve a verla.
-func use_from_input(peer: int, state: ActorState, uid: int) -> void:
+## InvNet.use_before_step): corre en el tick en que llegó, justo antes de mover
+## a su personaje, con el estado de ese tick. El cliente ya aplicó lo mismo en
+## su predicción: por eso no es un evento del host ni sube la época. Anota la
+## respuesta de ese uso, por su número (`number`); InvNet manda una sola vez
+## por tick (flush) el inventario y las respuestas ("u"): hasta qué uso llegó y
+## los que no se pudieron, cada uno con su motivo. Con eso el cliente deja de
+## mostrar esas unidades como gastadas, y las que no se usaron vuelven a verse.
+func use_from_input(peer: int, state: ActorState, uid: int, number: int) -> void:
 	var reason := "todavía no tenés personaje"
 	var inventory := player_inventory(peer)
 	if inventory != null:
 		var stack := inventory.grid.get_stack(uid)
 		reason = "ese objeto ya no está en tu inventario" if stack == null \
 				else _apply_ability(peer, inventory, stack, InvAbility.Kind.USE, state, false)
-		_dirty_players[peer] = true
 	if reason == "":
 		accepted += 1
 	else:
 		rejected += 1
-	_use_answers[peer] = [state.use_presses_seen, reason]
-	flush({})
+	_answer_use(peer, number, reason)
+
+
+## Un uso que el host no hace (InvNet.use_before_step): se perdió o esperó
+## demasiado. Se contesta como uno rechazado.
+func use_refused(peer: int, number: int, reason: String) -> void:
+	rejected += 1
+	_answer_use(peer, number, reason)
+
+
+func _answer_use(peer: int, number: int, reason: String) -> void:
+	var answer: Array = _use_answers.get_or_add(peer, [number, []])
+	answer[0] = number
+	if reason != "":
+		answer[1].append([number, reason])
 
 
 func _hotbar_set(peer: int, inventory: InvInventory, slot: int, uid: int) -> String:

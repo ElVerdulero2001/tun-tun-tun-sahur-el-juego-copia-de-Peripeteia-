@@ -51,11 +51,20 @@ const STAMINA_PER_TICK := 1000
 ## del teclado numérico prende o apaga el súper y cada una del 1, el pedido de
 ## cámara lenta propio; dos que caen entre dos ticks se anulan. Después cobra
 ## el tick y, si la reserva se acaba, apaga todo.
-static func step(state: ActorState, input: ActorInput, tuning: ActorTuning) -> void:
+##
+## `died`: el actor murió en este tick, antes de llegar acá (un consumible justo
+## antes del motor, o el daño en el tiempo de la etapa 1). La muerte gana: las
+## pulsaciones de este tick se cuentan como vistas, pero no prenden nada, así
+## el tick termina con todo apagado como dice la regla de la muerte. Una
+## pulsación del tick siguiente ya vale (auditoría del 2026-11-04, INV-04).
+static func step(state: ActorState, input: ActorInput, tuning: ActorTuning, died := false) -> void:
 	var power_presses := (input.power_presses - state.power_presses_seen) & 0xFF
 	state.power_presses_seen = input.power_presses
 	var ability_presses := (input.ability_presses - state.ability_presses_seen) & 0xFF
 	state.ability_presses_seen = input.ability_presses
+	if died:
+		state.powers = 0
+		return
 	if power_presses % 2 == 1:
 		_toggle(state, BOOST)
 	if ability_presses % 2 == 1:

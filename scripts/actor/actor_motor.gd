@@ -87,7 +87,13 @@ const MANTLE_STAND := 0.1
 const MANTLE_WALL_GAP := 0.01
 
 
-static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: ActorTuning, dt: float) -> void:
+## Un tick del actor. `died_before`: ya murió en este tick antes del motor (un
+## consumible aplicado justo antes, SimClock.before_step); con eso, igual que
+## con una muerte por el daño en el tiempo de la etapa 1, las teclas de los
+## estados de este tick no prenden nada (ActorPowers.step).
+static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: ActorTuning, dt: float,
+		died_before := false) -> void:
+	var deaths_at_start := state.deaths
 	body.snap_jump = Vector3.ZERO
 	body.grab_jump = Vector3.ZERO
 	body.grab_jump_speed = ActorBody.GRAB_MAX_SPEED
@@ -112,8 +118,9 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		state.jump_buffer_left = tuning.jump_buffer_time
 	# Cada pulsación prende o apaga el súper salto y velocidad o el pedido de
 	# cámara lenta (dos que caen entre dos ticks se anulan); después se cobra la
-	# estamina del tick, y si se acaba se apagan todos (ActorPowers).
-	ActorPowers.step(state, input, tuning)
+	# estamina del tick, y si se acaba se apagan todos (ActorPowers). Si murió en
+	# este tick, la muerte gana: no se prende nada.
+	ActorPowers.step(state, input, tuning, died_before or state.deaths != deaths_at_start)
 	# Con el súper, desde acá todas las velocidades de moverse vienen
 	# multiplicadas (ActorTuning.with_boost).
 	tuning = tuning.with_boost(state.boosted)

@@ -29,15 +29,23 @@ var ui: InvUI
 var _answers := {}
 var _checks := 0
 var _failures := 0
+var _finishing := false
 var _printed := {}
 
 
 func _ready() -> void:
+	var limit := 100.0
 	for arg in OS.get_cmdline_user_args() + OS.get_cmdline_args():
 		if arg.begins_with("--inv-pair="):
 			role = arg.trim_prefix("--inv-pair=")
-	get_tree().create_timer(100.0, true, false, true).timeout.connect(func() -> void:
-		_log("TIEMPO AGOTADO")
+		elif arg.begins_with("--inv-timeout="):
+			limit = arg.trim_prefix("--inv-timeout=").to_float()
+	# Si se acaba el tiempo, el recorrido no terminó: es una falla, aunque lo
+	# que se alcanzó a comprobar haya dado bien (auditoría del 2026-11-04, PRU-01).
+	# --inv-timeout=SEGUNDOS lo acorta, para comprobar justamente eso.
+	get_tree().create_timer(limit, true, false, true).timeout.connect(func() -> void:
+		_failures += 1
+		_log("TIEMPO AGOTADO: el recorrido no terminó")
 		_finish())
 	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
 	add_child(lab)
@@ -67,7 +75,19 @@ func _check(ok: bool, what: String) -> void:
 	_log("%s: %s" % ["ok" if ok else "FALLA", what])
 
 
-func _finish() -> void:
+## Termina la prueba. Sale bien solo si el recorrido llegó al final
+## (`completed`), con alguna comprobación y sin fallas: el tiempo agotado, un
+## recorrido cortado a la mitad o uno sin comprobaciones salen con error.
+func _finish(completed := false) -> void:
+	if _finishing:
+		return
+	_finishing = true
+	if not completed:
+		_failures += 1
+		_log("FALLA: el recorrido no llegó al final")
+	if _checks == 0:
+		_failures += 1
+		_log("FALLA: no se hizo ninguna comprobación")
 	_log("RESULTADO %d comprobaciones, %d fallas" % [_checks, _failures])
 	if role != "host":
 		lab._session.say_goodbye()
@@ -251,7 +271,7 @@ func _host() -> void:
 					"del jugador %d no queda ninguna suscripción" % peer)
 	_log("MUNDO %s" % world_digest(net.authority.world))
 	_log("MUNDO_REPLICA %s" % world_digest(net.replica.world))
-	_finish()
+	_finish(true)
 
 
 ## Host: cada vez que cambia el inventario de alguien, lo imprime.
@@ -346,7 +366,7 @@ func _client_a() -> void:
 	_log("PROPIO %d %s" % [multiplayer.get_unique_id(), after])
 	await get_tree().create_timer(2.0).timeout
 	_log("MUNDO %s" % world_digest(net.replica.world))
-	_finish()
+	_finish(true)
 
 
 # --- Cliente B (entra tarde) --------------------------------------------------------------------
@@ -364,4 +384,4 @@ func _client_b() -> void:
 	_check(view != null and view.equipped_id() == &"machete", "y lo dibuja en la mano del host")
 	_check(net.replica.own != null and net.replica.own.stacks.is_empty(), "B empieza con su inventario vacío")
 	_log("MUNDO %s" % world_digest(net.replica.world))
-	_finish()
+	_finish(true)

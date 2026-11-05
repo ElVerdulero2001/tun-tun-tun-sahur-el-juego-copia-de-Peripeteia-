@@ -186,9 +186,9 @@ func _accept_inputs(peer_id: int, data: PackedByteArray) -> void:
 	var by_tick: Dictionary = _inputs[peer_id]
 	var claims: Dictionary = _claims[peer_id]
 	for i in count:
-		if b.get_available_bytes() < ActorInput.BYTE_SIZE + 1:
-			return
 		var input := ActorInput.read_from(b)
+		if input == null or b.get_available_bytes() < 1:
+			return
 		var claim_size := b.get_u8()
 		if b.get_available_bytes() < claim_size:
 			return
@@ -214,9 +214,10 @@ func _tick_in_range(tick: int) -> bool:
 ## Input de un jugador remoto para un tick del host, o null si nunca llegó
 ## ninguno. Si falta el de ese tick, se repite el último anterior: mismos
 ## botones mantenidos y mismo contador de pulsaciones, así no se inventa ni se
-## duplica un salto (ni un uso de consumible). Si el último es de hace más de
-## STALE_INPUT_TICKS, queda quieto: sin moverse ni botones, con los mismos
-## contadores.
+## duplica un salto (ni un uso de consumible: los usos que trae el repetido
+## son los mismos, y los ya hechos no se vuelven a hacer). Si el último es de
+## hace más de STALE_INPUT_TICKS, queda quieto: sin moverse ni botones, con los
+## mismos contadores.
 func input_for(peer_id: int, tick: int) -> ActorInput:
 	var by_tick: Dictionary = _inputs.get(peer_id, {})
 	var chosen: ActorInput = by_tick.get(tick)
@@ -236,7 +237,7 @@ func input_for(peer_id: int, tick: int) -> ActorInput:
 	var input := ActorInput.make(tick, Vector2.ZERO if stale else chosen.move, chosen.look_yaw, 0 if stale else chosen.buttons,
 			chosen.jump_presses, chosen.ability_presses, chosen.power_presses)
 	input.use_presses = chosen.use_presses
-	input.use_uid = chosen.use_uid
+	input.uses = chosen.uses.duplicate(true)
 	return input
 
 

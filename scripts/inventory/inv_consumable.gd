@@ -48,6 +48,11 @@ func kind() -> int:
 	return Kind.USE
 
 
+## Sí: solo mira la salud y la estamina (y sus propios números), no la pila ni la barra.
+func predictable() -> bool:
+	return true
+
+
 func action_text(_loadout: InvLoadout, _stack: InvStack) -> String:
 	return "Usar"
 

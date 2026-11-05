@@ -897,6 +897,11 @@ func _vitals() -> ActorVitals:
 ## host y esta máquina aplican el efecto a la vez. Antes se mira, con la salud
 ## y la estamina de esta máquina, lo mismo que mira el host; si el host igual
 ## no puede, la unidad vuelve a verse y se dice por qué. Devuelve si salió.
+##
+## Lo mismo para el menú y la barra: con algo pedido sobre ese objeto que
+## todavía no se ve hecho (mover, juntar…), espera, como el botón del menú
+## (auditoría del 2026-11-04, INV-02). Una capacidad que no se puede adelantar
+## (InvAbility.predictable) sale como pedido y espera al host.
 func use_item(uid: int) -> bool:
 	var grid := _r().shown_own()
 	var stack := grid.get_stack(uid) if grid != null else null
@@ -904,11 +909,22 @@ func use_item(uid: int) -> bool:
 	var use := def.ability_of(InvAbility.Kind.USE) if def != null else null
 	if use == null:
 		return false
+	if _waiting(uid):
+		_say("Esperá: ese objeto todavía espera al host")
+		return false
 	var reason := use.check(_r().loadout, stack, _vitals())
 	if reason != "":
 		_say(_sentence(reason))
 		return false
-	net.queue_use(uid, def)
+	if not use.predictable():
+		var seq := _r().request(InvProtocol.Op.USE, [uid, stack.ver], [uid])
+		if seq != 0:
+			_sent[seq] = {"op": InvProtocol.Op.USE}
+		queue_redraw()
+		return seq != 0
+	if not net.queue_use(uid, def):
+		_say("Esperá: hay muchos usos que el host todavía no confirmó")
+		return false
 	queue_redraw()
 	return true
 

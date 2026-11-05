@@ -29,14 +29,22 @@ var hud: LabHud
 var _answers := {}
 var _checks := 0
 var _failures := 0
+var _finishing := false
 
 
 func _ready() -> void:
+	var limit := 100.0
 	for arg in OS.get_cmdline_user_args() + OS.get_cmdline_args():
 		if arg.begins_with("--inv-instant="):
 			role = arg.trim_prefix("--inv-instant=")
-	get_tree().create_timer(100.0, true, false, true).timeout.connect(func() -> void:
-		_log("TIEMPO AGOTADO")
+		elif arg.begins_with("--inv-timeout="):
+			limit = arg.trim_prefix("--inv-timeout=").to_float()
+	# Si se acaba el tiempo, el recorrido no terminó: es una falla, aunque lo
+	# que se alcanzó a comprobar haya dado bien (auditoría del 2026-11-04, PRU-01).
+	# --inv-timeout=SEGUNDOS lo acorta, para comprobar justamente eso.
+	get_tree().create_timer(limit, true, false, true).timeout.connect(func() -> void:
+		_failures += 1
+		_log("TIEMPO AGOTADO: el recorrido no terminó")
 		_finish())
 	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
 	add_child(lab)
@@ -65,7 +73,19 @@ func _check(ok: bool, what: String) -> void:
 	_log("%s: %s" % ["ok" if ok else "FALLA", what])
 
 
-func _finish() -> void:
+## Termina la prueba. Sale bien solo si el recorrido llegó al final
+## (`completed`), con alguna comprobación y sin fallas: el tiempo agotado, un
+## recorrido cortado a la mitad o uno sin comprobaciones salen con error.
+func _finish(completed := false) -> void:
+	if _finishing:
+		return
+	_finishing = true
+	if not completed:
+		_failures += 1
+		_log("FALLA: el recorrido no llegó al final")
+	if _checks == 0:
+		_failures += 1
+		_log("FALLA: no se hizo ninguna comprobación")
 	_log("RESULTADO %d comprobaciones, %d fallas" % [_checks, _failures])
 	if role != "host":
 		lab._session.say_goodbye()
@@ -195,7 +215,7 @@ func _host() -> void:
 				_log("PISO a las %d aparece %d (%s)" % [_now_ms(), uid, net.replica.world[uid]["stack"].def_id])
 		await get_tree().physics_frame
 	_log("pedidos aceptados %d, rechazados %d" % [net.authority.accepted, net.authority.rejected])
-	_finish()
+	_finish(true)
 
 
 # --- Cliente --------------------------------------------------------------------------------
@@ -212,11 +232,12 @@ func _client() -> void:
 	await _host_says_no()
 	await _over_time()
 	await _drop_things()
+	await _pick_up_then_use()
 	var actor := _actor()
 	_check(net.replica.shown_own() == net.replica.own, "al final no queda nada sin confirmar")
 	_log("FINAL %s %s" % [vitals_digest(actor.state), grid_digest(net.replica.own)])
 	_log("correcciones %d, coincidencias %d" % [lab._prediction.corrections, lab._prediction.matches])
-	_finish()
+	_finish(true)
 
 
 ## Recoger: lo que se ve no espera la respuesta.
@@ -242,10 +263,11 @@ func _pick_up(def_id: StringName) -> void:
 	_check(grid_digest(net.replica.shown_own()) == grid_digest(net.replica.own), "lo que se veía es lo que confirmó")
 
 
-## Espera a que el host confirme todos los usos y un rato más (llegan los snapshots).
+## Espera a que el host confirme todos los usos y un rato más (llegan los
+## snapshots). Que no los confirme a tiempo es una falla.
 func _settle() -> int:
 	var sent := Time.get_ticks_msec()
-	await _until(func() -> bool: return net.replica._uses.is_empty(), 5.0)
+	_check(await _until(func() -> bool: return net.replica._uses.is_empty(), 5.0), "el host contesta todos los usos")
 	var waited := Time.get_ticks_msec() - sent
 	await _ticks(30)
 	return waited
@@ -393,6 +415,47 @@ func _drop_things() -> void:
 	ui.close()
 	await _ticks(10)
 	_check(net.replica.predicted_drops().is_empty() and ui._flight.is_empty(), "no queda nada sin confirmar")
+
+
+## INV-02 (auditoría del 2026-11-04), como lo reprodujo GPT: recoger un veneno
+## que no tenía y usarlo enseguida, con el pedido de recoger demorado 350 ms
+## más que el input (por el que viaja el uso). Antes el host recibía el uso
+## primero, lo rechazaba ("ya no está en tu inventario") y la salud volvía.
+## Ahora el uso espera a que el host procese lo recogido.
+func _pick_up_then_use() -> void:
+	var actor := _actor()
+	# Sin venenos en el inventario: lo recogido es una pila nueva, con el id del piso.
+	var mine := _first_of(net.replica.own, &"veneno")
+	if mine != 0:
+		var seq := ui.drop_item(InvProtocol.OWN, mine, net.replica.own.get_stack(mine).ver, net.replica.own.get_stack(mine).quantity)
+		_check(seq != 0 and await _until(func() -> bool: return _answers.has(seq), 5.0) and _answers[seq][0], "suelta los venenos que le quedan")
+	var chest := actor.global_position + Vector3.UP * InvAuthority.CHEST
+	var uid := 0
+	for candidate in net.replica.world:
+		var item: Dictionary = net.replica.world[candidate]
+		if item["stack"].def_id == &"veneno" and chest.distance_to(item["pos"]) < net.pickup_range - 0.2 \
+				and (uid == 0 or chest.distance_to(item["pos"]) < chest.distance_to(net.replica.world[uid]["pos"])):
+			uid = candidate
+	_check(uid != 0 and _count(net.replica.own, &"veneno") == 0, "tiene un veneno al alcance y ninguno en el inventario")
+	if uid == 0:
+		return
+	var quantity: int = net.replica.world[uid]["stack"].quantity
+	var health := actor.state.health
+	ui._toast = ""
+	var original: Callable = net.replica.send
+	net.replica.send = func(seq: int, op: int, args: Array, after_use: int) -> void:
+		get_tree().create_timer(0.35, true, false, true).timeout.connect(func() -> void: original.call(seq, op, args, after_use))
+	var picked := ui.pick_up_world(uid, "veneno")
+	net.replica.send = original
+	_check(picked != 0 and ui.use_item(uid), "recoge el veneno (el pedido sale 350 ms tarde) y lo usa enseguida")
+	await _ticks(2)
+	_check(actor.state.health == health - 40 * H, "esta máquina lo muestra usado en el tick siguiente: %.1f" % (actor.state.health / float(H)))
+	_check(await _until(func() -> bool: return _answers.has(picked), 5.0) and _answers[picked][0], "el host acepta lo recogido")
+	await _settle()
+	_check(actor.state.health == health - 40 * H and _count(net.replica.own, &"veneno") == quantity - 1 and not ui._toast.contains("No se usó"),
+			"el host lo usó después de recogerlo: salud %.1f, venenos %d de %d, aviso \"%s\"" % [actor.state.health / float(H),
+			_count(net.replica.own, &"veneno"), quantity, ui._toast])
+	_check(grid_digest(net.replica.shown_own()) == grid_digest(net.replica.own), "lo que se ve es lo que confirmó el host")
 
 
 func _over_time() -> void:

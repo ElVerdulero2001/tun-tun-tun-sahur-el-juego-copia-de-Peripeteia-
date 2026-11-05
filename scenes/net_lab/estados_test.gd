@@ -55,6 +55,8 @@ func _ready() -> void:
 	await _death()
 	await _damage_over_time()
 	await _without_waiting()
+	await _death_beats_keys()
+	await _uses_in_order()
 	await _cut_and_leave()
 	print("[estados_test] %d comprobaciones, %d fallas" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -590,7 +592,148 @@ func _without_waiting() -> void:
 	_check(net.replica.shown_own() == net.replica.own and net.replica.predicted_drops().is_empty(), "y no queda nada sin confirmar")
 
 
-# --- 10. Corte y salida ---------------------------------------------------------------------------
+# --- 10. Auditoría del 2026-11-04 ---------------------------------------------------------------
+
+## INV-04: si muere en el mismo tick en que aprieta el 1 y el 2, la muerte gana:
+## termina con todo apagado. Con la cápsula (antes del motor) y con el daño en
+## el tiempo (en el motor). B sigue sosteniendo su cámara lenta.
+func _death_beats_keys() -> void:
+	var slow := NetSync.steps_to_scale(NetSync.scale_to_steps(tuning.slow_scale))
+	var costs := [tuning.boost_stamina_cost, tuning.slow_stamina_cost]
+	tuning.boost_stamina_cost = 0.0
+	tuning.slow_stamina_cost = 0.0
+	actor.state.stamina = 200 * UNIT
+	actor.state.health = 100 * H
+	other.state.powers |= ActorPowers.SLOW
+	for kind in ["cápsula", "daño en el tiempo"]:
+		if not actor.state.boosted:
+			await _press_power()
+		if not actor.state.powers & ActorPowers.SLOW:
+			await _press_slow()
+		_check(actor.state.powers == ActorPowers.ALL, "%s: A con los dos estados prendidos" % kind)
+		var deaths := actor.state.deaths
+		# Las dos teclas y la muerte, en el mismo tick.
+		lab.power_presses = (lab.power_presses + 1) & 0xFF
+		lab.ability_presses = (lab.ability_presses + 1) & 0xFF
+		if kind == "cápsula":
+			var pill := _own(&"capsula_letal")
+			_check(pill != 0 and ui.use_item(pill), "usa la última cápsula letal")
+		else:
+			actor.state.health = 1
+			ActorVitals.of(actor.state, tuning).apply(0, 0, 10, 1.0)
+		await _ticks(2)
+		_check(actor.state.deaths == (deaths + 1) & 0xFF and actor.state.powers == 0,
+				"%s: muere en el tick en que aprieta el 1 y el 2 y termina con todo apagado (estados %d)" % [kind, actor.state.powers])
+		await _ticks(10)
+		_check(actor.state.powers == 0 and actor.state.deaths == (deaths + 1) & 0xFF, "%s: los siguientes ticks no los prenden" % kind)
+		_check(is_equal_approx(_scale_now(), slow) and other.state.powers & ActorPowers.SLOW, "%s: B sigue pidiendo la cámara lenta" % kind)
+	await _press_power()
+	_check(actor.state.boosted, "una pulsación después de la muerte sí prende el súper")
+	await _press_power()
+	other.state.powers &= ~ActorPowers.SLOW
+	_check(await _wait_scale(1.0) and actor.state.powers == 0, "todo apagado otra vez")
+	tuning.boost_stamina_cost = costs[0]
+	tuning.slow_stamina_cost = costs[1]
+
+
+## Un input de B con estos usos (cada uno [objeto, pedido anterior]), el más
+## nuevo con el número `last`.
+func _b_input(last: int, uses: Array) -> ActorInput:
+	var input := ActorInput.make(lab._clock.tick, Vector2.ZERO, 0.0, 0, other.state.jump_presses_seen,
+			other.state.ability_presses_seen, other.state.power_presses_seen)
+	input.use_presses = last & 0xFF
+	input.uses = uses
+	return input
+
+
+## INV-01 e INV-02, en el host, con el inventario de B: el host hace todos los
+## usos que trae el input, en orden, y respeta el orden con los pedidos.
+func _uses_in_order() -> void:
+	var inventory := net.authority.player_inventory(2)
+	_check(inventory != null, "B tiene inventario en el host")
+	if inventory == null:
+		return
+	var poison := InvStack.make(net.authority.alloc_uid(), &"veneno", 5, {})
+	var kit := InvStack.make(net.authority.alloc_uid(), &"botiquin", 3, {})
+	InvOps.insert(inventory.grid, poison)
+	InvOps.insert(inventory.grid, kit)
+	var count := func(uid: int) -> int:
+		var stack := inventory.grid.get_stack(uid)
+		return stack.quantity if stack != null else 0
+	# INV-01: el host se perdió el tick del veneno y le llega el input que ya
+	# trae el botiquín: hace los dos, en orden. Antes hacía solo el botiquín.
+	other.state.health = 60 * H
+	var seen := other.state.use_presses_seen
+	var input := _b_input(seen + 2, [[poison.uid, 0], [kit.uid, 0]])
+	net.use_before_step(other, input)
+	_check(other.state.health == 70 * H and count.call(poison.uid) == 4 and count.call(kit.uid) == 2
+			and other.state.use_presses_seen == (seen + 2) & 0xFF,
+			"le llegan dos usos juntos: veneno y después botiquín, 60 → 20 → 70 (%.1f)" % (other.state.health / float(H)))
+	net.use_before_step(other, input)
+	_check(other.state.health == 70 * H and count.call(poison.uid) == 4 and count.call(kit.uid) == 2,
+			"el mismo input otra vez no repite nada")
+	net.use_before_step(other, _b_input(seen + 1, [[poison.uid, 0]]))
+	_check(other.state.health == 70 * H and other.state.use_presses_seen == (seen + 2) & 0xFF, "uno viejo, que va atrás, tampoco")
+	var rejected := net.authority.rejected
+	net.use_before_step(other, _b_input(seen + 5, [[kit.uid, 0]]))
+	_check(other.state.use_presses_seen == (seen + 5) & 0xFF and net.authority.rejected == rejected + 2
+			and other.state.health == 100 * H and count.call(kit.uid) == 1,
+			"si faltan dos en el input, se contestan como perdidos y se hace el que vino")
+	# INV-02: un uso hecho después de un pedido que el host todavía no recibió espera.
+	var seq: int = net._done_seq.get(2, 0) + 1
+	other.state.health = 50 * H
+	seen = other.state.use_presses_seen
+	input = _b_input(seen + 1, [[kit.uid, seq]])
+	net.use_before_step(other, input)
+	_check(other.state.health == 50 * H and other.state.use_presses_seen == seen, "un uso que va después de un pedido que no llegó espera")
+	net._inbox.append([2, seq, Op.HOTBAR_SET, [0, kit.uid], -1])
+	await _ticks(2)
+	_check(inventory.loadout.hotbar[0] == kit.uid, "llega el pedido y el host lo procesa")
+	net.use_before_step(other, input)
+	_check(other.state.health == 100 * H and other.state.use_presses_seen == (seen + 1) & 0xFF and count.call(kit.uid) == 0,
+			"y recién ahí el uso")
+	# Un pedido hecho después de un uso que todavía no llegó espera.
+	var next := (other.state.use_presses_seen + 1) & 0xFF
+	net._inbox.append([2, seq + 1, Op.HOTBAR_SET, [1, poison.uid], next])
+	await _ticks(3)
+	_check(inventory.loadout.hotbar[1] == 0 and net.queued_requests() == 1, "un pedido que va después de un uso que no llegó espera")
+	net.use_before_step(other, _b_input(next, [[poison.uid, seq]]))
+	await _ticks(2)
+	_check(other.state.health == 60 * H and inventory.loadout.hotbar[1] == poison.uid and net.queued_requests() == 0,
+			"llega el uso: primero el uso y después el pedido")
+	# Lo que nunca llega no traba para siempre: a los ORDER_WAIT_MSEC se sigue.
+	var stuck := (other.state.use_presses_seen + 1) & 0xFF
+	input = _b_input(stuck, [[poison.uid, seq + 50]])
+	var from := Time.get_ticks_msec()
+	while other.state.use_presses_seen != stuck and Time.get_ticks_msec() - from < InvNet.ORDER_WAIT_MSEC + 2000:
+		net.use_before_step(other, input)
+		await get_tree().physics_frame
+	var waited := Time.get_ticks_msec() - from
+	_check(other.state.use_presses_seen == stuck and waited >= InvNet.ORDER_WAIT_MSEC and count.call(poison.uid) == 3,
+			"un uso que espera un pedido que nunca llega se rechaza a los %d ms, sin gastar" % waited)
+	net._inbox.append([2, seq + 2, Op.HOTBAR_SET, [2, poison.uid], (stuck + 1) & 0xFF])
+	from = Time.get_ticks_msec()
+	while inventory.loadout.hotbar[2] != poison.uid and Time.get_ticks_msec() - from < InvNet.ORDER_WAIT_MSEC + 2000:
+		await get_tree().physics_frame
+	waited = Time.get_ticks_msec() - from
+	_check(inventory.loadout.hotbar[2] == poison.uid and waited >= InvNet.ORDER_WAIT_MSEC,
+			"un pedido que espera un uso que nunca llega se procesa igual a los %d ms" % waited)
+	# El límite de usos sin confirmar en esta máquina.
+	var before := actor.state.use_presses_seen
+	var queued := 0
+	for i in InvNet.MAX_USES_WAITING + 8:
+		if net.queue_use(999999, net.catalog.find(&"veneno")):
+			queued += 1
+	_check(queued == InvNet.MAX_USES_WAITING, "no salen más de %d usos sin confirmar (salieron %d)" % [InvNet.MAX_USES_WAITING, queued])
+	for i in 120:
+		if net.replica.uses_waiting() == 0:
+			break
+		await get_tree().physics_frame
+	_check(net.replica.uses_waiting() == 0 and actor.state.use_presses_seen == (before + InvNet.MAX_USES_WAITING) & 0xFF,
+			"el host los contesta todos, de a uno por tick y en orden")
+
+
+# --- 11. Corte y salida ---------------------------------------------------------------------------
 
 func _cut_and_leave() -> void:
 	# A B se le corta la conexión: el host le apaga los estados.

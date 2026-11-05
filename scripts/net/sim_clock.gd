@@ -254,9 +254,10 @@ func _run_tick() -> void:
 			actor.reset_physics_interpolation()
 			actor.placed = true
 		var input: ActorInput = input_provider.call(actor, tick)
+		var deaths := actor.state.deaths
 		if before_step.is_valid():
 			before_step.call(actor, input)
-		ActorMotor.step(actor, actor.state, input, tuning, world_dt(tick))
+		ActorMotor.step(actor, actor.state, input, tuning, world_dt(tick), actor.state.deaths != deaths)
 		actor.present(actor.state)
 		actor.decay_visual_offset(TICK_DT)
 	tick_finished.emit(tick)

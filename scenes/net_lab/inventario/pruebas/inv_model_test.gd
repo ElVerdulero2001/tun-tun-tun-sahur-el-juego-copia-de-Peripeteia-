@@ -24,6 +24,10 @@ func _ready() -> void:
 	_transfer_between_grids()
 	_loadout_after_operations()
 	_snapshot_round_trip()
+	_shown_in_order()
+	_use_answers()
+	_input_round_trip()
+	_scripted_models()
 	print("[inv_model_test] %d comprobaciones, %d fallas" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -290,3 +294,183 @@ func _snapshot_round_trip() -> void:
 	_check(InvGrid.from_snapshot([6, 5, 0, [[[1, "llave", 1, {}, 0], 0, 0, 5]]], _catalog) == null, "un giro de 5 se descarta")
 	_check(InvGrid.from_snapshot([6, 5, 0, [[[1, "llave", 1, {}, 0], 0, 0, true]]], _catalog) == null,
 			"el giro viejo (verdadero o falso) se descarta")
+
+
+# 7. Lo que se ve sin esperar al host (auditoría del 2026-11-04).
+
+## Todo lo que hay que comparar de una grilla: id, tipo, cantidad, versión, celda y giro.
+static func _digest(grid: InvGrid) -> String:
+	if grid == null:
+		return "(sin grilla)"
+	var parts := PackedStringArray()
+	for uid in grid.sorted_uids():
+		var stack: InvStack = grid.stacks[uid]
+		var place := grid.placement(uid)
+		parts.append("%d:%s:%d:v%d:%d,%d,%d" % [uid, stack.def_id, stack.quantity, stack.ver, place.cell.x, place.cell.y, place.rot])
+	return " ".join(parts)
+
+
+## Una réplica con lo confirmado: `own` y, en el piso, `floor` (uid -> InvStack).
+## Lo que "manda" queda en `sent`: [número, operación, argumentos, uso anterior].
+func _replica(own: InvGrid, floor: Dictionary, sent: Array) -> InvReplica:
+	var replica := InvReplica.new()
+	replica.catalog = _catalog
+	replica.send = func(seq: int, op: int, args: Array, after_use: int) -> void: sent.append([seq, op, args, after_use])
+	var world := []
+	for uid in floor:
+		world.append([(floor[uid] as InvStack).to_array(), 0.0, 0.0, 0.0])
+	own.revision = 1
+	replica.apply_commit({"world": world, "own": own.snapshot(), "lo": InvLoadout.new().snapshot()})
+	return replica
+
+
+## INV-03: lo que se ve tiene que ser lo mismo que hacer las acciones una por
+## una, en el orden en que se hicieron, sobre lo confirmado.
+func _shown_in_order() -> void:
+	# Usar la última unidad de A y después recoger B, del mismo tipo.
+	var own := _grid()
+	var a := _put(own, &"municion", Vector2i(0, 0), 1)
+	var b := InvStack.make(_uid(), &"municion", 5, {})
+	var sent := []
+	var replica := _replica(own, {b.uid: b}, sent)
+	replica.add_use(a.uid, 1)
+	replica.request(InvProtocol.Op.PICKUP, [b.uid], [b.uid])
+	var expected := own.copy()
+	InvOps.consume(expected, a.uid, 1)
+	InvOps.insert(expected, b.copy())
+	_check(_digest(replica.shown_own()) == _digest(expected) and not replica.shown_own().has(a.uid)
+			and replica.shown_own().get_stack(b.uid).quantity == 5,
+			"usar la última de A y recoger B: se ve solo B ×5 (%s)" % _digest(replica.shown_own()))
+	_check(sent.size() == 1 and sent[0][3] == 1, "recoger lleva el uso anterior (1): el host no lo hace antes")
+	# Al revés: recoger B y después usar A. B se junta con A y el uso gasta de A.
+	own = _grid()
+	a = _put(own, &"municion", Vector2i(0, 0), 1)
+	b = InvStack.make(_uid(), &"municion", 5, {})
+	sent = []
+	replica = _replica(own, {b.uid: b}, sent)
+	replica.request(InvProtocol.Op.PICKUP, [b.uid], [b.uid])
+	replica.add_use(a.uid, 1)
+	expected = own.copy()
+	InvOps.insert(expected, b.copy())
+	InvOps.consume(expected, a.uid, 1)
+	_check(_digest(replica.shown_own()) == _digest(expected), "recoger B y usar A: igual que en ese orden (%s)" % _digest(replica.shown_own()))
+	_check(sent[0][3] == -1 and replica.send_next_use(8) == 1 and replica.uses_in_flight() == [[a.uid, 1]],
+			"el uso lleva el pedido anterior (1): el host no lo hace antes de recoger")
+	# Soltar parte y usar.
+	own = _grid()
+	a = _put(own, &"municion", Vector2i(0, 0), 3)
+	sent = []
+	replica = _replica(own, {}, sent)
+	replica.request(InvProtocol.Op.DROP_AT, InvProtocol.drop_args(InvProtocol.OWN, a.uid, a.ver, 1, Vector3.ZERO), [a.uid])
+	replica.add_use(a.uid, 1)
+	expected = own.copy()
+	InvOps.take(expected, a.uid, a.ver, 1, -1)
+	InvOps.consume(expected, a.uid, 1)
+	_check(_digest(replica.shown_own()) == _digest(expected) and replica.shown_own().get_stack(a.uid).quantity == 1,
+			"soltar 1 de 3 y usar 1: queda 1 (%s)" % _digest(replica.shown_own()))
+	# Uno del medio rechazado: recoger B (el host dice que no) entre dos usos de A.
+	own = _grid()
+	a = _put(own, &"municion", Vector2i(0, 0), 3)
+	b = InvStack.make(_uid(), &"municion", 5, {})
+	sent = []
+	replica = _replica(own, {b.uid: b}, sent)
+	replica.add_use(a.uid, 1)
+	var seq := replica.request(InvProtocol.Op.PICKUP, [b.uid], [b.uid])
+	replica.add_use(a.uid, 2)
+	replica.apply_commit({"r": [[seq, false, "ya no está: lo agarró otro jugador"]]})
+	expected = own.copy()
+	InvOps.consume(expected, a.uid, 1)
+	InvOps.consume(expected, a.uid, 1)
+	_check(_digest(replica.shown_own()) == _digest(expected) and not replica.is_taken(b.uid),
+			"recoger rechazado en el medio: quedan los dos usos y B vuelve al piso (%s)" % _digest(replica.shown_own()))
+
+
+## INV-01: el host contesta uso por uso. Solo se dan por hechos los que
+## salieron, y el número, que da la vuelta en 256, no se confunde.
+func _use_answers() -> void:
+	var own := _grid()
+	var a := _put(own, &"municion", Vector2i(0, 0), 10)
+	var replica := _replica(own, {}, [])
+	var refused := []
+	replica.use_refused.connect(func(reason: String) -> void: refused.append(reason))
+	for number in [254, 255, 0]:
+		replica.add_use(a.uid, number)
+	_check(replica.send_next_use(2) == 254 and replica.send_next_use(2) == 255 and replica.send_next_use(2) == -1,
+			"salen de a uno y no más de los que pueden viajar")
+	_check(replica.uses_in_flight().size() == 2, "viajan los dos que salieron")
+	replica.apply_commit({"u": [254, [[254, "ya tenés la salud completa"]]]})
+	_check(replica.uses_waiting() == 2 and refused == ["ya tenés la salud completa"],
+			"el host contesta el 254 que no se pudo: se dice una vez y quedan dos")
+	replica.apply_commit({"u": [0, []]})
+	_check(replica.uses_waiting() == 1 and replica.has_use(a.uid) and replica.uses_in_flight().is_empty(),
+			"un número de más no da por hecho el 0, que todavía no salió")
+	_check(replica.send_next_use(8) == 0, "el 0 sale después de dar la vuelta")
+	replica.apply_commit({"u": [0, []]})
+	_check(replica.uses_waiting() == 0 and replica.shown_own().get_stack(a.uid).quantity == 10, "y el host lo contesta")
+	_check(replica.uses_in_flight().is_empty(), "no queda nada en viaje")
+
+
+## El input viaja con los usos sin confirmar, y uno mal formado se descarta.
+func _input_round_trip() -> void:
+	var input := ActorInput.make(77, Vector2(0.3, -1), 1.2, ActorInput.BUTTON_RUN, 5, 6, 7)
+	input.use_presses = 200
+	input.uses = [[123456, 9], [4000000000, 0]]
+	var b := StreamPeerBuffer.new()
+	input.write_to(b)
+	_check(b.data_array.size() == ActorInput.BYTE_SIZE + 2 * ActorInput.USE_BYTES, "largo: el fijo más los dos usos")
+	b.seek(0)
+	var back := ActorInput.read_from(b)
+	_check(back != null and back.tick == 77 and back.use_presses == 200 and back.uses == [[123456, 9], [4000000000, 0]]
+			and back.power_presses == 7 and back.is_possible(), "se lee igual del otro lado")
+	var cut := StreamPeerBuffer.new()
+	cut.data_array = b.data_array.slice(0, b.data_array.size() - 3)
+	_check(ActorInput.read_from(cut) == null, "uno cortado se descarta")
+	var bytes := b.data_array.duplicate()
+	bytes[ActorInput.BYTE_SIZE - 1] = ActorInput.MAX_USES + 1
+	var many := StreamPeerBuffer.new()
+	many.data_array = bytes
+	_check(ActorInput.read_from(many) == null, "uno con más usos de los que pueden ir se descarta")
+
+
+## EDT-01: un modelo con scripts no se instancia ni se usa como apariencia.
+func _scripted_models() -> void:
+	var logic := GDScript.new()
+	logic.source_code = "extends Node3D\nfunc _init() -> void:\n\tEngine.set_meta(&\"inv_model_test_init\", Engine.get_meta(&\"inv_model_test_init\", 0) + 1)\n"
+	logic.reload()
+	var root := Node3D.new()
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = BoxMesh.new()
+	root.add_child(mesh)
+	mesh.owner = root
+	var scripted_node := Node3D.new()
+	scripted_node.set_script(logic)
+	root.add_child(scripted_node)
+	scripted_node.owner = root
+	var scripted := PackedScene.new()
+	scripted.pack(root)
+	root.free()
+	var plain_root := Node3D.new()
+	var plain_mesh := MeshInstance3D.new()
+	plain_mesh.mesh = BoxMesh.new()
+	plain_root.add_child(plain_mesh)
+	plain_mesh.owner = plain_root
+	var plain := PackedScene.new()
+	plain.pack(plain_root)
+	plain_root.free()
+	var def := _def(&"con_logica", Vector2i(1, 1))
+	def.model = scripted
+	Engine.set_meta(&"inv_model_test_init", 0)
+	var built := InvVisuals.build(def)
+	_check(InvVisuals.has_scripts(scripted) and not InvVisuals.has_visual(def), "con scripts: no se usa como apariencia")
+	_check(Engine.get_meta(&"inv_model_test_init", 0) == 0 and built.get_child_count() == 0, "y armarlo no corre su _init")
+	built.free()
+	_check(Array(_catalog.problems()).any(func(problem: String) -> bool: return problem.contains("con_logica")), "el catálogo lo avisa")
+	var clean := _def(&"sin_logica", Vector2i(1, 1))
+	clean.model = plain
+	built = InvVisuals.build(clean)
+	_check(not InvVisuals.has_scripts(plain) and InvVisuals.has_visual(clean) and built.get_child_count() == 1,
+			"sin scripts: se copian sus mallas como siempre")
+	built.free()
+	_catalog.items.erase(def)
+	_catalog.items.erase(clean)
+	Engine.remove_meta(&"inv_model_test_init")

@@ -375,7 +375,10 @@ func containers() -> Array[InvContainer]:
 
 
 ## Lo que el jugador está mirando, si lo puede agarrar o abrir: {"kind": "box"
-## o "item", "id", "name"}, o {} si no hay nada.
+## o "item", "id", "name", "node"}, o {} si no hay nada. "node" es lo que se ve
+## de ese objetivo en esta máquina (la InvContainer o la InvWorldItem, o null si
+## todavía no se armó): de ahí sale lo que marca el indicador (interact_focus,
+## desde el 2026-11-06).
 ##
 ## La mira es la línea que sale de la cámara por el centro de la pantalla,
 ## desde `from` (la cámara, o en tercera persona el punto a la altura de la
@@ -409,7 +412,7 @@ func interaction_target(actor: ActorBody, from: Vector3, look: Vector3, third_pe
 	if box != null and box.container_id != 0 and feet.distance_to(box.access_point()) <= box.access_range \
 			and in_front.call(box.center()) and InvAuthority.sees(space, eyes, box.center(), [box.get_rid()]):
 		best_t = wall
-		best = {"kind": "box", "id": box.container_id, "name": box.display_name}
+		best = {"kind": "box", "id": box.container_id, "name": box.display_name, "node": box}
 	for uid in replica.world:
 		if replica.is_taken(uid):
 			continue
@@ -427,7 +430,7 @@ func interaction_target(actor: ActorBody, from: Vector3, look: Vector3, third_pe
 			continue
 		best_t = t
 		best = {"kind": "item", "id": uid, "name": (def.display_name if def != null else String(stack.def_id)) +
-				(" ×%d" % stack.quantity if stack.quantity > 1 else "")}
+				(" ×%d" % stack.quantity if stack.quantity > 1 else ""), "node": _world_views.get(uid)}
 	return best
 
 

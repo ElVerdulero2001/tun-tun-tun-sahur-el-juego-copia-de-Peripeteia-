@@ -28,6 +28,11 @@ extends Control
 ## (interactuar) recoge o abre lo que se mira y, con una caja abierta, la
 ## cierra (con el inventario); 1 a 9 y 0 (acceso_rapido_N) usan o equipan lo
 ## del acceso. Con la mano vacía, el cursor sobre un objeto muestra su nombre.
+##
+## Lo que E elegiría en cada momento lo marca el indicador del HUD
+## (InteractIndicator, desde el 2026-11-06): le pide a interaction_focus() la
+## zona y el nombre, con el mismo selector y las mismas reglas que usa E
+## (can_interact). Por eso encima de la barra ya no hay aviso de interacción.
 
 signal opened
 signal closed
@@ -236,8 +241,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	# Con una caja abierta (o pedida), E la cierra junto con el inventario.
-	if event.is_action_pressed("interactuar") and is_open and not is_typing() \
-			and (_r().box_id != 0 or _r().is_op_pending(InvProtocol.Op.OPEN)):
+	if event.is_action_pressed("interactuar") and _e_closes_box():
 		close()
 		get_viewport().set_input_as_handled()
 		return
@@ -299,6 +303,35 @@ func _look_target() -> Dictionary:
 		return {}
 	var aim := camera.aim_ray()
 	return net.interaction_target(actor, aim[0], aim[1], camera.third_person())
+
+
+## Si E, en este momento, cierra la caja abierta (o pedida) en vez de
+## recoger o abrir lo que se mira.
+func _e_closes_box() -> bool:
+	return is_open and not is_typing() and (_r().box_id != 0 or _r().is_op_pending(InvProtocol.Op.OPEN))
+
+
+## Si E, en este momento, actuaría sobre lo que se mira: con el personaje
+## propio, sin escribir en un campo, sin un diálogo abierto y sin una caja
+## abierta (ahí E la cierra). Son las mismas reglas de _unhandled_key_input.
+func can_interact() -> bool:
+	return _active() and not is_typing() and not _modal_open() and not _e_closes_box()
+
+
+## Lo que E elegiría ahora mismo (el mismo selector, _look_target), o vacío si
+## no hay nada o si la interfaz no deja interactuar.
+func interaction_target() -> Dictionary:
+	return _look_target() if can_interact() else {}
+
+
+## Para el indicador del HUD (InteractIndicator.source): la zona y el nombre de
+## lo que E elegiría ahora, que aporta el propio objetivo (interact_focus), o
+## null. El indicador lo pide en cada cuadro.
+func interaction_focus() -> InteractFocus:
+	var node: Object = interaction_target().get("node")
+	if node == null or not is_instance_valid(node) or not node.has_method(&"interact_focus"):
+		return null
+	return node.call(&"interact_focus") as InteractFocus
 
 
 func _press_slot(slot: int) -> void:
@@ -1400,6 +1433,10 @@ func _draw_hotbar() -> void:
 		_text(Vector2(bar.end.x + 14, y + 17), "Clic derecho en un acceso lo vacía", font_size - 3, Color(1, 1, 1, 0.6))
 
 
+## Encima de la barra: el último aviso y, con el inventario cerrado, cómo
+## abrirlo. Desde el 2026-11-06 no hay aviso de interacción ("E: recoger …",
+## "E: abrir …", "E: cerrar …"): lo que E elegiría lo marca el indicador del
+## HUD, junto al objetivo, solo con su nombre.
 func _draw_prompt() -> void:
 	var bar := _hotbar_rect()
 	var y := bar.position.y - 20.0
@@ -1408,15 +1445,7 @@ func _draw_prompt() -> void:
 		y -= 26.0
 	if _modal_open() or _mode != Mode.NONE:
 		return
-	if is_open and _r().box_id != 0:
-		var box := net.container(_r().box_id)
-		_text_center(Vector2(size.x / 2.0, y), "E: cerrar %s" % (box.display_name if box != null else "la caja"), font_size + 1, Color.WHITE)
-		return
-	var target := _look_target()
-	if not target.is_empty():
-		var prompt: String = "E: recoger %s" % target["name"] if target["kind"] == "item" else "E: abrir %s" % target["name"]
-		_text_center(Vector2(size.x / 2.0, y), prompt, font_size + 1, Color.WHITE)
-	elif not is_open:
+	if not is_open:
 		_text_center(Vector2(size.x / 2.0, y), "Tab: inventario", font_size - 2, Color(1, 1, 1, 0.5))
 
 

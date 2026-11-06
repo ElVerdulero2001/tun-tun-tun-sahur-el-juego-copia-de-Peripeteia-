@@ -52,7 +52,9 @@ extends Node3D
 ## la zona de inventario se comparten. Lo valida el host (nodo Inventario,
 ## InvNet) y la interfaz es del jugador local (Hud/InventarioUI). Tab lo abre,
 ## E recoge o abre una caja y 1 a 9 y 0 son la barra rápida; por eso la
-## simulación de internet pasó a Alt + 1 a 5.
+## simulación de internet pasó a Alt + 1 a 5. Desde el 2026-11-06, lo que E
+## elegiría lo marca el indicador (Hud/Indicador, InteractIndicator, que se
+## arma en _ready): cuatro esquinas y el nombre junto al objetivo.
 ##
 ## El rol se elige con el menú. Para pruebas automáticas también se puede pasar
 ## por argumentos: --local, --host o --client, --address=IP, --port=N,
@@ -495,6 +497,14 @@ func _ready() -> void:
 		_info_before_inventory = _info.visible
 		_info.visible = false)
 	_inventory_ui.closed.connect(func() -> void: _info.visible = _info_before_inventory)
+	# El indicador de lo que marcaría E (desde el 2026-11-06): esquinas y nombre
+	# junto al objetivo. Va en el HUD debajo de los instrumentos y del
+	# inventario, que lo tapan; se arma acá para no tocar la escena.
+	var indicator := InteractIndicator.new()
+	indicator.name = "Indicador"
+	indicator.source = _inventory_ui.interaction_focus
+	$Hud.add_child(indicator)
+	$Hud.move_child(indicator, _hud.get_index())
 	multiplayer.server_disconnected.connect(_link.clear)
 	multiplayer.peer_disconnected.connect(_interpolation.forget)
 	multiplayer.peer_connected.connect(_announce_world_slow_to)

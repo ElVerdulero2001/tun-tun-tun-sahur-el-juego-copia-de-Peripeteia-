@@ -7,7 +7,7 @@ Esta guía es para retomar el laboratorio después de un tiempo sin tener que le
 
 **Para pedirle algo a Claude en otra conversación:** "leé `docs/net/guia_del_laboratorio.md` y ayudame a …". Si hace falta más detalle, la sección 12 de esta guía dice en qué parte del historial buscarlo.
 
-Escrita el 2026-10-15 y puesta al día el 2026-10-22 dos veces (la segunda, a la noche, con la cuarta vuelta de la escalera, el súper, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado), el 2026-10-24 (el súper en todas las velocidades), el 2026-10-30 dos veces (el mantle, la unión de dos cajas apiladas y frenar en la salida por arriba de la escalera; a la tarde, lo que salió de la auditoría de GPT del parkour), el 2026-10-31 tres veces (todo commiteado y subido a GitHub; a la noche, el inventario de grilla, sección 14, y después su segunda vuelta con tus notas de prueba) y el 2026-11-01 (la tercera y la cuarta vuelta del inventario, su commit y el panel Objetos para crear objetos, y a la noche su segunda versión, con contenedores y vista previa) y el 2026-11-02 (la salud, la estamina, los estados y el HUD, sección 15, y las burbujitas de ayuda del panel Objetos) y el 2026-11-04 (los commits, usar y recoger sin esperar al host, y después soltar sin esperar, la medición de recoger contra soltar y el arreglo del aviso de tu captura). Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
+Escrita el 2026-10-15 y puesta al día el 2026-10-22 dos veces (la segunda, a la noche, con la cuarta vuelta de la escalera, el súper, la velocidad terminal, el freno al caerse de un borde y la pista de salto agachado), el 2026-10-24 (el súper en todas las velocidades), el 2026-10-30 dos veces (el mantle, la unión de dos cajas apiladas y frenar en la salida por arriba de la escalera; a la tarde, lo que salió de la auditoría de GPT del parkour), el 2026-10-31 tres veces (todo commiteado y subido a GitHub; a la noche, el inventario de grilla, sección 14, y después su segunda vuelta con tus notas de prueba) y el 2026-11-01 (la tercera y la cuarta vuelta del inventario, su commit y el panel Objetos para crear objetos, y a la noche su segunda versión, con contenedores y vista previa) y el 2026-11-02 (la salud, la estamina, los estados y el HUD, sección 15, y las burbujitas de ayuda del panel Objetos) y el 2026-11-04 (los commits, usar y recoger sin esperar al host, y después soltar sin esperar, la medición de recoger contra soltar y el arreglo del aviso de tu captura) y el 2026-11-06 (el indicador de lo que mirás, sección 16). Si algo de acá no coincide con el código, manda el código, y hay que corregir la guía.
 
 ---
 
@@ -39,6 +39,7 @@ Todo el laboratorio está en la rama `net-lab` y en estas carpetas. El resto del
 | Las cuatro pruebas automáticas que están en el proyecto | `scenes/net_lab/actor_replay_test.tscn` (repetición), `hang_sweep_test.tscn` (barrido de bordes) y, desde el 2026-10-30, `mantle_test.tscn` (el mantle, caso por caso) y `grab_above_test.tscn` (el agarre con las manos por encima del filo) |
 | El inventario de grilla (sección 14; desde el 2026-10-31) | Código en `scripts/inventory/`; la zona de prueba, los objetos y sus pruebas en `scenes/net_lab/inventario/`; los nodos **Inventario** y **Hud → InventarioUI** de `net_lab.tscn`. Todo, en `docs/net/inventario_de_grilla.md` |
 | La salud, la estamina, los estados y el HUD (sección 15; desde el 2026-11-02) | `scripts/actor/actor_powers.gd` y `actor_vitals.gd`; el HUD en `scenes/net_lab/hud/` y el nodo **Hud → Instrumentos** de `net_lab.tscn`; su prueba, `scenes/net_lab/estados_test.tscn`. Todo, en `docs/net/hud_salud_estamina_y_estados.md` |
+| El indicador de lo que mirás: esquinas y nombre junto a lo que elegiría E (sección 16; desde el 2026-11-06) | `scripts/interaction/`: el dibujo en `interact_indicator.gd` (el nodo **Hud → Indicador**, que arma `net_lab.gd`) y la estructura común de los interactuables en `interact_focus.gd`; su prueba, `scenes/net_lab/inventario/pruebas/inv_indicador_test.tscn` |
 
 ---
 
@@ -609,8 +610,9 @@ La lista completa de pendientes y límites está en la sección 16 del historial
 
 ---
 
-## 13. Dónde quedó (2026-11-04)
+## 13. Dónde quedó (2026-11-06)
 
+- **El indicador de lo que mirás** (2026-11-06 a la tarde, pedido tuyo; sección 16): implementado y probado en esta PC. **Pendiente de tu prueba manual**, solo y en las dos PC. Commiteado cuando lo pediste, antes de esa prueba, en la rama `net-lab-indicador-interaccion` (solo local). En la notebook, `actualizar_lab.bat`: cambió el código.
 - **Los arreglos de la auditoría de GPT** del inventario, la salud y la red (2026-11-04, a la noche; sección 13 de `hud_salud_estamina_y_estados.md`): cada uso llega al host aunque se pierda un tick, el host hace recoger, soltar y usar en el orden en que los hiciste, la grilla que ves sigue ese orden, la muerte gana a Kp 1 y Kp 2 en el mismo tick, y las pruebas de red ya no dan bien si se les acaba el tiempo. Probados en esta PC y por vos en las dos PC, con Alt + 4 (en cuatro pasos de a uno): funciona. En la notebook hace falta `actualizar_lab.bat`, porque cambió lo que viaja en el input. Con tu "Sí, commitealo": el código y las pruebas en `d806bdc`; los md del día (también el historial, en su decimoséptima versión) y el informe de GPT en `f156e09`; y sus hashes, en el commit siguiente. Solo locales.
 - **Usar y recoger sin esperar al host** (sección 15), del 2026-11-04: lo probaste en las dos PC con +200 ms ("funciona correctamente") y quedó en el commit local `c392774`, solo el código. Los documentos de ese día fueron a `f156e09`.
 - **Soltar sin esperar al host** (sección 15), del 2026-11-04: lo probaste en las dos PC y funciona; commit local `2cf8fb1`. El arreglo del aviso de tu captura 1084, en `858df9a`. Los documentos de ese día fueron a `f156e09`.
@@ -750,3 +752,32 @@ Pedido el 2026-11-02 (`docs/net/prompt_claude_hud_salud_estamina_y_estados.md`).
     Probado en esta PC: estados 129 de 129, modelo 91 de 91, usar y recoger en red 83 de 83 (también con 300 ms y 8 % de pérdida), y lo de antes igual. Lo probaste en las dos PC el mismo día: funciona.
 - **El aviso de tu captura 1084** (una variable `stack` repetida en `inv_replica.gd`) está arreglado en `858df9a`. Cargando con el depurador los scripts de estos días, no queda ningún aviso.
 - **La cámara "todavía más lenta"** que viste con dos jugadores no se pudo reproducir con el código de antes. Lo que sí pasaba era que el segundo, al pedirla, la apagaba. Detalle en la sección 7 de ese documento.
+
+---
+
+## 16. El indicador de lo que mirás
+
+Pedido el 2026-11-06. Lo que E recogería o abriría en ese momento se marca con cuatro esquinas finas en «L» alrededor del objeto, con los lados abiertos y un poco de margen, y su nombre visible centrado debajo. Nada más: ni teclas, ni verbos, ni la cantidad. Encima de la barra rápida ya no aparece "E: recoger …", "E: abrir …" ni "E: cerrar …"; sigue "Tab: inventario".
+
+- **Qué marca:** lo mismo que elegiría E, con el mismo selector y las mismas reglas de mira, alcance, vista y cono de la tercera persona (sección 14). Se ve antes de apretar E. El marco y el nombre se van juntos al mirar a otro lado, alejarte, con una pared en el medio, al recogerlo vos u otro jugador, con un diálogo abierto y con una caja abierta (ahí E la cierra). Con el inventario abierto con Tab y sin caja, se sigue viendo: E sigue recogiendo. No toma el mouse.
+- **Sigue al objeto:** se proyecta en cada cuadro con la cámara, así que acompaña al objeto al girar o mover la cámara y si el objeto se mueve. El nombre va siempre horizontal.
+- **En cooperativo** cada uno ve el suyo, con su cámara, y el host valida como siempre.
+- **Elegido por Claude:** mientras un objeto está marcado se oculta su cartel de arriba (el nombre con la cantidad, o "E para abrir" en las cajas), para que el nombre se vea una sola vez. Vuelve al dejar de marcarlo.
+- **Los valores** (margen, largo y grosor de las esquinas, tamaño mínimo, colores y letra) están al principio de `scripts/interaction/interact_indicator.gd`. El nodo se arma por código, sin tocar `net_lab.tscn`: por eso se cambian ahí y no en el Inspector.
+- **En tercera persona** la mira pasa por la cabeza del personaje, así que lo marcado suele quedar detrás del cuerpo; el marco y el nombre se dibujan encima y se ven igual.
+
+### Cómo conectar otro interactuable
+
+El HUD no se toca. El interactuable (una puerta, un NPC, un activador) necesita:
+
+1. **Que E lo elija y haga algo con él.** Hoy el selector es `InvNet.interaction_target`, que conoce las cajas y los objetos sueltos, y `InvUI._interact` sabe recoger y abrir. El nuevo se suma ahí (o al selector común que los reemplace), con el nodo del interactuable en `"node"`, y lo valida el host.
+2. **Que diga qué marcar,** con una función `interact_focus()` en ese nodo, que devuelve un `InteractFocus`: el nombre visible, el nodo que sigue el marco (`anchor`) y la caja que se marca, en el espacio de ese nodo (`bounds`). Si tiene un cartel 3D que repite el nombre, va en `name_label`. Para marcar solo una parte, `anchor` es esa parte:
+
+```gdscript
+func interact_focus() -> InteractFocus:
+	return InteractFocus.new("Puerta del depósito", $Manija, InteractFocus.mesh_bounds($Manija))
+```
+
+Si la puerta gira o se mueve, el marco sigue a la manija solo. Con otro selector, al indicador se le da otro `source`.
+
+**Probado** en esta PC (2026-11-06): la prueba nueva, `inv_indicador_test.tscn`, 153 de 153 (primera y tercera persona girando la cámara, una caja y una manija que se mueven, dos objetos cerca, lo soltado y lo colocado con InvPickupSpawn, y cuándo se oculta); en pareja, host y cliente marcando cada uno lo suyo y el marco del cliente que se va cuando el host le recoge la llave, 7 y 7, también con +200 ms y 5 % de pérdida. Las del inventario y de la salud, iguales que antes. **Falta** tu prueba jugando. Para correrla: `--headless --fixed-fps 60 --path . --scene res://scenes/net_lab/inventario/pruebas/inv_indicador_test.tscn`; en pareja, sin `--fixed-fps`, el host con `-- --host --bind=127.0.0.1 --port=7799 --foco-pair=host` y el cliente con `-- --client --address=127.0.0.1 --port=7799 --foco-pair=client`.

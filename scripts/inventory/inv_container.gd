@@ -22,6 +22,8 @@ extends StaticBody3D
 ## Lo pone InvNet al arrancar: el número con que la nombran los pedidos.
 var container_id := 0
 
+var _focus: InteractFocus
+
 
 func _ready() -> void:
 	if inventory != null:
@@ -60,6 +62,16 @@ static func look(shown_name: String, size: Vector3, tint: Color) -> Array[Node3D
 	label.outline_size = 8
 	label.position = Vector3.UP * (size.y + 0.35)
 	return [mesh, label]
+
+
+## Lo que marca el indicador de lo que se mira (desde el 2026-11-06) cuando E
+## abriría esta caja: su malla y su nombre. Mientras está marcada, el indicador
+## oculta el cartel de arriba.
+func interact_focus() -> InteractFocus:
+	if _focus == null:
+		_focus = InteractFocus.new("", self, InteractFocus.mesh_bounds(self), get_node_or_null(^"Cartel") as Node3D)
+	_focus.display_name = display_name
+	return _focus
 
 
 ## Hacia dónde se mide el alcance.

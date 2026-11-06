@@ -35,7 +35,7 @@ Lo que pediste en `capturas/ifac.txt` (el mantle quedó para otro momento):
 
 - **El giro es alrededor del centro de la celda que agarraste**, como en tu dibujo (`capturas/afggggg.png`): no importa en qué parte de la celda hagas clic. Al agarrarlo, el objeto se acomoda para que el cursor quede en el centro de esa celda, y ahí sigue en los cuatro giros. Al dejarlo, esa celda va a la celda que está bajo el cursor.
 - **Con la mano vacía, el cursor sobre un objeto muestra su nombre** en un cartelito, en las grillas y en la barra rápida.
-- **E también cierra la caja**, junto con el inventario, como Tab. Con el inventario abierto con Tab y sin caja, E no lo cierra: recoge o abre lo que mirás, como siempre. Con la caja abierta, abajo dice "E: cerrar …".
+- **E también cierra la caja**, junto con el inventario, como Tab. Con el inventario abierto con Tab y sin caja, E no lo cierra: recoge o abre lo que mirás, como siempre. Con la caja abierta, abajo dice "E: cerrar …" (hasta el 2026-11-06: desde ese día no hay avisos de E encima de la barra; lo que E elegiría lo marca el indicador, sección 16 de la guía).
 
 ### Cuarta vuelta, con tu tercera prueba (2026-11-01)
 
@@ -197,7 +197,7 @@ GPT revisó el inventario, la salud y la red ([`auditoria_inventario_salud_red_2
 1. Abrí Godot. En las pestañas de arriba del visor, elegí **net_lab**.
 2. **F6** → **Jugar solo**.
 3. Date vuelta hacia la derecha (al este) y caminá unos 30 m: pasando el borde del piso está la **Zona de inventario**, con su cartel, una pared, dos cajas (la grande y el cajón chico) y tres filas de objetos en el piso (la tercera, desde el 2026-11-02, con los consumibles de salud y estamina).
-4. Acercate a un objeto y miralo (el centro de la pantalla sobre él): abajo aparece "E: recoger …". Apretá **E**.
+4. Acercate a un objeto y miralo (el centro de la pantalla sobre él): aparecen cuatro esquinas alrededor y su nombre debajo (desde el 2026-11-06; antes, abajo decía "E: recoger …"). Apretá **E**.
 5. **Tab** abre el inventario.
 6. Clic en un objeto: queda en la mano. Clic donde lo querés dejar. Con una pila en la mano (por ejemplo, los tornillos), probá varios clics derechos en un lugar libre: deja de a una unidad.
 7. Con la mano vacía, pasá el cursor por un objeto: aparece su nombre. Agarrá el machete por la punta de abajo y apretá **R** cuatro veces: gira alrededor de esa celda, que queda siempre bajo el cursor.

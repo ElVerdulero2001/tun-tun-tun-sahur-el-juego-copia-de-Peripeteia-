@@ -13,6 +13,9 @@ Lo que trae:
 - **La cámara lenta compartida, corregida.**
 - **Usar, recoger y soltar sin esperar al host** (agregado el 2026-11-04, sección 12): la salud cambia, lo recogido aparece en la grilla y lo soltado en el piso en el momento, sin "esperando…".
 - **Los arreglos de la auditoría de GPT** (2026-11-04, a la noche, sección 13): cada uso llega al host aunque se pierda un tick, el host hace las cosas en el orden en que las hiciste, y la muerte gana a Kp 1 y Kp 2 en el mismo tick.
+- **Integridad corporal, luz naranja, daño de caída y muerte** (2026-11-05, punto 1 del [roadmap](roadmap_integridad_habilidades_y_luz.md), sección 14): seis partes del cuerpo con su porcentaje en un panel a la derecha del inventario, la luz naranja que avisa de lesiones, el daño al aterrizar y una caída de cámara y un desplome al morir. **Pendiente de tu prueba manual.**
+- **El botiquín sobre una parte del cuerpo y las vendas** (2026-11-06, sección 15): con Tab, el botiquín soltado sobre una parte dañada la deja al 100 %; las vendas curan la mitad que el botiquín. **Pendiente de tu prueba manual.**
+- **El panel del cuerpo y curar una parte, sin esperar al host** (2026-11-06 a la noche, sección 16): las piernas después de una caída y la parte curada se ven en el momento, también en el cliente con latencia. **Pendiente de tu prueba manual.**
 
 ---
 
@@ -188,13 +191,14 @@ Los costos van de 0 a 1000, de a milésimas: el Inspector no deja poner uno nega
 
 1. Pestaña **Objetos** (al lado de **Inspector**) → **Ítems** → **Nuevo**.
 2. **Nombre** (por ejemplo "Vendas"), **Celdas**, **Se apila, hasta**, como cualquier ítem (sección 4 de `inventario_de_grilla.md`).
-3. **Capacidades** → **+ Consumible**. Aparecen cuatro números:
+3. **Capacidades** → **+ Consumible**. Aparecen cinco números:
     - **Efecto en la salud (puntos):** positivo cura y negativo daña. La salud completa son 100: con −100 o menos, una unidad mata. En 0 no la toca.
     - **Recupera estamina:** la reserva completa son 200. En 0 no la toca.
     - **Daño en el tiempo (puntos)** y **En cuántos segundos** (desde la tarde, sección 11): quita esos puntos de a poco, parejo, en esos segundos. Con 4 y 2, la vida baja 2 por segundo durante 2 s. En 0 puntos no hace nada.
+    - **Cura una parte del cuerpo** (desde el 2026-11-06, sección 15): con **Tab**, soltándolo sobre una parte dañada del panel del cuerpo, le suma ese porcentaje, sin pasar del 100 %, y gasta una unidad. 100 la deja entera; 30 lleva una del 50 % al 80 %. No cambia el uso normal. En 0 no cura partes.
 
     Debajo, una línea dice lo que hace con esos números. Por ejemplo: "Al usar una unidad: cura 30 de salud (sin pasar del máximo; con la salud completa no se usa ni se gasta)".
-4. **Guardar.** Si no hace nada (salud, estamina y daño en el tiempo en 0), no se guarda: "El consumible no hace nada". Un daño en el tiempo tiene que durar de 0,1 a 600 s.
+4. **Guardar.** Si no hace nada (los cinco en 0), no se guarda: "El consumible no hace nada". Un daño en el tiempo tiene que durar de 0,1 a 600 s, y lo que cura de una parte va de 0 a 100 %. Uno que solo cura partes se guarda: usado normal no hace nada ni se gasta.
 5. **Colocar en la zona** → **Unidades** → **Colocar en la zona**, y **Guardar la zona** (o **Ctrl+S**).
 6. **F6** → **Jugar solo**: recogelo y usalo.
 
@@ -350,6 +354,8 @@ No se tocaron el nivel, el personaje (`actor.tscn`), `project.godot`, la exporta
 
 ## 10. Límites y lo que falta
 
+El [roadmap de integridad, habilidades y luz](roadmap_integridad_habilidades_y_luz.md) describe el panel corporal, la luz naranja, el selector radial, el termómetro, el daño de caída y la animación de muerte previstos para `net-lab`.
+
 - **Tu prueba** (escrito el 2026-11-02): faltaba, solo y en las dos PC (la lista de la sección 2). El 2026-11-04 la hiciste en red: "todas funcionan correctamente". Falta con el `.exe` exportado.
 - **La cámara más lenta que viste no se reprodujo** (sección 7).
 - **Un agotamiento predicho que el host corrige** (por ejemplo, porque te llegó una bebida justo antes) ya sonó. Si después te agotás de verdad con el mismo número, no vuelve a sonar. Es raro: hace falta un consumible en el mismo momento.
@@ -359,9 +365,9 @@ No se tocaron el nivel, el personaje (`actor.tscn`), `project.godot`, la exporta
 - **La placa de los instrumentos tapa** la parte de abajo a la izquierda del panel de valores (**F1** lo oculta).
 - **Con una caja de muchísimas filas,** las celdas se achican y la caja podría quedar encima de los instrumentos en 1280 × 720. Con las cajas del laboratorio no pasa.
 - **Lo que queda para después:**
-    - la luz naranja sigue apagada hasta que exista la integridad del cuerpo;
+    - ~~la luz naranja sigue apagada hasta que exista la integridad del cuerpo~~ (desde el 2026-11-05 avisa de lesiones: sección 14);
     - el termómetro marca 100 fijo hasta que se mida la luz;
-    - no hay elementos del escenario que dañen, ni enemigos, hambre, daño de caída, reaparición ni guardado.
+    - no hay elementos del escenario que dañen, ni enemigos, hambre, reaparición ni guardado. El daño de caída existe desde el 2026-11-05 (sección 14).
 
 ---
 
@@ -606,3 +612,315 @@ Si algo se ve distinto de antes, mandame la captura o el video.
 **Resultado (2026-11-04):** esta lista resultó larga. La hiciste en cuatro pasos, de a uno, con **Alt + 4** en las dos: recoger y usar enseguida desde la notebook, morir con el súper prendido, soltar y recoger, y recoger y usar enseguida desde el host. **Todo funcionó.** "Lo más rápido que puedas" no hacía falta: lo que pasa en el mismo 1/60 s nadie lo hace a mano, y eso lo cubren las pruebas automáticas.
 
 Notaste que, con las dos en Alt + 4, la cámara lenta tarda en arrancar también en el host. No es de este cambio, y el host no trabaja como cliente. La cámara lenta es del mundo: el host la programa para un poco más adelante, así llega el aviso a la notebook y arranca en el mismo tick en las dos. Con las dos en Alt + 4 se suman las dos demoras y la espera crece. Es de las "Mecánicas que dependen de un buen internet" de la guía.
+
+---
+
+## 14. Integridad corporal, luz naranja, daño de caída y muerte (2026-11-05)
+
+Pediste implementar el punto 1 del [roadmap](roadmap_integridad_habilidades_y_luz.md): la integridad del cuerpo, la luz naranja, el daño de caída y una muerte que se vea. **Estado: implementado, pendiente de tu prueba manual.** Es todo del laboratorio: no se tocaron modelos, texturas, materiales, recursos ni escenas del juego, ni `net_lab.tscn`, `actor.tscn` o el nivel (las tablas de la torre se arman por código, como el resto de la torre).
+
+### Lo que decidiste vos (en el pedido)
+
+- **Seis partes independientes,** de 0 a 100: cabeza, torso, brazo izquierdo, brazo derecho, pierna izquierda y pierna derecha.
+- **Con Tab,** el inventario a la izquierda y la integridad a la derecha: una silueta simple con el porcentaje de cada parte, verde completa y cada vez más roja al bajar. **Con una caja abierta, la caja tiene prioridad** en ese lugar, para seguir pasando objetos. El panel muestra al jugador local y se actualiza mientras está abierto.
+- **La luz naranja,** la que ya estaba debajo de la salud: prendida mientras alguna parte tenga menos del 100 %, apagada con las seis completas. La salud y la integridad se leen por separado.
+- **El daño de caída,** una vez al aterrizar, según la velocidad contra el piso, contando las plataformas que se mueven, con los umbrales en el **Tuning**, y tres resultados que se puedan repetir en la torre del laboratorio: seguro, lastima la salud y las piernas, y letal. Con margen para un salto normal con el súper.
+- **La muerte:** la caída letal y la cápsula letal por el mismo flujo de siempre, con una caída breve de cámara en primera persona y un desplome que vea el compañero, una vez por muerte aunque haya correcciones. La salud se recupera en el lugar, como en la muerte de prueba.
+- **Reglas provisorias del laboratorio:** el daño de integridad de una caída se reparte por igual entre las dos piernas, y cada una guarda su valor; por ahora las lesiones solo se ven en el panel y en la luz (no cambian el movimiento); el botiquín cura la salud general y no la integridad; la muerte de prueba devuelve las seis partes al 100 %, para repetir el ensayo. *(Desde el 2026-11-06, el botiquín soltado sobre una parte del panel la cura: sección 15.)*
+
+### Lo que eligió Claude (lo podés cambiar)
+
+- **Los umbrales:** hasta **10 m/s** contra el piso no pasa nada (caer caminando unos 5 m); desde **13 m/s**, letal (unos 8,6 m). En el medio, la salud baja en proporción, de casi nada a casi toda, y las piernas pierden entre las dos, en la misma proporción, hasta **150 puntos** (75 cada una). Un salto normal llega al piso a 4,7 m/s y uno con el súper a 7,2: le quedan 2,8 m/s de margen.
+- **La velocidad que cuenta** es la que va contra el piso: la parte hacia la normal del piso, relativa a la base donde cae. Correr y saltar no suma (llega igual que parado); caer sobre una plataforma que sube golpea más, y sobre una que baja, menos.
+- **El daño va en puntos enteros de salud** y en medios puntos por pierna: una diferencia de milésimas en la velocidad entre dos máquinas casi nunca cambia el resultado.
+- **El panel:**
+    - la silueta vista de atrás, como ves a tu personaje en tercera persona: tu izquierda queda a la izquierda, con "izq." y "der." arriba de los brazos;
+    - el porcentaje entero, redondeado para abajo: con algo menos del 100 % ya no dice 100;
+    - verde, amarillo, naranja y rojo según baja;
+    - al lado de tu grilla y con su mismo alto;
+    - un clic con un objeto en la mano sobre el panel no lo suelta al piso.
+- ~~**El panel y la luz muestran lo que confirmó el host,** como dice el roadmap.~~ **Cambiado el 2026-11-06 a la noche (sección 16): ahora muestran lo predicho, como la aguja, sin esperar.** Lo de antes: En el host y jugando solo es instantáneo. En el cliente llegan un poco después de la aguja de la salud, que sigue mostrando lo predicho: lo que tarda la confirmación del host, más o menos un viaje de ida y vuelta (no se midió).
+- **El desplome:** la cápsula cae de espaldas (la nariz queda para arriba y se ve de cualquier lado) en 0,45 s, queda en el piso 0,9 s y se levanta en 0,45 s. Es solo dibujo: la simulación no lo lee, y si te movés mientras dura, el dibujo se desliza acostado. Lo equipado se inclina con el cuerpo. Los tiempos son constantes de `actor_body.gd` (`COLLAPSE_FALL`, `COLLAPSE_DOWN`, `COLLAPSE_RISE` y `COLLAPSE_ANGLE`).
+- **La cámara en primera persona** baja a 0,35 m del piso y se ladea 70° mientras dura el desplome, y vuelve. En tercera persona no se mueve: ves el desplome de tu cápsula.
+- **El aviso** ahora dice "Muerte de prueba: la salud y el cuerpo volvieron al máximo y se apagaron tus estados".
+- **Las tablas de la torre de parkour** (`parkour_tower.gd`), cada una saliendo 2 m hacia afuera sobre el piso libre, a ras de su terraza y con su cartel:
+    - **verde**, desde la terraza 2 (4 m), por la cara oeste, del otro lado del techo bajo del tramo 3: segura;
+    - **amarilla**, desde la terraza 3 (7 m), enfrente de donde llega la escalera del tramo 4: lastima;
+    - **roja**, desde la terraza 4 (9,5 m), enfrente de donde se sube colgándose (tramo 6): letal.
+
+    A la 2 y a la 3 se llega solo con escaleras: la de vuelta y la del tramo 4.
+- **El panel de valores (F1)** tiene dos líneas nuevas: la integridad de cada parte, con "luz naranja prendida" o "apagada", y el último aterrizaje, por ejemplo "Último aterrizaje: 11.57 m/s contra el piso (segura hasta 10.0, letal desde 13.0) · quitó 52 de salud".
+
+### Cómo funciona
+
+- **La integridad vive en el personaje (`ActorState.integrity`):** seis números, en centésimas de punto. Viaja en cada snapshot, se predice y se repite como la salud. El estado pasó de 153 a 165 bytes; los primeros 93 siguen siendo los del movimiento.
+- **El motor (`ActorMotor`, etapa 8)** mira si el tick arrancó sin apoyo y un movimiento libre lo dejó apoyado: eso es aterrizar. Pasa una sola vez por caída: repetir ticks parte del estado guardado y calcula lo mismo. Agarrarse de un borde, una escalera, un cable o un compañero antes de tocar el piso no es aterrizar; la caída cuenta desde donde te soltás.
+- **`ActorVitals.land`** aplica el daño: salud y piernas, o la muerte de prueba si es letal o si la salud llega a cero. **`ActorVitals.die`** ahora devuelve además las seis partes al 100 %. La cápsula letal ya pasaba por `die`: es el mismo flujo.
+- **Una vez por muerte:** el aviso del HUD, el desplome (`ActorBody.present`) y la caída de cámara salen de que avance el contador de muertes. Si una corrección lo hace volver atrás y adelante, no pasa del mismo número y no se repite. El compañero ve el desplome con el estado que manda el host.
+- **El host no adopta** lo que afirma un cliente con otra integridad (`ClaimAdoption`): una caída que el host vio distinta vale la suya.
+
+### Los valores
+
+| Dónde | Valor | De fábrica | Qué es |
+| --- | --- | --- | --- |
+| **Tuning** → **Daño de caída** | **Fall Safe Speed** | 10 m/s | Hasta esta velocidad contra el piso, nada |
+| **Tuning** → **Daño de caída** | **Fall Lethal Speed** | 13 m/s | Desde esta, muerte de prueba |
+| **Tuning** → **Daño de caída** | **Fall Leg Damage** | 150 | Lo que pierden las dos piernas juntas justo debajo de la letal, la mitad cada una; 0 apaga el daño a las piernas |
+| **CameraRig** → **Muerte** | **Death Eye Height** | 0,35 m | Hasta dónde baja la cámara en primera persona |
+| **CameraRig** → **Muerte** | **Death Roll Degrees** | 70° | Cuánto se ladea |
+
+Los del **Tuning** tienen que ser iguales en las dos PC (están en la huella); los del **CameraRig** pueden ser distintos. El súper no cambia los umbrales.
+
+### Cuánto da cada caída (medido)
+
+| Caída | Contra el piso | Resultado |
+| --- | --- | --- |
+| Salto normal, parado o corriendo | 4,65 m/s | Nada |
+| Salto con el súper, en el piso | 7,24 m/s | Nada |
+| Tabla verde (4 m), caminando hasta la punta | 8,80 m/s | Nada |
+| Tabla amarilla (7 m) | 11,57 m/s | −52 de salud (queda 48: la aguja en 4,8); cada pierna −39,5 % (queda 60,5 %: el panel dice "60 %") |
+| Tabla roja (9,5 m) | 13,53 m/s | Letal |
+| Colgado del borde de la terraza 2 y soltándose con Ctrl (2 m) | menos de 10 m/s | Nada |
+| Desde 7 m, quieto en el aire (la prueba de red) | 11,74 m/s | −58 de salud; piernas al 56,5 % |
+| Sobre el ascensor desde 9,5 m, según cómo vaya | 11,90 o 13,88 m/s | −63, o letal |
+
+### En la red
+
+- **El estado tiene 12 bytes más (165).** La huella cambió (código y Tuning): en la notebook, `actualizar_lab.bat`; para jugar a distancia, un `.exe` nuevo.
+- **Lo calcula el motor en el host y en la predicción,** con el mismo input: no hace falta un mensaje nuevo. Una caída que se ve igual en las dos máquinas no trae corrección.
+- **Para las pruebas de Claude:** `--test-drop-at=S:ALTO:X:Z` (solo host: a esos segundos pone a los demás en el aire a esa altura y caen) y `--test-drop-all-at=…` (también al del host). Con `--autoquit`, cada máquina anota cada aterrizaje con daño que calculó, una vez, y el resumen dice cuántos desplomes dibujó de cada jugador.
+
+### Dónde está
+
+| Archivo | Qué cambió |
+| --- | --- |
+| `scripts/actor/actor_state.gd` | `integrity`, las partes (`Part`), `injured()`; 165 bytes |
+| `scripts/actor/actor_tuning.gd` | El grupo **Daño de caída**; los umbrales no van con el súper (`NOT_BOOSTED`) |
+| `scripts/actor/actor_vitals.gd` | `land` (el daño de caída); `die` devuelve las seis partes |
+| `scripts/actor/actor_motor.gd` | Etapa 8: el aterrizaje y su velocidad contra el piso |
+| `scripts/actor/actor_body.gd` | El desplome (nodo **Desplome** dentro de **Visual**, armado por código), `collapse_amount` y `last_landing` |
+| `scripts/net/claim_adoption.gd` | La adopción exige la misma integridad |
+| `scripts/inventory/inv_ui.gd` | `side_panel_rect`: el lugar del panel a la derecha (vacío con una caja abierta); ahí un clic no suelta al piso |
+| `scenes/net_lab/hud/lab_hud.gd` | La luz naranja, el panel de integridad, `confirmed_state` y el texto del aviso |
+| `scenes/net_lab/lab_camera.gd` | La caída de cámara en primera persona (grupo **Muerte**) |
+| `scenes/net_lab/net_lab.gd` | El estado confirmado para el HUD, las dos líneas del panel de valores, `--test-drop-at`, `--test-drop-all-at` y lo que imprime el resumen |
+| `scenes/net_lab/parkour_tower.gd` | Las tres tablas y sus carteles |
+| `scenes/net_lab/integridad_test.gd` y `.tscn` (nuevos) | La prueba de un proceso |
+
+### Probado (2026-11-05, en esta PC)
+
+| Prueba | Resultado |
+| --- | --- |
+| `integridad_test.tscn` (nueva, un proceso, el laboratorio de verdad) | **72 de 72.** <ul><li>El estado de ida y vuelta (165 bytes, los 93 del movimiento iguales) y la adopción que rechaza otra integridad.</li><li>Salto normal, corriendo y con el súper: sin daño.</li><li>Las tres tablas, caminando hasta la punta: la verde, nada; la amarilla, la salud y las dos piernas lo que dice la cuenta, lo demás al 100 %, la luz prendida y el texto de cada pierna en el panel; la roja, en primera persona: una muerte, todo al 100 %, la luz apagada, un aviso, un desplome, la cámara a menos de 0,6 m del piso y después de vuelta en la cabeza, sin repetirse.</li><li>El panel a la derecha de la grilla, del mismo alto y dentro de la pantalla; un objeto en la mano no se suelta sobre él; con la caja abierta, la caja ocupa el lugar y el panel no se ve.</li><li>El botiquín cura la salud y deja las piernas y la luz igual; la cápsula: el mismo desplome y el mismo aviso, una vez, y todo al 100 %.</li><li>Cayendo junto al borde de la terraza 2, mirándolo, se agarra y no hay daño; al soltarse, 2 m sin daño; mirando para afuera, la misma caída lastima.</li><li>Una plataforma de prueba que sube y baja a 4,7 m/s: la velocidad contra ella es la propia más la suya (subiendo) o menos (bajando).</li><li>Repetir los ticks de una caída de 7 m y de una de 12 m desde medio metro antes del piso, como una corrección: el mismo tick, el mismo estado byte a byte, sin cobrar dos veces, una sola muerte, un solo desplome y un solo aviso.</li></ul> |
+| Red, host y cliente en esta PC, con `--test-drop-at` (7 m, 12 m, 3 m y 6 m sobre el ascensor), `--test-harm-at` (como la cápsula) y `--test-drop-all-at` (los dos desde 12 m) | Con +120 ms, ±20 ms y 1 % de pérdida, y con +200 ms, ±40 ms y 5 % (como Alt + 4): **los mismos aterrizajes, en el mismo tick y con los mismos números en el host y en el cliente.** El cliente: tres muertes, tres avisos, tres desplomes propios y **uno del host** (lo que ve el compañero); el host: uno propio y tres del cliente. Correcciones: 6, las de los eventos de prueba (cada caída de prueba es un teleport del host). Adopción: 0 rechazos por datos imposibles |
+| Lo mismo, con el host sin adopción y el cliente corrido 2 mm al azar en cada tick (`--test-perturb-mm=2`), para forzar correcciones | **101 correcciones** con sus repeticiones de ticks: cada aterrizaje se calculó una vez, igual que en el host; tres avisos y tres desplomes, sin repetirse |
+| Cuatro caídas sobre el ascensor (que se mueve), con +200 ms | Host y cliente iguales, sobre la base del ascensor: 11,90 m/s (−63) y 13,88 m/s (letal), según cómo iba. 4 correcciones, las de las caídas de prueba |
+| `estados_test` | **129 de 129**, igual que antes |
+| `actor_replay_test` | Coincide. La huella completa pasa de `f9b53da25ac45f16` a `38989aaf9fd19d18` porque el estado lleva la integridad; **los 93 bytes del movimiento siguen dando `7d3d417dd954d05b`** (con una copia de la prueba que calcula las dos). El recorrido no tiene caídas con daño |
+| `mantle_test`, `grab_above_test`, `hang_sweep_test` | 50 casos, 22 de 22 y los cinco criterios del barrido: iguales |
+| `inv_model_test`, `inv_lab_test`, `inv_instant_test` (con 120 ms), `inv_pair_test` (tres procesos) | 91 de 91, 166 de 166, 83 de 83, y host 18, A 24 y B 7: iguales |
+| Avisos de GDScript | Cargando con el depurador todos los scripts tocados: ninguno |
+| Capturas con ventana (internas, no son entregables) | El HUD con la luz prendida, el panel con las piernas y un brazo lastimados, la caja en lugar del panel, las tablas desde el piso, el desplome de costado y la primera persona. Con eso, el desplome pasó de boca abajo a de espaldas (boca abajo, la nariz quedaba debajo de la cápsula) y la tabla del medio, de naranja a amarilla (se confundía con los techos bajos, que son naranjas) |
+
+**Para correrlas** (Claude): `--headless --fixed-fps 60 --scene res://scenes/net_lab/integridad_test.tscn`. Las de red: host `--host --port=N --autoquit=42 --test-drop-at=6:7:-4:-24,12:12:-4:-24,18:3:-4:-24,24:6:-9:-12 --test-harm-at=29 --test-drop-all-at=33:12:-7:-24`, y cliente `--client --address=127.0.0.1 --port=N --autoquit=38 --sim-rtt=200 --sim-jitter=40 --sim-loss=5` (el cliente cierra antes, para imprimir con el host todavía conectado). En (−4, −24) no hay nada arriba; sobre donde se aparece pasa un cable que el salto con el súper alcanza.
+
+### Lo que no se probó y los límites
+
+- **A mano, en las dos PC y con el `.exe`.** Es tu prueba (abajo).
+- **El salto en el aire frena la caída:** cayendo sin haber saltado (te caíste o te soltaste), Espacio justo antes del piso te da la velocidad de un salto para arriba, y el aterrizaje ya no lastima. Es el salto en el aire de siempre; no se cambió.
+- **En la zona y la torre de servicio,** las caídas de más de unos 8,6 m ahora matan (con la muerte de prueba, en el lugar). Por ejemplo, caer de una terraza a la de abajo.
+- ~~**En el cliente, el panel y la luz llegan un viaje de ida y vuelta después de la aguja de la salud**~~ (lo confirmado por el host contra lo predicho). Resuelto el 2026-11-06 a la noche: sección 16.
+- **Si te movés durante el desplome,** el dibujo se desliza acostado: es solo dibujo y dura 1,8 s.
+- **Sobre una plataforma que se mueve, al repetir ticks** se usa su velocidad de ahora (las bases no se rebobinan): una corrección que repite el aterrizaje podría dar otro daño, y lo arregla la corrección siguiente del host. En las pruebas no pasó.
+- **Sobre la balsa del host** (la que solo mueve el host), el cliente la ve con atraso: un aterrizaje ahí puede traer una corrección de la salud, como el mantle sobre ella. Va con lo que depende de un buen internet.
+- **Una muerte que el cliente predijo y el host no confirmó** ya mostró el aviso y el desplome; si después morís de verdad con el mismo número, no vuelven a salir. Es el mismo límite del aviso de la sección 10.
+- **Morir colgado** (por la cápsula o la toxina) inclina el cuerpo con las manos en el filo. No se miró.
+
+### Tu prueba
+
+Lo automático ya cubrió las cuentas, la red con latencia y las repeticiones. Esto es para ver que se vea y se sienta bien.
+
+**Dónde están las tablas:** la torre de parkour está adelante a la izquierda de donde aparecés, a unos 30 m (el núcleo gris con terrazas color arena). La escalera de vuelta y la tabla verde están del lado izquierdo de la torre, mirando desde donde aparecés: rodeala por la izquierda.
+
+**Solo** (esta PC, pestaña **net_lab**, **F6** → **Jugar solo**):
+
+1. **El súper en el piso:** **2** del teclado numérico y **Espacio**. Al caer, nada: la salud en 10 y la luz apagada. Apagalo con **2**.
+2. **La tabla verde (4 m):** subí la escalera de vuelta a la terraza 2, pasá agachado (**Ctrl**) por debajo del techo bajo, y la tabla queda a tu izquierda. Caminá hasta la punta y seguí de largo. Al caer, nada. En el panel de valores: "Último aterrizaje: 8.80 m/s … sin daño".
+3. **La tabla amarilla (7 m):** desde la terraza 2, la escalera del cartel "4 · escalera". Arriba, la tabla está enfrente: caminá derecho y seguí de largo. Al caer, la aguja de la salud baja a 4,8 y **se prende la luz naranja**. Con **Tab**, a la derecha, la silueta con las dos piernas en **60 %**, amarillentas, y lo demás en 100 %, verde. Con una caja abierta (en la zona de inventario), la caja ocupa ese lugar.
+4. **La tabla roja (9,5 m), en primera persona:** desde la terraza 3, cruzá el hueco (tramo 5) y colgate del borde de la terraza 4 (tramo 6). Arriba, la tabla está enfrente. Acercá la cámara con la rueda hasta primera persona y caminá hasta caer: un "Moriste", **la cámara cae al piso ladeada y vuelve** en unos 2 s, la salud en 10, la luz apagada y, con **Tab**, todo en 100 %.
+
+**Como cliente con latencia** (esta PC, **Crear partida**; la notebook, después de `actualizar_lab.bat`, **Unirse** y **Alt + 4**). De a una, mirando las dos pantallas:
+
+1. **La notebook hace la tabla amarilla.** En la notebook, la aguja baja enseguida, y la luz y las piernas del panel un instante después (cuando confirma el host). En esta PC, el compañero aterriza normal.
+2. **La notebook hace la tabla roja.** En la notebook, un "Moriste" y la cámara que cae (en primera persona). En esta PC, **la cápsula del compañero cae de espaldas, queda en el piso y se levanta, una sola vez**.
+3. **La notebook usa la Cápsula letal** (zona de inventario). Lo mismo que en el punto 2, una vez en cada pantalla.
+4. **Esta PC hace la tabla roja.** En la notebook se ve tu cápsula desplomarse una vez.
+
+---
+
+## 15. El botiquín sobre una parte del cuerpo y las vendas (2026-11-06)
+
+Pediste seguir el punto 1 del [roadmap](roadmap_integridad_habilidades_y_luz.md): curar una parte dañada con el botiquín, desde el panel de integridad, y un consumible nuevo de curación menor. **Estado: implementado, pendiente de tu prueba manual.** El selector radial y el termómetro siguen para sus etapas.
+
+### Lo que decidiste vos (en el pedido)
+
+- **El gesto de siempre:** con **Tab**, un clic agarra el botiquín de la grilla y otro clic lo suelta sobre una parte dañada del panel corporal.
+- **Si la parte está dañada,** vuelve al 100 % y se gasta un solo botiquín. Solo esa parte cambia: la salud y las otras partes quedan como estaban. Anda también con la salud completa.
+- **Si la parte ya está al 100 %,** si el objeto no cura partes o si el clic cae entre dos partes, el objeto sigue en el cursor y no se gasta nada. Un clic dentro del panel nunca lo tira al mundo.
+- **El panel se actualiza:** el porcentaje y el color de la parte curada. La luz naranja sigue prendida mientras quede otra parte dañada y se apaga al curar la última.
+- **El uso normal del botiquín** (inventario o barra rápida) sigue curando la salud general. La capacidad de curar partes va en los datos del consumible, para poder sumar después uno que repare solo una parte del porcentaje.
+- **Las Vendas:** curan la mitad de salud que el botiquín, con el mismo tope; por ahora no curan partes. Una en la zona de pruebas.
+- **En red:** el host valida que el botiquín siga en tu inventario, que la parte sea de tu personaje y que siga dañada, y cura y gasta en una sola operación. Un clic repetido, un reintento o un rechazo no duplican la curación ni hacen desaparecer el objeto.
+
+Esto cambia una de las reglas provisorias de la sección 14: el botiquín, usado normal, sigue sin curar la integridad, pero soltado sobre una parte la cura.
+
+### Lo que eligió Claude (lo podés cambiar)
+
+- ~~**Es un pedido al host,**~~ **Cambiado el 2026-11-06 a la noche (sección 16): ahora es un uso en el input y se ve al instante.** Lo de antes: era un pedido al host, como mover o equipar (`HEAL_PART`, nuevo), y no un uso sin esperar como el uso normal. El panel ya muestra lo confirmado por el host, así que la parte se pinta cuando el host contesta. Mientras tanto, el botiquín se ve "esperando…" en su lugar y no se puede volver a agarrar: un segundo clic no sale como otro pedido. Medido en esta PC: con +120 ms, la pierna se pintó a los 178 ms del clic; con +200 ms, a los 269 ms. Si preferís que se vea al instante, como el uso normal, se puede cambiar.
+- **Al soltarlo, la mano queda vacía** y lo que queda de la pila vuelve a su lugar. Para curar otra parte, se agarra de nuevo.
+- **Clic derecho sobre el panel** no cura: dice "Para curar una parte, clic izquierdo sobre ella" y lo seguís teniendo.
+- **La parte bajo el cursor se marca:** con algo en la mano, borde blanco si ese objeto la cura (arriba del panel: "Clic: curar pierna izquierda"), borde rojo si no ("Esto no cura esa parte"). Al soltar, abajo sale "Parte curada: pierna izquierda".
+- **El número del consumible** se llama **Part Repair** (grupo **Partes del cuerpo**), en puntos de porcentaje: 100 deja la parte entera; 30 la sube 30 puntos, sin pasar del 100 %; 0 no cura partes. El botiquín tiene 100 y las vendas 0. Lo que dice la ventana **Inspeccionar** del botiquín lo cuenta. **Desde la tarde del 2026-11-06 está en el panel Objetos** (lo pediste al no encontrarlo): ver más abajo.
+- **El host sube la época** al curar una parte, como en un empujón: tu PC se entera con una corrección que no se nota.
+- **Las Vendas:** 1 × 1, pila de 5, color crema, en la tercera columna de la zona, después de la toxina lenta.
+
+### En el panel Objetos (2026-11-06, tarde)
+
+Lo pediste al ir a probar las vendas: el panel no tenía dónde poner cuánto cura de una parte. Ahora el consumible tiene un quinto número, **Cura una parte del cuerpo** (es **Part Repair**), de 0 a 100 %, con su burbujita de ayuda.
+
+- **La línea de debajo lo dice.** Con salud y 30: "Al usar una unidad: cura 25 de salud (…). Con Tab, soltado sobre una parte dañada del cuerpo, le devuelve 30 % (sin pasar del 100 %) y gasta una unidad, sin tocar la salud." Con 100 dice "la deja entera".
+- **Uno que solo cura partes se guarda** (antes el panel lo rechazaba: "no hace nada"). Usado normal no hace nada ni se gasta. Desde el menú, **Usar** aparece apagado y dice "se usa con Tab, soltándolo sobre una parte dañada del cuerpo"; desde la barra rápida, lo mismo. Eso último es un cambio chico del juego (`InvConsumable.check` y su descripción), solo para estos consumibles: los que ya existían dicen lo mismo que antes.
+- **Más de 100 no se guarda:** "Lo que cura de una parte del cuerpo va de 0 a 100 %".
+- **Las vendas siguen en 0,** como pediste para esta etapa. Si querés que curen partes, ponelo vos desde el panel (abajo, en tu prueba).
+
+### Cómo se ve, paso a paso
+
+1. **Tab**, clic en el botiquín: queda en la mano.
+2. Pasalo sobre la silueta: la parte bajo el cursor se marca.
+3. Clic sobre una parte dañada: la mano queda vacía, la parte queda en 100 %, verde, y hay un botiquín menos. Desde la noche (sección 16), al instante; antes, el botiquín se veía "esperando…" un viaje de ida y vuelta.
+4. Sobre una parte sana, entre dos partes o sobre el título: sigue en la mano y dice por qué.
+
+### Lo que valida el host
+
+Que el botiquín siga en tu inventario con la versión que viste ("Ese objeto cambió: probá de nuevo"); que cure partes ("Eso no cura partes del cuerpo"); que la parte exista ("Esa parte del cuerpo no existe"); y que tu personaje la tenga dañada ("Esa parte ya está entera"). El personaje es siempre el de quien pide: sale de la conexión, y el pedido solo dice cuál de las seis partes. Si algo no da, no cambia nada. Un pedido que llega dos veces se contesta con el resultado guardado: cura y gasta una vez.
+
+### Dónde está
+
+| Archivo | Qué cambió |
+| --- | --- |
+| `scripts/inventory/inv_consumable.gd` | `part_repair`, `repairs_parts`, `check_part`, `apply_part`; lo dice al inspeccionar; está en la huella |
+| `scripts/inventory/inv_protocol.gd` | El pedido `HEAL_PART` [id, versión, parte]; desde la noche ya no existe (sección 16) |
+| `scripts/inventory/inv_authority.gd` | `_heal_part`: valida, cura y gasta juntos, y sube la época |
+| `scripts/inventory/inv_ui.gd` | Soltar sobre el panel (`_part_target`, `_heal_part`), el texto junto al cursor, el aviso de la parte curada, `held_def` y `pointer`, y `body_panel` (el HUD) |
+| `scenes/net_lab/hud/lab_hud.gd` | `integrity_part_at` (qué parte hay bajo un punto), `part_name`, la marca de la parte bajo el cursor |
+| `scenes/net_lab/net_lab.gd` | Le pasa el HUD a la interfaz del inventario |
+| `scripts/actor/actor_state.gd`, `actor_vitals.gd` | Solo los comentarios de las reglas |
+| `scenes/net_lab/inventario/objetos/botiquin.tres` | **Part Repair** 100 y la descripción |
+| `scenes/net_lab/inventario/objetos/vendas.tres` (nuevo), `catalogo_de_prueba.tres`, `zona_de_inventario.tscn` | Las Vendas, en el catálogo y una en la zona |
+| `scenes/net_lab/integridad_test.gd` | La sección nueva |
+| `scenes/net_lab/inventario/pruebas/inv_partes_test.gd` y `.tscn` (nuevos) | La prueba en red |
+| `addons/inventario_objetos/formulario_item.gd` (tarde) | El quinto número del consumible, **Cura una parte del cuerpo**, con su ayuda |
+| `addons/inventario_objetos/guardado.gd` (tarde) | Valida de 0 a 100 %; uno que solo cura partes se guarda; la línea de debajo lo dice |
+| `addons/inventario_objetos/pruebas/prueba_del_creador.gd` y `prueba_del_creador_juego.gd` (tarde) | La venda de prueba: creada con el panel y usada jugando |
+
+### Probado (2026-11-06, en esta PC)
+
+| Prueba | Resultado |
+| --- | --- |
+| `integridad_test.tscn`, con la sección nueva | **103 de 103** (antes 72). Lo nuevo, con el gesto de la interfaz (clic en la grilla y clic en el panel): <ul><li>la parte bajo el cursor se marca, y si sirve o no;</li><li>sobre el torso sano, entre las piernas, sobre el título y con clic derecho: sigue en la mano, sin pedido, sin gastar y sin tirar nada;</li><li>sobre la pierna izquierda, con la salud completa: sale un pedido, y el mismo pedido mandado otra vez se cuenta como repetido; el botiquín espera y no se puede volver a agarrar; queda la pierna izquierda al 100 %, la derecha, la salud y lo demás igual, un botiquín menos, la época sube una vez, la luz sigue prendida, el panel dice 100 % y 60 %, y el aviso nombra la parte;</li><li>cinco pedidos directos que el host rechaza (parte entera, parte que no existe, versión vieja, las vendas, un objeto que no está), sin curar ni gastar;</li><li>las vendas sobre una pierna: siguen en la mano;</li><li>el último botiquín sobre la última pierna: todo al 100 %, la luz apagada y el botiquín ya no está;</li><li>las vendas usadas normal: 40 → 65 de salud y la pierna igual.</li></ul> |
+| `inv_partes_test.tscn` (nueva), host y cliente en esta PC; el host le lastima las piernas al cliente, y el cliente camina, recoge y hace todo con el gesto | Con +200 ms, ±40 ms y 5 % de pérdida, y con +120 ms, ±20 ms y 1 %: **32 de 32** las dos veces. Sobre una parte sana o entre las piernas, nada; la pierna izquierda con el pedido mandado dos veces: un solo botiquín gastado (el host cuenta 1 repetido); la derecha sigue dañada y la luz prendida; un pedido directo sobre la pierna ya curada, rechazado sin gastar; las vendas sobre la pierna, en la mano; la última pierna: todo al 100 % y la luz apagada. Al final, dos venenos (100 → 20), las vendas (+25) y el botiquín normal (+50): **salud 95 y el cuerpo entero en el host y en el cliente**, con los mismos botiquines, vendas y venenos. El panel mostró la pierna curada a los 269 ms del clic (+200 ms) y a los 178 ms (+120 ms). Correcciones: 2, las de las dos curaciones |
+| `estados_test`, `inv_model_test`, `inv_lab_test`, `inv_instant_test` (+120 ms), `inv_pair_test` (tres procesos) | 129 de 129, 91 de 91, 166 de 166, 83 de 83, y host 18, A 24 y B 7: iguales |
+| `mantle_test`, `grab_above_test` | 50 casos y 22 de 22: iguales. La repetición y el barrido no se volvieron a correr: el motor y el estado no cambiaron |
+| Avisos de GDScript | Cargando con el depurador los scripts y recursos tocados: ninguno |
+| Capturas con ventana (internas) | El botiquín sobre una pierna dañada (borde blanco, "curar pierna izquierda"), sobre el torso sano (borde rojo, "esa parte ya está entera") y la pierna curada, con el aviso y un botiquín menos |
+| El panel **Objetos**, en una copia del proyecto (tarde) | Antes del cambio, 159 de 159 en el editor y 26 de 26 jugando. Después, **165 de 165** y **32 de 32**. Lo nuevo en el editor: el consumible tiene cinco números y 18 burbujitas; 150 % no se guarda; una "Venda de prueba" que solo cura 30 % se guarda, con 0 de salud, y la línea lo dice; se colocan 3; el botiquín abierto muestra 100. Jugando, con la venda: usada normal no se usa ni se gasta ("se usa con Tab…"); sobre la pierna izquierda en 50 %, sube a 80 %, con la derecha (90 %) y la salud (50) iguales; sobre la derecha, llega a 100 % sin pasarse; otra vez sobre la derecha, rechazada sin gastar; la última, sobre la izquierda en 80 %, la deja en 100 % y se terminan. Es el pedido del host directo, no el gesto con el mouse |
+| `integridad_test.tscn`, otra vez (tarde) | **103 de 103**. Las demás no se volvieron a correr: el cambio del juego solo toca a los consumibles que curan partes y nada más, y no hay ninguno en el catálogo |
+
+**Para correrla** (Claude): host `--host --port=N --test-spawn-at=34,10 --inv-partes=host` y cliente `--client --address=127.0.0.1 --port=N --sim-rtt=200 --sim-jitter=40 --sim-loss=5 --inv-partes=client`, las dos con `--scene res://scenes/net_lab/inventario/pruebas/inv_partes_test.tscn`.
+
+### Lo que no se probó y los límites
+
+- **A mano, con el mouse de verdad, en las dos PC y con el `.exe`.** Es tu prueba (abajo).
+- ~~El panel Objetos no muestra Part Repair.~~ Resuelto la tarde del 2026-11-06 (arriba). **El quinto número no se miró con ventana:** usa los mismos controles que los otros cuatro, pero nadie vio cómo queda en el panel de verdad. Y un valor parcial con el gesto del mouse (no el pedido directo) solo lo vas a ver vos.
+- ~~**En el cliente, la parte se pinta un viaje de ida y vuelta después del clic**~~ (resuelto a la noche, sección 16) (lo que tarda el host). Si el aviso del host llega antes que el snapshot, durante un instante el panel puede seguir mostrando la parte dañada; un segundo botiquín soltado ahí lo rechaza el host ("ya está entera") sin gastarlo.
+- **Con una caja abierta no se ve el panel,** así que no se puede curar desde una caja: primero el botiquín a tu inventario.
+
+### Tu prueba
+
+**Solo** (esta PC, **F6** → **Jugar solo**): andá a la zona de inventario y recogé los **Botiquines** (3), las **Vendas** y un **Frasco de veneno**. Para lastimarte las piernas, tirate de la tabla amarilla de la torre de parkour (sección 14): la salud queda en 4,8 y las piernas en 60 %.
+
+1. **Una pierna, con la otra todavía dañada:** **Tab**, clic en el botiquín y clic sobre la pierna izquierda. Queda en 100 %, verde; la derecha sigue en 60 % y **la luz naranja sigue prendida**. Hay un botiquín menos y la aguja de la salud no se movió.
+2. **La última parte:** otro botiquín sobre la pierna derecha. Todo en 100 % y **la luz se apaga**.
+3. **Sobre una parte sana:** agarrá el último botiquín y hacé clic sobre el torso. Sigue en tu mano, dice "Esa parte ya está entera" y no se gasta. Hacé clic entre las dos piernas: tampoco. **Esc** lo devuelve a su lugar.
+4. **Botiquín normal contra vendas:** la salud sigue en 4,8 desde la caída. Con **Tab**, clic derecho en el veneno → **Usar**: la aguja baja a 0,8. Clic derecho en las vendas → **Usar**: sube a 3,3 (+25). Clic derecho en el botiquín → **Usar**: sube a 8,3 (+50, el doble). El panel no cambia con ninguno de los dos.
+5. **Las vendas curando un poco** (agregado la tarde del 2026-11-06), en el editor: pestaña **Objetos** → **Ítems**, en el buscador escribí `vendas` y hacé clic en **Vendas**. En **Capacidades**, poné **Cura una parte del cuerpo** en **30**; la línea de debajo dice "le devuelve 30 %". **Guardar**. **F6** → **Jugar solo**, recogé las vendas, tirate de la tabla amarilla (piernas en 60 %) y, con **Tab**, soltá las vendas sobre la pierna izquierda: queda en **90 %**, la derecha sigue en 60 % y se gastan. Si después lo querés como antes, volvé el número a 0 y **Guardar**. Para la notebook, `actualizar_lab.bat` (el número va en la huella).
+
+**Como cliente con latencia** (esta PC **Crear partida**; la notebook, después de `actualizar_lab.bat`, **Unirse** y **Alt + 4**). En la notebook, lastimate en la tabla amarilla y repetí los puntos 1 y 2: la pierna se pinta de verde al instante (desde la noche; sección 16); se gasta uno por pierna, aunque hagas doble clic, y la luz se apaga al curar la última.
+
+## 16. El panel del cuerpo y curar una parte, sin esperar al host (2026-11-06, a la noche)
+
+Probando en red notaste que, con latencia alta, curar una parte esperaba al host, y que después de una caída el porcentaje de las piernas también. Sospechabas que usar los botiquines y las vendas también esperaba. Claude lo midió en esta PC, con host y cliente, antes de cambiar nada:
+
+| Qué pasa, visto en el cliente | Antes, +200 ms | Antes, +400 ms | Ahora, +200 ms | Ahora, +400 ms |
+| --- | --- | --- | --- | --- |
+| Caída: la aguja de la salud baja | al tocar el piso | al tocar el piso | al tocar el piso | al tocar el piso |
+| Caída: las piernas en el panel y la luz naranja | 331 ms después | 517 ms después | **al tocar el piso** | **al tocar el piso** |
+| Botiquín usado normal: la aguja sube | 10 ms (el cuadro siguiente) | 12 ms | 11 ms | 18 ms |
+| Botiquín soltado sobre una pierna | 227 ms después | 435 ms después | **21 ms** | **20 ms** |
+| Vendas soltadas sobre una pierna (con 25) | — | 462 ms después | **21 ms** | **21 ms** |
+
+Así que tenías razón con las dos primeras, y lo del uso normal era percepción: ya no esperaba desde el 2026-11-04. Lo que se veía tarde era el panel. Pediste sacar las dos esperas.
+
+### Qué cambió
+
+- **El panel y la luz muestran lo que calcula tu PC**, como la aguja de la salud. El daño de caída ya se calculaba en tu PC en el mismo cuadro; el panel mostraba lo que confirmaba el host, como decía el roadmap. Si alguna vez tu PC y el host no coinciden, el panel se corrige solo, como la aguja. En las pruebas de red de la sección 14, el host y el cliente calcularon las mismas caídas, también con 101 correcciones forzadas.
+- **Curar una parte ya no es un pedido al host:** va en el input, como el uso normal, con la parte del cuerpo. Tu PC la cura en el cuadro siguiente y muestra una unidad menos; el host hace lo mismo en el mismo tick, con su estado, y gasta la unidad. El pedido `HEAL_PART` ya no existe.
+- **Se puede volver a agarrar enseguida** (elección de Claude): con un uso sin confirmar, el objeto se agarra igual, para soltarlo sobre otra parte. Llevarlo a otro lugar de la grilla o soltarlo al piso, todavía no: sigue en la mano y dice "Esperá: ese objeto todavía espera al host" (es un instante, lo que tarda el host). **Esc** lo devuelve a su lugar.
+- **"Parte curada: pierna izquierda"** sale al soltarlo, no cuando contesta el host.
+
+### Lo que valida el host
+
+Lo mismo que antes, menos la versión: que el objeto siga en tu inventario ("Ese objeto ya no está en tu inventario"), que cure partes ("Eso no cura partes del cuerpo"), que la parte exista ("Esa parte del cuerpo no existe") y que tu personaje la tenga dañada en ese tick ("Esa parte ya está entera"). La versión ya no hace falta: el uso normal tampoco la lleva, y el host hace cada uso en el orden en que lo hiciste. Si dice que no, la parte y la unidad vuelven a verse como estaban, y sale el motivo. Cada uso tiene su número y viaja en varios inputs hasta que el host lo confirma, pero se hace una sola vez. Ya no sube la época: tu PC ya lo predijo, como en el uso normal.
+
+### Dónde está
+
+| Archivo | Qué cambió |
+| --- | --- |
+| `scenes/net_lab/hud/lab_hud.gd` | `integrity()` lee el estado del personaje propio; ya no está `confirmed_state` |
+| `scenes/net_lab/net_lab.gd` | Ya no guarda el estado confirmado para el HUD |
+| `scripts/actor/actor_input.gd` | Cada uso lleva la parte (un byte más: `USE_BYTES` pasa de 8 a 9); una parte que no existe descarta el input |
+| `scripts/inventory/inv_net.gd` | `queue_use` con la parte; la predicción cura la parte si sigue dañada |
+| `scripts/inventory/inv_replica.gd` | Los usos guardan la parte y la mandan |
+| `scripts/inventory/inv_authority.gd` | `use_from_input` con la parte; `_heal_part` valida y aplica con el estado de ese tick |
+| `scripts/inventory/inv_protocol.gd` | Sin `HEAL_PART` |
+| `scripts/inventory/inv_ui.gd` | Soltar sobre una parte pone el uso en fila; agarrar con un uso sin confirmar; llevarlo a otro lado espera |
+| `scripts/inventory/inv_consumable.gd`, `scripts/actor/actor_state.gd` | Solo los comentarios |
+| Pruebas: `integridad_test.gd`, `inv_partes_test.gd`, `inv_model_test.gd`, `addons/inventario_objetos/pruebas/prueba_del_creador_juego.gd` | Curan con el uso nuevo |
+
+### Probado (2026-11-06 a la noche, en esta PC)
+
+| Prueba | Resultado |
+| --- | --- |
+| La medición de arriba (no es prueba fija: está en la carpeta de trabajo de Claude), host y cliente, con +200 ms, ±40 ms y 5 % de pérdida, y con +400 ms | Lo de la tabla |
+| `integridad_test.tscn` | **106 de 106.** Lo nuevo: soltar sobre la pierna sale como uso, sin pedido, y ya se ve un botiquín menos; se vuelve a agarrar enseguida y llevarlo a otro lugar de la grilla espera; el host lo hace una vez y la época no sube; el mismo uso en otro input no cura ni gasta de nuevo; cinco usos que el host rechaza (parte entera, partes 9 y −3, algo que no cura partes y un objeto que no está), sin curar ni gastar; las vendas con 0, en la mano; con 25, la pierna de 60,5 % a 85,5 %, el panel dice 85 % y la luz sigue prendida; el último botiquín, todo al 100 % y la luz apagada; las vendas normal, +25 de salud |
+| `inv_partes_test.tscn`, host y cliente | Con +200 ms, ±40 ms y 5 %, y con +120 ms, ±20 ms y 1 %: **29 de 29** y el host 1 de 1, las dos veces. El panel mostró la pierna curada a los 12 ms del clic (+200) y a los 19 ms (+120); las vendas, a los 19 y 11 ms; la última parte, a los 12 y 11 ms. **Cero correcciones** y el host terminó igual que el cliente: salud 70, el cuerpo entero, ningún botiquín ni venda |
+| `inv_model_test` | **92 de 92** (antes 91): la parte de cada uso va y vuelve por la red, y una parte que no existe descarta el input |
+| `estados_test`, `inv_lab_test`, `inv_instant_test` (+120 ms), `inv_pair_test` (tres procesos), `mantle_test`, `grab_above_test` | 129 de 129, 166 de 166, 83 de 83, host 18, A 24 y B 7, 50 casos y 22 de 22: iguales |
+| El panel **Objetos**, en una copia | 165 de 165 y 32 de 32. En la primera corrida falló una vez "la zona sigue marcada sin guardar", la marca del editor sin ventana que ya falló así el 2026-11-02; en la segunda, todo bien |
+| Avisos de GDScript | Cargando con el depurador los scripts tocados: ninguno nuevo |
+
+La repetición y el barrido no se volvieron a correr: el motor no cambió y un input sin usos mide lo mismo que antes.
+
+### Lo que no se probó y los límites
+
+- **A mano, en las dos PC y con el `.exe`.** Es tu prueba (abajo). Cambió lo que viaja en el input: en la notebook hace falta `actualizar_lab.bat`.
+- **Las Vendas, en su archivo, curan 25 de una parte** desde que les cambiaste el número en el panel. Su descripción todavía dice "No curan partes del cuerpo". Las pruebas ya no dependen de eso: les ponen el número en memoria.
+
+### Tu prueba
+
+**Como cliente con latencia** (esta PC **Crear partida**; la notebook, después de `actualizar_lab.bat`, **Unirse** y **Alt + 4**). En la notebook:
+
+1. **Caída:** tirate de la tabla amarilla de la torre. Al tocar el piso, junto con la aguja, **Tab** muestra las piernas lastimadas y la luz naranja se prende, sin esperar.
+2. **Curar:** recogé los botiquines y, con **Tab**, soltá uno sobre la pierna izquierda. Se pinta de verde en el momento y hay uno menos.
+3. **Otra vez, enseguida:** agarrá el botiquín de nuevo apenas lo soltaste y soltalo sobre la derecha. Se agarra y cura sin esperar, y la luz se apaga.
+4. **Las vendas** (con el 25 que les pusiste): lastimate otra vez y soltalas sobre una pierna. Sube 25 puntos en el momento.

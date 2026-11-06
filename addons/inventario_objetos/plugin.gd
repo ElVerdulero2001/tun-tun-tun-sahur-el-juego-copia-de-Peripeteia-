@@ -8,11 +8,15 @@ extends EditorPlugin
 ## todo lo suyo (su vista previa y sus conexiones).
 
 const ObjetosPanel := preload("objetos_panel.gd")
+const PickupInspector := preload("pickup_inspector.gd")
 
 var _dock: EditorDock
+var _pickup_inspector: EditorInspectorPlugin
 
 
 func _enter_tree() -> void:
+	_pickup_inspector = PickupInspector.new()
+	add_inspector_plugin(_pickup_inspector)
 	_dock = EditorDock.new()
 	_dock.title = "Objetos"
 	_dock.layout_key = "inventario_objetos"
@@ -26,6 +30,8 @@ func _enter_tree() -> void:
 
 
 func _exit_tree() -> void:
+	remove_inspector_plugin(_pickup_inspector)
+	_pickup_inspector = null
 	if _dock != null:
 		remove_dock(_dock)
 		_dock.queue_free()

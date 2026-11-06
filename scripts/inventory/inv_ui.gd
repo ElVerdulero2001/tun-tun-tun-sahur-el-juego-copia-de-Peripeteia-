@@ -3,6 +3,8 @@ extends Control
 
 ## Interfaz del inventario del jugador local: su grilla a la izquierda, la caja
 ## abierta a la derecha y la barra rápida abajo, con el mundo visible detrás.
+## Sin caja abierta, a la derecha va la integridad corporal (desde el
+## 2026-11-05: side_panel_rect, que dibuja el HUD).
 ## Muestra lo que confirmó el host (InvReplica) y pide cambios: nunca escribe
 ## ese estado. Desde el 2026-11-04, lo que se recoge y los consumibles que se
 ## usan se ven al instante, sin esperar al host (InvReplica.shown_own): un
@@ -63,6 +65,12 @@ enum Mode { NONE, HOLD, SLOT_HOLD, SPLIT_PLACE }
 
 ## El personaje del jugador local. Lo pone el laboratorio.
 var actor: ActorBody
+## El panel de integridad corporal que va a la derecha (side_panel_rect), para
+## soltar un consumible sobre una parte del cuerpo (desde el 2026-11-06). Lo
+## pone el laboratorio: es el HUD (LabHud), y de él se usan
+## integrity_part_at(punto) -> parte o -1, integrity() -> las seis partes como
+## se ven, y part_name(parte). Sin él, el panel no cura.
+var body_panel: Object
 var is_open := false
 var thumbnails: InvThumbnails
 
@@ -445,7 +453,10 @@ func _place_slot() -> void:
 func _pick_up(ref: int, uid: int) -> void:
 	var grid := _grid(ref)
 	var stack := grid.get_stack(uid)
-	if _busy(uid):
+	# Con un uso sin confirmar se puede agarrar igual (desde el 2026-11-06 a la
+	# noche), para soltarlo enseguida sobre otra parte del cuerpo; moverlo o
+	# soltarlo en otro lado espera a que el host lo confirme (_place_all).
+	if _waiting(uid):
 		_say("Ese objeto está esperando al host")
 		return
 	var place := grid.placement(uid)
@@ -485,8 +496,14 @@ func _place_all() -> void:
 	if target["kind"] == "invalid":
 		_say(_sentence(target.get("reason", "")))
 		return
+	if target["kind"] == "part":
+		_heal_part(target["part"])
+		return
 	var back: bool = target["kind"] == "move" and target["ref"] == _hold["src"] and target["cell"] == _hold["cell"] \
 			and _hold["rot"] == _hold["start_rot"]
+	if not back and _r().has_use(_hold["uid"]):
+		_say("Esperá: ese objeto todavía espera al host")
+		return
 	if not back:
 		_queue_placing(target, 0, true)
 	_end_hold()
@@ -501,9 +518,41 @@ func _place_one() -> void:
 	if target["kind"] == "invalid":
 		_say(_sentence(target.get("reason", "")))
 		return
+	if _r().has_use(_hold["uid"]):
+		_say("Esperá: ese objeto todavía espera al host")
+		return
 	_queue_placing(target, 1, false)
 	if left <= 1:
 		_end_hold()
+
+
+## Un consumible de la mano soltado sobre una parte dañada del cuerpo (desde el
+## 2026-11-06): sale como un uso, con la parte (InvNet.queue_use), y la mano
+## queda vacía. Desde la noche no espera al host, como el uso normal: en el
+## tick siguiente la parte se ve curada y hay una unidad menos, y se puede
+## volver a agarrar enseguida para curar otra. El host cura y gasta juntos; si
+## dice que no, la parte y la unidad vuelven a verse como estaban y lo dice.
+func _heal_part(part: int) -> void:
+	var stack := _r().shown_own().get_stack(_hold["uid"]) if _r().shown_own() != null else null
+	if stack == null:
+		_cancel_mode("Ese objeto ya no está")
+		return
+	if not net.queue_use(stack.uid, _hold["def"], part):
+		_say("Esperá: hay muchos usos que el host todavía no confirmó")
+		return
+	_end_hold()
+	if body_panel != null:
+		_say("Parte curada: %s" % String(body_panel.call("part_name", part)).to_lower())
+
+
+## Lo que se tiene en la mano, o null (para el panel de integridad).
+func held_def() -> InvItemDef:
+	return _hold.get("def") if _mode == Mode.HOLD and not _hold.is_empty() else null
+
+
+## Dónde está el cursor, en las coordenadas de esta interfaz.
+func pointer() -> Vector2:
+	return _mouse
 
 
 func _end_hold() -> void:
@@ -578,6 +627,10 @@ func _drop_target(hold: Dictionary, mouse: Vector2, how: String, whole: bool) ->
 			return {"kind": "move" if reason == "" else "invalid", "reason": reason, "ref": ref, "cell": cell, "foot": foot}
 		if _panel_rect(ref).has_point(mouse):
 			return {"kind": "invalid", "reason": "ahí no: dejalo sobre la grilla", "ref": ref}
+	if side_panel_rect().has_point(mouse):
+		if how != "all":
+			return {"kind": "invalid", "reason": "para curar una parte, clic izquierdo sobre ella"}
+		return _part_target(hold, mouse)
 	if how == "split":
 		return {"kind": "invalid", "reason": "elegí un lugar libre en una grilla"}
 	if how == "one":
@@ -590,6 +643,26 @@ func _drop_target(hold: Dictionary, mouse: Vector2, how: String, whole: bool) ->
 	if _hotbar_rect().has_point(mouse) or _over_window(mouse):
 		return {"kind": "invalid", "reason": "ahí no se puede soltar"}
 	return {"kind": "world"}
+
+
+## Soltar sobre el panel de integridad (desde el 2026-11-06): {"kind": "part",
+## "part": parte} si lo que está en la mano cura esa parte, o "invalid" con el
+## motivo, y entonces sigue en la mano. Nunca va al piso. Se mira con lo que
+## muestra el panel (lo confirmado por el host); el host lo vuelve a mirar.
+func _part_target(hold: Dictionary, mouse: Vector2) -> Dictionary:
+	var part: int = body_panel.call("integrity_part_at", mouse) if body_panel != null else -1
+	if part < 0:
+		return {"kind": "invalid", "reason": "apuntá a una parte del cuerpo"}
+	if hold["src"] != InvProtocol.OWN:
+		return {"kind": "invalid", "reason": "primero pasalo a tu inventario"}
+	var def: InvItemDef = hold["def"]
+	var use := def.ability_of(InvAbility.Kind.USE) as InvConsumable if def != null else null
+	if use == null or not use.repairs_parts():
+		return {"kind": "invalid", "reason": "eso no cura partes del cuerpo"}
+	var shown: PackedInt32Array = body_panel.call("integrity")
+	if part >= shown.size() or shown[part] >= ActorState.INTEGRITY_FULL:
+		return {"kind": "invalid", "reason": "esa parte ya está entera"}
+	return {"kind": "part", "part": part}
 
 
 func _merge_target(hold: Dictionary, ref: int, under: int) -> Dictionary:
@@ -1242,7 +1315,23 @@ func hud_limits() -> Dictionary:
 	if is_open and net != null:
 		for ref in _refs():
 			right = maxf(right, _panel_rect(ref).end.x)
+		right = maxf(right, side_panel_rect().end.x)
 	return {"grid_bottom": 24.0 + HEADER + rows * cs + PAD, "panels_right": right, "hotbar": _hotbar_rect()}
+
+
+## El panel de la derecha de la interfaz del jugador (desde el 2026-11-05): al
+## lado de la grilla propia, en el lugar de la caja y con su mismo alto. Hoy lo
+## ocupa la integridad corporal, que dibuja el HUD (LabHud). Con una caja
+## abierta, la caja tiene prioridad (para seguir pasando objetos) y el panel no
+## se ve: vacío. También vacío con el inventario cerrado. Un clic con un
+## objeto en la mano ahí no lo suelta al piso.
+func side_panel_rect() -> Rect2:
+	if not is_open or not _active() or _r().shown_own() == null or (_r().box != null and _r().box_id != 0):
+		return Rect2()
+	_layout()
+	var own := _panel_rect(InvProtocol.OWN)
+	var width := clampf(own.size.y * 0.55, 230.0, 360.0)
+	return Rect2(Vector2(own.end.x + 28.0, own.position.y), Vector2(width, own.size.y))
 
 
 func _hotbar_rect() -> Rect2:
@@ -1392,6 +1481,8 @@ func _draw_hold() -> void:
 			label = "al acceso %s" % KEYS[target["slot"]]
 		"world":
 			label = "soltar al piso"
+		"part":
+			label = "curar %s" % String(body_panel.call("part_name", target["part"])).to_lower()
 		"invalid":
 			label = target.get("reason", "")
 	if label != "":

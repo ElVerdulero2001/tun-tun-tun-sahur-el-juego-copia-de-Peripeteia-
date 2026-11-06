@@ -58,11 +58,12 @@ cable_grab_body = 0.3
 slow_stamina_cost = 0.8
 boost_stamina_cost = 0.8
 
-[node name="Inventario" type="Node3D" parent="." unique_id=1742000102 node_paths=PackedStringArray("actors_root", "world_root")]
+[node name="Inventario" type="Node3D" parent="." unique_id=1742000102 node_paths=PackedStringArray("actors_root", "world_root", "pickup_root")]
 script = ExtResource("10_inventory")
 catalog = ExtResource("11_catalog")
 actors_root = NodePath("../Actors")
 world_root = NodePath("../ZonaDeInventario")
+pickup_root = NodePath("../Level")
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=1623118060]
 physics_interpolation_mode = 2

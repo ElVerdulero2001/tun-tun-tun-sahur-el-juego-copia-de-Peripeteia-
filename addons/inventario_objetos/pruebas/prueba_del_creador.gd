@@ -271,8 +271,10 @@ func _consumable_and_equippable() -> void:
 	form._add_use.pressed.emit()
 	# Desde el 2026-11-02: efecto en la salud (cura o daña) y estamina que recupera.
 	# Y desde la tarde, el daño en el tiempo: sus puntos y en cuántos segundos.
+	# Y desde el 2026-11-06, lo que cura de una parte del cuerpo.
 	var effects: Array = form._abilities.find_children("*", "EditorSpinSlider", true, false)
-	_check(effects.size() == 4, "el consumible tiene cuatro números: salud, estamina, daño en el tiempo y segundos (hay %d)" % effects.size())
+	_check(effects.size() == 5, "el consumible tiene cinco números: salud, estamina, daño en el tiempo, segundos y partes del cuerpo (hay %d)"
+			% effects.size())
 	effects[0].value = 0
 	effects[1].value = 0
 	var result: Dictionary = panel.save_current(false)
@@ -322,6 +324,39 @@ func _consumable_and_equippable() -> void:
 			"guardar el veneno, que quita 30 de golpe y 10 en 1 s: %s" % result["message"])
 	result = panel.place_current(1, {})
 	_check(result["ok"], "colocar un veneno: %s" % result["message"])
+	# Uno que solo cura partes del cuerpo (2026-11-06): 30 por unidad, sin salud.
+	panel.new_item()
+	_type(form._name, "Venda de prueba")
+	form._stacks.button_pressed = true
+	form._stack_size.value = 5
+	form._add_use.pressed.emit()
+	effects = form._abilities.find_children("*", "EditorSpinSlider", true, false)
+	effects[0].value = 0
+	effects[4].value = 150.0
+	result = panel.save_current(false)
+	_check(not result["ok"] and result["message"].contains("parte del cuerpo va de 0 a 100")
+			and not FileAccess.file_exists(Destinos.ITEMS_DIR.path_join("venda_de_prueba.tres")),
+			"curar 150 %% de una parte no se guarda: %s" % result["message"])
+	effects[4].value = 30.0
+	summary = ""
+	for label: Label in form._abilities.find_children("*", "Label", true, false):
+		if label.text.contains("parte dañada"):
+			summary = label.text
+	_check(summary.begins_with("Usado normal (menú o barra rápida) no hace nada") and summary.contains("le devuelve 30 % (sin pasar del 100 %)"),
+			"el panel dice que solo cura partes, 30 %%: %s" % summary)
+	result = panel.save_current(false)
+	_check(result["ok"], "un consumible que solo cura partes se guarda: %s" % result["message"])
+	var bandage: Resource = load(Destinos.ITEMS_DIR.path_join("venda_de_prueba.tres"))
+	var bandage_use: Resource = bandage.get(&"abilities")[0] if bandage != null else null
+	_check(bandage_use != null and bandage_use.get(&"health") == 0 and is_equal_approx(bandage_use.get(&"part_repair"), 30.0),
+			"la venda guarda 30 % para una parte y 0 de salud")
+	result = panel.place_current(3, {})
+	_check(result["ok"] and panel.last_placed.size() == 1, "3 vendas en una pila: %s" % result["message"])
+	# Al abrir de nuevo un objeto guardado, el número está ahí (el botiquín, 100).
+	panel.open_item(Destinos.ITEMS_DIR.path_join("botiquin.tres"))
+	effects = form._abilities.find_children("*", "EditorSpinSlider", true, false)
+	_check(effects.size() == 5 and is_equal_approx(effects[4].value, 100.0), "el botiquín abierto muestra que deja entera una parte (%s)"
+			% (effects[4].value if effects.size() == 5 else "sin el número"))
 	panel.new_item()
 	_type(form._name, "Soga de prueba")
 	form._height.value = 2
@@ -704,6 +739,7 @@ const HELP_PHRASES := [
 	"baterías gastadas", "es lo que viaja por red", "Dónde se guarda su .tres", "Cómo se ve en el piso",
 	"Se arrastra desde FileSystem", "cuando está suelto en el mundo", "Arrastrá para girarlo", "Sin capacidades",
 	"Opcional. Son datos", "Positivo cura", "La reserva completa son 200", "Quita esa salud de a poco", "4 en 2 s",
+	"30 lleva una del 50 % al 80 %",
 ]
 
 
@@ -717,7 +753,7 @@ func _help_bubbles() -> void:
 	await _frames(3)
 	var bubbles := _bubbles(panel)
 	var shown := bubbles.filter(_shown)
-	_check(shown.size() >= 17 and shown.all(func(bubble: Button) -> bool: return bubble.explanation != ""),
+	_check(shown.size() >= 18 and shown.all(func(bubble: Button) -> bool: return bubble.explanation != ""),
 			"con un consumible, se ven %d burbujitas y todas tienen su explicación" % shown.size())
 	var texts := "\n".join(bubbles.map(func(bubble: Button) -> String: return bubble.explanation))
 	var missing := HELP_PHRASES.filter(func(phrase: String) -> bool: return not texts.contains(phrase))

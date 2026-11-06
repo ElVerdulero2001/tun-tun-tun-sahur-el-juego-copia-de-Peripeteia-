@@ -23,6 +23,14 @@ extends Node3D
 ##
 ## Y una escalera del piso a la terraza 2, para volver sin rehacer todo.
 ##
+## Desde el 2026-11-05, tres tablas para probar el daño de caída, cada una
+## saliendo de una terraza hacia afuera, sobre el piso libre: caminando hasta
+## la punta y siguiendo de largo se cae al piso (0 m) desde su altura. Con los
+## valores de fábrica del Tuning (grupo Daño de caída): la verde, de la
+## terraza 2 (4 m), es segura; la amarilla, de la terraza 3 (7 m), lastima la
+## salud y las piernas; la roja, de la terraza 4 (9,5 m), es letal. A la 2 y a
+## la 3 se llega solo con escaleras: la de vuelta y la del tramo 4.
+##
 ## Las alturas salen de los valores del Tuning de hoy: desde un piso las manos
 ## llegan a 3,12 m; colgado, los pies quedan 1,95 m debajo del filo; parado
 ## mide 1,8 m y agachado 1. Los bordes para colgarse están 2,5 m arriba del
@@ -82,11 +90,27 @@ const CRATE_SIZE := Vector3(1.2, 0.6, 1.0)
 ## Baranda de la terraza de arriba, del lado -X.
 const RAIL_HEIGHT := 0.9
 const RAIL_THICKNESS := 0.3
+## Tablas de caída: largo hacia afuera de la terraza, ancho y espesor. Cada una
+## es [esquina baja, esquina alta] en coordenadas de la torre, con el borde de
+## arriba a ras de su terraza.
+const BOARD_LENGTH := 2.0
+const BOARD_WIDTH := 1.2
+const BOARD_THICKNESS := 0.2
+## Segura: de la terraza 2 hacia -X, lejos de la escalera de vuelta.
+const BOARD_SAFE := [Vector3(-OUTER - BOARD_LENGTH, LEVEL_2 - BOARD_THICKNESS, -2.6), Vector3(-OUTER, LEVEL_2, -2.6 + BOARD_WIDTH)]
+## Lastima: de la terraza 3 hacia -Z, enfrente de donde llega la escalera del tramo 4.
+const BOARD_HARM := [Vector3(LADDER_UP_X - BOARD_WIDTH * 0.5, LEVEL_3 - BOARD_THICKNESS, -OUTER - BOARD_LENGTH),
+		Vector3(LADDER_UP_X + BOARD_WIDTH * 0.5, LEVEL_3, -OUTER)]
+## Letal: de la terraza 4 hacia +X, al lado de donde se sube colgándose (tramo 6).
+const BOARD_LETHAL := [Vector3(OUTER, LEVEL_4 - BOARD_THICKNESS, -5.0), Vector3(OUTER + BOARD_LENGTH, LEVEL_4, -5.0 + BOARD_WIDTH)]
 
 var _core_material := StandardMaterial3D.new()
 var _floor_material := StandardMaterial3D.new()
 var _low_material := StandardMaterial3D.new()
 var _lip_material := StandardMaterial3D.new()
+var _safe_material := StandardMaterial3D.new()
+var _harm_material := StandardMaterial3D.new()
+var _lethal_material := StandardMaterial3D.new()
 
 
 func _ready() -> void:
@@ -94,11 +118,16 @@ func _ready() -> void:
 	_floor_material.albedo_color = Color(0.7, 0.64, 0.52)
 	_low_material.albedo_color = Color(0.85, 0.5, 0.25)
 	_lip_material.albedo_color = Color(0.35, 0.37, 0.42)
-	for material in [_core_material, _floor_material, _low_material, _lip_material]:
+	_safe_material.albedo_color = Color(0.3, 0.7, 0.35)
+	_harm_material.albedo_color = Color(0.95, 0.82, 0.12)
+	_lethal_material.albedo_color = Color(0.8, 0.18, 0.15)
+	for material in [_core_material, _floor_material, _low_material, _lip_material, _safe_material, _harm_material,
+			_lethal_material]:
 		material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_build_core()
 	_build_route()
 	_build_ladders()
+	_build_fall_boards()
 	_build_labels()
 
 
@@ -155,6 +184,17 @@ func _build_ladders() -> void:
 	_ladder(LADDER_UP_NAME, Vector3(LADDER_UP_X, LEVEL_2, -CORE), 0.0, LEVEL_3 - LEVEL_2)
 	# 8. De la terraza 4 a la de arriba, en la cara +X del núcleo.
 	_ladder(LADDER_TOP_NAME, Vector3(CORE, LEVEL_4, LADDER_TOP_Z), PI * 0.5, CORE_TOP - LEVEL_4)
+
+
+## Las tres tablas para probar el daño de caída, con su cartel.
+func _build_fall_boards() -> void:
+	for board in [[BOARD_SAFE, _safe_material, "caída segura · 4 m\ncaminá hasta la punta y seguí de largo"],
+			[BOARD_HARM, _harm_material, "caída que lastima · 7 m\nsalud y piernas"],
+			[BOARD_LETHAL, _lethal_material, "caída letal · 9,5 m"]]:
+		var corners: Array = board[0]
+		_box(corners[0], corners[1], board[1])
+		var middle: Vector3 = (corners[0] + corners[1]) * 0.5
+		_label(board[2], Vector3(middle.x, corners[1].y + 1.4, middle.z))
 
 
 func _build_labels() -> void:

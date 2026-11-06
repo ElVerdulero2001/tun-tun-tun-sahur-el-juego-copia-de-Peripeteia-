@@ -36,6 +36,15 @@ const GROUP := "actores"
 ## esto de inicio + velocidad × dt, la diferencia es error de redondeo y no un
 ## choque. Medio paso de la cuantización de la posición.
 const FREE_MOVE_TOLERANCE := 0.00005
+## Desplome al morir (desde el 2026-11-05; elección de Claude, a pedido del
+## usuario: "un desplome visual que pueda ver el compañero"), en segundos
+## reales: cae de espaldas, queda en el piso y se levanta. Es solo dibujo:
+## la muerte de prueba deja al jugador donde estaba, y la simulación no lo lee.
+const COLLAPSE_FALL := 0.45
+const COLLAPSE_DOWN := 0.9
+const COLLAPSE_RISE := 0.45
+## Cuánto se inclina acostado, en grados (90 es horizontal).
+const COLLAPSE_ANGLE := 84.0
 
 ## Desvío del visual respecto del cuerpo. Es solo presentación: la simulación
 ## no lo lee nunca. El del agarre va aparte porque decae más lento.
@@ -67,6 +76,10 @@ var grab_jump := Vector3.ZERO
 ## Lo pone ActorMotor junto con grab_jump.
 var grab_jump_speed := GRAB_MAX_SPEED
 var _grab_speed := GRAB_MAX_SPEED
+## El último aterrizaje, para el panel del laboratorio: [velocidad contra el
+## piso en m/s, puntos de salud que quitó, si mató]. Lo pone ActorMotor al
+## aterrizar (también al repetir ticks, con lo mismo); la simulación no lo lee.
+var last_landing: Array = []
 
 ## Forma activa: la de la postura concedida.
 var _active_stance: int = ActorState.Stance.STANDING
@@ -88,6 +101,15 @@ var _tuck := 0.0
 @onready var _nose: Node3D = $Visual/Nose
 ## Manos que se dibujan sobre el filo mientras cuelga. Solo presentación.
 var _hands: Array[MeshInstance3D] = []
+## Desplome al morir: el nodo que se inclina (adentro de Visual, con las formas
+## y la nariz), el contador de muertes que ya se mostró (-1 hasta el primer
+## estado que se dibuja: ese se toma como está, sin desplomarse por muertes de
+## antes) y desde cuándo, en microsegundos reales (-1: no se está desplomando).
+var _collapse_pivot: Node3D
+var _deaths_shown := -1
+var _collapse_since_usec := -1
+## Para las pruebas: cuántos desplomes empezó este actor.
+var collapses_started := 0
 
 
 func _ready() -> void:
@@ -113,9 +135,16 @@ func _ready() -> void:
 	_bodies.append(tuck_body)
 	_probe_shapes.append(null)
 	_build_tuck()
+	# El desplome inclina las formas y la nariz alrededor de los pies, sin tocar
+	# a Visual: su posición y su giro ya los usan las correcciones y la cámara.
+	_collapse_pivot = Node3D.new()
+	_collapse_pivot.name = "Desplome"
+	_visual.add_child(_collapse_pivot)
+	for part: Node3D in _bodies + [_nose]:
+		part.reparent(_collapse_pivot, false)
 	var hand_mesh := BoxMesh.new()
 	hand_mesh.size = Vector3(0.12, 0.06, 0.14)
-	hand_mesh.material = ($Visual/Nose as MeshInstance3D).mesh.material
+	hand_mesh.material = (_nose as MeshInstance3D).mesh.material
 	for i in 2:
 		var hand := MeshInstance3D.new()
 		hand.mesh = hand_mesh
@@ -322,6 +351,7 @@ func present(actor_state: ActorState) -> void:
 	for i in _bodies.size():
 		_bodies[i].visible = i == actor_state.stance
 	_nose.position.y = stance_height(actor_state.stance) - 0.3
+	_present_collapse(actor_state.deaths)
 	# En el aire, cambiar de postura mueve los pies y deja la cabeza: el origen
 	# salta, no se mueve. Interpolarlo dibujaría la forma nueva desde los pies
 	# viejos, con la cabeza bajando o subiendo durante un tick. Lo mismo al
@@ -407,6 +437,63 @@ func present(actor_state: ActorState) -> void:
 		for i in _hands.size():
 			_hands[i].position = grip + right * (0.2 if i == 0 else -0.2)
 			_hands[i].rotation.y = actor_state.facing_yaw
+
+
+## Desplome al morir: lo empieza una muerte nueva, cuando el contador de
+## muertes del estado que se dibuja avanza más allá del último que se mostró.
+## Repetir ticks o corregir lo pueden hacer volver atrás y adelante, pero no
+## pasa del mismo número: el desplome sale una sola vez por muerte, en esta
+## máquina y en las de los demás (que ven el estado que manda el host). Se
+## dibuja según el tiempo real desde que empezó, en el tick, así la
+## interpolación de física lo suaviza. Lo que se le agrega al dibujo después
+## (lo equipado, InvEquipView) se inclina igual.
+func _present_collapse(deaths: int) -> void:
+	if _collapse_pivot == null:
+		return
+	if _deaths_shown < 0:
+		_deaths_shown = deaths
+	else:
+		var died := (deaths - _deaths_shown) & 0xFF
+		if died != 0 and died < 128:
+			_deaths_shown = deaths
+			_collapse_since_usec = Time.get_ticks_usec()
+			collapses_started += 1
+	var angle := deg_to_rad(COLLAPSE_ANGLE) * collapse_amount()
+	# Cae de espaldas (la cabeza va hacia +Z, atrás), girando sobre los pies, así
+	# la nariz queda para arriba y se ve de cualquier lado; sube lo justo para
+	# que la punta de abajo de la cápsula no se meta en el piso.
+	var pose := Transform3D(Basis(Vector3.RIGHT, angle), Vector3.UP * capsule_radius() * (1.0 - cos(angle)))
+	if _collapse_pivot.transform == pose:
+		return
+	for child in _visual.get_children():
+		if child is Node3D:
+			(child as Node3D).transform = pose
+
+
+## Cuánto está desplomado el dibujo, de 0 (parado) a 1 (en el piso), según el
+## tiempo real desde la última muerte: cae acelerando, queda y se levanta. La
+## usa también la cámara, en primera persona (LabCamera).
+func collapse_amount() -> float:
+	if _collapse_since_usec < 0:
+		return 0.0
+	var t := (Time.get_ticks_usec() - _collapse_since_usec) / 1_000_000.0
+	if t < COLLAPSE_FALL:
+		var fall := t / COLLAPSE_FALL
+		return fall * fall
+	t -= COLLAPSE_FALL
+	if t < COLLAPSE_DOWN:
+		return 1.0
+	t -= COLLAPSE_DOWN
+	if t < COLLAPSE_RISE:
+		return 1.0 - smoothstep(0.0, 1.0, t / COLLAPSE_RISE)
+	_collapse_since_usec = -1
+	return 0.0
+
+
+## Si está mostrando un desplome (para las pruebas).
+func is_collapsing() -> bool:
+	collapse_amount()
+	return _collapse_since_usec >= 0
 
 
 ## Dónde se ve el actor: el cuerpo más el desvío visual.

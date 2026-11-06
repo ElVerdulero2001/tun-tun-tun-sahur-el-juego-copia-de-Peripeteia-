@@ -106,6 +106,12 @@ extends Node3D
 ## los demás, como la cápsula letal: muerte de prueba),
 ## --test-poison-at=S:PUNTOS:SEGUNDOS,… (solo host: a esos segundos les pone a
 ## los demás un daño en el tiempo; sin puntos ni segundos, 20 en 4 s),
+## --test-drop-at=S:ALTO:X:Z,… (solo host, desde el 2026-11-05: a esos
+## segundos pone a los demás jugadores ALTO metros arriba del piso, en X, Z del
+## mundo o, sin X ni Z, donde están; quietos y en el aire, como un evento del
+## host: caen y aterrizan, para probar el daño de caída en red),
+## --test-drop-all-at=S:ALTO:X:Z,… (igual, pero también el del host, un metro
+## más allá en x, así los clientes lo ven caer y desplomarse),
 ## --test-relay=PUERTO (cliente: se conecta a través de un relevo en ese
 ## puerto), --test-cut-at=S1,S2 (a esos segundos se corta el relevo,
 ## como un cable; sin relevo, esta máquina deja de atender la red, como si se
@@ -212,6 +218,14 @@ var test_harm_seconds := PackedFloat64Array()
 ## Prueba, solo host: [segundos, puntos, duración]: a esos segundos les pone
 ## a los demás un daño en el tiempo, como un consumible (ActorVitals).
 var test_poisons: Array = []
+## Prueba, solo host: [segundos, alto, x, z, también el del host] (x y z en
+## NAN: donde está cada uno): a esos segundos pone a los demás en el aire,
+## para que caigan.
+var test_drops: Array = []
+var drops_done := 0
+## Pruebas con resumen (--autoquit): el último aterrizaje de cada jugador que
+## ya se anotó, para anotar cada uno una vez (peer -> [velocidad, salud, murió]).
+var _landings_logged := {}
 ## Host: si la cámara lenta del mundo está pedida, según los pedidos de los
 ## jugadores (ActorPowers.SLOW en su estado) al empezar el tick, y quiénes la
 ## piden.
@@ -497,6 +511,8 @@ func _ready() -> void:
 		_info_before_inventory = _info.visible
 		_info.visible = false)
 	_inventory_ui.closed.connect(func() -> void: _info.visible = _info_before_inventory)
+	# El panel de integridad del HUD, para soltar un botiquín sobre una parte.
+	_inventory_ui.body_panel = _hud
 	# El indicador de lo que marcaría E (desde el 2026-11-06): esquinas y nombre
 	# junto al objetivo. Va en el HUD debajo de los instrumentos y del
 	# inventario, que lo tapan; se arma acá para no tocar la escena.
@@ -532,6 +548,8 @@ func _ready() -> void:
 		_real_timer(seconds, _harm_others)
 	for poison: Array in test_poisons:
 		_real_timer(poison[0], _poison_others.bind(poison[1], poison[2]))
+	for drop: Array in test_drops:
+		_real_timer(drop[0], _drop_others.bind(drop[1], drop[2], drop[3], drop[4]))
 	for seconds in test_cut_seconds_at:
 		_real_timer(seconds, _cut_network)
 	_session.status_changed.connect(func(text: String) -> void: print("[net_lab] %s" % text))
@@ -1822,6 +1840,14 @@ func _on_tick_finished(tick: int) -> void:
 			var counted: Array = _power_ticks.get_or_add(actor.owner_peer_id, [0, 0])
 			counted[0] += 1 if actor.state.powers & ActorPowers.BOOST else 0
 			counted[1] += 1 if actor.state.powers & ActorPowers.SLOW else 0
+		# Pruebas con resumen: cada aterrizaje con daño que calculó esta máquina,
+		# una vez (repetir ticks lo vuelve a calcular igual y no se anota de nuevo).
+		if autoquit_seconds > 0.0 and actor.simulated and actor.last_landing.size() == 3 \
+				and actor.last_landing[0] > tuning.fall_safe_speed and actor.last_landing != _landings_logged.get(actor.owner_peer_id):
+			_landings_logged[actor.owner_peer_id] = actor.last_landing
+			print("[net_lab] aterrizaje del jugador %d en el tick %d: %.3f m/s, quitó %d, %s; salud %.3f, integridad %s, muertes %d, base %d" % [
+					actor.owner_peer_id, tick, actor.last_landing[0], actor.last_landing[1], "letal" if actor.last_landing[2] else "no mató",
+					actor.state.health / float(ActorState.HEALTH_UNIT), actor.state.integrity, actor.state.deaths, actor.state.base_id])
 	if role == Role.HOST:
 		_mark_hooks_released()
 		for actor in _clock.sorted_actors():
@@ -2064,6 +2090,34 @@ func _poison_others(points: int, seconds: float) -> void:
 			vitals.apply(0, 0, points, seconds)
 			print("[net_lab] prueba: daño en el tiempo de %d en %.1f s al jugador %d en el tick %d" % [points, seconds,
 					actor.owner_peer_id, _clock.tick])
+
+
+## Prueba, host: pone a los demás jugadores `height` metros arriba del piso, en
+## (x, z) del mundo o, con NAN, donde están, quietos y en el aire. Es un
+## evento del host y un teleport, como reaparecer (sube la época): de ahí
+## caen, el cliente lo predice y los dos calculan el mismo aterrizaje.
+func _drop_others(height: float, x: float, z: float, everyone := false) -> void:
+	if role != Role.HOST:
+		return
+	for actor in _clock.sorted_actors():
+		var own := not _is_remote(actor)
+		if own and not everyone:
+			continue
+		var world := BaseRegistry.world_position(actor.state)
+		var fresh := ActorState.new()
+		fresh.position = Vector3(world.x if is_nan(x) else x + (1.0 if own else 0.0), height, world.z if is_nan(z) else z)
+		fresh.mode = ActorState.Mode.AIR
+		fresh.on_floor = false
+		fresh.facing_yaw = actor.state.facing_yaw
+		fresh.keep_player_state(actor.state)
+		fresh.epoch = actor.state.epoch + 1
+		fresh.quantize()
+		actor.state = fresh
+		actor.apply_state(fresh)
+		actor.teleported()
+		drops_done += 1
+		print("[net_lab] prueba: el jugador %d cae desde %.1f m en %s, en el tick %d" % [actor.owner_peer_id, height,
+				fresh.position, _clock.tick])
 
 
 ## Host: a un jugador se le cortó la conexión y se lo espera (NetSession). Se
@@ -2381,6 +2435,12 @@ func _read_launch_args() -> void:
 				var parts := item.split(":")
 				test_poisons.append([parts[0].to_float(), parts[1].to_int() if parts.size() > 1 else 20,
 						parts[2].to_float() if parts.size() > 2 else 4.0])
+		elif arg.begins_with("--test-drop-at=") or arg.begins_with("--test-drop-all-at="):
+			var everyone := arg.begins_with("--test-drop-all-at=")
+			for item in arg.get_slice("=", 1).split(","):
+				var parts := item.split(":")
+				test_drops.append([parts[0].to_float(), parts[1].to_float() if parts.size() > 1 else 7.0,
+						parts[2].to_float() if parts.size() > 3 else NAN, parts[3].to_float() if parts.size() > 3 else NAN, everyone])
 		elif arg.begins_with("--test-power-at="):
 			for seconds in arg.trim_prefix("--test-power-at=").split(","):
 				test_power_seconds.append(seconds.to_float())
@@ -2478,6 +2538,20 @@ func _update_hud() -> void:
 		if effects[2] > 0:
 			lines.append("DAÑO EN EL TIEMPO: %d encima   ·   quitan %.1f de salud más   ·   el más largo termina en %.1f s del mundo" % [
 					effects[2], effects[0], effects[1]])
+		var body_parts := _hud.integrity()
+		if body_parts.size() == ActorState.PARTS:
+			var pct := func(part: int) -> String: return "%.1f" % (body_parts[part] / float(ActorState.INTEGRITY_UNIT))
+			lines.append("Integridad %%: cabeza %s · torso %s · brazos %s / %s · piernas %s / %s (izq. / der.)%s   ·   luz naranja %s" % [
+					pct.call(ActorState.Part.HEAD), pct.call(ActorState.Part.TORSO),
+					pct.call(ActorState.Part.ARM_LEFT), pct.call(ActorState.Part.ARM_RIGHT),
+					pct.call(ActorState.Part.LEG_LEFT), pct.call(ActorState.Part.LEG_RIGHT),
+					"   ·   confirmada por el host" if role == Role.CLIENT else "",
+					"prendida" if _hud.injury_light() else "apagada"])
+		if not _local_actor.last_landing.is_empty():
+			var landing: Array = _local_actor.last_landing
+			lines.append("Último aterrizaje: %.2f m/s contra el piso (segura hasta %.1f, letal desde %.1f)   ·   %s" % [
+					landing[0], tuning.fall_safe_speed, tuning.fall_lethal_speed,
+					"letal" if landing[2] else "quitó %d de salud" % landing[1] if landing[1] > 0 else "sin daño"])
 		if s.boosted:
 			lines.append("SÚPER SALTO Y VELOCIDAD: prendido   ·   2 del teclado numérico lo apaga")
 		lines.append("Modo: %s   ·   en suelo: %s   ·   época: %d" % [ActorState.Mode.keys()[s.mode], "sí" if s.on_floor else "no", s.epoch])
@@ -2672,8 +2746,13 @@ func _print_summary_and_quit() -> void:
 				actor.owner_peer_id, actor.state.health / float(ActorState.HEALTH_UNIT), actor.state.effect_total,
 				actor.state.stamina / float(ActorPowers.STAMINA_UNIT),
 				ActorPowers.names(actor.state.powers), actor.state.deaths, actor.state.exhaustions, counted[0], counted[1]])
-	print("[net_lab] HUD: %d avisos de muerte, %d sonidos de agotamiento, luces prendidas al final: %s" % [_hud.deaths_shown,
-			_hud.exhaustion_sounds, _hud.lit_powers().map(func(power: Dictionary) -> String: return power["name"])])
+		print("[net_lab] cuerpo del jugador %d: integridad %s (centésimas), %d desplomes dibujados en esta máquina, último aterrizaje %s" % [
+				actor.owner_peer_id, actor.state.integrity, actor.collapses_started, actor.last_landing])
+	print("[net_lab] HUD: %d avisos de muerte, %d sonidos de agotamiento, luces prendidas al final: %s, luz naranja %s, integridad que muestra %s" % [
+			_hud.deaths_shown, _hud.exhaustion_sounds, _hud.lit_powers().map(func(power: Dictionary) -> String: return power["name"]),
+			"prendida" if _hud.injury_light() else "apagada", _hud.integrity()])
+	if not test_drops.is_empty():
+		print("[net_lab] caídas de prueba: %d hechas" % drops_done)
 	if hooked_gap_max > 0.0 or test_input.begins_with("hookwall") or test_input.begins_with("ladderhold"):
 		print("[net_lab] el que cuelga de este jugador se dibujó a %.3f m como máximo de la pose que le da el cuerpo de este jugador" % hooked_gap_max)
 	if role == Role.CLIENT:

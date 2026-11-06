@@ -14,8 +14,9 @@ extends Node
 ## Escena del nodo Tuning que usa el juego.
 const SCENE_PATH := "res://scenes/net_lab/net_lab.tscn"
 ## Las velocidades de este nodo que el súper no multiplica (ver with_boost):
-## la terminal es la de la caída, no la de moverse.
-const NOT_BOOSTED: Array[StringName] = [&"max_fall_speed"]
+## la terminal es la de la caída, no la de moverse, y los umbrales del daño de
+## caída son los mismos con el súper o sin él.
+const NOT_BOOSTED: Array[StringName] = [&"max_fall_speed", &"fall_safe_speed", &"fall_lethal_speed"]
 
 ## La copia con el súper (with_boost), los nombres de los valores guardados y
 ## los valores de los que salió.
@@ -270,6 +271,24 @@ var _boosted_from: Array = []
 ## Boost Stamina Cost, sumados si hay varios); correr, saltar y trepar no.
 @export_range(1, 10000) var stamina_max := 200
 
+@export_group("Daño de caída")
+## Desde el 2026-11-05. Se mira una vez, al aterrizar: la velocidad contra el
+## piso justo antes de tocarlo, en m/s (sobre una plataforma que se mueve,
+## contra ella). Hasta este valor no pasa nada. Con 10, caer caminando desde
+## unos 5 m; un salto con el súper en el piso llega a 7,3 y uno normal, a 4,8.
+## Las tablas de la torre de parkour están a 4, 7 y 9,5 m: segura, lastima y
+## letal con estos valores.
+@export_range(0.0, 60.0, 0.1) var fall_safe_speed := 10.0
+## Desde esta velocidad contra el piso, la caída mata (muerte de prueba). Con
+## 13, caer desde unos 8,5 m. Entre las dos, la salud baja en proporción: casi
+## nada apenas pasa la segura, casi toda justo antes de la letal.
+@export_range(0.0, 60.0, 0.1) var fall_lethal_speed := 13.0
+## Cuánta integridad pierden las piernas juntas en una caída justo debajo de
+## la letal, en puntos de porcentaje, repartida por igual entre las dos (con
+## 150, cada una pierde hasta 75 %). Entre la segura y la letal, en
+## proporción, igual que la salud. 0: las caídas no lastiman las piernas.
+@export_range(0.0, 200.0, 0.1) var fall_leg_damage := 150.0
+
 @export_group("Cámara lenta")
 ## Escala de tiempo de la cámara lenta del mundo, una sola: igual con uno o con
 ## varios jugadores que la pidan. Cada jugador prende o apaga su pedido con el 1
@@ -291,7 +310,8 @@ var _boosted_from: Array = []
 ## Por cuánto se multiplican todas las velocidades de moverse: las de este
 ## nodo que terminan en _speed (caminando, corriendo, agachado, deslizándose,
 ## en la escalera, colgado, en un cable, colgado de un compañero, el tope del
-## salto y el salto en el aire), salvo la velocidad terminal (NOT_BOOSTED), y
+## salto y el salto en el aire), salvo la velocidad terminal y los umbrales del
+## daño de caída (NOT_BOOSTED), y
 ## el empujón hacia afuera de los saltos desde un borde, una escalera o un
 ## cable. Con 1,5: caminando 7,5 m/s, corriendo 12, trepando 3,75. Las
 ## aceleraciones y la altura de los saltos no cambian (la del súper salto es

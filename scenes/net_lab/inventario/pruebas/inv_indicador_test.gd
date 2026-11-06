@@ -8,6 +8,8 @@ extends Node
 ## - en primera y en tercera persona, con el mismo objeto marcado, el marco y
 ##   el nombre siguen al objeto al girar la cámara en horizontal y en vertical,
 ##   y el nombre va centrado debajo y horizontal;
+## - un recogible con el cartel apagado en su InvPickupSpawn (show_label) se
+##   ve sin cartel y se marca igual, con su nombre;
 ## - una caja que se mueve sigue marcada y el marco la acompaña; una zona
 ##   propia que marca solo una parte (como haría la manija de una puerta)
 ##   también, sin tocar el HUD;
@@ -23,7 +25,8 @@ extends Node
 ## del laboratorio (--host --bind=127.0.0.1 --port=N o --client
 ## --address=127.0.0.1 --port=N): el host marca el botiquín mientras el cliente
 ## marca la llave, cada uno el suyo; después el host recoge la llave y el
-## cliente comprueba que su marco se va al llegarle el cambio. Sin --fixed-fps.
+## cliente comprueba que su marco se va al llegarle el cambio. La llave tiene el
+## cartel apagado, y los dos la ven sin cartel. Sin --fixed-fps.
 ##
 ## Con --foco-capturas=CARPETA, y con ventana (sin --headless), guarda una
 ## captura de la pantalla en cada paso de la primera parte. Con
@@ -71,6 +74,12 @@ func _ready() -> void:
 		_log("TIEMPO AGOTADO: el recorrido no terminó")
 		_finish())
 	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
+	# Un recogible sin cartel (InvPickupSpawn.show_label): jugando solo, la
+	# linterna; en pareja, la llave, en los dos (la huella del laboratorio no
+	# deja entrar al cliente si su zona difiere en algo, también en esto).
+	var no_label := {"": "Linterna", "host": "Llave", "client": "Llave"}
+	if no_label.has(role):
+		(lab.get_node("ZonaDeInventario/Objetos/" + no_label[role]) as InvPickupSpawn).show_label = false
 	add_child(lab)
 	net = lab.get_node("Inventario")
 	ui = lab.get_node("Hud/InventarioUI")
@@ -223,36 +232,36 @@ func _box_named(shown: String) -> InvContainer:
 
 ## Si el indicador marca ese objeto suelto y E elegiría ese mismo.
 func _marks(uid: int) -> bool:
-	var focus := indicator.focus()
+	var focus := indicator.marked_focus()
 	var target := ui.interaction_target()
 	return focus != null and focus.anchor == net.world_view(uid) and target.get("kind", "") == "item" \
-			and target.get("id", 0) == uid and indicator.frame().has_area()
+			and target.get("id", 0) == uid and indicator.marked_frame().has_area()
 
 
 func _marks_box(box: InvContainer) -> bool:
-	var focus := indicator.focus()
+	var focus := indicator.marked_focus()
 	var target := ui.interaction_target()
 	return focus != null and focus.anchor == box and target.get("kind", "") == "box" \
-			and target.get("id", 0) == box.container_id and indicator.frame().has_area()
+			and target.get("id", 0) == box.container_id and indicator.marked_frame().has_area()
 
 
 ## El objeto suelto que se marca, o 0. Lo marcado en el cuadro anterior puede
 ## haberse borrado recién (recogido): entonces, 0.
 func _marked_uid() -> int:
-	var focus := indicator.focus()
+	var focus := indicator.marked_focus()
 	if focus == null or not is_instance_valid(focus.anchor) or not focus.anchor is InvWorldItem:
 		return 0
 	return (focus.anchor as InvWorldItem).uid
 
 
 func _describe() -> String:
-	var focus := indicator.focus()
-	return "marca «%s» en %s; E elegiría %s" % [indicator.shown_name(), indicator.frame(), ui.interaction_target()] \
+	var focus := indicator.marked_focus()
+	return "marca «%s» en %s; E elegiría %s" % [indicator.shown_name(), indicator.marked_frame(), ui.interaction_target()] \
 			if focus != null else "no marca nada; E elegiría %s" % [ui.interaction_target()]
 
 
 func _hidden() -> bool:
-	return indicator.focus() == null and not indicator.frame().has_area() and indicator.shown_name() == ""
+	return indicator.marked_focus() == null and not indicator.marked_frame().has_area() and indicator.shown_name() == ""
 
 
 ## El marco que corresponde a esa zona con la cámara como está ahora, calculado
@@ -280,11 +289,11 @@ func _projected_center(focus: InteractFocus) -> Vector2:
 ## Que lo dibujado corresponda a la cámara de este cuadro: el marco, el nombre
 ## centrado debajo y horizontal.
 func _check_frame(what: String) -> void:
-	var focus := indicator.focus()
+	var focus := indicator.marked_focus()
 	if focus == null:
 		_check(false, "%s: no hay marco" % what)
 		return
-	var frame := indicator.frame()
+	var frame := indicator.marked_frame()
 	var expected := _expected_frame(focus)
 	_check(frame.position.distance_to(expected.position) < 0.5 and frame.size.distance_to(expected.size) < 0.5,
 			"%s: el marco es la zona proyectada con la cámara de este cuadro (%s, esperado %s)" % [what, frame, expected])
@@ -343,6 +352,7 @@ func _solo() -> void:
 	_check(_hidden(), "sin mirar nada no se dibuja nada")
 	await _follows_camera(true)
 	await _follows_camera(false)
+	await _without_label()
 	await _moving_box()
 	await _moving_part()
 	await _two_close()
@@ -351,6 +361,42 @@ func _solo() -> void:
 	await _ui_states()
 	await _other_player_takes()
 	_finish(true)
+
+
+## Un recogible con el cartel apagado en su InvPickupSpawn: aparece sin cartel,
+## los demás lo siguen teniendo, y el indicador lo marca igual, con su nombre.
+func _without_label() -> void:
+	var uid := _world_uid(&"linterna")
+	_check(uid != 0, "sin cartel: está la linterna en el piso")
+	if uid == 0:
+		return
+	var view := net.world_view(uid)
+	_check(net.replica.world[uid].get("label", true) == false, "sin cartel: el host lo cuenta así")
+	_check(view != null and not view.has_label() and view.find_children("*", "Label3D", true, false).is_empty(),
+			"sin cartel: la linterna se ve sin cartel")
+	# Los demás, según la casilla de su marcador (en el nivel puede haber otros
+	# apagados a mano): todavía no se movió nada, así que cada objeto está en su
+	# marcador.
+	var unlabeled_spots := lab.find_children("*", "InvPickupSpawn", true, false) \
+			.filter(func(spawn: InvPickupSpawn) -> bool: return not spawn.show_label) \
+			.map(func(spawn: InvPickupSpawn) -> Vector3: return spawn.global_position)
+	var wrong := net.replica.world.keys().filter(func(id: int) -> bool:
+		var shown := net.world_view(id)
+		var spot: Vector3 = net.replica.world[id]["pos"]
+		var off := unlabeled_spots.any(func(at: Vector3) -> bool: return at.distance_to(spot) < 0.05)
+		return shown == null or shown.has_label() == off)
+	_check(wrong.is_empty(), "cada objeto lleva o no su cartel según su marcador; %d sin cartel (no coinciden: %s)" % [
+			unlabeled_spots.size(), wrong])
+	await _stand_by(net.replica.world[uid]["pos"], NEAR_FIRST)
+	await _set_first_person(true)
+	await _aim(_center_of(uid))
+	_check(_marks(uid) and indicator.shown_name() == "Linterna", "sin cartel, el indicador la marca con su nombre: %s" % _describe())
+	_check_frame("sin cartel")
+	await _shot("sin_cartel")
+	camera.yaw += 1.2
+	await _frames(3)
+	_check(not _marks(uid) and view.find_children("*", "Label3D", true, false).is_empty(),
+			"al dejar de marcarla, sigue sin cartel")
 
 
 ## Mismo objeto marcado, la cámara gira: el marco y el nombre lo siguen.
@@ -373,8 +419,8 @@ func _follows_camera(first_person: bool) -> void:
 	await _shot("marca_%s" % ("primera" if first_person else "tercera"))
 	var base_yaw := camera.yaw
 	var base_pitch := camera.pitch
-	var base_frame := indicator.frame()
-	var base_center := _projected_center(indicator.focus())
+	var base_frame := indicator.marked_frame()
+	var base_center := _projected_center(indicator.marked_focus())
 	var turn := TURN_FIRST if first_person else TURN_THIRD
 	for step: Array in [[turn, 0.0, "girada a la izquierda"], [-turn, 0.0, "girada a la derecha"],
 			[0.0, turn, "levantada"], [0.0, -turn, "bajada"]]:
@@ -383,11 +429,11 @@ func _follows_camera(first_person: bool) -> void:
 		await _frames(2)
 		var what := "%s, cámara %s" % [mode, step[2]]
 		_check(_marks(uid), "%s: sigue marcando las mismas granadas: %s" % [what, _describe()])
-		if indicator.focus() == null:
+		if indicator.marked_focus() == null:
 			continue
 		_check_frame(what)
-		var shift := indicator.frame().get_center() - base_frame.get_center()
-		var object_shift := _projected_center(indicator.focus()) - base_center
+		var shift := indicator.marked_frame().get_center() - base_frame.get_center()
+		var object_shift := _projected_center(indicator.marked_focus()) - base_center
 		_check(shift.distance_to(object_shift) < 2.0, "%s: el marco se corrió lo mismo que el objeto en pantalla (%s y %s)" % [
 				what, shift, object_shift])
 		var horizontal: bool = step[0] != 0.0
@@ -415,8 +461,8 @@ func _moving_box() -> void:
 	var cartel := box.get_node_or_null(^"Cartel") as Node3D
 	_check(cartel != null and not cartel.visible, "y su cartel de arriba («E para abrir») se oculta mientras está marcada")
 	var start := box.global_position
-	var base_frame := indicator.frame()
-	var base_center := _projected_center(indicator.focus()) if indicator.focus() != null else Vector2.ZERO
+	var base_frame := indicator.marked_frame()
+	var base_center := _projected_center(indicator.marked_focus()) if indicator.marked_focus() != null else Vector2.ZERO
 	var followed := true
 	for i in 6:
 		await get_tree().physics_frame
@@ -427,13 +473,13 @@ func _moving_box() -> void:
 			followed = false
 			_check(false, "la caja que se mueve deja de estar marcada en el paso %d: %s" % [i + 1, _describe()])
 			break
-		var expected := _expected_frame(indicator.focus())
-		if indicator.frame().position.distance_to(expected.position) > 0.5:
+		var expected := _expected_frame(indicator.marked_focus())
+		if indicator.marked_frame().position.distance_to(expected.position) > 0.5:
 			followed = false
 	_check(followed, "en cada paso, el marco es el de la caja donde está ahora")
-	if indicator.focus() != null:
-		var shift := indicator.frame().get_center() - base_frame.get_center()
-		var object_shift := _projected_center(indicator.focus()) - base_center
+	if indicator.marked_focus() != null:
+		var shift := indicator.marked_frame().get_center() - base_frame.get_center()
+		var object_shift := _projected_center(indicator.marked_focus()) - base_center
 		_check(shift.x > 8.0 and shift.distance_to(object_shift) < 2.0,
 				"la caja se corrió 21 cm a la derecha y el marco con ella: %.1f px (la caja, %.1f px)" % [shift.x, object_shift.x])
 	await _shot("caja_movida")
@@ -469,18 +515,18 @@ func _moving_part() -> void:
 	_check(focus.bounds.size.is_equal_approx(handle_mesh.size), "la zona es solo la manija: %s" % focus.bounds)
 	indicator.source = func() -> InteractFocus: return focus
 	await _aim(handle.global_position)
-	_check(indicator.focus() == focus and indicator.shown_name() == "Manija de prueba", "marca la parte con su nombre: %s" % _describe())
+	_check(indicator.marked_focus() == focus and indicator.shown_name() == "Manija de prueba", "marca la parte con su nombre: %s" % _describe())
 	_check_frame("la manija")
 	var whole := InteractFocus.new("", door, InteractFocus.mesh_bounds(door))
-	_check(indicator.frame().size.x < _expected_frame(whole).size.x * 0.5, "el marco es de la manija, no de la puerta entera")
+	_check(indicator.marked_frame().size.x < _expected_frame(whole).size.x * 0.5, "el marco es de la manija, no de la puerta entera")
 	var followed := true
 	for i in 8:
 		door.global_position += Vector3(0.03, 0.0, 0.0)
 		door.rotation.y += 0.04
 		await _frames(2)
 		var expected := _expected_frame(focus)
-		if indicator.focus() != focus or indicator.frame().position.distance_to(expected.position) > 0.5 \
-				or indicator.frame().size.distance_to(expected.size) > 0.5:
+		if indicator.marked_focus() != focus or indicator.marked_frame().position.distance_to(expected.position) > 0.5 \
+				or indicator.marked_frame().size.distance_to(expected.size) > 0.5:
 			followed = false
 	_check(followed, "la puerta se corre y gira, y el marco acompaña a la manija en cada cuadro")
 	_check_frame("la manija después de moverse")
@@ -535,7 +581,7 @@ func _two_close() -> void:
 ## (fuera de la zona, en pickup_root, si el nivel tiene alguno) se marcan igual.
 func _dropped_and_placed() -> void:
 	await _teleport(Vector3(20, 0, 20), -PI / 2.0)
-	var own := net.replica.own.sorted_uids().filter(func(uid: int) -> bool: return net.replica.own.stacks[uid].def_id == &"veneno")
+	var own := net.replica.own.sorted_uids().filter(func(id: int) -> bool: return net.replica.own.stacks[id].def_id == &"veneno")
 	_check(not own.is_empty(), "el veneno está en el inventario")
 	if own.is_empty():
 		return
@@ -708,6 +754,8 @@ func _pair_host() -> void:
 	var kit := _world_uid(&"botiquin")
 	var key := _world_uid(&"llave")
 	var key_spot: Vector3 = net.replica.world[key]["pos"]
+	_check(net.world_view(key) != null and not net.world_view(key).has_label() and net.world_view(kit).has_label(),
+			"en el host, la llave (cartel apagado) va sin cartel y el botiquín con cartel")
 	await _stand_by(net.replica.world[kit]["pos"], NEAR_THIRD)
 	await _set_first_person(false)
 	await _aim(_center_of(kit))
@@ -746,6 +794,10 @@ func _pair_client() -> void:
 		return
 	var key := _world_uid(&"llave")
 	_check(key != 0, "el cliente ve la llave en el piso")
+	var kit := _world_uid(&"botiquin")
+	_check(net.replica.world[key].get("label", true) == false and net.world_view(key) != null
+			and not net.world_view(key).has_label() and net.world_view(kit) != null and net.world_view(kit).has_label(),
+			"en el cliente, la llave va sin cartel, como lo manda el host, y el botiquín con cartel")
 	_check(await _walk_to(net.replica.world[key]["pos"] + Vector3(-1.0, 0, 0)), "el cliente camina hasta la llave")
 	await _set_first_person(true)
 	await _aim(_center_of(key))

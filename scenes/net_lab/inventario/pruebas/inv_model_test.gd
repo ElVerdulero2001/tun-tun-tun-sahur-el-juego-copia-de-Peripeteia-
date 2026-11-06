@@ -354,7 +354,7 @@ func _shown_in_order() -> void:
 	InvOps.insert(expected, b.copy())
 	InvOps.consume(expected, a.uid, 1)
 	_check(_digest(replica.shown_own()) == _digest(expected), "recoger B y usar A: igual que en ese orden (%s)" % _digest(replica.shown_own()))
-	_check(sent[0][3] == -1 and replica.send_next_use(8) == 1 and replica.uses_in_flight() == [[a.uid, 1]],
+	_check(sent[0][3] == -1 and replica.send_next_use(8) == 1 and replica.uses_in_flight() == [[a.uid, 1, -1]],
 			"el uso lleva el pedido anterior (1): el host no lo hace antes de recoger")
 	# Soltar parte y usar.
 	own = _grid()
@@ -414,14 +414,21 @@ func _use_answers() -> void:
 func _input_round_trip() -> void:
 	var input := ActorInput.make(77, Vector2(0.3, -1), 1.2, ActorInput.BUTTON_RUN, 5, 6, 7)
 	input.use_presses = 200
-	input.uses = [[123456, 9], [4000000000, 0]]
+	# Desde el 2026-11-06 a la noche cada uso lleva la parte del cuerpo (-1: uso normal).
+	input.uses = [[123456, 9, -1], [4000000000, 0, ActorState.Part.LEG_RIGHT]]
 	var b := StreamPeerBuffer.new()
 	input.write_to(b)
 	_check(b.data_array.size() == ActorInput.BYTE_SIZE + 2 * ActorInput.USE_BYTES, "largo: el fijo más los dos usos")
 	b.seek(0)
 	var back := ActorInput.read_from(b)
-	_check(back != null and back.tick == 77 and back.use_presses == 200 and back.uses == [[123456, 9], [4000000000, 0]]
-			and back.power_presses == 7 and back.is_possible(), "se lee igual del otro lado")
+	_check(back != null and back.tick == 77 and back.use_presses == 200
+			and back.uses == [[123456, 9, -1], [4000000000, 0, ActorState.Part.LEG_RIGHT]]
+			and back.power_presses == 7 and back.is_possible(), "se lee igual del otro lado, con la parte de cada uso")
+	var wrong_part := b.data_array.duplicate()
+	wrong_part[wrong_part.size() - 1] = ActorState.PARTS + 1
+	var odd := StreamPeerBuffer.new()
+	odd.data_array = wrong_part
+	_check(ActorInput.read_from(odd) == null, "uno con una parte del cuerpo que no existe se descarta")
 	var cut := StreamPeerBuffer.new()
 	cut.data_array = b.data_array.slice(0, b.data_array.size() - 3)
 	_check(ActorInput.read_from(cut) == null, "uno cortado se descarta")

@@ -43,7 +43,9 @@ var drop_distance := 1.0
 ## Manda un paquete a un jugador: func(peer: int, payload: Dictionary).
 var send: Callable
 
-## Objetos en el mundo: uid -> {"stack": InvStack, "pos": Vector3}.
+## Objetos en el mundo: uid -> {"stack": InvStack, "pos": Vector3, "label":
+## bool}. "label" es si se ve el cartel de arriba: lo apaga el InvPickupSpawn
+## (show_label); lo soltado siempre lo lleva.
 var world := {}
 ## Cajas, por su número: id -> InvContainer.
 var containers := {}
@@ -87,19 +89,20 @@ func add_spawn(spawn: InvPickupSpawn) -> void:
 	if spawn.quantity > limit:
 		push_warning("[inventario] %s pide %d, pero en una pila entran %d" % [spawn.get_path(), spawn.quantity, limit])
 	_put_in_world(InvStack.make(alloc_uid(), spawn.item.id, clampi(spawn.quantity, 1, limit), spawn.initial_state()),
-			spawn.global_position)
+			spawn.global_position, spawn.show_label)
 
 
-func _put_in_world(stack: InvStack, position: Vector3) -> void:
-	world[stack.uid] = {"stack": stack, "pos": position}
+func _put_in_world(stack: InvStack, position: Vector3, label := true) -> void:
+	world[stack.uid] = {"stack": stack, "pos": position, "label": label}
 	_world_set[stack.uid] = true
 	_world_gone.erase(stack.uid)
 
 
+## Cómo viaja un objeto suelto: [pila, x, y, z, cartel].
 func _world_entry(uid: int) -> Array:
 	var item: Dictionary = world[uid]
 	var pos: Vector3 = item["pos"]
-	return [item["stack"].to_array(), pos.x, pos.y, pos.z]
+	return [item["stack"].to_array(), pos.x, pos.y, pos.z, item.get("label", true)]
 
 
 # --- Jugadores ----------------------------------------------------------------
@@ -396,6 +399,31 @@ func _apply_ability(peer: int, inventory: InvInventory, stack: InvStack, kind: i
 	return ""
 
 
+## Un consumible soltado sobre una parte del cuerpo, en el panel de integridad
+## (desde el 2026-11-06; hasta la noche, un pedido aparte, HEAL_PART): llega
+## como un uso del input, con la parte (use_from_input). Valida y aplica en el
+## mismo paso, con el estado del personaje en ese tick: que cure partes, que
+## la parte exista y que siga dañada. El personaje es el de quien usa (sale de
+## la conexión): el input no puede nombrar otro. Si todo da, la parte se cura
+## y se gasta una unidad juntas. El cliente ya hizo lo mismo en su predicción,
+## así que no es un evento del host ni sube la época. Si algo no da, no cambia
+## nada y el objeto se vuelve a ver donde estaba. Cada uso tiene su número y
+## se hace una sola vez, aunque viaje en varios inputs.
+func _heal_part(peer: int, inventory: InvInventory, stack: InvStack, state: ActorState, part: int) -> String:
+	var def := inventory.grid.def_of(stack.uid)
+	var use := def.ability_of(InvAbility.Kind.USE) as InvConsumable if def != null else null
+	if use == null or not use.repairs_parts():
+		return "eso no cura partes del cuerpo"
+	var reason := use.check_part(state, part)
+	if reason != "":
+		return reason
+	var spent := use.apply_part(state, part)
+	InvOps.consume(inventory.grid, stack.uid, spent)
+	inventory.loadout.revision += 1
+	_dirty_players[peer] = true
+	return ""
+
+
 ## Usar un consumible desde el input del jugador (desde el 2026-11-04, ver
 ## InvNet.use_before_step): corre en el tick en que llegó, justo antes de mover
 ## a su personaje, con el estado de ese tick. El cliente ya aplicó lo mismo en
@@ -404,13 +432,18 @@ func _apply_ability(peer: int, inventory: InvInventory, stack: InvStack, kind: i
 ## por tick (flush) el inventario y las respuestas ("u"): hasta qué uso llegó y
 ## los que no se pudieron, cada uno con su motivo. Con eso el cliente deja de
 ## mostrar esas unidades como gastadas, y las que no se usaron vuelven a verse.
-func use_from_input(peer: int, state: ActorState, uid: int, number: int) -> void:
+## `part`: -1 el uso normal; una parte del cuerpo, soltado sobre ella (_heal_part).
+func use_from_input(peer: int, state: ActorState, uid: int, number: int, part := -1) -> void:
 	var reason := "todavía no tenés personaje"
 	var inventory := player_inventory(peer)
 	if inventory != null:
 		var stack := inventory.grid.get_stack(uid)
-		reason = "ese objeto ya no está en tu inventario" if stack == null \
-				else _apply_ability(peer, inventory, stack, InvAbility.Kind.USE, state, false)
+		if stack == null:
+			reason = "ese objeto ya no está en tu inventario"
+		elif part >= 0 or part < -1:
+			reason = _heal_part(peer, inventory, stack, state, part)
+		else:
+			reason = _apply_ability(peer, inventory, stack, InvAbility.Kind.USE, state, false)
 	if reason == "":
 		accepted += 1
 	else:

@@ -15,6 +15,8 @@
 [ext_resource type="PackedScene" path="res://scenes/net_lab/zona_de_servicio.tscn" id="13_zona"]
 [ext_resource type="PackedScene" uid="uid://bv21nned2qb0n" path="res://scenes/net_lab/torre_de_servicio.tscn" id="14_torre"]
 [ext_resource type="Script" uid="uid://bd7t6mp22ijfj" path="res://scenes/net_lab/crouch_jump_course.gd" id="15_crouch"]
+[ext_resource type="Script" uid="uid://ovn5c0xoupah" path="res://scripts/inventory/inv_pickup_spawn.gd" id="16_e3qid"]
+[ext_resource type="Resource" uid="uid://brngqdjnl05k5" path="res://scenes/net_lab/inventario/objetos/vendas.tres" id="17_mnpqp"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_lab"]
 
@@ -478,3 +480,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -30)
 [node name="PistaDeSaltoAgachado" type="Node3D" parent="." unique_id=1742000004]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 31.500303)
 script = ExtResource("15_crouch")
+
+[node name="InvPickupSpawn" type="Marker3D" parent="." unique_id=954426207]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.585196, 0)
+script = ExtResource("16_e3qid")
+item = ExtResource("17_mnpqp")
+quantity = 5
+show_label = false
+metadata/_custom_type_script = "uid://ovn5c0xoupah"

@@ -35,6 +35,9 @@ enum Op {
 	## muestra en el piso, en milímetros. El host lo deja ahí si ese lugar sirve
 	## (InvAuthority.drop_spot_ok); si no, elige él, como en DROP.
 	DROP_AT,  ## [origen, id, versión, cantidad, x, y, z]
+	# Del 2026-11-06 a la tarde hubo HEAL_PART [id, versión, parte]: curar una
+	# parte del cuerpo esperaba al host. Desde la noche va como un uso en el
+	# input, con la parte (ActorInput.uses, InvNet.queue_use).
 }
 
 const OWN := 0

@@ -109,12 +109,12 @@ func frame_of(focus: InteractFocus, camera: Camera3D) -> Rect2:
 # --- Para las pruebas ------------------------------------------------------------
 
 ## Lo que se marca ahora, o null.
-func focus() -> InteractFocus:
+func marked_focus() -> InteractFocus:
 	return _focus
 
 
 ## El marco que se dibuja, en píxeles de la pantalla (vacío sin objetivo).
-func frame() -> Rect2:
+func marked_frame() -> Rect2:
 	return _frame
 
 

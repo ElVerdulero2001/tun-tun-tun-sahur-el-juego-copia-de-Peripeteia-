@@ -25,6 +25,19 @@ extends RefCounted
 ## parejo, un poco en cada tick, hasta quitar lo que tenía que quitar o hasta
 ## la muerte. Va con el tiempo del mundo: con la cámara lenta, más despacio.
 ## Varios se acumulan, cada uno con su ritmo, hasta ActorState.MAX_EFFECTS.
+##
+## Integridad corporal y daño de caída (pedidos el 2026-11-05, punto 1 del
+## roadmap): seis partes del cuerpo, cada una de 0 a 100 %, aparte de la
+## salud (ActorState.integrity). Al aterrizar, el motor llama a land() con la
+## velocidad contra el piso: hasta fall_safe_speed no pasa nada; desde
+## fall_lethal_speed, muerte de prueba; en el medio, la salud y las piernas
+## bajan en proporción. Reglas provisorias del laboratorio, del usuario: el
+## daño de las piernas se reparte por igual entre las dos (cada una guarda su
+## valor); las lesiones solo se ven en el panel y en la luz naranja (no
+## cambian el movimiento); usado normal, el botiquín cura la salud y no la
+## integridad, y la muerte de prueba devuelve las seis partes enteras, para
+## repetir el ensayo. Desde el 2026-11-06, el botiquín soltado sobre una parte
+## dañada del panel la deja entera, sin tocar la salud (InvConsumable.part_repair).
 
 ## Milésimas de tick en un tick sin cámara lenta: el tiempo de un daño en el tiempo.
 const TIME_PER_TICK := 1000
@@ -157,7 +170,9 @@ static func step(p_state: ActorState, p_tuning: ActorTuning, dt: float) -> void:
 
 
 ## Muerte de prueba: sube el contador, apaga los estados, corta los daños en
-## el tiempo y la salud vuelve al máximo.
+## el tiempo, y la salud y las seis partes del cuerpo vuelven al máximo. El
+## contador es lo que dispara, una vez por muerte, el aviso del HUD, la caída
+## de la cámara y el desplome que ven los demás (ActorBody.present).
 static func die(p_state: ActorState, p_tuning: ActorTuning) -> void:
 	p_state.deaths = (p_state.deaths + 1) & 0xFF
 	ActorPowers.retire(p_state)
@@ -165,6 +180,54 @@ static func die(p_state: ActorState, p_tuning: ActorTuning) -> void:
 	p_state.effect_duration.fill(0)
 	p_state.effect_elapsed.fill(0)
 	p_state.health = max_health(p_tuning) * ActorState.HEALTH_UNIT
+	p_state.integrity.fill(ActorState.INTEGRITY_FULL)
+
+
+## Al aterrizar, desde el motor (etapa 8), con `impact`: la velocidad contra
+## el piso justo antes de tocarlo, en m/s, ya contada respecto de una
+## plataforma que se mueve. Pasa una sola vez por caída: el motor la llama solo
+## en el tick en que el actor pasa de no estar apoyado a estarlo, y repetir
+## ticks parte del estado guardado, así que no se cobra dos veces.
+##
+## - Hasta fall_safe_speed: nada.
+## - Desde fall_lethal_speed: muerte de prueba.
+## - En el medio, en proporción (f, de 0 a 1): la salud pierde f × health_max
+##   puntos y las piernas, f × fall_leg_damage en total, la mitad cada una. Si
+##   la salud llega a cero, es la muerte de prueba y las piernas quedan enteras.
+##
+## Lo que quita va en puntos enteros de salud y medios puntos de cada pierna:
+## una diferencia de milésimas en la velocidad entre dos máquinas casi nunca
+## cambia el resultado. Devuelve [puntos de salud quitados, si murió].
+static func land(p_state: ActorState, p_tuning: ActorTuning, impact: float) -> Array:
+	var safe := p_tuning.fall_safe_speed
+	var lethal := p_tuning.fall_lethal_speed
+	if not is_finite(impact) or impact <= safe:
+		return [0, false]
+	var hurt := 0
+	var leg_points := 0
+	if impact >= lethal:
+		hurt = ceili(p_state.health / float(ActorState.HEALTH_UNIT))
+	else:
+		var share := (impact - safe) / (lethal - safe)
+		hurt = roundi(share * max_health(p_tuning))
+		leg_points = roundi(share * maxf(p_tuning.fall_leg_damage, 0.0))
+	if hurt <= 0 and leg_points <= 0:
+		return [0, false]
+	p_state.health = maxi(p_state.health - hurt * ActorState.HEALTH_UNIT, 0)
+	if p_state.health == 0:
+		die(p_state, p_tuning)
+		return [hurt, true]
+	# La mitad para cada pierna, en centésimas: un punto entero se reparte exacto.
+	@warning_ignore("integer_division")
+	var per_leg := leg_points * ActorState.INTEGRITY_UNIT / 2
+	for part in [ActorState.Part.LEG_LEFT, ActorState.Part.LEG_RIGHT]:
+		p_state.integrity[part] = maxi(p_state.integrity[part] - per_leg, 0)
+	return [hurt, false]
+
+
+## La integridad de una parte, en porcentaje con decimales.
+static func integrity_percent(p_state: ActorState, part: int) -> float:
+	return p_state.integrity[part] / float(ActorState.INTEGRITY_UNIT)
 
 
 static func max_health(p_tuning: ActorTuning) -> int:

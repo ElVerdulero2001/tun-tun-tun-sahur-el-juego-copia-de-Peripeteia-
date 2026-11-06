@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://brngqdjnl05k5"]
+
+[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
+[ext_resource type="Script" uid="uid://mdwue4ncgyw7" path="res://scripts/inventory/inv_consumable.gd" id="3_use"]
+
+[sub_resource type="Resource" id="Resource_7yt2j"]
+script = ExtResource("3_use")
+part_repair = 25.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_hdeqc"]
+size = Vector3(0.16, 0.07, 0.1)
+
+[resource]
+script = ExtResource("1_def")
+id = &"vendas"
+display_name = "Vendas"
+description = "Consumible de prueba: cura 25 de salud, la mitad que el botiquín (sin pasar de la completa), y gasta una. Con la salud completa no se usa. No curan partes del cuerpo."
+stackable = true
+max_stack = 5
+abilities = Array[ExtResource("2_ability")]([SubResource("Resource_7yt2j")])
+mesh = SubResource("BoxMesh_hdeqc")
+color = Color(0.93, 0.9, 0.8, 1)
+world_size = 0.16

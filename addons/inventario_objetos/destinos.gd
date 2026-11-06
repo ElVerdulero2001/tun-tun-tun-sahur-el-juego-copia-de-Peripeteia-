@@ -82,6 +82,14 @@ static func check_new_path(path: String, extension: String, creatable: String = 
 	return ""
 
 
+## Catálogo que el Inspector ofrece para los marcadores de net-lab.
+static func lab_catalog() -> InvCatalog:
+	var net := _net_node()
+	if net.is_empty():
+		return null
+	return _node_property(net["state"], net["index"], &"catalog") as InvCatalog
+
+
 static func _net_node() -> Dictionary:
 	var lab := load(LAB_PATH) as PackedScene
 	if lab == null:

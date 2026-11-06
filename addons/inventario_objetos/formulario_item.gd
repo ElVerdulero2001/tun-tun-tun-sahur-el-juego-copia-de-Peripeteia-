@@ -526,7 +526,7 @@ func _ability_row(list: Array, index: int) -> Control:
 		var summary := _note(box, "")
 		var show_summary := func() -> void:
 			summary.text = Guardado.consumable_summary(int(ability.get(&"health")), int(ability.get(&"stamina")),
-					int(ability.get(&"damage_over_time")), float(ability.get(&"damage_seconds")))
+					int(ability.get(&"damage_over_time")), float(ability.get(&"damage_seconds")), float(ability.get(&"part_repair")))
 		var health := _int_spin(-Guardado.MAX_EFFECT, Guardado.MAX_EFFECT)
 		health.value = int(ability.get(&"health"))
 		health.value_changed.connect(func(v: float) -> void:
@@ -558,6 +558,15 @@ func _ability_row(list: Array, index: int) -> Control:
 			edited.emit())
 		_row(grid, "En cuántos segundos", seconds,
 				_help("En cuánto tiempo quita todo el daño en el tiempo: 4 en 2 s son 2 por segundo. Con la cámara lenta va más despacio."))
+		# Desde el 2026-11-06 (pedido del usuario): InvConsumable.part_repair.
+		var parts := _float_spin(0.0, 100.0, 0.01, " %")
+		parts.value = float(ability.get(&"part_repair"))
+		parts.value_changed.connect(func(v: float) -> void:
+			ability.set(&"part_repair", v)
+			show_summary.call()
+			edited.emit())
+		_row(grid, "Cura una parte del cuerpo", parts,
+				_help("Con Tab, se agarra de la grilla y se suelta sobre una parte dañada del panel del cuerpo: le suma eso, sin pasar del 100 %, y gasta una unidad. 100 la deja entera; 30 lleva una del 50 % al 80 %. No toca la salud y no cambia el uso normal. En 0, no cura partes."))
 		show_summary.call()
 	else:
 		_row(grid, "Posición (m)", _vector_editor(ability, &"hold_offset", -3.0, 3.0, 0.01, ""),

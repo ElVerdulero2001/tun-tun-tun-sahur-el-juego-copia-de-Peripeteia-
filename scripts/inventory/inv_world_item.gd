@@ -5,29 +5,33 @@ extends Node3D
 ## cartel con su nombre y cantidad. Es solo presentación: lo arma InvNet en
 ## cada máquina con lo que cuenta el host, y no choca con nada.
 ##
+## El cartel se puede apagar desde el InvPickupSpawn que lo pone en el mapa
+## (show_label, desde el 2026-11-06): sin cartel, el objeto es solo su modelo.
+##
 ## Para el indicador de lo que se mira (desde el 2026-11-06), aporta su
 ## InteractFocus: el nombre visible del tipo y la caja de su modelo.
 
 var uid := 0
+## El cartel de arriba, o null si este objeto va sin cartel.
 var _label: Label3D
 var _shown := ""
 var _focus: InteractFocus
 
 
-func setup(def: InvItemDef, stack: InvStack) -> void:
+func setup(def: InvItemDef, stack: InvStack, show_label := true) -> void:
 	uid = stack.uid
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	var size := def.world_size if def != null else 0.4
-	var model := InvVisuals.fitted(def, size, true) if InvVisuals.has_visual(def) else InvVisuals.placeholder(def, size)
-	add_child(model)
-	_label = Label3D.new()
-	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_label.font_size = 32
-	_label.pixel_size = 0.004
-	_label.outline_size = 8
-	_label.no_depth_test = false
-	_label.position = Vector3.UP * (size + 0.25)
-	add_child(_label)
+	add_child(InvVisuals.world_model(def))
+	if show_label:
+		_label = Label3D.new()
+		_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_label.font_size = 32
+		_label.pixel_size = 0.004
+		_label.outline_size = 8
+		_label.no_depth_test = false
+		_label.position = Vector3.UP * (size + 0.25)
+		add_child(_label)
 	_focus = InteractFocus.new("", self, InteractFocus.mesh_bounds(self), _label)
 	refresh(def, stack)
 
@@ -39,7 +43,13 @@ func refresh(def: InvItemDef, stack: InvStack) -> void:
 		text += " ×%d" % stack.quantity
 	if text != _shown:
 		_shown = text
-		_label.text = text
+		if _label != null:
+			_label.text = text
+
+
+## Si este objeto lleva el cartel de arriba.
+func has_label() -> bool:
+	return _label != null
 
 
 ## Lo que marca el indicador cuando E elegiría este objeto: su modelo y el

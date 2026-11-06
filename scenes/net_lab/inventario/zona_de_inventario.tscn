@@ -19,6 +19,7 @@
 [ext_resource type="Resource" uid="uid://cva2lqux2e78l" path="res://scenes/net_lab/inventario/objetos/capsula_letal.tres" id="17_capsula"]
 [ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/toxina_lenta.tres" id="18_toxina"]
 [ext_resource type="Resource" uid="uid://c8jj7h8vq1ccq" path="res://scenes/net_lab/inventario/objetos/venen_lento.tres" id="19_g0v66"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/vendas.tres" id="20_vendas"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(14, 1, 14)
@@ -205,3 +206,8 @@ quantity = 4
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 5.8)
 script = ExtResource("2_spawn")
 item = ExtResource("19_g0v66")
+
+[node name="Vendas" type="Marker3D" parent="Objetos" unique_id=1741000206]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1)
+script = ExtResource("2_spawn")
+item = ExtResource("20_vendas")

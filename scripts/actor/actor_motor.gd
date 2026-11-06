@@ -94,6 +94,8 @@ const MANTLE_WALL_GAP := 0.01
 static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: ActorTuning, dt: float,
 		died_before := false) -> void:
 	var deaths_at_start := state.deaths
+	# Para el daño de caída (etapa 8): si arrancó el tick apoyado.
+	var was_on_floor := state.on_floor
 	body.snap_jump = Vector3.ZERO
 	body.grab_jump = Vector3.ZERO
 	body.grab_jump_speed = ActorBody.GRAB_MAX_SPEED
@@ -379,6 +381,10 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	elif state.mode == ActorState.Mode.MANTLE:
 		wanted = state.stance as ActorState.Stance
 	_resolve_stance(body, state, wanted)
+	# Velocidad en el mundo con la que se mueve libre en este tick, para el daño
+	# de caída: la de antes del movimiento, que al tocar el piso Godot recorta.
+	# Queda en NAN si este tick no se movió libre (un modo anclado).
+	var impact_velocity := Vector3(NAN, NAN, NAN)
 	if state.mode == ActorState.Mode.LADDER:
 		_move_on_ladder(body, state)
 	elif state.mode == ActorState.Mode.HANGING:
@@ -393,6 +399,7 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 		var snap := 0.0 if state.mode == ActorState.Mode.AIR else tuning.floor_snap_length
 		var start := body.global_transform
 		var wish := state.velocity
+		impact_velocity = wish + BaseRegistry.velocity(state.base_id)
 		body.slide(state, snap, dt)
 		if state.mode == ActorState.Mode.GROUND:
 			_step_up(body, state, start, wish, tuning, dt)
@@ -447,6 +454,18 @@ static func step(body: ActorBody, state: ActorState, input: ActorInput, tuning: 
 	state.position = body.global_position - origin
 	state.quantize()
 	body.global_position = origin + state.position
+
+	# Daño de caída (desde el 2026-11-05): una vez por caída, en el tick en que
+	# un movimiento libre lo deja apoyado sin haber arrancado apoyado. Cuenta la
+	# velocidad contra el piso de antes de tocarlo: la parte que va hacia la
+	# normal del piso (ya cuantizada, igual en todas las máquinas), relativa a
+	# la base sobre la que cae. Agarrarse de algo antes de tocar el piso no es
+	# aterrizar, y caminar, correr o deslizarse no pasan por acá porque arrancan
+	# el tick apoyados (ActorVitals.land).
+	if not was_on_floor and state.on_floor and not is_nan(impact_velocity.x):
+		var against := impact_velocity - BaseRegistry.velocity(state.base_id)
+		var impact := -against.dot(state.floor_normal)
+		body.last_landing = [impact] + ActorVitals.land(state, tuning, impact)
 
 
 ## Dirección pedida en el mundo, de largo hasta 1 (los ejes pueden ser parciales).

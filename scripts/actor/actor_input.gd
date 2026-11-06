@@ -19,7 +19,10 @@ const AXIS_STEPS := 127.0
 ## se sumó el uso (17, con un solo objeto); 14 desde la auditoría de ese mismo
 ## día (el contador y cuántos usos van), más USE_BYTES por cada uso que va.
 const BYTE_SIZE := 14
-const USE_BYTES := 8
+## Cada uso: el objeto (4), el último pedido antes (4) y, desde el 2026-11-06 a
+## la noche, la parte del cuerpo sobre la que se soltó (1: 0 es el uso normal,
+## de 1 a 6 una de ActorState.Part).
+const USE_BYTES := 9
 ## Como mucho, cuántos usos sin confirmar viajan en un input. La interfaz no
 ## deja más de InvNet.MAX_USES_WAITING sin confirmar, y de esos salen a lo sumo
 ## estos; los demás esperan a que el host confirme alguno.
@@ -54,7 +57,10 @@ var use_presses := 0
 ## Los usos que el host todavía no confirmó, del más viejo al más nuevo: el
 ## último es el del número use_presses, el anterior el de use_presses - 1, y
 ## así. Cada uno es [id del objeto, número del último pedido al host hecho
-## antes de usarlo]. Hasta el 2026-11-04 iba solo el último uso; si el host se
+## antes de usarlo, parte del cuerpo]: la parte es -1 en el uso normal, o una
+## de ActorState.Part si se soltó sobre ella en el panel de integridad (desde
+## el 2026-11-06 a la noche: antes era un pedido que esperaba al host,
+## HEAL_PART). Hasta el 2026-11-04 iba solo el último uso; si el host se
 ## salteaba el tick del anterior, ese uso se perdía (auditoría, INV-01). Ahora
 ## cada uso viaja en todos los inputs hasta que el host lo confirma, y el host
 ## no lo valida antes de procesar ese pedido (INV-02: lo recogido justo antes).
@@ -94,7 +100,8 @@ func is_held(button: int) -> bool:
 ## cuantización) y solo botones que existen. Lo que llega por red y no lo
 ## cumple no es de este juego.
 func is_possible() -> bool:
-	return move.length_squared() <= 1.01 and (buttons & ~ALL_BUTTONS) == 0 and uses.size() <= MAX_USES
+	return move.length_squared() <= 1.01 and (buttons & ~ALL_BUTTONS) == 0 and uses.size() <= MAX_USES \
+			and uses.all(func(use: Array) -> bool: return use.size() < 3 or (use[2] >= -1 and use[2] < ActorState.PARTS))
 
 
 ## Escribe el input en BYTE_SIZE bytes, más USE_BYTES por cada uso. Como ya
@@ -114,6 +121,7 @@ func write_to(b: StreamPeerBuffer) -> void:
 	for i in range(uses.size() - count, uses.size()):
 		b.put_u32(uses[i][0] & 0xFFFFFFFF)
 		b.put_u32(uses[i][1] & 0xFFFFFFFF)
+		b.put_u8(((uses[i][2] if uses[i].size() > 2 else -1) + 1) & 0xFF)
 
 
 ## El input que escribió write_to(), o null si no tiene esa forma (más usos de
@@ -137,5 +145,9 @@ static func read_from(b: StreamPeerBuffer) -> ActorInput:
 		return null
 	for i in count:
 		var uid := b.get_u32()
-		input.uses.append([uid, b.get_u32()])
+		var after := b.get_u32()
+		var part := b.get_u8() - 1
+		if part >= ActorState.PARTS:
+			return null
+		input.uses.append([uid, after, part])
 	return input

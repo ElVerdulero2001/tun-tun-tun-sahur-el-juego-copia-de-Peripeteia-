@@ -12,8 +12,21 @@ extends Control
 ## el teclado.
 ##
 ## - Salud: la aguja marca la proporción de la salud en la escala de 0 a 10,
-##   también entre dos números. La luz naranja de abajo queda apagada:
-##   reservada para la integridad del cuerpo, que todavía no existe.
+##   también entre dos números. La luz naranja de abajo (desde el 2026-11-05)
+##   se prende mientras alguna de las seis partes del cuerpo tenga menos del
+##   100 % de integridad, y se apaga con las seis completas. La salud y la
+##   integridad se leen por separado: la aguja no cuenta el cuerpo.
+## - Integridad corporal (desde el 2026-11-05): con el inventario abierto (Tab)
+##   y sin una caja abierta, una silueta a la derecha de la grilla propia, en
+##   el lugar de la caja, con el porcentaje de cada parte, verde completa y
+##   cada vez más roja al bajar. Con una caja abierta, la caja tiene ese lugar.
+##   El panel y la luz muestran el estado del personaje propio, como la aguja
+##   de la salud: en un cliente, lo predicho, sin esperar al host (desde el
+##   2026-11-06 a la noche, pedido del usuario; antes, lo que confirmaba el
+##   host, como decía el roadmap). Desde el 2026-11-06, con algo en la mano, la
+##   parte bajo el cursor se marca (blanco si ese objeto la cura, rojo si no), y
+##   la interfaz del inventario pregunta acá qué parte hay bajo un clic
+##   (integrity_part_at) para curarla con un botiquín.
 ## - Estamina: de 0 a 200, la proporción de la reserva.
 ## - Termómetro: marca 100 fijo. No mide la luz: es el lugar del futuro sensor.
 ## - Luces: una por estado propio prendido (ActorPowers.LIST), las que sean.
@@ -49,7 +62,7 @@ extends Control
 ## Cuánto dura el aviso, en segundos reales.
 @export_range(0.5, 10.0, 0.1) var death_notice_seconds := 2.5
 @export var death_text := "Moriste"
-@export var death_detail := "Muerte de prueba: la salud volvió al máximo y se apagaron tus estados"
+@export var death_detail := "Muerte de prueba: la salud y el cuerpo volvieron al máximo y se apagaron tus estados"
 
 @export_group("Agotamiento")
 ## El sonido cuando la estamina llega a cero y se apagan los estados (de
@@ -60,7 +73,6 @@ extends Control
 ## Para las pruebas: cuántos avisos de muerte y sonidos de agotamiento salieron.
 var deaths_shown := 0
 var exhaustion_sounds := 0
-
 var _actor: ActorBody
 var _health_shown := 10.0
 var _stamina_shown := 200.0
@@ -111,6 +123,33 @@ func lit_powers() -> Array:
 ## Lo que marcan las agujas ahora: [salud de 0 a 10, estamina de 0 a 200].
 func needles() -> Array:
 	return [_health_shown, _stamina_shown]
+
+
+## La integridad que muestran el panel y la luz: la del personaje propio, como
+## la aguja de la salud (en un cliente, la predicha; desde el 2026-11-06 a la
+## noche, pedido del usuario: antes era la que confirmó el host, un viaje de
+## ida y vuelta después). Las seis partes, en centésimas de punto
+## (ActorState.Part), o vacío sin personaje.
+func integrity() -> PackedInt32Array:
+	if not _active():
+		return PackedInt32Array()
+	return _actor.state.integrity
+
+
+## Si la luz naranja está prendida: alguna parte por debajo del 100 %.
+func injury_light() -> bool:
+	for value in integrity():
+		if value < ActorState.INTEGRITY_FULL:
+			return true
+	return false
+
+
+## Dónde se dibuja el panel de integridad ahora, o un rectángulo vacío si no se
+## ve (inventario cerrado o con una caja abierta).
+func integrity_panel_rect() -> Rect2:
+	if not _active() or inventory_ui == null:
+		return Rect2()
+	return inventory_ui.side_panel_rect()
 
 
 func _active() -> bool:
@@ -166,6 +205,7 @@ const NEEDLE := Color(0.95, 0.33, 0.08)
 const PLATE := Color(0.13, 0.14, 0.15, 0.92)
 const PLATE_EDGE := Color(0.32, 0.34, 0.36, 0.95)
 const LENS_ON := Color(0.3, 0.95, 0.4)
+const LAMP_ON := Color(1.0, 0.55, 0.08)
 ## Barrido de las escalas: de abajo a la izquierda, por arriba, hasta abajo a
 ## la derecha, simétrico (como el velocímetro del concepto), en grados desde
 ## arriba.
@@ -178,6 +218,9 @@ func _draw() -> void:
 	var layout := _layout()
 	_draw_instruments(layout)
 	_draw_lights(layout)
+	var panel := integrity_panel_rect()
+	if panel.has_area():
+		_draw_integrity(panel)
 	if is_showing_death():
 		_draw_death()
 
@@ -238,13 +281,19 @@ func _draw_health(center: Vector2, r: float) -> void:
 	else:
 		_draw_scale(center, face, 10.0, 0.2, 0, 5, INK_DARK, 0.2)
 	_draw_caption(center + Vector2(0, face * 0.25), "SALUD", face * 0.12, Color(INK_DARK, 0.7))
-	# La luz naranja va integrada abajo, donde el concepto tenía el RPM: apagada.
+	# La luz naranja va integrada abajo, donde el concepto tenía el RPM: se
+	# prende con alguna parte del cuerpo lastimada.
 	var lamp := center + Vector2(0, face * 0.58)
 	var lamp_r := face * 0.17
+	var lit := injury_light()
+	if lit:
+		for k in 3:
+			draw_circle(lamp, lamp_r * (1.9 - k * 0.2), Color(LAMP_ON, 0.08 + k * 0.04))
 	draw_circle(lamp, lamp_r * 1.25, Color(0.55, 0.56, 0.58))
 	draw_circle(lamp, lamp_r * 1.08, Color(0.18, 0.18, 0.19))
-	draw_circle(lamp, lamp_r, Color(0.42, 0.22, 0.04))
-	draw_circle(lamp + Vector2(-lamp_r * 0.32, -lamp_r * 0.35), lamp_r * 0.32, Color(0.75, 0.5, 0.25, 0.45))
+	draw_circle(lamp, lamp_r, LAMP_ON if lit else Color(0.42, 0.22, 0.04))
+	draw_circle(lamp + Vector2(-lamp_r * 0.32, -lamp_r * 0.35), lamp_r * 0.32,
+			Color(1.0, 0.9, 0.7, 0.6) if lit else Color(0.75, 0.5, 0.25, 0.45))
 	_draw_needle(center, face, _health_shown / 10.0, INK_DARK)
 
 
@@ -375,6 +424,136 @@ func _draw_icon(icon: StringName, center: Vector2, s: float, color: Color) -> vo
 					center + Vector2(-w * 0.85, s * 0.85)]), color)
 		_:
 			_draw_caption(center + Vector2(0, s * 0.4), String(icon).left(1).to_upper(), s * 1.4, color)
+
+
+# --- Integridad corporal ------------------------------------------------------------
+
+## La silueta, en una figura de 64 × 100, vista de atrás (tu izquierda queda a
+## la izquierda, como ves a tu personaje en tercera persona): un rectángulo por
+## parte, en el orden de ActorState.Part. La cabeza es el círculo inscripto.
+const FIGURE := Vector2(64, 100)
+const FIGURE_PARTS := [
+	Rect2(24, 2, 16, 16),
+	Rect2(20, 20, 24, 33),
+	Rect2(7, 21, 11.5, 34),
+	Rect2(45.5, 21, 11.5, 34),
+	Rect2(20, 55, 11.5, 43),
+	Rect2(32.5, 55, 11.5, 43),
+]
+const PART_NAMES := ["Cabeza", "Torso", "Brazo izquierdo", "Brazo derecho", "Pierna izquierda", "Pierna derecha"]
+const PANEL_FILL := Color(0.07, 0.08, 0.1, 0.84)
+
+var _part_boxes: Array[StyleBoxFlat] = []
+
+
+## Lo que dice cada parte en el panel, en el orden de ActorState.Part: el
+## porcentaje entero, para abajo (con algo menos del 100 % ya no dice 100).
+func integrity_texts() -> PackedStringArray:
+	var texts := PackedStringArray()
+	for value in integrity():
+		@warning_ignore("integer_division")
+		texts.append("%d %%" % (value / ActorState.INTEGRITY_UNIT))
+	return texts
+
+
+## Verde con la parte completa, y cada vez más amarilla, naranja y roja al bajar.
+static func integrity_color(fraction: float) -> Color:
+	return Color.from_hsv(0.33 * clampf(fraction, 0.0, 1.0), 0.78, 0.8)
+
+
+## Dónde se dibuja la silueta dentro del panel: [esquina de la figura, píxeles
+## por unidad de la figura].
+static func _figure_layout(panel: Rect2) -> Array:
+	var area := Rect2(panel.position + Vector2(12, 74), panel.size - Vector2(24, 86))
+	var unit := minf(area.size.x / FIGURE.x, area.size.y / FIGURE.y)
+	return [area.position + (area.size - FIGURE * unit) / 2.0, unit]
+
+
+## Dónde se ve una parte en la pantalla, con el panel en `panel`.
+static func _part_rect(panel: Rect2, part: int) -> Rect2:
+	var layout := _figure_layout(panel)
+	var figure: Rect2 = FIGURE_PARTS[part]
+	return Rect2(layout[0] + figure.position * layout[1], figure.size * layout[1])
+
+
+## La parte del cuerpo que se ve bajo ese punto de la pantalla (ActorState.Part),
+## o -1: con el panel cerrado, fuera de la silueta o entre dos partes. La usa la
+## interfaz del inventario para soltar un botiquín sobre una parte (desde el
+## 2026-11-06).
+func integrity_part_at(point: Vector2) -> int:
+	var panel := integrity_panel_rect()
+	if not panel.has_point(point):
+		return -1
+	for part in ActorState.PARTS:
+		var shown := _part_rect(panel, part)
+		if part == ActorState.Part.HEAD:
+			if point.distance_to(shown.get_center()) <= shown.size.x / 2.0:
+				return part
+		elif shown.has_point(point):
+			return part
+	return -1
+
+
+## El nombre de una parte, para los avisos ("Pierna izquierda").
+static func part_name(part: int) -> String:
+	return PART_NAMES[part] if part >= 0 and part < PART_NAMES.size() else "?"
+
+
+## Con algo en la mano sobre el panel: la parte bajo el cursor y si ese objeto
+## la puede curar, [parte, sirve], o [-1, false].
+func hovered_part() -> Array:
+	if inventory_ui == null:
+		return [-1, false]
+	var def: InvItemDef = inventory_ui.held_def()
+	if def == null:
+		return [-1, false]
+	var part := integrity_part_at(inventory_ui.pointer())
+	if part < 0:
+		return [-1, false]
+	var use := def.ability_of(InvAbility.Kind.USE) as InvConsumable
+	return [part, use != null and use.repairs_parts() and integrity()[part] < ActorState.INTEGRITY_FULL]
+
+
+func _draw_integrity(panel: Rect2) -> void:
+	draw_rect(panel, PANEL_FILL)
+	_draw_text(panel.position + Vector2(10, 28), "Integridad corporal", 17, Color.WHITE)
+	var hover := hovered_part()
+	var hint := "Vista de atrás: tu izquierda, a la izquierda"
+	if hover[0] >= 0:
+		hint = "Clic: curar %s" % part_name(hover[0]).to_lower() if hover[1] else "Esto no cura esa parte"
+	_draw_text(panel.position + Vector2(10, 48), hint, 12, Color(1, 1, 1, 0.6))
+	var values := integrity()
+	var texts := integrity_texts()
+	var layout := _figure_layout(panel)
+	var origin: Vector2 = layout[0]
+	var unit: float = layout[1]
+	var font_px := clampf(unit * 2.4, 11.0, 18.0)
+	# Arriba de cada brazo, de qué lado es.
+	_draw_caption(origin + Vector2(12.75, 19) * unit, "izq.", font_px * 0.8, Color(1, 1, 1, 0.65))
+	_draw_caption(origin + Vector2(51.25, 19) * unit, "der.", font_px * 0.8, Color(1, 1, 1, 0.65))
+	if _part_boxes.is_empty():
+		for i in ActorState.PARTS:
+			var box := StyleBoxFlat.new()
+			box.set_border_width_all(2)
+			_part_boxes.append(box)
+	for part in ActorState.PARTS:
+		var shown := _part_rect(panel, part)
+		var fill := integrity_color(values[part] / float(ActorState.INTEGRITY_FULL))
+		# Bajo el cursor con algo en la mano: borde blanco si lo cura, rojo si no.
+		var edge := Color(0.02, 0.02, 0.03, 0.9)
+		if hover[0] == part:
+			edge = Color(1, 1, 1) if hover[1] else Color(1.0, 0.35, 0.3)
+		if part == ActorState.Part.HEAD:
+			draw_circle(shown.get_center(), shown.size.x / 2.0 + (4.0 if hover[0] == part else 2.0), edge)
+			draw_circle(shown.get_center(), shown.size.x / 2.0, fill)
+		else:
+			var box := _part_boxes[part]
+			box.bg_color = fill
+			box.border_color = edge
+			box.set_border_width_all(4 if hover[0] == part else 2)
+			box.set_corner_radius_all(roundi(minf(shown.size.x, shown.size.y) * 0.3))
+			draw_style_box(box, shown)
+		_draw_caption(shown.get_center(), texts[part], font_px, Color.WHITE)
 
 
 func _draw_death() -> void:

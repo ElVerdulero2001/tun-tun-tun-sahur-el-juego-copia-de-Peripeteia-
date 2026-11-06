@@ -42,6 +42,14 @@ extends Node3D
 ## Qué tan rápido sigue la altura de la cabeza a la postura, por segundo.
 @export var head_follow_rate := 12.0
 
+@export_group("Muerte")
+## En primera persona, al morir (desde el 2026-11-05): la cámara cae hasta
+## esta altura sobre los pies, en metros, y se ladea este tanto, en grados,
+## mientras el cuerpo se desploma (ActorBody.collapse_amount); después vuelve.
+## En tercera persona no se mueve: se ve el desplome del cuerpo.
+@export_range(0.1, 1.6, 0.05) var death_eye_height := 0.35
+@export_range(0.0, 90.0, 1.0) var death_roll_degrees := 70.0
+
 @export var target: Node3D
 
 var yaw := 0.0
@@ -133,12 +141,26 @@ func _process(delta: float) -> void:
 	_head_height = lerpf(_head_height, wanted, 1.0 - exp(-head_follow_rate * delta))
 	_zoom = lerpf(_zoom, _wanted_zoom, 1.0 - exp(-zoom_follow_rate * delta))
 	pitch = clampf(pitch, _pitch_min(), _pitch_max())
-	global_position = target.get_global_transform_interpolated().origin + Vector3.UP * _head_height
-	rotation = Vector3(pitch, yaw, 0.0)
+	# Al morir, en primera persona, la cámara cae al piso y se ladea mientras dura
+	# el desplome (es solo dibujo: el mouse y la simulación siguen igual).
+	var fall := death_fall_amount()
+	global_position = target.get_global_transform_interpolated().origin \
+			+ Vector3.UP * lerpf(_head_height, death_eye_height, fall)
+	rotation = Vector3(pitch, yaw, deg_to_rad(death_roll_degrees) * fall)
 	_place_on_guide()
 	# Muy cerca de la cabeza, el cuerpo propio taparía la vista. Cuenta la
 	# distancia real, con el resorte: una pared detrás también la acerca.
 	target.visible = _spring.get_hit_length() > hide_body_distance
+
+
+## Cuánto cayó la cámara por una muerte, de 0 a 1: el desplome del cuerpo
+## propio, solo en primera persona (pasando a tercera, se va apagando).
+func death_fall_amount() -> float:
+	var actor := target.get_parent() as ActorBody if is_instance_valid(target) else null
+	if actor == null:
+		return 0.0
+	var first_person := 1.0 - clampf(_spring.spring_length / maxf(hide_body_distance, 0.01), 0.0, 1.0)
+	return actor.collapse_amount() * first_person
 
 
 ## Si está en tercera persona: sobre la guía, lo bastante lejos de la cabeza

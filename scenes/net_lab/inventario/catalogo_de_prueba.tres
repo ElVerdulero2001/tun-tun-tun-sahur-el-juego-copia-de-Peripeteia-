@@ -19,7 +19,8 @@
 [ext_resource type="Resource" uid="uid://cva2lqux2e78l" path="res://scenes/net_lab/inventario/objetos/capsula_letal.tres" id="16_capsula"]
 [ext_resource type="Resource" uid="uid://c8jj7h8vq1ccq" path="res://scenes/net_lab/inventario/objetos/venen_lento.tres" id="17_8ymr3"]
 [ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/toxina_lenta.tres" id="18_toxina"]
+[ext_resource type="Resource" path="res://scenes/net_lab/inventario/objetos/vendas.tres" id="19_vendas"]
 
 [resource]
 script = ExtResource("1_catalog")
-items = Array[ExtResource("2_def")]([ExtResource("3_botella"), ExtResource("4_machete"), ExtResource("5_llave"), ExtResource("6_granada"), ExtResource("7_banquito"), ExtResource("8_tornillos"), ExtResource("9_bateria"), ExtResource("10_linterna"), ExtResource("11_caja"), ExtResource("11_b6idd"), ExtResource("12_3gxm2"), ExtResource("13_botiquin"), ExtResource("14_bebida"), ExtResource("15_veneno"), ExtResource("16_capsula"), ExtResource("17_8ymr3"), ExtResource("18_toxina")])
+items = Array[ExtResource("2_def")]([ExtResource("3_botella"), ExtResource("4_machete"), ExtResource("5_llave"), ExtResource("6_granada"), ExtResource("7_banquito"), ExtResource("8_tornillos"), ExtResource("9_bateria"), ExtResource("10_linterna"), ExtResource("11_caja"), ExtResource("11_b6idd"), ExtResource("12_3gxm2"), ExtResource("13_botiquin"), ExtResource("14_bebida"), ExtResource("15_veneno"), ExtResource("16_capsula"), ExtResource("17_8ymr3"), ExtResource("18_toxina"), ExtResource("19_vendas")])

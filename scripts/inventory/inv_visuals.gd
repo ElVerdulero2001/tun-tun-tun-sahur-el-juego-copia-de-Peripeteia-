@@ -90,6 +90,12 @@ static func fitted(def: InvItemDef, size: float, on_floor: bool) -> Node3D:
 	return holder
 
 
+## Apariencia de un objeto apoyado en el mundo, también en el editor.
+static func world_model(def: InvItemDef) -> Node3D:
+	var size := def.world_size if def != null else 0.4
+	return fitted(def, size, true) if has_visual(def) else placeholder(def, size)
+
+
 ## Una caja de color, para lo que no tiene modelo.
 static func placeholder(def: InvItemDef, size: float) -> Node3D:
 	var holder := Node3D.new()

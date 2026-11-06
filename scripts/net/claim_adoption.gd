@@ -130,12 +130,15 @@ func _values_possible(claim: ActorState, host: ActorState, tuning: ActorTuning) 
 ## del host (prendió un estado antes de lo que el host vio, con un input que
 ## llegó tarde: paga de más), nunca más: el cliente no puede imponer reserva.
 ## Con la reserva en cero no hay estados prendidos, y un agotamiento de más
-## solo con la reserva en cero y todo apagado.
+## solo con la reserva en cero y todo apagado. La integridad del cuerpo (desde
+## el 2026-11-05) tiene que ser la misma: la baja una caída, que el host
+## calcula con el mismo motor, así que una distinta es una caída que el host
+## no vio igual, y vale la suya.
 static func _vitals_possible(claim: ActorState, host: ActorState) -> bool:
 	# El daño en el tiempo no depende del input: con la misma época, igual.
 	if claim.health != host.health or claim.deaths != host.deaths or claim.use_presses_seen != host.use_presses_seen \
 			or claim.effect_total != host.effect_total or claim.effect_duration != host.effect_duration \
-			or claim.effect_elapsed != host.effect_elapsed:
+			or claim.effect_elapsed != host.effect_elapsed or claim.integrity != host.integrity:
 		return false
 	if claim.stamina < 0 or claim.stamina > host.stamina:
 		return false

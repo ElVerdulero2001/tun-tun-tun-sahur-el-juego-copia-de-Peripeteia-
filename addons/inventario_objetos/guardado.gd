@@ -146,6 +146,7 @@ static func check_abilities(abilities: Array) -> PackedStringArray:
 			var stamina: Variant = ability.get(&"stamina")
 			var over_time: Variant = ability.get(&"damage_over_time")
 			var seconds: Variant = ability.get(&"damage_seconds")
+			var parts: Variant = ability.get(&"part_repair")
 			if typeof(health) != TYPE_INT or absi(health) > MAX_EFFECT:
 				errors.append("El efecto en la salud del consumible va de −%d a %d." % [MAX_EFFECT, MAX_EFFECT])
 			elif typeof(stamina) != TYPE_INT or stamina < 0 or stamina > MAX_EFFECT:
@@ -154,8 +155,10 @@ static func check_abilities(abilities: Array) -> PackedStringArray:
 				errors.append("El daño en el tiempo del consumible va de 0 a %d puntos." % MAX_EFFECT)
 			elif over_time > 0 and (typeof(seconds) != TYPE_FLOAT or not is_finite(seconds) or seconds < 0.1 or seconds > MAX_EFFECT_SECONDS):
 				errors.append("El daño en el tiempo dura de 0,1 a %d segundos." % roundi(MAX_EFFECT_SECONDS))
-			elif health == 0 and stamina == 0 and over_time == 0:
-				errors.append("El consumible no hace nada: poné un efecto en la salud (cura o daña), estamina que recupere o un daño en el tiempo.")
+			elif not typeof(parts) in [TYPE_FLOAT, TYPE_INT] or not is_finite(float(parts)) or float(parts) < 0.0 or float(parts) > 100.0:
+				errors.append("Lo que cura de una parte del cuerpo va de 0 a 100 %.")
+			elif health == 0 and stamina == 0 and over_time == 0 and float(parts) == 0.0:
+				errors.append("El consumible no hace nada: poné un efecto en la salud (cura o daña), estamina que recupere, un daño en el tiempo o lo que cura de una parte del cuerpo.")
 		elif kind == "equipable":
 			var offset: Vector3 = ability.get(&"hold_offset")
 			var rotation: Vector3 = ability.get(&"hold_rotation")
@@ -171,7 +174,7 @@ static func check_abilities(abilities: Array) -> PackedStringArray:
 
 ## Qué hace un consumible, en una oración, para el panel. Es lo mismo que dice
 ## InvConsumable.describe() en el juego (en el editor su script no corre).
-static func consumable_summary(health: int, stamina: int, over_time := 0, seconds := 2.0) -> String:
+static func consumable_summary(health: int, stamina: int, over_time := 0, seconds := 2.0, parts := 0.0) -> String:
 	var effects := PackedStringArray()
 	if health > 0:
 		effects.append("cura %d de salud (sin pasar del máximo; con la salud completa no se usa ni se gasta)" % health)
@@ -183,9 +186,16 @@ static func consumable_summary(health: int, stamina: int, over_time := 0, second
 		var rate := over_time / maxf(seconds, 0.1)
 		effects.append("quita %d de salud de a poco en %s s, %s por segundo (se usa con la salud completa; se corta si morís)" % [
 				over_time, decimal(seconds), decimal(rate)])
+	# Las partes del cuerpo no son el uso normal: van aparte (InvConsumable.describe).
+	var on_part := ""
+	if is_finite(parts) and parts > 0.0:
+		on_part = "Con Tab, soltado sobre una parte dañada del cuerpo, %s y gasta una unidad, sin tocar la salud." % (
+				"la deja entera" if parts >= 100.0 else "le devuelve %s %% (sin pasar del 100 %%)" % decimal(parts))
 	if effects.is_empty():
-		return "Así no hace nada: no se puede guardar."
-	return "Al usar una unidad: %s." % "; además, ".join(effects)
+		return "Así no hace nada: no se puede guardar." if on_part == "" \
+				else "Usado normal (menú o barra rápida) no hace nada y no se gasta. %s" % on_part
+	var normal := "Al usar una unidad: %s." % "; además, ".join(effects)
+	return normal if on_part == "" else "%s %s" % [normal, on_part]
 
 
 ## Un número con hasta dos decimales, con coma y sin ceros de más: 2, 2,5, 0,33.

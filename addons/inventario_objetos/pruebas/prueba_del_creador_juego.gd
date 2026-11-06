@@ -40,6 +40,7 @@ func _ready() -> void:
 	await _rope()
 	await _thermos()
 	await _poison()
+	await _bandage()
 	await _second_player()
 	await _rope_in_hand()
 	await _wardrobes()
@@ -99,6 +100,41 @@ func _poison() -> void:
 	for i in 70:
 		await get_tree().physics_frame
 	_check(me.state.health == 60 * H, "y en un segundo, 10 más de a poco: %.3f" % (me.state.health / float(H)))
+
+
+# --- 3c. La venda (2026-11-06): solo cura partes del cuerpo, 30 % por unidad ------------------------
+
+func _bandage() -> void:
+	var uid: int = _world_uids(&"venda_de_prueba")[0]
+	await _teleport(net.replica.world[uid]["pos"] + Vector3(-1, 0, 0))
+	var got := await _req(Op.PICKUP, [uid], [uid])
+	_check(got[0] and net.replica.own.get_stack(uid).quantity == 3, "recoger 3 vendas: %s" % got[1])
+	var me := net.authority.actor_of(1)
+	const H := ActorState.HEALTH_UNIT
+	const U := ActorState.INTEGRITY_UNIT
+	const LEFT := ActorState.Part.LEG_LEFT
+	const RIGHT := ActorState.Part.LEG_RIGHT
+	me.state.health = 50 * H
+	me.state.integrity[LEFT] = 50 * U
+	me.state.integrity[RIGHT] = 90 * U
+	var r := await _req(Op.USE, [uid, net.replica.own.get_stack(uid).ver], [uid])
+	_check(not r[0] and r[1].contains("Tab") and net.replica.own.get_stack(uid).quantity == 3 and me.state.health == 50 * H,
+			"usada normal no hace nada ni se gasta: %s" % r[1])
+	r = await _heal_part(uid, LEFT)
+	_check(r[0] and me.state.integrity[LEFT] == 80 * U and me.state.integrity[RIGHT] == 90 * U and me.state.health == 50 * H
+			and net.replica.own.get_stack(uid).quantity == 2,
+			"sobre la pierna izquierda: 50 → %.2f %%, la derecha sigue en %.2f %%, la salud en %.1f y quedan %d" % [
+			me.state.integrity[LEFT] / float(U), me.state.integrity[RIGHT] / float(U), me.state.health / float(H),
+			net.replica.own.get_stack(uid).quantity])
+	r = await _heal_part(uid, RIGHT)
+	_check(r[0] and me.state.integrity[RIGHT] == ActorState.INTEGRITY_FULL and net.replica.own.get_stack(uid).quantity == 1,
+			"sobre la derecha, en 90 %%: llega a %.2f %% sin pasarse y gasta una" % (me.state.integrity[RIGHT] / float(U)))
+	r = await _heal_part(uid, RIGHT)
+	_check(not r[0] and r[1].contains("entera") and net.replica.own.get_stack(uid).quantity == 1,
+			"sobre la derecha ya entera: no se gasta (%s)" % r[1])
+	r = await _heal_part(uid, LEFT)
+	_check(r[0] and me.state.integrity[LEFT] == ActorState.INTEGRITY_FULL and not net.replica.own.has(uid),
+			"la última, sobre la izquierda en 80 %%: llega a %.2f %% y se terminan" % (me.state.integrity[LEFT] / float(U)))
 
 
 # --- 4. La soga en la mano del otro jugador ----------------------------------------------------------
@@ -198,6 +234,25 @@ func _req(op: int, args: Array, uids: Array = []) -> Array:
 			return _answers[seq]
 		await get_tree().physics_frame
 	return [false, "sin respuesta"]
+
+
+## Soltarlo sobre una parte del cuerpo: desde el 2026-11-06 a la noche es un
+## uso en el input, con la parte (InvNet.queue_use), no un pedido. [hecho,
+## motivo si el host dijo que no].
+func _heal_part(uid: int, part: int) -> Array:
+	var refused := []
+	var on_refused := func(reason: String) -> void: refused.append(reason)
+	net.replica.use_refused.connect(on_refused)
+	var queued := net.queue_use(uid, net.replica.own.def_of(uid), part)
+	for i in 30:
+		if net.replica.uses_waiting() == 0:
+			break
+		await get_tree().physics_frame
+	await get_tree().physics_frame
+	net.replica.use_refused.disconnect(on_refused)
+	if not queued:
+		return [false, "no salió"]
+	return [refused.is_empty(), refused.back() if not refused.is_empty() else ""]
 
 
 func _peer2(op: int, args: Array) -> Array:

@@ -68,6 +68,8 @@ signal container_closed(id: int, reason: String)
 @export var actors_root: Node3D
 ## Dónde están las cajas y los objetos iniciales (InvContainer, InvPickupSpawn).
 @export var world_root: Node
+## Rama adicional del mapa para objetos recogibles colocados en el editor.
+@export var pickup_root: Node
 
 @export_group("Alcances")
 ## Hasta qué distancia del pecho se recoge un objeto suelto, en metros.
@@ -118,8 +120,8 @@ var _world_views := {}  # uid -> InvWorldItem
 var _world_layer: Node3D
 var _use_counter := 0  # número del último uso puesto en fila en esta máquina
 ## Número de uso -> lo que hace falta para predecirlo, como estaba al usarlo:
-## [InvItemDef, copia de la pila, la barra en snapshot]. Se usa también al
-## repetir ticks, siempre con copias nuevas (ARQ-01).
+## [InvItemDef, copia de la pila, la barra en snapshot, parte del cuerpo o -1].
+## Se usa también al repetir ticks, siempre con copias nuevas (ARQ-01).
 var _use_info := {}
 var _use_tick := -1
 
@@ -140,6 +142,9 @@ func _ready() -> void:
 		push_warning("[inventario] catálogo: %s" % problem)
 	if world_root != null:
 		_collect(world_root)
+	if pickup_root != null and pickup_root != world_root \
+			and (world_root == null or not world_root.is_ancestor_of(pickup_root)):
+		_collect(pickup_root, false)
 	for i in _containers.size():
 		_containers[i].container_id = i + 1
 	if actors_root != null:
@@ -151,13 +156,15 @@ func _ready() -> void:
 
 ## Las cajas y los objetos iniciales, en el orden del árbol: el número de cada
 ## caja sale de ahí, igual en todas las máquinas.
-func _collect(node: Node) -> void:
+func _collect(node: Node, include_containers := true) -> void:
 	for child in node.get_children():
-		if child is InvContainer:
+		if not include_containers and child == world_root:
+			continue
+		if child is InvContainer and include_containers:
 			_containers.append(child)
 		elif child is InvPickupSpawn:
 			_spawns.append(child)
-		_collect(child)
+		_collect(child, include_containers)
 
 
 ## Arranca al elegir el rol. El host (y jugando solo) arma el estado del mundo
@@ -215,7 +222,11 @@ func connection_lost() -> void:
 ## en el input del próximo tick libre (fill_input). Quien llama ya comprobó que
 ## se puede usar (InvUI.use_item). Desde ya se ve gastada (InvReplica.shown_own).
 ## Devuelve falso, sin hacer nada, si ya hay MAX_USES_WAITING sin confirmar.
-func queue_use(uid: int, def: InvItemDef) -> bool:
+## `part` (desde el 2026-11-06 a la noche): -1 el uso normal; una parte del
+## cuerpo (ActorState.Part), soltado sobre ella en el panel de integridad. Así
+## curar una parte tampoco espera al host: se predice como el uso normal y el
+## host la valida y gasta la unidad.
+func queue_use(uid: int, def: InvItemDef, part := -1) -> bool:
 	if replica.uses_waiting() >= MAX_USES_WAITING:
 		return false
 	_use_counter = (_use_counter + 1) & 0xFF
@@ -224,8 +235,8 @@ func queue_use(uid: int, def: InvItemDef) -> bool:
 	var bar: Variant = null
 	if replica.loadout != null:
 		bar = replica.loadout.snapshot()
-	_use_info[_use_counter] = [def, stack.copy() if stack != null else null, bar]
-	replica.add_use(uid, _use_counter)
+	_use_info[_use_counter] = [def, stack.copy() if stack != null else null, bar, part]
+	replica.add_use(uid, _use_counter, part)
 	return true
 
 
@@ -313,7 +324,7 @@ func use_before_step(actor: ActorBody, input: ActorInput) -> void:
 			continue
 		_use_wait.erase(peer)
 		state.use_presses_seen = number
-		authority.use_from_input(peer, state, use[0], number)
+		authority.use_from_input(peer, state, use[0], number, use[2] if use.size() > 2 else -1)
 		answered = true
 	if answered:
 		authority.flush({})
@@ -322,11 +333,19 @@ func use_before_step(actor: ActorBody, input: ActorInput) -> void:
 ## Cliente: el efecto de un uso propio en la predicción, con el tipo, la pila y
 ## la barra como estaban al usarlo (copias nuevas cada vez: al repetir ticks se
 ## vuelve a aplicar igual). Solo lo que la capacidad dice que se puede predecir.
+## Sobre una parte del cuerpo, lo mismo que va a hacer el host: si la parte
+## sigue dañada en este tick, la cura (InvConsumable.check_part y apply_part).
 func _predict_use(state: ActorState, number: int) -> void:
 	var info: Array = _use_info.get(number, [])
 	var def: InvItemDef = info[0] if not info.is_empty() else null
 	var ability := def.ability_of(InvAbility.Kind.USE) if def != null else null
 	if ability == null or not ability.predictable() or tuning == null:
+		return
+	var part: int = info[3] if info.size() > 3 else -1
+	if part >= 0:
+		var heal := ability as InvConsumable
+		if heal != null and heal.check_part(state, part) == "":
+			heal.apply_part(state, part)
 		return
 	var stack: InvStack = info[1].copy() if info[1] != null else null
 	var loadout := InvLoadout.from_snapshot(info[2]) if info[2] != null else null
@@ -695,7 +714,8 @@ func _sync_world_views() -> void:
 			view = InvWorldItem.new()
 			view.name = "Objeto%d" % uid
 			_world_layer.add_child(view)
-			view.setup(def, stack)
+			# Lo soltado sin confirmar no trae "label": lleva cartel.
+			view.setup(def, stack, item.get("label", true))
 			_world_views[uid] = view
 		else:
 			view.refresh(def, stack)
@@ -733,7 +753,7 @@ func world_view(uid: int) -> InvWorldItem:
 
 
 ## Lo que tiene que ser igual en el host y en los clientes (SimFingerprint):
-## los valores de acá, el catálogo y las cajas y objetos iniciales de la zona.
+## los valores de acá, el catálogo, las cajas y los objetos iniciales.
 func fingerprint_text() -> String:
 	var text := "jugador %d×%d alcance %s soltar %s\n" % [player_columns, player_rows,
 			snappedf(pickup_range, 0.0001), snappedf(drop_distance, 0.0001)]

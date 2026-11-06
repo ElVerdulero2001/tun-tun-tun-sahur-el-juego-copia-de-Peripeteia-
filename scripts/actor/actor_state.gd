@@ -32,13 +32,23 @@ const YAW_STEPS := 65536
 ## el 2026-11-01 eran 93: la salud, la estamina y lo demás del jugador van al
 ## final, así los primeros 93 bytes siguen siendo los del movimiento. Desde el
 ## 2026-11-02 a la tarde, con el daño en el tiempo, 152; desde el 2026-11-04,
-## con el contador de usos de consumibles, 153.
-const BYTE_SIZE := 153
+## con el contador de usos de consumibles, 153; desde el 2026-11-05, con la
+## integridad corporal, 165. Por red viaja con su largo en un byte: no puede
+## pasar de 255.
+const BYTE_SIZE := 165
 ## La salud se guarda en milésimas de punto: así el daño en el tiempo la baja
 ## un poquito en cada tick, parejo, sin saltos de a un punto.
 const HEALTH_UNIT := 1000
 ## Cuántos daños en el tiempo puede tener encima a la vez (se acumulan).
 const MAX_EFFECTS := 4
+## Integridad corporal (desde el 2026-11-05): seis partes independientes, en
+## este orden. Cada una va de 0 a 100 %, guardada en centésimas de punto
+## (INTEGRITY_UNIT por punto): así una caída que se reparte entre las dos
+## piernas les quita lo mismo a cada una, sin redondeos.
+enum Part { HEAD, TORSO, ARM_LEFT, ARM_RIGHT, LEG_LEFT, LEG_RIGHT }
+const PARTS := 6
+const INTEGRITY_UNIT := 100
+const INTEGRITY_FULL := 100 * INTEGRITY_UNIT
 ## Salud y estamina de un estado nuevo: los máximos de fábrica del Tuning
 ## (health_max y stamina_max). Al aparecer, el actor nace con los del Tuning
 ## (NetSession); estos son para las pruebas que arman un estado a mano.
@@ -164,6 +174,16 @@ var stamina := START_STAMINA
 ## ticks da el mismo número, así que no avisa dos veces.
 var deaths := 0
 var exhaustions := 0
+## Integridad de cada parte del cuerpo (Part), en centésimas de punto: de 0 a
+## INTEGRITY_FULL. Es aparte de la salud. Por ahora la baja solo una caída
+## (ActorVitals.land, que la calcula el motor igual en el host y en la
+## predicción) y la devuelve entera la muerte de prueba (reglas provisorias del
+## laboratorio, 2026-11-05). Desde el 2026-11-06 también la sube un consumible
+## soltado sobre una parte del panel de integridad: un uso del input, que la
+## PC del jugador predice y el host valida (InvNet.queue_use con la parte,
+## InvAuthority._heal_part; hasta la noche del 2026-11-06, un evento del host).
+var integrity := PackedInt32Array([INTEGRITY_FULL, INTEGRITY_FULL, INTEGRITY_FULL, INTEGRITY_FULL,
+		INTEGRITY_FULL, INTEGRITY_FULL])
 ## Hanging, doblando (anchor_t distinto de 0): si es un rincón, por adentro.
 var corner_inside := false
 ## Si saltó (desde el piso, una escalera, un borde o un compañero, o en el
@@ -217,12 +237,15 @@ func quantize() -> void:
 		effect_total[i] = maxi(effect_total[i], 0)
 		effect_duration[i] = maxi(effect_duration[i], 0)
 		effect_elapsed[i] = clampi(effect_elapsed[i], 0, effect_duration[i])
+	for i in PARTS:
+		integrity[i] = clampi(integrity[i], 0, INTEGRITY_FULL)
 
 
 ## Lo que es del jugador y no del movimiento: los contadores de pulsaciones
 ## (si se pierden, la próxima parece una pulsación nueva), los estados
-## prendidos, la salud, los daños en el tiempo, la estamina y los contadores de
-## avisos. Lo usa quien arma un estado nuevo para el mismo jugador (al reaparecer).
+## prendidos, la salud, los daños en el tiempo, la estamina, la integridad del
+## cuerpo y los contadores de avisos. Lo usa quien arma un estado nuevo para el
+## mismo jugador (al reaparecer).
 func keep_player_state(from: ActorState) -> void:
 	jump_presses_seen = from.jump_presses_seen
 	power_presses_seen = from.power_presses_seen
@@ -234,8 +257,17 @@ func keep_player_state(from: ActorState) -> void:
 	effect_duration = from.effect_duration.duplicate()
 	effect_elapsed = from.effect_elapsed.duplicate()
 	stamina = from.stamina
+	integrity = from.integrity.duplicate()
 	deaths = from.deaths
 	exhaustions = from.exhaustions
+
+
+## Si alguna parte del cuerpo tiene menos del 100 %: lo que prende la luz naranja.
+func injured() -> bool:
+	for value in integrity:
+		if value < INTEGRITY_FULL:
+			return true
+	return false
 
 
 func copy() -> ActorState:
@@ -281,6 +313,8 @@ func to_bytes() -> PackedByteArray:
 		b.put_32(maxi(effect_duration[i], 0))
 		b.put_32(maxi(effect_elapsed[i], 0))
 	b.put_u8(use_presses_seen & 0xFF)
+	for i in PARTS:
+		b.put_u16(clampi(integrity[i], 0, INTEGRITY_FULL))
 	return b.data_array
 
 
@@ -324,16 +358,18 @@ static func from_bytes(bytes: PackedByteArray) -> ActorState:
 		s.effect_duration[i] = b.get_32()
 		s.effect_elapsed[i] = b.get_32()
 	s.use_presses_seen = b.get_u8()
+	for i in PARTS:
+		s.integrity[i] = b.get_u16()
 	return s
 
 
 func describe() -> String:
-	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f rincón=%s súper=%s/%d lenta=%s/%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d saltó=%s derecho=%s vuelve=%d cayó_del_borde=%s salud=%.3f daño_en_el_tiempo=%s estamina=%.3f usos=%d muertes=%d agotamientos=%d época=%d" % [
+	return "modo=%s postura=%s (pedida %s) suelo=%s base=%d ancla=%d t=%.4f filo=%s cuelga_de_él=%d reagarre=%d/%.4f rincón=%s súper=%s/%d lenta=%s/%d pos=%s vel=%s yaw=%.4f coyote=%.4f buffer=%.4f saltos=%d saltó=%s derecho=%s vuelve=%d cayó_del_borde=%s salud=%.3f daño_en_el_tiempo=%s estamina=%.3f integridad=%s usos=%d muertes=%d agotamientos=%d época=%d" % [
 		Mode.keys()[mode], Stance.keys()[stance], Stance.keys()[stance_wanted], on_floor, base_id,
 		anchor_id, anchor_t, anchor_point, hooked_by, regrab_id, regrab_left, "sí" if corner_inside else "no",
 		"sí" if boosted else "no", power_presses_seen, "sí" if powers & ActorPowers.SLOW else "no", ability_presses_seen,
 		position, velocity, facing_yaw, coyote_left, jump_buffer_left, jump_presses_seen, "sí" if jumped else "no", "sí" if straight_out else "no", ladder_return, "sí" if walked_off else "no",
-		health / float(HEALTH_UNIT), effect_total, stamina / float(ActorPowers.STAMINA_UNIT), use_presses_seen, deaths, exhaustions, epoch,
+		health / float(HEALTH_UNIT), effect_total, stamina / float(ActorPowers.STAMINA_UNIT), integrity, use_presses_seen, deaths, exhaustions, epoch,
 	]
 
 

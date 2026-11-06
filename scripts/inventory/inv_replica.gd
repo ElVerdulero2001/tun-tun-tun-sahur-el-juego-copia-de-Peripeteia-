@@ -58,7 +58,8 @@ var own: InvGrid
 var loadout: InvLoadout
 var box_id := 0
 var box: InvGrid
-## uid -> {"stack": InvStack, "pos": Vector3}
+## uid -> {"stack": InvStack, "pos": Vector3, "label": bool}; "label" es si se
+## ve su cartel, como lo dice el host.
 var world := {}
 ## peer -> id del tipo equipado ("" si nada)
 var equipment := {}
@@ -155,10 +156,11 @@ func is_uid_waiting(uid: int) -> bool:
 # --- Lo que se ve sin esperar al host --------------------------------------------
 
 ## Un consumible de la grilla propia ya usado en esta máquina, con su número
-## de uso (InvNet.queue_use). Va después del último pedido hecho.
-func add_use(uid: int, counter: int) -> void:
+## de uso (InvNet.queue_use). Va después del último pedido hecho. `part`: -1
+## el uso normal, o la parte del cuerpo sobre la que se soltó (ActorState.Part).
+func add_use(uid: int, counter: int, part := -1) -> void:
 	_order += 1
-	_uses.append({"uid": uid, "counter": counter, "after": _next_seq, "order": _order, "sent": false})
+	_uses.append({"uid": uid, "counter": counter, "after": _next_seq, "order": _order, "sent": false, "part": part})
 	_last_use = counter
 	_mark_shown(false)
 	changed.emit()
@@ -180,12 +182,13 @@ func send_next_use(in_flight: int) -> int:
 
 
 ## Los usos que ya salieron y el host todavía no contestó, del más viejo al más
-## nuevo, como van en el input: [id del objeto, último pedido antes del uso].
+## nuevo, como van en el input: [id del objeto, último pedido antes del uso,
+## parte del cuerpo o -1].
 func uses_in_flight() -> Array:
 	var list := []
 	for use: Dictionary in _uses:
 		if use["sent"]:
-			list.append([use["uid"], use["after"]])
+			list.append([use["uid"], use["after"], use["part"]])
 	return list
 
 
@@ -426,10 +429,13 @@ func def_of(grid: InvGrid, uid: int) -> InvItemDef:
 	return grid.def_of(uid) if grid != null else null
 
 
+## Un objeto suelto como lo manda el host: [pila, x, y, z, cartel]. Sin el
+## último (las pruebas del modelo), lleva cartel.
 func _world_put(entry: Variant) -> void:
-	if not entry is Array or entry.size() != 4:
+	if not entry is Array or entry.size() < 4 or entry.size() > 5:
 		return
 	var stack := InvStack.from_array(entry[0])
 	if stack == null:
 		return
-	world[stack.uid] = {"stack": stack, "pos": Vector3(entry[1], entry[2], entry[3])}
+	var label: bool = entry[4] if entry.size() == 5 and entry[4] is bool else true
+	world[stack.uid] = {"stack": stack, "pos": Vector3(entry[1], entry[2], entry[3]), "label": label}

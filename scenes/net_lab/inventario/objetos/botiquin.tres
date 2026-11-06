@@ -7,6 +7,7 @@
 [sub_resource type="Resource" id="Resource_use"]
 script = ExtResource("3_use")
 health = 50
+part_repair = 100.0
 
 [sub_resource type="BoxMesh" id="BoxMesh_kit"]
 size = Vector3(0.3, 0.12, 0.2)
@@ -15,7 +16,7 @@ size = Vector3(0.3, 0.12, 0.2)
 script = ExtResource("1_def")
 id = &"botiquin"
 display_name = "Botiquín"
-description = "Consumible de prueba: cura 50 de salud (sin pasar de la completa) y gasta uno. Con la salud completa no se usa."
+description = "Consumible de prueba: usado normal, cura 50 de salud (sin pasar de la completa) y gasta uno; con la salud completa no se usa. Con Tab, agarrado y soltado sobre una parte dañada del cuerpo, la deja al 100 % y gasta uno, sin tocar la salud (también con la salud completa)."
 size = Vector2i(2, 1)
 stackable = true
 max_stack = 3

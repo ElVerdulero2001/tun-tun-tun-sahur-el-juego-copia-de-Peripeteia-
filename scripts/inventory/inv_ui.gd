@@ -28,7 +28,9 @@ extends Control
 ## se escribe una cantidad, el laboratorio no mueve al personaje (is_typing).
 ##
 ## Teclas (acciones del Mapa de entrada): Tab (toggle_inventario) abre y
-## cierra; Esc (ui_cancel) suelta lo que se tiene en la mano (vuelve a su
+## cierra; con una caja abierta (o pedida), Tab cierra solo la caja y el
+## inventario sigue abierto, con la integridad a la derecha (desde el
+## 2026-11-08, pedido del usuario: antes cerraba todo); Esc (ui_cancel) suelta lo que se tiene en la mano (vuelve a su
 ## lugar) o cierra el diálogo, después cierra el menú y por último el
 ## inventario; R (rotar_item) gira lo que se tiene en la mano, 90° por vez; E
 ## (interactuar) recoge o abre lo que se mira y, con una caja abierta, la
@@ -172,11 +174,51 @@ func _r() -> InvReplica:
 
 # --- Abrir y cerrar -----------------------------------------------------------
 
+## Tab. Con una caja abierta o pedida, cierra solo la caja (close_box); si no,
+## abre o cierra el inventario.
 func toggle() -> void:
-	if is_open:
+	if is_open and has_box():
+		close_box()
+	elif is_open:
 		close()
 	else:
 		open()
+
+
+## Si hay una caja abierta, o pedida con E y sin respuesta del host.
+func has_box() -> bool:
+	return net != null and (_r().box_id != 0 or not _box_wait.is_empty())
+
+
+## Cierra la caja abierta (o la pedida) y deja el inventario abierto: a la
+## derecha vuelve la integridad (desde el 2026-11-08, pedido del usuario). Lo
+## que se tenía en la mano desde la caja vuelve a su lugar, y lo que se iba a
+## dejar en ella de a una unidad no se deja; lo de la grilla propia sigue en la
+## mano (por ejemplo, para soltarlo sobre una parte del cuerpo). Lo ya pedido
+## al host sigue su curso.
+func close_box() -> void:
+	var id := _r().box_id
+	if id != 0:
+		if _mode != Mode.NONE and _hold.get("src", InvProtocol.OWN) == id:
+			_cancel_mode("")
+		_placing = _placing.filter(func(entry: Dictionary) -> bool: return entry["src"] != id and entry["ref"] != id)
+	_leave_box()
+	queue_redraw()
+
+
+## Deja la caja: se le pide al host que la cierre y deja de verse ya. Una
+## pedida que el host todavía no contestó no aparece cuando llega (_on_answered),
+## aunque mientras tanto el inventario se vuelva a abrir con Tab.
+func _leave_box() -> void:
+	if net == null:
+		return
+	if not _box_wait.is_empty():
+		if _sent.has(_box_wait["seq"]):
+			_sent[_box_wait["seq"]]["cancelled"] = true
+		_box_wait = {}
+	if _r().box_id != 0:
+		_r().request(InvProtocol.Op.CLOSE, [_r().box_id])
+		_r().forget_box()
 
 
 func open() -> void:
@@ -197,15 +239,7 @@ func close() -> void:
 	_close_menu()
 	_close_dialog()
 	_inspect.hide()
-	if not _box_wait.is_empty():
-		# Se cerró antes de que el host contestara: si la abre, se cierra al
-		# llegar (_on_answered), también si mientras tanto se volvió a abrir con Tab.
-		if _sent.has(_box_wait["seq"]):
-			_sent[_box_wait["seq"]]["cancelled"] = true
-		_box_wait = {}
-	if net != null and _r().box_id != 0:
-		_r().request(InvProtocol.Op.CLOSE, [_r().box_id])
-		_r().forget_box()
+	_leave_box()
 	if not is_open:
 		return
 	is_open = false

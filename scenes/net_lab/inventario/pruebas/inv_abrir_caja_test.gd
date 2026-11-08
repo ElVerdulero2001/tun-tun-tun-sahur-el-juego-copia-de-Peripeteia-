@@ -13,9 +13,12 @@ extends Node
 ## lado derecho esté reservado para la caja y que el HUD no dibuje la
 ## integridad; al llegar, que la grilla ocupe justo el lugar reservado. Lo hace
 ## con la caja vacía, con un objeto adentro y con el inventario ya abierto con
-## Tab. Después lejos de la caja (el host dice que no y todo vuelve a como
-## estaba antes de E), y cerrando con Tab mientras espera. Antes y al final,
-## Tab solo: la integridad sigue a la derecha.
+## Tab. Con la caja abierta, Tab cierra solo la caja (desde el 2026-11-08 a la
+## tarde, pedido del usuario): el inventario sigue abierto con la integridad,
+## con un objeto de la caja en la mano (vuelve a su lugar) y con uno propio
+## (sigue en la mano). Después lejos de la caja (el host dice que no y todo
+## vuelve a como estaba antes de E), y Tab mientras espera. Antes y al final,
+## Tab solo: la integridad sigue a la derecha. Tab va por el camino de la tecla.
 
 const Op := InvProtocol.Op
 
@@ -224,42 +227,92 @@ func _route(box: InvContainer) -> void:
 	await _open_with_e(box, "con un objeto adentro, con el inventario cerrado")
 	_check(item != 0 and net.replica.box != null and net.replica.box.has(item) and ui._shown(id, item),
 			"y se ve el objeto en la caja")
-	_press_e()
+	# 3. Tab con la caja abierta y su objeto en la mano: cierra solo la caja.
+	if item != 0:
+		_click(ui._item_rect(id, item).get_center())
+		_check(ui._mode == InvUI.Mode.HOLD and ui._hold.get("src", -1) == id, "agarra el objeto de la caja")
+	await _tab_closes_box(box, "con el objeto de la caja en la mano")
+	_check(ui._mode == InvUI.Mode.NONE, "el objeto de la caja vuelve a su lugar: la mano queda vacía")
+	_press_tab()
+	await _frames(2)
+	_check(not ui.is_open, "sin caja, Tab cierra el inventario")
 	await _ticks(10)
-	# 3. Con el inventario ya abierto con Tab.
-	ui.toggle()
+	# 4. Con el inventario ya abierto con Tab.
+	_press_tab()
 	await _frames(3)
 	_check(ui.is_open and hud.integrity_panel_rect().has_area(), "con Tab, la integridad a la derecha")
 	await _open_with_e(box, "con el inventario abierto con Tab")
-	_press_e()
+	_check(item != 0 and net.replica.box != null and net.replica.box.has(item), "el objeto sigue en la caja")
+	# 5. Tab con un objeto propio en la mano: la caja se cierra y sigue en la mano.
+	if item != 0:
+		await _take_from_box(item, id)
+		_click(ui._item_rect(InvProtocol.OWN, item).get_center())
+		_check(ui._mode == InvUI.Mode.HOLD and ui._hold.get("src", -1) == InvProtocol.OWN, "agarra el objeto propio")
+	await _tab_closes_box(box, "con un objeto propio en la mano")
+	_check(ui._mode == InvUI.Mode.HOLD and ui._hold.get("uid", 0) == item,
+			"el objeto propio sigue en la mano, para soltarlo, por ejemplo, sobre el cuerpo")
+	_check(ui._escape() and ui._mode == InvUI.Mode.NONE and ui.is_open, "Esc lo devuelve a su lugar")
+	_press_tab()
+	await _frames(2)
+	_check(not ui.is_open, "y Tab cierra el inventario")
 	await _ticks(10)
-	# 4. Lejos: el host dice que no.
+	# 6. Lejos: el host dice que no.
 	_check(await _walk_to(box.global_position + Vector3(-3.6, 0, 0)), "se aleja de la caja")
 	await _refused(box, false)
-	ui.toggle()
+	_press_tab()
 	await _frames(3)
 	await _refused(box, true)
-	ui.toggle()
+	_press_tab()
 	await _frames(2)
-	# 5. Tab mientras espera la caja.
+	# 7. Tab mientras espera la caja.
 	_check(await _walk_to(box.global_position + Vector3(-1.3, 0, 0)), "vuelve a la caja")
 	await _tab_while_waiting(box)
 	await _tab_shows_integrity("al final")
+
+
+## Tab de verdad, por el mismo camino que la tecla (InvUI._input).
+func _press_tab() -> void:
+	var tab := InputEventKey.new()
+	tab.physical_keycode = KEY_TAB
+	tab.pressed = true
+	ui._input(tab)
+
+
+func _click(at: Vector2) -> void:
+	ui._layout()
+	ui._mouse = at
+	ui._left_press()
+
+
+## Con la caja abierta, Tab cierra solo la caja: el inventario sigue abierto y a
+## la derecha se dibuja la integridad. El host la da por cerrada.
+func _tab_closes_box(box: InvContainer, what: String) -> void:
+	var draws := hud.integrity_draws
+	_check(ui.is_open and net.replica.box_id == box.container_id, "%s: la caja está abierta" % what)
+	_press_tab()
+	await _frames(3)
+	_check(ui.is_open and net.replica.box_id == 0 and not ui.has_box(), "%s: Tab cierra la caja y el inventario sigue abierto" % what)
+	_check(hud.integrity_panel_rect().has_area() and hud.integrity_draws > draws and not ui._grid_rect(box.container_id).has_area(),
+			"%s: a la derecha se dibuja la integridad, en el lugar de la caja" % what)
+	await _ticks(10)
+	if net.authority != null:
+		_check(net.authority.open_container_of(multiplayer.get_unique_id()) == 0, "%s: el host la da por cerrada" % what)
 
 
 ## Tab abre el inventario normal: la integridad se dibuja a la derecha de la
 ## grilla propia. Tab otra vez lo cierra.
 func _tab_shows_integrity(what: String) -> void:
 	var draws := hud.integrity_draws
-	ui.toggle()
+	_press_tab()
 	await _frames(3)
 	var panel := hud.integrity_panel_rect()
 	var own := ui._panel_rect(InvProtocol.OWN)
 	_check(ui.is_open and not ui.is_waiting_box() and panel.has_area() and panel.position.x > own.end.x
 			and hud.integrity_draws > draws, "%s: con Tab, la integridad se dibuja a la derecha de la grilla (%s, %d veces)" % [
 			what, panel, hud.integrity_draws - draws])
-	ui.toggle()
+	_press_tab()
 	await _frames(2)
+	_check(not ui.is_open, "%s: Tab otra vez lo cierra" % what)
 
 
 ## E mirando la caja, cuadro por cuadro hasta que se ve su grilla.
@@ -320,8 +373,9 @@ func _refused(box: InvContainer, was_open: bool) -> void:
 				"%s: se cierra sin haber dibujado la integridad" % what)
 
 
-## E y enseguida Tab dos veces (cerrar y abrir) antes de que conteste el host:
-## queda el inventario normal y la caja, aunque el host la abra, no aparece.
+## E y enseguida Tab, antes de que conteste el host: deja la caja pedida y el
+## inventario sigue abierto, con la integridad. Aunque el host la abra, no
+## aparece. Tab otra vez cierra el inventario.
 func _tab_while_waiting(box: InvContainer) -> void:
 	var id := box.container_id
 	await _aim(box.center())
@@ -329,12 +383,10 @@ func _tab_while_waiting(box: InvContainer) -> void:
 	_press_e()
 	var seq: int = ui._box_wait.get("seq", 0)
 	_check(seq != 0 and ui.is_waiting_box(), "Tab durante la espera: la caja está pedida")
-	ui.toggle()
-	_check(not ui.is_open and not ui.is_waiting_box(), "Tab la cierra antes de que conteste el host")
-	ui.toggle()
+	_press_tab()
 	await _frames(2)
-	_check(ui.is_open and not ui.is_waiting_box() and hud.integrity_panel_rect().has_area(),
-			"Tab otra vez: el inventario normal, con la integridad a la derecha")
+	_check(ui.is_open and not ui.is_waiting_box() and not ui.has_box() and hud.integrity_panel_rect().has_area(),
+			"Tab antes de que conteste el host: deja la caja, y el inventario sigue abierto con la integridad")
 	_check(await _answer_of(seq) and _answers[seq][0], "el host la abrió igual: %s" % [_answers.get(seq, [])])
 	await _frames(3)
 	_check(net.replica.box_id == 0 and ui.is_open and hud.integrity_panel_rect().has_area(),
@@ -342,8 +394,22 @@ func _tab_while_waiting(box: InvContainer) -> void:
 	if net.authority != null:
 		await _ticks(10)
 		_check(net.authority.open_container_of(multiplayer.get_unique_id()) == 0, "y el host la da por cerrada")
-	ui.close()
+	_press_tab()
+	await _frames(2)
+	_check(not ui.is_open, "Tab otra vez cierra el inventario")
 	await _ticks(10)
+
+
+## Pasa el objeto de la caja a la grilla propia, con un pedido.
+func _take_from_box(uid: int, id: int) -> void:
+	var stack := net.replica.box.get_stack(uid) if net.replica.box != null else null
+	var def := net.replica.box.def_of(uid) if stack != null else null
+	var spot := net.replica.own.free_spot(def) if def != null else []
+	var seq := 0
+	if not spot.is_empty():
+		seq = net.replica.request(Op.MOVE, [id, uid, stack.ver, InvProtocol.OWN, spot[0].x, spot[0].y, spot[1]], [uid])
+	_check(seq != 0 and await _answer_of(seq) and _answers[seq][0] and net.replica.own.has(uid),
+			"pasa el objeto de la caja a su grilla: %s" % [_answers.get(seq, [])])
 
 
 ## Recoge un objeto suelto cercano que entre en la caja, para meterlo después.

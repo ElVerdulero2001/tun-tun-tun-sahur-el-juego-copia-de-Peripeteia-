@@ -19,7 +19,9 @@ extends Control
 ## - Integridad corporal (desde el 2026-11-05): con el inventario abierto (Tab)
 ##   y sin una caja abierta, una silueta a la derecha de la grilla propia, en
 ##   el lugar de la caja, con el porcentaje de cada parte, verde completa y
-##   cada vez más roja al bajar. Con una caja abierta, la caja tiene ese lugar.
+##   cada vez más roja al bajar. Con una caja abierta, la caja tiene ese lugar,
+##   y también mientras el host contesta una caja pedida con E (desde el
+##   2026-11-08: antes el panel se veía hasta que llegaba la caja).
 ##   El panel y la luz muestran el estado del personaje propio, como la aguja
 ##   de la salud: en un cliente, lo predicho, sin esperar al host (desde el
 ##   2026-11-06 a la noche, pedido del usuario; antes, lo que confirmaba el
@@ -73,6 +75,8 @@ extends Control
 ## Para las pruebas: cuántos avisos de muerte y sonidos de agotamiento salieron.
 var deaths_shown := 0
 var exhaustion_sounds := 0
+## Para las pruebas: cuántas veces se dibujó el panel de integridad.
+var integrity_draws := 0
 var _actor: ActorBody
 var _health_shown := 10.0
 var _stamina_shown := 200.0
@@ -220,6 +224,7 @@ func _draw() -> void:
 	_draw_lights(layout)
 	var panel := integrity_panel_rect()
 	if panel.has_area():
+		integrity_draws += 1
 		_draw_integrity(panel)
 	if is_showing_death():
 		_draw_death()

@@ -4,7 +4,11 @@ extends Control
 ## Interfaz del inventario del jugador local: su grilla a la izquierda, la caja
 ## abierta a la derecha y la barra rápida abajo, con el mundo visible detrás.
 ## Sin caja abierta, a la derecha va la integridad corporal (desde el
-## 2026-11-05: side_panel_rect, que dibuja el HUD).
+## 2026-11-05: side_panel_rect, que dibuja el HUD). Abrir una caja con E entra
+## directo en modo caja (desde el 2026-11-08, pedido del usuario: antes se veía
+## la integridad hasta que contestaba el host): mientras el host contesta, el
+## lado derecho queda reservado con el marco de la caja, de sus mismas medidas;
+## si el host dice que no, todo vuelve a como estaba antes de E.
 ## Muestra lo que confirmó el host (InvReplica) y pide cambios: nunca escribe
 ## ese estado. Desde el 2026-11-04, lo que se recoge y los consumibles que se
 ## usan se ven al instante, sin esperar al host (InvReplica.shown_own): un
@@ -51,6 +55,10 @@ const VALID_COLOR := Color(0.25, 0.85, 0.35, 0.45)
 const MERGE_COLOR := Color(0.25, 0.7, 0.95, 0.5)
 const INVALID_COLOR := Color(0.95, 0.25, 0.2, 0.45)
 const PENDING_COLOR := Color(1.0, 0.8, 0.2, 0.9)
+const BOX_HINT := "Clic agarra y deja: pasá objetos entre las dos grillas"
+## Si la caja pedida tarda más que esto en abrirse, su lugar dice "Abriendo…".
+## Antes no: en el host contesta en un cuadro y el texto sería un parpadeo.
+const BOX_WAIT_TEXT_MSEC := 150
 
 ## HOLD: un objeto en la mano. SLOT_HOLD: un acceso de la barra en la mano.
 ## SPLIT_PLACE: eligiendo dónde va la pila nueva de Dividir….
@@ -92,8 +100,15 @@ var _mouse := Vector2.ZERO
 var _cs := 40.0
 var _toast := ""
 var _toast_until := 0
-## Pedidos que esperan respuesta: número -> {"op", "ref", "rect", "uid"}.
+## Pedidos que esperan respuesta: número -> {"op", "ref", "rect", "uid"}; el
+## de abrir una caja, {"op", "name"} y "cancelled" si se cerró antes de la
+## respuesta.
 var _sent := {}
+## La caja pedida con E que el host todavía no abrió (desde el 2026-11-08):
+## {"seq", "id", "name", "was_open" (si el inventario ya estaba abierto antes de
+## E), "msec"}. Mientras tanto la interfaz ya está en modo caja: el lado
+## derecho es suyo (_reserved_grid_rect) y no se ve la integridad.
+var _box_wait := {}
 var _menu: PanelContainer
 var _menu_box: VBoxContainer
 var _menu_uid := 0
@@ -143,6 +158,7 @@ func connection_lost() -> void:
 	_placing.clear()
 	_flight = {}
 	_sent.clear()
+	_box_wait = {}
 	actor = null
 
 
@@ -181,6 +197,12 @@ func close() -> void:
 	_close_menu()
 	_close_dialog()
 	_inspect.hide()
+	if not _box_wait.is_empty():
+		# Se cerró antes de que el host contestara: si la abre, se cierra al
+		# llegar (_on_answered), también si mientras tanto se volvió a abrir con Tab.
+		if _sent.has(_box_wait["seq"]):
+			_sent[_box_wait["seq"]]["cancelled"] = true
+		_box_wait = {}
 	if net != null and _r().box_id != 0:
 		_r().request(InvProtocol.Op.CLOSE, [_r().box_id])
 		_r().forget_box()
@@ -277,12 +299,43 @@ func _interact() -> void:
 	if _r().box_id == target["id"]:
 		open()
 		return
+	open_box(target["id"], target["name"])
+
+
+## Pedirle al host que abra esa caja (lo que hace E mirándola). El inventario
+## se abre ya, directo en modo caja: el lado derecho queda reservado para ella
+## hasta que el host conteste (_box_wait). Devuelve el número del pedido, o 0
+## si no salió (ya hay una caja pedida, o todavía no llegó el inventario).
+func open_box(id: int, shown_name := "") -> int:
 	if _r().is_op_pending(InvProtocol.Op.OPEN):
-		return
-	var seq := _r().request(InvProtocol.Op.OPEN, [target["id"]])
-	if seq != 0:
-		_sent[seq] = {"op": InvProtocol.Op.OPEN, "name": target["name"]}
-		open()
+		return 0
+	var was_open := is_open
+	var seq := _r().request(InvProtocol.Op.OPEN, [id])
+	if seq == 0:
+		return 0
+	_sent[seq] = {"op": InvProtocol.Op.OPEN, "name": shown_name}
+	# Antes de open(): el primer cuadro abierto ya es el de la caja.
+	_box_wait = {"seq": seq, "id": id, "name": shown_name, "was_open": was_open, "msec": Time.get_ticks_msec()}
+	open()
+	return seq
+
+
+## Si hay una caja pedida que el host todavía no abrió (el lado derecho está
+## reservado para ella).
+func is_waiting_box() -> bool:
+	return not _box_wait.is_empty()
+
+
+## La caja pedida dejó de esperar sin abrirse (el host dijo que no o no
+## contestó a tiempo): todo vuelve a como estaba antes de E. Si el inventario
+## estaba cerrado, se cierra; si estaba abierto con Tab, la integridad vuelve
+## a la derecha.
+func _box_wait_failed() -> void:
+	var was_open: bool = _box_wait["was_open"]
+	_box_wait = {}
+	if not was_open:
+		close()
+	queue_redraw()
 
 
 ## Recoger un objeto del mundo. Se ve en la grilla ya, como lo va a meter el
@@ -627,6 +680,8 @@ func _drop_target(hold: Dictionary, mouse: Vector2, how: String, whole: bool) ->
 			return {"kind": "move" if reason == "" else "invalid", "reason": reason, "ref": ref, "cell": cell, "foot": foot}
 		if _panel_rect(ref).has_point(mouse):
 			return {"kind": "invalid", "reason": "ahí no: dejalo sobre la grilla", "ref": ref}
+	if _reserved_panel_rect().has_point(mouse):
+		return {"kind": "invalid", "reason": "esperá a que se abra la caja"}
 	if side_panel_rect().has_point(mouse):
 		if how != "all":
 			return {"kind": "invalid", "reason": "para curar una parte, clic izquierdo sobre ella"}
@@ -855,10 +910,16 @@ func _on_answered(seq: int, ok: bool, reason: String) -> void:
 	elif sent.get("op", 0) == InvProtocol.Op.PICKUP and _r().world.has(sent["uid"]):
 		var left: InvStack = _r().world[sent["uid"]]["stack"]
 		_say("Solo entró una parte: quedan %d en el piso" % left.quantity)
-	elif sent.get("op", 0) == InvProtocol.Op.OPEN and not is_open and _r().box_id != 0:
+	elif sent.get("op", 0) == InvProtocol.Op.OPEN and (not is_open or sent.get("cancelled", false)) and _r().box_id != 0:
 		# Se cerró antes de que el host contestara: la caja también se cierra.
 		_r().request(InvProtocol.Op.CLOSE, [_r().box_id])
 		_r().forget_box()
+	if _box_wait.get("seq", 0) == seq:
+		# La caja ya llegó en este mismo paquete (ok), o no se abre.
+		if ok:
+			_box_wait = {}
+		else:
+			_box_wait_failed()
 	if _flight.get("seq", 0) == seq:
 		var uid: int = _flight["uid"]
 		_flight = {}
@@ -1264,8 +1325,12 @@ func _grid_of_uid(uid: int) -> InvGrid:
 
 func _layout() -> void:
 	var rows := _r().shown_own().rows if _r().shown_own() != null else 16
+	var waiting := _waiting_box()
 	if _r().box != null:
 		rows = maxi(rows, _r().box.rows)
+	elif waiting != null:
+		# La que se espera ya cuenta: al llegar, las celdas no cambian de tamaño.
+		rows = maxi(rows, waiting.rows)
 	var available := size.y - 24.0 - HEADER - PAD * 2.0 - SLOT_SIZE - 64.0
 	_cs = clampf(floorf(available / rows), 16.0, float(cell_size))
 
@@ -1281,8 +1346,36 @@ func _grid_rect(ref: int) -> Rect2:
 
 
 func _panel_rect(ref: int) -> Rect2:
-	var rect := _grid_rect(ref)
+	return _frame_of(_grid_rect(ref))
+
+
+## El panel que rodea una grilla: el borde y el lugar del título.
+func _frame_of(rect: Rect2) -> Rect2:
 	return Rect2(rect.position - Vector2(PAD, PAD + HEADER), rect.size + Vector2(PAD * 2.0, PAD * 2.0 + HEADER))
+
+
+## La caja pedida que el host todavía no abrió, si se ve en la escena, o null.
+func _waiting_box() -> InvContainer:
+	if _box_wait.is_empty() or net == null or (_r().box != null and _r().box_id != 0):
+		return null
+	return net.container(_box_wait["id"])
+
+
+## Dónde va a estar la grilla de la caja que se espera, con sus medidas (las
+## de la caja en la escena, las mismas que manda el host), o vacío: el lugar
+## reservado. Al llegar la caja, su grilla ocupa exactamente esto.
+func _reserved_grid_rect() -> Rect2:
+	var box := _waiting_box()
+	if box == null or not is_open or _r().shown_own() == null:
+		return Rect2()
+	var origin := Vector2(24.0 + PAD, 24.0 + HEADER)
+	origin.x += _r().shown_own().columns * _cs + PAD * 2.0 + 28.0
+	return Rect2(origin, Vector2(box.columns, box.rows) * _cs)
+
+
+func _reserved_panel_rect() -> Rect2:
+	var rect := _reserved_grid_rect()
+	return _frame_of(rect) if rect.has_area() else Rect2()
 
 
 func _item_rect(ref: int, uid: int) -> Rect2:
@@ -1316,6 +1409,7 @@ func hud_limits() -> Dictionary:
 		for ref in _refs():
 			right = maxf(right, _panel_rect(ref).end.x)
 		right = maxf(right, side_panel_rect().end.x)
+		right = maxf(right, _reserved_panel_rect().end.x)
 	return {"grid_bottom": 24.0 + HEADER + rows * cs + PAD, "panels_right": right, "hotbar": _hotbar_rect()}
 
 
@@ -1324,9 +1418,12 @@ func hud_limits() -> Dictionary:
 ## ocupa la integridad corporal, que dibuja el HUD (LabHud). Con una caja
 ## abierta, la caja tiene prioridad (para seguir pasando objetos) y el panel no
 ## se ve: vacío. También vacío con el inventario cerrado. Un clic con un
-## objeto en la mano ahí no lo suelta al piso.
+## objeto en la mano ahí no lo suelta al piso. Desde el 2026-11-08, también
+## vacío con una caja pedida que el host todavía no abrió: ese lugar es de ella
+## (is_waiting_box).
 func side_panel_rect() -> Rect2:
-	if not is_open or not _active() or _r().shown_own() == null or (_r().box != null and _r().box_id != 0):
+	if not is_open or not _active() or _r().shown_own() == null or (_r().box != null and _r().box_id != 0) \
+			or not _box_wait.is_empty():
 		return Rect2()
 	_layout()
 	var own := _panel_rect(InvProtocol.OWN)
@@ -1356,6 +1453,11 @@ func _slot_at(point: Vector2) -> int:
 func _process(_delta: float) -> void:
 	if _toast != "" and Time.get_ticks_msec() > _toast_until:
 		_toast = ""
+	if not _box_wait.is_empty() and net != null and not _r().pending.has(_box_wait["seq"]):
+		# Sin respuesta a tiempo (InvReplica.expire_pending). Una respuesta
+		# limpia _box_wait en el mismo paquete, antes de llegar acá.
+		_say("El host no contestó: %s no se abrió" % (_box_wait["name"] if _box_wait["name"] != "" else "la caja"))
+		_box_wait_failed()
 	if _active():
 		queue_redraw()
 
@@ -1369,6 +1471,7 @@ func _draw() -> void:
 			_text(Vector2(34, 60), "Esperando el inventario del host…", font_size + 2, Color.WHITE)
 		for ref in _refs():
 			_draw_grid(ref)
+		_draw_reserved_box()
 		if _mode == Mode.HOLD or _mode == Mode.SPLIT_PLACE:
 			_draw_hold()
 	_draw_hotbar()
@@ -1379,20 +1482,12 @@ func _draw() -> void:
 func _draw_grid(ref: int) -> void:
 	var grid := _grid(ref)
 	var rect := _grid_rect(ref)
-	draw_rect(_panel_rect(ref), PANEL_COLOR)
 	var title := "Tu inventario"
 	if ref != InvProtocol.OWN:
 		var box := net.container(ref)
-		title = "%s (compartida)" % (box.display_name if box != null else "Caja")
-	_text(rect.position + Vector2(0, -HEADER + 18), "%s · %d × %d" % [title, grid.columns, grid.rows], font_size + 2, Color.WHITE)
-	var hint := "Clic agarra y deja · R gira · clic der.: menú, o una unidad" if ref == InvProtocol.OWN \
-			else "Clic agarra y deja: pasá objetos entre las dos grillas"
-	_text(rect.position + Vector2(0, -8), hint, font_size - 3, Color(1, 1, 1, 0.6))
-	draw_rect(rect, Color(0, 0, 0, 0.35))
-	for x in grid.columns + 1:
-		draw_line(rect.position + Vector2(x * _cs, 0), rect.position + Vector2(x * _cs, rect.size.y), LINE_COLOR)
-	for y in grid.rows + 1:
-		draw_line(rect.position + Vector2(0, y * _cs), rect.position + Vector2(rect.size.x, y * _cs), LINE_COLOR)
+		title = _box_title(box.display_name if box != null else "Caja")
+	var hint := "Clic agarra y deja · R gira · clic der.: menú, o una unidad" if ref == InvProtocol.OWN else BOX_HINT
+	_draw_frame(rect, title, hint, grid.columns, grid.rows)
 	for seq in _sent:
 		var sent: Dictionary = _sent[seq]
 		if sent.get("ref", -1) == ref and sent.has("rect") and sent["rect"].size != Vector2i.ZERO:
@@ -1403,6 +1498,37 @@ func _draw_grid(ref: int) -> void:
 	for uid in grid.sorted_uids():
 		if _shown(ref, uid):
 			_draw_item(ref, uid)
+
+
+## El fondo de una grilla: su panel, el título con las medidas, la ayuda y las
+## líneas de las celdas, sin los objetos.
+func _draw_frame(rect: Rect2, title: String, hint: String, columns: int, rows: int) -> void:
+	draw_rect(_frame_of(rect), PANEL_COLOR)
+	_text(rect.position + Vector2(0, -HEADER + 18), "%s · %d × %d" % [title, columns, rows], font_size + 2, Color.WHITE)
+	_text(rect.position + Vector2(0, -8), hint, font_size - 3, Color(1, 1, 1, 0.6))
+	draw_rect(rect, Color(0, 0, 0, 0.35))
+	for x in columns + 1:
+		draw_line(rect.position + Vector2(x * _cs, 0), rect.position + Vector2(x * _cs, rect.size.y), LINE_COLOR)
+	for y in rows + 1:
+		draw_line(rect.position + Vector2(0, y * _cs), rect.position + Vector2(rect.size.x, y * _cs), LINE_COLOR)
+
+
+func _box_title(shown_name: String) -> String:
+	return "%s (compartida)" % shown_name
+
+
+## El lugar de la caja pedida mientras el host contesta (desde el 2026-11-08):
+## el mismo panel, título y grilla vacía que va a tener, en el mismo lugar, así
+## al llegar solo aparecen sus objetos. Si tarda (BOX_WAIT_TEXT_MSEC), dice
+## "Abriendo…" en el medio.
+func _draw_reserved_box() -> void:
+	var rect := _reserved_grid_rect()
+	if not rect.has_area():
+		return
+	var box := _waiting_box()
+	_draw_frame(rect, _box_title(box.display_name), BOX_HINT, box.columns, box.rows)
+	if Time.get_ticks_msec() - int(_box_wait["msec"]) >= BOX_WAIT_TEXT_MSEC:
+		_text_center(rect.get_center() + Vector2(0, 6), "Abriendo…", font_size + 1, Color(1, 1, 1, 0.7))
 
 
 ## Un lugar que espera al host: el borde amarillo y, si hay, cuántos van.

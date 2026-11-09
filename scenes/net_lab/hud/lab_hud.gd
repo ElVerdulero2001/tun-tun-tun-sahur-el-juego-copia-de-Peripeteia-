@@ -408,27 +408,33 @@ func _draw_lights(layout: Dictionary) -> void:
 		draw_circle(center, r * 0.86, Color(0.12, 0.13, 0.14))
 		draw_circle(center, r * 0.78, LENS_ON)
 		draw_circle(center + Vector2(-r * 0.25, -r * 0.3), r * 0.3, Color(0.85, 1.0, 0.85, 0.5))
-		_draw_icon(power["icon"], center, r * 0.5, Color(0.04, 0.25, 0.08))
+		draw_icon(self, power["icon"], center, r * 0.5, Color(0.04, 0.25, 0.08))
 		_draw_caption(center + Vector2(0, r + 13.0), power["name"], caption_px, Color.WHITE)
 
 
-func _draw_icon(icon: StringName, center: Vector2, s: float, color: Color) -> void:
+## El ícono de un estado (ActorPowers.LIST), de `s` de medio alto, dibujado en
+## `canvas` mientras se dibuja. Lo usan las luces y el selector de habilidades.
+static func draw_icon(canvas: CanvasItem, icon: StringName, center: Vector2, s: float, color: Color) -> void:
 	match icon:
 		&"bolt":
-			draw_colored_polygon(PackedVector2Array([
+			canvas.draw_colored_polygon(PackedVector2Array([
 				center + Vector2(0.15, -1.0) * s, center + Vector2(-0.55, 0.12) * s, center + Vector2(-0.05, 0.12) * s,
 				center + Vector2(-0.2, 1.0) * s, center + Vector2(0.55, -0.15) * s, center + Vector2(0.05, -0.15) * s,
 			]), color)
 		&"hourglass":
 			var w := s * 0.62
-			draw_line(center + Vector2(-w, -s), center + Vector2(w, -s), color, maxf(s * 0.16, 1.5))
-			draw_line(center + Vector2(-w, s), center + Vector2(w, s), color, maxf(s * 0.16, 1.5))
-			draw_colored_polygon(PackedVector2Array([center + Vector2(-w * 0.85, -s * 0.85), center + Vector2(w * 0.85, -s * 0.85),
+			canvas.draw_line(center + Vector2(-w, -s), center + Vector2(w, -s), color, maxf(s * 0.16, 1.5))
+			canvas.draw_line(center + Vector2(-w, s), center + Vector2(w, s), color, maxf(s * 0.16, 1.5))
+			canvas.draw_colored_polygon(PackedVector2Array([center + Vector2(-w * 0.85, -s * 0.85), center + Vector2(w * 0.85, -s * 0.85),
 					center]), color)
-			draw_colored_polygon(PackedVector2Array([center, center + Vector2(w * 0.85, s * 0.85),
+			canvas.draw_colored_polygon(PackedVector2Array([center, center + Vector2(w * 0.85, s * 0.85),
 					center + Vector2(-w * 0.85, s * 0.85)]), color)
 		_:
-			_draw_caption(center + Vector2(0, s * 0.4), String(icon).left(1).to_upper(), s * 1.4, color)
+			var font := ThemeDB.fallback_font
+			var px := maxi(roundi(s * 1.4), 6)
+			var letter := String(icon).left(1).to_upper()
+			var width := font.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
+			canvas.draw_string(font, center + Vector2(-width / 2.0, s * 0.4 + px * 0.35), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, px, color)
 
 
 # --- Integridad corporal ------------------------------------------------------------

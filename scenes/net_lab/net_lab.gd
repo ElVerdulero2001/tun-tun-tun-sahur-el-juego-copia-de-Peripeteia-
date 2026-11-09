@@ -12,8 +12,9 @@ extends Node3D
 ## Paso 6: el cliente predice su propio actor y mantiene el adelanto sobre el host.
 ## Paso 7: con cada input viaja lo que el cliente predijo (la afirmación) y el
 ## host la adopta si es creíble. En el host, Y empuja a los demás jugadores (un
-## evento del host, que sube su época) y Q prende o apaga la adopción. (Hasta
-## el 2026-10-31 eran E y R; E pasó a interactuar, para el inventario.)
+## evento del host, que sube su época) y F2 prende o apaga la adopción. (Hasta
+## el 2026-10-31 eran E y R; E pasó a interactuar, para el inventario. Hasta el
+## 2026-11-08 la adopción era la Q, que pasó al selector de habilidades.)
 ## Paso 8: los demás jugadores se ven interpolados unos 100 ms en el pasado,
 ## las correcciones del propio se suavizan y el host manda 30 snapshots por
 ## segundo. Quien cae del mapa reaparece en su lugar.
@@ -467,6 +468,7 @@ var _remote_last_positions := {}  # peer -> Vector3
 @onready var _inventory: InvNet = $Inventario
 @onready var _inventory_ui: InvUI = $Hud/InventarioUI
 @onready var _hud: LabHud = $Hud/Instrumentos
+@onready var _wheel: AbilityWheel = $Hud/SelectorDeHabilidades
 ## Si el panel estaba a la vista al abrir el inventario: al cerrarlo vuelve así.
 var _info_before_inventory := true
 
@@ -513,6 +515,9 @@ func _ready() -> void:
 	_inventory_ui.closed.connect(func() -> void: _info.visible = _info_before_inventory)
 	# El panel de integridad del HUD, para soltar un botiquín sobre una parte.
 	_inventory_ui.body_panel = _hud
+	# El selector de la Q (desde el 2026-11-08) prende o apaga lo que se elige
+	# con el mismo contador que el teclado numérico.
+	_wheel.chosen.connect(_press_power)
 	# El indicador de lo que marcaría E (desde el 2026-11-06): esquinas y nombre
 	# junto al objetivo. Va en el HUD debajo de los instrumentos y del
 	# inventario, que lo tapan; se arma acá para no tocar la escena.
@@ -589,10 +594,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif _started and role == Role.LOCAL and _clock.paused and event.is_action_pressed("avanzar_tick"):
 		_clock.step()
 	# Los poderes van en el teclado numérico, con acciones del Mapa de entrada.
+	# También se eligen con el selector de la Q (AbilityWheel, _press_power).
 	elif _started and event.is_action_pressed("camara_lenta_mundo"):
-		ability_presses = (ability_presses + 1) & 0xFF
+		_press_power(ActorPowers.SLOW)
 	elif _started and event.is_action_pressed("super_salto_velocidad"):
-		power_presses = (power_presses + 1) & 0xFF
+		_press_power(ActorPowers.BOOST)
 	elif _started and event is InputEventKey and event.pressed and not event.echo:
 		var index: int = [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5].find(event.keycode)
 		if event.keycode == KEY_F1:
@@ -605,9 +611,21 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif role == Role.HOST and (event.keycode == KEY_Y or event.keycode == KEY_U):
 			var force := PUSH_FORCE_WEAK if event.shift_pressed else PUSH_FORCE_STRONG
 			_push_requests.append([event.keycode == KEY_U, force])
-		elif role == Role.HOST and event.keycode == KEY_Q:
+		elif role == Role.HOST and event.keycode == KEY_F2:
+			# Hasta el 2026-11-08 era la Q, que pasó al selector de habilidades.
 			_adoption.enabled = not _adoption.enabled
 			print("[net_lab] adopción %s" % ("prendida" if _adoption.enabled else "apagada"))
+
+
+## Prende o apaga una habilidad propia (un bit de ActorPowers): suma una
+## pulsación a su contador, que viaja en el input como siempre. La usan el 1 y
+## el 2 del teclado numérico y el selector de la Q.
+func _press_power(bit: int) -> void:
+	match bit:
+		ActorPowers.SLOW:
+			ability_presses = (ability_presses + 1) & 0xFF
+		ActorPowers.BOOST:
+			power_presses = (power_presses + 1) & 0xFF
 
 
 ## Captura de pantalla (F12, acción `captura`): guarda en el Escritorio lo que
@@ -647,6 +665,10 @@ func _process(_delta: float) -> void:
 	max_actors_seen = maxi(max_actors_seen, _clock.sorted_actors().size())
 	if _started:
 		_update_hud()
+		# Con el selector de la Q abierto, el panel de texto no se ve: se mezcla
+		# con el círculo. Va con la transparencia y no con visible, que es de F1
+		# y del inventario.
+		_info.modulate.a = 0.0 if _wheel.is_open else 1.0
 
 
 func _start(new_role: Role) -> void:
@@ -2306,6 +2328,7 @@ func _on_local_actor_spawned(actor: ActorBody) -> void:
 	_camera.target = actor.visual_root()
 	_inventory_ui.activate(actor)
 	_hud.activate(actor)
+	_wheel.activate(actor)
 	if role == Role.CLIENT:
 		# El contador de saltos arranca donde lo dejó el host: si se apretó
 		# Espacio mientras estaba cortado, al volver no salta solo.
@@ -2337,6 +2360,7 @@ func _on_connection_lost() -> void:
 	_inventory.connection_lost()
 	_inventory_ui.connection_lost()
 	_hud.connection_lost()
+	_wheel.connection_lost()
 	_flash("Se cortó la conexión con el host: reconectando…")
 
 
@@ -2621,8 +2645,9 @@ func _update_hud() -> void:
 	lines.append("Compañero colgado de un borde, una escalera o un cable: tocándolo te colgás de él · Espacio y Ctrl, igual que colgado")
 	lines.append("Colgado de un compañero: W/S suben y bajan, A/D giran alrededor (en borde y escalera, solo por su espalda)")
 	lines.append("1 del teclado numérico: pedís o soltás la cámara lenta del mundo (va lenta mientras alguno la pida) · 2 del teclado numérico: tu súper salto y velocidad · los dos gastan tu estamina")
+	lines.append("Mantené Q: selector de habilidades · mové el mouse a la izquierda (velocidad y salto) o a la derecha (cámara lenta) y soltá Q para prenderla o apagarla · en el centro no cambia nada")
 	if role == Role.HOST:
-		lines.append("Y empuja a los demás ya · U los empuja programado · con Shift, empujón débil · Q prende o apaga la adopción")
+		lines.append("Y empuja a los demás ya · U los empuja programado · con Shift, empujón débil · F2 prende o apaga la adopción")
 	if role == Role.LOCAL:
 		lines.append("G pausa y congela · F avanza un tick en pausa")
 	lines.append("Tab abre el inventario · E recoge un objeto o abre una caja · 1 a 9 y 0: barra rápida (usa o equipa)")

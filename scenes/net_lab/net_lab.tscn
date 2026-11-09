@@ -14,6 +14,7 @@
 [ext_resource type="Script" uid="uid://dlqciyblcsq5r" path="res://scripts/inventory/inv_ui.gd" id="12_inventory_ui"]
 [ext_resource type="Script" uid="uid://cwjs2nh2w03gt" path="res://scenes/net_lab/hud/lab_hud.gd" id="13_hud"]
 [ext_resource type="AudioStream" uid="uid://d3pucel8dllln" path="res://scenes/net_lab/hud/estados_apagados.wav" id="14_sound"]
+[ext_resource type="Script" uid="uid://ow6ujc640o60" path="res://scenes/net_lab/hud/ability_wheel.gd" id="15_wheel"]
 
 [sub_resource type="Curve3D" id="Curve3D_guide"]
 _data = {
@@ -183,3 +184,14 @@ mouse_filter = 2
 script = ExtResource("12_inventory_ui")
 net = NodePath("../../Inventario")
 camera = NodePath("../../CameraRig")
+
+[node name="SelectorDeHabilidades" type="Control" parent="Hud" unique_id=1744000105 node_paths=PackedStringArray("inventory_ui")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("15_wheel")
+inventory_ui = NodePath("../InventarioUI")

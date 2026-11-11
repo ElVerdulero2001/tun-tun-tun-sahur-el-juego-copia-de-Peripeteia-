@@ -28,6 +28,7 @@ var role := ""
 var lab: Node3D
 var wheel: AbilityWheel
 var ui: InvUI
+var hud: LabHud
 var _checks := 0
 var _failures := 0
 var _finishing := false
@@ -51,6 +52,7 @@ func _ready() -> void:
 	add_child(lab)
 	wheel = lab.get_node("Hud/SelectorDeHabilidades")
 	ui = lab.get_node("Hud/InventarioUI")
+	hud = lab.get_node("Hud/Instrumentos")
 	match role:
 		"local":
 			_local()
@@ -223,6 +225,7 @@ func _route() -> void:
 	await _ticks(6)
 	_check(_powers() == ActorPowers.BOOST and lab.power_presses == (power + 1) & 0xFF and lab.ability_presses == ability,
 			"soltar Q a la izquierda prende velocidad y salto, con el contador del 2 del numérico")
+	await _lights_stay()
 
 	await _select_expect([far_right, far_right], 1, ActorPowers.BOOST | ActorPowers.SLOW,
 			"derecha, mucho más allá del círculo")
@@ -312,6 +315,30 @@ func _route() -> void:
 	reached = _unhandled_motion
 	_move(Vector2(30, 0))
 	_check(_unhandled_motion == reached + 1, "con el selector cerrado, el mouse vuelve a llegar a la cámara")
+
+
+## Las luces de los estados (desde el 2026-11-09, pedido del usuario): arriba a
+## la izquierda, el panel de texto debajo, y en el mismo lugar con el selector y
+## con el inventario abiertos. Desde el 2026-11-10, debajo del inventario: la
+## grilla las tapa.
+func _lights_stay() -> void:
+	await get_tree().process_frame
+	var lights := hud.lights_rect()
+	_check(lights.has_area() and lights.position.x < 40.0 and lights.position.y < 40.0,
+			"la luz del súper, arriba a la izquierda: %s" % lights)
+	_check(lab._info.position.y >= lights.end.y, "el panel de texto empieza debajo de las luces (%.0f)" % lab._info.position.y)
+	_key(KEY_Q, true)
+	await get_tree().process_frame
+	_check(wheel.is_open and hud.lights_rect() == lights, "con el selector abierto, no se mueven")
+	_key(KEY_Q, false)
+	_tap(KEY_TAB)
+	await get_tree().process_frame
+	_check(ui.is_open and hud.lights_rect() == lights, "con el inventario abierto, tampoco")
+	_check(hud.get_parent() == ui.get_parent() and hud.get_index() < ui.get_index() and hud.z_index == ui.z_index
+			and hud.get_child_count() == 1, "se dibujan debajo del inventario: la grilla las tapa (sin capa propia)")
+	_tap(KEY_TAB)
+	await _ticks(6)
+	_check(not ui.is_open and _powers() == ActorPowers.BOOST, "Tab lo cierra y Q en el centro no cambió nada")
 
 
 ## A la izquierda y, sin soltar Q, mucho a la derecha: marca la derecha (el

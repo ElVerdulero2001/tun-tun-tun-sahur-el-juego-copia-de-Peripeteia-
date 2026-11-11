@@ -12,10 +12,12 @@ extends Control
 ## el teclado.
 ##
 ## - Salud: la aguja marca la proporción de la salud en la escala de 0 a 10,
-##   también entre dos números. La luz naranja de abajo (desde el 2026-11-05)
-##   se prende mientras alguna de las seis partes del cuerpo tenga menos del
-##   100 % de integridad, y se apaga con las seis completas. La salud y la
-##   integridad se leen por separado: la aguja no cuenta el cuerpo.
+##   también entre dos números. La luz naranja de abajo avisa de lesiones:
+##   desde el 2026-11-09, como en el concepto del usuario, parpadea mientras
+##   alguna de las seis partes del cuerpo muestre 60 % o menos en el panel, y
+##   se apaga del todo con todas arriba de eso (hasta ese día se prendía fija
+##   con cualquier parte por debajo del 100 %). La salud y la integridad se
+##   leen por separado: la aguja no cuenta el cuerpo.
 ## - Integridad corporal (desde el 2026-11-05): con el inventario abierto (Tab)
 ##   y sin una caja abierta, una silueta a la derecha de la grilla propia, en
 ##   el lugar de la caja, con el porcentaje de cada parte, verde completa y
@@ -33,7 +35,11 @@ extends Control
 ## - Termómetro: marca 100 fijo. No mide la luz: es el lugar del futuro sensor.
 ## - Luces: una por estado propio prendido (ActorPowers.LIST), las que sean.
 ##   Sin ninguno, no aparece nada. La cámara lenta que pidió otro jugador no
-##   prende la luz propia.
+##   prende la luz propia. Desde el 2026-11-09 (pedido del usuario, como su
+##   concepto) van arriba a la izquierda, en fila, y no se mueven al abrir el
+##   inventario ni el selector. Se dibujan con los instrumentos, debajo del
+##   inventario: abierto, la grilla propia (que empieza en esa esquina) las
+##   tapa (2026-11-10, pedido del usuario al verlas encima del título).
 ## - Muerte de prueba: un aviso en el medio de la pantalla, sin pausar ni
 ##   bloquear nada, cuando sube ActorState.deaths.
 ## - Agotamiento: un sonido leve, una vez, cuando sube ActorState.exhaustions.
@@ -60,6 +66,14 @@ extends Control
 ## no cambia, y con la reserva en cero la aguja termina en cero.
 @export_range(2.0, 60.0, 0.5) var needle_follow := 14.0
 
+@export_group("Luz naranja")
+## Parpadea mientras alguna parte del cuerpo muestre este porcentaje o menos en
+## el panel (el número entero, como se lee: 60,5 % dice 60 % y cuenta). Con
+## todas arriba, se apaga del todo.
+@export_range(0, 100, 1) var injury_light_percent := 60
+## Cuánto dura prendida y cuánto apagada en cada parpadeo, en segundos reales.
+@export_range(0.1, 2.0, 0.05) var injury_blink_seconds := 0.5
+
 @export_group("Aviso de muerte")
 ## Cuánto dura el aviso, en segundos reales.
 @export_range(0.5, 10.0, 0.1) var death_notice_seconds := 2.5
@@ -84,6 +98,9 @@ var _deaths_seen := 0
 var _exhaustions_seen := 0
 var _death_until_msec := 0
 var _sound: AudioStreamPlayer
+## Desde cuándo avisa la luz naranja (Time.get_ticks_msec), o -1: el parpadeo
+## arranca prendido.
+var _warning_since_msec := -1
 
 
 func _ready() -> void:
@@ -140,12 +157,26 @@ func integrity() -> PackedInt32Array:
 	return _actor.state.integrity
 
 
-## Si la luz naranja está prendida: alguna parte por debajo del 100 %.
-func injury_light() -> bool:
+## Si la luz naranja avisa (parpadea): alguna parte muestra en el panel
+## injury_light_percent o menos (desde el 2026-11-09; antes, cualquier parte
+## por debajo del 100 %).
+func injury_warning() -> bool:
 	for value in integrity():
-		if value < ActorState.INTEGRITY_FULL:
+		@warning_ignore("integer_division")
+		if value / ActorState.INTEGRITY_UNIT <= injury_light_percent:
 			return true
 	return false
+
+
+## Si la luz naranja está encendida en este momento: avisando y en la mitad
+## prendida del parpadeo, que arranca prendida al empezar el aviso.
+func injury_lamp_lit() -> bool:
+	if not injury_warning():
+		return false
+	var since := _warning_since_msec if _warning_since_msec >= 0 else Time.get_ticks_msec()
+	var half := maxi(roundi(injury_blink_seconds * 1000.0), 1)
+	@warning_ignore("integer_division")
+	return ((Time.get_ticks_msec() - since) / half) % 2 == 0
 
 
 ## Dónde se dibuja el panel de integridad ahora, o un rectángulo vacío si no se
@@ -191,6 +222,10 @@ func _process(delta: float) -> void:
 	var real := delta / maxf(Engine.time_scale, 0.01)
 	_health_shown = _follow(_health_shown, _health_target(), 10.0, real)
 	_stamina_shown = _follow(_stamina_shown, _stamina_target(), 200.0, real)
+	if not injury_warning():
+		_warning_since_msec = -1
+	elif _warning_since_msec < 0:
+		_warning_since_msec = Time.get_ticks_msec()
 	queue_redraw()
 
 
@@ -221,7 +256,7 @@ func _draw() -> void:
 		return
 	var layout := _layout()
 	_draw_instruments(layout)
-	_draw_lights(layout)
+	_draw_lights()
 	var panel := integrity_panel_rect()
 	if panel.has_area():
 		integrity_draws += 1
@@ -245,7 +280,7 @@ func _layout() -> Dictionary:
 	var d := minf(height - pad * 2.0, (width - pad * 2.0) / 2.4)
 	d = clampf(d * size_scale, 80.0, minf(height - pad * 2.0, 240.0))
 	var plate := Rect2(margin, size.y - margin - d - pad * 2.0, d * 2.4 + pad * 2.0, d + pad * 2.0)
-	return {"d": d, "plate": plate, "pad": pad, "panels_right": limits.get("panels_right", 0.0)}
+	return {"d": d, "plate": plate, "pad": pad}
 
 
 func _draw_instruments(layout: Dictionary) -> void:
@@ -286,11 +321,11 @@ func _draw_health(center: Vector2, r: float) -> void:
 	else:
 		_draw_scale(center, face, 10.0, 0.2, 0, 5, INK_DARK, 0.2)
 	_draw_caption(center + Vector2(0, face * 0.25), "SALUD", face * 0.12, Color(INK_DARK, 0.7))
-	# La luz naranja va integrada abajo, donde el concepto tenía el RPM: se
-	# prende con alguna parte del cuerpo lastimada.
+	# La luz naranja va integrada abajo, donde el concepto tenía el RPM:
+	# parpadea con alguna parte del cuerpo muy lastimada.
 	var lamp := center + Vector2(0, face * 0.58)
 	var lamp_r := face * 0.17
-	var lit := injury_light()
+	var lit := injury_lamp_lit()
 	if lit:
 		for k in 3:
 			draw_circle(lamp, lamp_r * (1.9 - k * 0.2), Color(LAMP_ON, 0.08 + k * 0.04))
@@ -375,33 +410,47 @@ func _draw_thermometer(rect: Rect2) -> void:
 	_draw_caption(Vector2(rect.position.x + w * 0.5, rect.position.y + rect.size.y * 0.06), "°C", font_px, Color(INK_DARK, 0.8))
 
 
-## Las luces de arriba: una por estado propio prendido. Arriba al medio; con
-## el inventario abierto, arriba a la derecha, lejos de sus grillas (el título
-## de una caja puede salirse de su panel).
-func _draw_lights(layout: Dictionary) -> void:
+## Dónde empieza la fila de luces: su esquina de arriba a la izquierda.
+const LIGHTS_CORNER := Vector2(16.0, 14.0)
+
+
+## Dónde va cada luz de los estados prendidos: arriba a la izquierda, en fila,
+## en el orden de ActorPowers.LIST, siempre en el mismo lugar (con o sin el
+## inventario o el selector abiertos). {"items": [[estado, centro, ancho]],
+## "lamp": diámetro, "caption_px": alto del nombre, "rect": lo que ocupan}.
+func _lights_layout() -> Dictionary:
 	var lit := lit_powers()
-	if lit.is_empty():
-		return
 	var lamp := clampf(size.y * 0.055, 32.0, 56.0)
 	var caption_px := roundi(clampf(lamp * 0.3, 11.0, 15.0))
 	var font := get_theme_default_font()
-	# Cada luz ocupa lo que mide ella o su nombre, lo que sea más ancho.
-	var slots: Array[float] = []
-	var width := 0.0
+	var items := []
+	var rect := Rect2()
+	var x := LIGHTS_CORNER.x
 	for power: Dictionary in lit:
+		# Cada luz ocupa lo que mide ella o su nombre, lo que sea más ancho.
 		var slot := maxf(lamp, font.get_string_size(power["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, caption_px).x + 8.0)
-		slots.append(slot)
-		width += slot
-	width += (lit.size() - 1) * lamp * 0.35
-	var x := (size.x - width) / 2.0
-	if layout["panels_right"] > 0.0:
-		x = size.x - 16.0 - width
-	var y := 12.0
-	for i in lit.size():
-		var power: Dictionary = lit[i]
-		var center := Vector2(x + slots[i] / 2.0, y + lamp / 2.0)
-		x += slots[i] + lamp * 0.35
-		var r := lamp / 2.0
+		items.append([power, Vector2(x + slot / 2.0, LIGHTS_CORNER.y + lamp / 2.0), slot])
+		var used := Rect2(Vector2(x, LIGHTS_CORNER.y), Vector2(slot, lamp + 13.0 + caption_px))
+		rect = used if items.size() == 1 else rect.merge(used)
+		x += slot + lamp * 0.35
+	return {"items": items, "lamp": lamp, "caption_px": caption_px, "rect": rect}
+
+
+## Lo que ocupan en la pantalla las luces prendidas (con sus nombres), o un
+## rectángulo vacío sin ninguna. El laboratorio baja su panel de texto para no
+## taparlas; las pruebas miran que no se muevan.
+func lights_rect() -> Rect2:
+	return _lights_layout()["rect"] if _active() else Rect2()
+
+
+## Las luces de arriba: una por estado propio prendido. Van con los
+## instrumentos, antes que el inventario en el Hud: abierto, lo tapa la grilla.
+func _draw_lights() -> void:
+	var layout := _lights_layout()
+	var r: float = layout["lamp"] / 2.0
+	for item: Array in layout["items"]:
+		var power: Dictionary = item[0]
+		var center: Vector2 = item[1]
 		for k in 4:
 			draw_circle(center, r * (1.55 - k * 0.12), Color(LENS_ON, 0.06 + k * 0.03))
 		draw_circle(center, r, Color(0.55, 0.57, 0.6))
@@ -409,7 +458,7 @@ func _draw_lights(layout: Dictionary) -> void:
 		draw_circle(center, r * 0.78, LENS_ON)
 		draw_circle(center + Vector2(-r * 0.25, -r * 0.3), r * 0.3, Color(0.85, 1.0, 0.85, 0.5))
 		draw_icon(self, power["icon"], center, r * 0.5, Color(0.04, 0.25, 0.08))
-		_draw_caption(center + Vector2(0, r + 13.0), power["name"], caption_px, Color.WHITE)
+		_draw_caption(center + Vector2(0, r + 13.0), power["name"], layout["caption_px"], Color.WHITE)
 
 
 ## El ícono de un estado (ActorPowers.LIST), de `s` de medio alto, dibujado en

@@ -471,6 +471,8 @@ var _remote_last_positions := {}  # peer -> Vector3
 @onready var _wheel: AbilityWheel = $Hud/SelectorDeHabilidades
 ## Si el panel estaba a la vista al abrir el inventario: al cerrarlo vuelve así.
 var _info_before_inventory := true
+## Dónde empieza el panel de texto sin luces de estados arriba (el de la escena).
+var _info_top := 12.0
 
 
 func _enter_tree() -> void:
@@ -518,6 +520,7 @@ func _ready() -> void:
 	# El selector de la Q (desde el 2026-11-08) prende o apaga lo que se elige
 	# con el mismo contador que el teclado numérico.
 	_wheel.chosen.connect(_press_power)
+	_info_top = _info.position.y
 	# El indicador de lo que marcaría E (desde el 2026-11-06): esquinas y nombre
 	# junto al objetivo. Va en el HUD debajo de los instrumentos y del
 	# inventario, que lo tapan; se arma acá para no tocar la escena.
@@ -669,6 +672,10 @@ func _process(_delta: float) -> void:
 		# con el círculo. Va con la transparencia y no con visible, que es de F1
 		# y del inventario.
 		_info.modulate.a = 0.0 if _wheel.is_open else 1.0
+		# Las luces de los estados van arriba a la izquierda (desde el
+		# 2026-11-09): con alguna prendida, el panel empieza debajo de ellas.
+		var lights := _hud.lights_rect()
+		_info.position.y = lights.end.y + 6.0 if lights.has_area() else _info_top
 
 
 func _start(new_role: Role) -> void:
@@ -2570,7 +2577,7 @@ func _update_hud() -> void:
 					pct.call(ActorState.Part.ARM_LEFT), pct.call(ActorState.Part.ARM_RIGHT),
 					pct.call(ActorState.Part.LEG_LEFT), pct.call(ActorState.Part.LEG_RIGHT),
 					"   ·   confirmada por el host" if role == Role.CLIENT else "",
-					"prendida" if _hud.injury_light() else "apagada"])
+					"parpadeando" if _hud.injury_warning() else "apagada"])
 		if not _local_actor.last_landing.is_empty():
 			var landing: Array = _local_actor.last_landing
 			lines.append("Último aterrizaje: %.2f m/s contra el piso (segura hasta %.1f, letal desde %.1f)   ·   %s" % [
@@ -2775,7 +2782,7 @@ func _print_summary_and_quit() -> void:
 				actor.owner_peer_id, actor.state.integrity, actor.collapses_started, actor.last_landing])
 	print("[net_lab] HUD: %d avisos de muerte, %d sonidos de agotamiento, luces prendidas al final: %s, luz naranja %s, integridad que muestra %s" % [
 			_hud.deaths_shown, _hud.exhaustion_sounds, _hud.lit_powers().map(func(power: Dictionary) -> String: return power["name"]),
-			"prendida" if _hud.injury_light() else "apagada", _hud.integrity()])
+			"parpadeando" if _hud.injury_warning() else "apagada", _hud.integrity()])
 	if not test_drops.is_empty():
 		print("[net_lab] caídas de prueba: %d hechas" % drops_done)
 	if hooked_gap_max > 0.0 or test_input.begins_with("hookwall") or test_input.begins_with("ladderhold"):

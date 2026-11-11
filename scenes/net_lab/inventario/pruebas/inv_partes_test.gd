@@ -188,7 +188,7 @@ func _host() -> void:
 func _client() -> void:
 	_check(await _until(func() -> bool: return net.replica.has_state and _actor() != null and net.replica.own != null, 20.0),
 			"recibe el estado inicial del host")
-	_check(await _until(_legs_hurt, 20.0) and hud.injury_light(),
+	_check(await _until(_legs_hurt, 20.0) and hud.injury_warning(),
 			"el host le lastimó las piernas: el panel lo muestra y la luz se prende")
 	for def_id in [&"botiquin", &"vendas", &"veneno"]:
 		await _pick_up(def_id)
@@ -268,7 +268,7 @@ func _heal_with_gesture() -> void:
 	var left_msec := Time.get_ticks_msec() - sent
 	_check(shown and left_msec < 120, "el panel muestra la pierna izquierda al 100 %% a los %d ms del clic, sin esperar al host" % left_msec)
 	_log("curar la pierna izquierda: el panel la mostró a los %d ms" % left_msec)
-	_check(hud.integrity()[ActorState.Part.LEG_RIGHT] == HURT and hud.injury_light() and actor.state.health == health,
+	_check(hud.integrity()[ActorState.Part.LEG_RIGHT] == HURT and hud.injury_warning() and actor.state.health == health,
 			"la derecha sigue lastimada, la luz prendida y la salud igual")
 	# Las vendas (25 en esta prueba) sobre la derecha, enseguida: la suben un poco.
 	sent = Time.get_ticks_msec()
@@ -276,8 +276,8 @@ func _heal_with_gesture() -> void:
 	_click(_part_center(ActorState.Part.LEG_RIGHT))
 	shown = await _until(func() -> bool: return hud.integrity()[ActorState.Part.LEG_RIGHT] == HURT + 2500, 3.0)
 	var right_msec := Time.get_ticks_msec() - sent
-	_check(shown and right_msec < 120 and hud.injury_light(),
-			"las vendas sobre la derecha: de 60,5 %% a 85,5 %% a los %d ms, y la luz sigue prendida" % right_msec)
+	_check(shown and right_msec < 120 and not hud.injury_warning(),
+			"las vendas sobre la derecha: de 60,5 %% a 85,5 %% a los %d ms, y la luz naranja se apaga (todo arriba del 60 %%)" % right_msec)
 	# El veneno no cura partes: sigue en la mano.
 	_click(ui._item_rect(InvProtocol.OWN, poison).get_center())
 	_click(_part_center(ActorState.Part.LEG_RIGHT))
@@ -290,7 +290,7 @@ func _heal_with_gesture() -> void:
 	_click(ui._item_rect(InvProtocol.OWN, kit).get_center())
 	_check(ui.held_def() != null and ui.held_def().id == &"botiquin", "el botiquín se vuelve a agarrar enseguida")
 	_click(_part_center(ActorState.Part.LEG_RIGHT))
-	shown = await _until(func() -> bool: return hud.integrity().count(FULL) == ActorState.PARTS and not hud.injury_light(), 3.0)
+	shown = await _until(func() -> bool: return hud.integrity().count(FULL) == ActorState.PARTS and not hud.injury_warning(), 3.0)
 	var last_msec := Time.get_ticks_msec() - sent
 	_check(shown and last_msec < 120, "la última parte: todo al 100 %% y la luz apagada a los %d ms" % last_msec)
 	# El host confirma los tres: cada uno viajó en varios inputs y se hizo una vez.

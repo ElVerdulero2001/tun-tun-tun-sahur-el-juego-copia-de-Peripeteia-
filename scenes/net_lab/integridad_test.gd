@@ -63,6 +63,7 @@ func _ready() -> void:
 			break
 	actor = lab._local_actor
 	await _state_and_start()
+	await _injury_light_rule()
 	await _jumps_are_safe()
 	var harm := await _three_boards()
 	await _consumables(harm)
@@ -204,7 +205,7 @@ func _state_and_start() -> void:
 	var state := actor.state
 	_check(state.integrity.size() == ActorState.PARTS and state.integrity.count(FULL) == ActorState.PARTS,
 			"empieza con las seis partes al 100 %%: %s" % [state.integrity])
-	_check(not hud.injury_light() and not state.injured(), "la luz naranja empieza apagada")
+	_check(not hud.injury_warning() and not state.injured(), "la luz naranja empieza apagada")
 	_check(hud.integrity_texts() == PackedStringArray(["100 %", "100 %", "100 %", "100 %", "100 %", "100 %"]),
 			"el panel diría 100 %% en todo: %s" % [hud.integrity_texts()])
 	_check(not hud.integrity_panel_rect().has_area(), "con el inventario cerrado no hay panel")
@@ -225,6 +226,35 @@ func _state_and_start() -> void:
 
 
 # --- 2. Saltos normales y con el súper: sin daño --------------------------------------
+
+## La luz naranja desde el 2026-11-09 (como el concepto del usuario): parpadea
+## con alguna parte que el panel muestre en injury_light_percent (60) o menos, y
+## con todas arriba se apaga del todo. Cuenta el número que se lee: 60,99 %
+## dice 60 % y avisa.
+func _injury_light_rule() -> void:
+	var arm := ActorState.Part.ARM_LEFT
+	var limit := hud.injury_light_percent
+	for case: Array in [[(limit + 1) * 100, false], [(limit + 1) * 100 - 1, true], [limit * 100, true],
+			[ActorState.INTEGRITY_FULL - 1, false], [1, true]]:
+		actor.state.integrity[arm] = case[0]
+		await _ticks(2)
+		_check(hud.injury_warning() == case[1], "un brazo en %s: la luz %s" % [hud.integrity_texts()[arm],
+				"parpadea" if case[1] else "apagada"])
+	actor.state.integrity[arm] = 3000
+	await _frames(2)
+	var samples := []
+	var start := Time.get_ticks_msec()
+	var span := roundi(hud.injury_blink_seconds * 1000.0 * 2.3)
+	while Time.get_ticks_msec() - start < span:
+		samples.append(hud.injury_lamp_lit())
+		await get_tree().process_frame
+	_check(samples.size() > 4 and samples[0] and samples.has(false) and samples.back(),
+			"parpadea: arranca prendida, se apaga y se vuelve a prender (%d muestras en %d ms)" % [samples.size(), span])
+	actor.state.integrity[arm] = FULL
+	await _ticks(2)
+	_check(not hud.injury_warning() and not hud.injury_lamp_lit() and actor.state.integrity.count(FULL) == ActorState.PARTS,
+			"con todo entero, apagada del todo")
+
 
 func _jumps_are_safe() -> void:
 	await _stand(OPEN_FLOOR, 0.0)
@@ -260,7 +290,7 @@ func _jumps_are_safe() -> void:
 	_check(landed and boosted > 6.5 and boosted < tuning.fall_safe_speed - 2.0,
 			"un salto con el súper cae a %.2f m/s: margen de %.1f m/s hasta la segura (%.1f)" % [boosted,
 			tuning.fall_safe_speed - boosted, tuning.fall_safe_speed])
-	_check(actor.state.health == 100 * H and actor.state.integrity.count(FULL) == ActorState.PARTS and not hud.injury_light(),
+	_check(actor.state.health == 100 * H and actor.state.integrity.count(FULL) == ActorState.PARTS and not hud.injury_warning(),
 			"el súper no lastima: salud %.1f, integridad completa, luz apagada" % _health())
 	lab.power_presses = (lab.power_presses + 1) & 0xFF
 	await _ticks(3)
@@ -278,7 +308,7 @@ func _three_boards() -> Array:
 	var safe: float = actor.last_landing[0]
 	_check(ok and BaseRegistry.world_position(actor.state).y < 0.05, "de la tabla verde al piso")
 	_check(safe > 8.0 and safe < tuning.fall_safe_speed and actor.state.health == 100 * H and _legs() == [FULL, FULL]
-			and not hud.injury_light(), "caída segura: %.2f m/s, salud %.1f, piernas %s, luz apagada" % [safe, _health(), _legs()])
+			and not hud.injury_warning(), "caída segura: %.2f m/s, salud %.1f, piernas %s, luz apagada" % [safe, _health(), _legs()])
 	# Lastima: desde la terraza 3 (7 m), hacia -Z.
 	ok = await _walk_off(Vector3(-4.25, 7.0, -4.2), 0.0)
 	var hurt: float = actor.last_landing[0]
@@ -289,7 +319,7 @@ func _three_boards() -> Array:
 			"quita %d de salud (queda %.1f), sin morir" % [expected[0], _health()])
 	_check(_legs() == [FULL - expected[1], FULL - expected[1]] and _others_full(),
 			"las dos piernas pierden lo mismo (%s) y lo demás sigue al 100 %%" % [_legs()])
-	_check(hud.injury_light(), "la luz naranja se prende")
+	_check(hud.injury_warning(), "la luz naranja parpadea: las piernas dicen 60 % o menos")
 	var texts := hud.integrity_texts()
 	@warning_ignore("integer_division")
 	var leg_text := "%d %%" % ((FULL - expected[1]) / ActorState.INTEGRITY_UNIT)
@@ -316,7 +346,7 @@ func _three_boards() -> Array:
 	var lethal: float = actor.last_landing[0]
 	_check(fell and lethal >= tuning.fall_lethal_speed and actor.last_landing[2], "caída letal: %.2f m/s" % lethal)
 	_check(actor.state.deaths == (deaths + 1) & 0xFF and actor.state.health == 100 * H, "una muerte de prueba y la salud al máximo")
-	_check(actor.state.integrity.count(FULL) == ActorState.PARTS and not hud.injury_light(),
+	_check(actor.state.integrity.count(FULL) == ActorState.PARTS and not hud.injury_warning(),
 			"la muerte devuelve las seis partes y apaga la luz")
 	await _frames(3)
 	_check(actor.collapses_started == collapses + 1 and actor.is_collapsing(), "empieza un desplome")
@@ -395,11 +425,11 @@ func _consumables(harm: Array) -> void:
 	for i in LEGS.size():
 		actor.state.integrity[LEGS[i]] = harm[1][i]
 	await _ticks(2)
-	_check(hud.injury_light(), "lastimado: la luz prendida")
+	_check(hud.injury_warning(), "lastimado: la luz prendida")
 	var before := actor.state.health
 	_check(kit != 0 and ui.use_item(kit), "usa un botiquín")
 	await _ticks(4)
-	_check(actor.state.health == mini(before + 50 * H, 100 * H) and _legs() == harm[1] and hud.injury_light(),
+	_check(actor.state.health == mini(before + 50 * H, 100 * H) and _legs() == harm[1] and hud.injury_warning(),
 			"el botiquín cura la salud (%.1f) y las piernas siguen igual (%s): la luz sigue prendida" % [_health(), _legs()])
 	var deaths := actor.state.deaths
 	var collapses := actor.collapses_started
@@ -408,7 +438,7 @@ func _consumables(harm: Array) -> void:
 	await _ticks(4)
 	await _frames(3)
 	_check(actor.state.deaths == (deaths + 1) & 0xFF and actor.state.health == 100 * H
-			and actor.state.integrity.count(FULL) == ActorState.PARTS and not hud.injury_light(),
+			and actor.state.integrity.count(FULL) == ActorState.PARTS and not hud.injury_warning(),
 			"la cápsula: muerte de prueba, salud y cuerpo enteros, luz apagada")
 	_check(actor.collapses_started == collapses + 1 and hud.deaths_shown == shown + 1, "el mismo desplome y el mismo aviso, una vez")
 	await _real_wait(2.0)
@@ -467,7 +497,7 @@ func _heal_parts() -> void:
 	ui._layout()
 	var panel := hud.integrity_panel_rect()
 	var world_before := net.replica.world.size()
-	_check(panel.has_area() and hud.injury_light(), "el panel a la vista y la luz prendida")
+	_check(panel.has_area() and hud.injury_warning(), "el panel a la vista y la luz prendida")
 	# Agarrar el botiquín con un clic, como siempre.
 	_click(ui._item_rect(InvProtocol.OWN, kit).get_center())
 	_check(ui.held_def() != null and ui.held_def().id == &"botiquin", "un clic agarra el botiquín")
@@ -512,7 +542,7 @@ func _heal_parts() -> void:
 			"la pierna izquierda al 100 %%; la derecha, la salud y lo demás, igual: piernas %s, salud %.1f" % [_legs(), _health()])
 	_check(_quantity(&"botiquin") == 1, "gastó una sola unidad (queda %d)" % _quantity(&"botiquin"))
 	_check(actor.state.epoch == epoch, "no es un evento del host: la época no sube (%d → %d)" % [epoch, actor.state.epoch])
-	_check(hud.injury_light() and hud.integrity_texts()[ActorState.Part.LEG_LEFT] == "100 %"
+	_check(hud.injury_warning() and hud.integrity_texts()[ActorState.Part.LEG_LEFT] == "100 %"
 			and hud.integrity_texts()[ActorState.Part.LEG_RIGHT] == "60 %", "la luz sigue prendida: queda la pierna derecha")
 	# El mismo uso que vuelve a llegar en otro input no se hace de nuevo.
 	var again := ActorInput.make(lab._clock.tick, Vector2.ZERO, 0.0, 0, actor.state.jump_presses_seen,
@@ -552,13 +582,13 @@ func _heal_parts() -> void:
 	await _ticks(2)
 	_check(_legs() == [FULL, 8550] and actor.state.health == 100 * H and _quantity(&"vendas") == 0,
 			"las vendas con 25: la pierna derecha queda en %.2f %%, la salud igual y se gastaron" % (_legs()[1] / 100.0))
-	_check(hud.injury_light() and hud.integrity_texts()[ActorState.Part.LEG_RIGHT] == "85 %",
-			"el panel dice 85 %% y la luz sigue prendida (%s)" % hud.integrity_texts()[ActorState.Part.LEG_RIGHT])
+	_check(not hud.injury_warning() and hud.integrity_texts()[ActorState.Part.LEG_RIGHT] == "85 %",
+			"el panel dice 85 %% y la luz naranja se apaga: todo está arriba del 60 %% (%s)" % hud.integrity_texts()[ActorState.Part.LEG_RIGHT])
 	# El último botiquín sobre la pierna derecha: la última parte dañada.
 	_click(ui._item_rect(InvProtocol.OWN, kit).get_center())
 	_click(_part_center(ActorState.Part.LEG_RIGHT))
 	await _ticks(6)
-	_check(actor.state.integrity.count(FULL) == ActorState.PARTS and not hud.injury_light(),
+	_check(actor.state.integrity.count(FULL) == ActorState.PARTS and not hud.injury_warning(),
 			"la última parte: todo al 100 %% y la luz naranja se apaga")
 	_check(_quantity(&"botiquin") == 0 and net.replica.own.get_stack(kit) == null, "con la última unidad, el botiquín ya no está")
 	ui.close()

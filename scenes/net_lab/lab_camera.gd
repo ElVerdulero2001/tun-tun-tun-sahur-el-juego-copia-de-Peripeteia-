@@ -28,6 +28,12 @@ extends Node3D
 ## Cuánto avanza la cámara sobre la guía por cada paso de la rueda, como parte
 ## del recorrido entero (de 0 a 1): con 0,1, diez pasos van de una punta a la otra.
 @export_range(0.01, 1.0, 0.01) var zoom_step := 0.1
+## Con + y − del teclado numérico (acciones camara_acercar y camara_alejar del
+## Mapa de entrada), mantenidas, cuánto del recorrido entero avanza por segundo:
+## con 1, un segundo va de tercera a primera persona. Desde el 2026-11-12, para
+## una PC sin rueda (pedido del usuario; el número lo eligió Claude). Valen
+## donde vale la rueda: jugando, sin el menú ni el inventario abiertos.
+@export_range(0.1, 5.0, 0.05) var key_zoom_speed := 1.0
 ## Qué tan rápido llega la cámara a donde la pidió la rueda, por segundo.
 @export var zoom_follow_rate := 12.0
 ## Dónde arranca sobre la guía: 0 es primera persona, 1 la otra punta.
@@ -139,6 +145,12 @@ func _process(delta: float) -> void:
 			_head_height = wanted
 		_last_stance = actor.state.stance
 	_head_height = lerpf(_head_height, wanted, 1.0 - exp(-head_follow_rate * delta))
+	# + y − del teclado numérico, como la rueda: + acerca, − aleja. Con el tiempo
+	# real, así la cámara lenta no los frena.
+	if _capture_enabled and _mouse_holders.is_empty():
+		var keys := Input.get_axis(&"camara_acercar", &"camara_alejar")
+		if keys != 0.0:
+			_wanted_zoom = clampf(_wanted_zoom + keys * key_zoom_speed * delta / maxf(Engine.time_scale, 0.01), 0.0, 1.0)
 	_zoom = lerpf(_zoom, _wanted_zoom, 1.0 - exp(-zoom_follow_rate * delta))
 	pitch = clampf(pitch, _pitch_min(), _pitch_max())
 	# Al morir, en primera persona, la cámara cae al piso y se ladea mientras dura

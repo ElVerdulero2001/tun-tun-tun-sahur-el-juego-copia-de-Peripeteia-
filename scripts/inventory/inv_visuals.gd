@@ -73,6 +73,28 @@ static func bounds(root: Node3D) -> AABB:
 	return box
 
 
+## Los triángulos de las mallas visibles de `root` y de lo que cuelga de él,
+## en el espacio de `root`: de a tres puntos, como Mesh.get_faces. Los
+## carteles (Label3D) y las colisiones no cuentan.
+static func faces(root: Node3D) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	var pending: Array = [[root, Transform3D.IDENTITY]]
+	while not pending.is_empty():
+		var entry: Array = pending.pop_back()
+		var node: Node = entry[0]
+		var place: Transform3D = entry[1]
+		var mesh_node := node as MeshInstance3D
+		if mesh_node != null and mesh_node.mesh != null:
+			out.append_array(place * mesh_node.mesh.get_faces())
+		for child: Node in node.get_children():
+			if child is Node3D:
+				if (child as Node3D).visible:
+					pending.append([child, place * (child as Node3D).transform])
+			else:
+				pending.append([child, place])
+	return out
+
+
 ## El modelo dentro de un nodo que lo escala para que su lado más largo mida
 ## `size`, centrado y, con `on_floor`, con la base en el origen.
 static func fitted(def: InvItemDef, size: float, on_floor: bool) -> Node3D:

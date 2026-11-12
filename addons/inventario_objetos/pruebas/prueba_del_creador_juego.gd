@@ -9,6 +9,8 @@ extends Node
 ## --headless --fixed-fps 60 --scene res://addons/inventario_objetos/pruebas/prueba_del_creador_juego.tscn
 
 const Op := InvProtocol.Op
+## Recoger y abrir llevan la dirección de la mano (desde el 2026-11-11 a la noche).
+const Mano := preload("res://scenes/net_lab/inventario/pruebas/inv_mano_de_prueba.gd")
 
 var lab: Node3D
 var net: InvNet
@@ -41,6 +43,7 @@ func _ready() -> void:
 	await _thermos()
 	await _poison()
 	await _bandage()
+	await _rod_hitbox()
 	await _second_player()
 	await _rope_in_hand()
 	await _wardrobes()
@@ -216,6 +219,43 @@ func _wardrobes() -> void:
 
 # --- Ayudas ------------------------------------------------------------------------------------------
 
+## La varilla con hitbox de agarre (2026-11-07): la hitbox que se guardó en su
+## .tres con el panel se lee en el juego y va en la huella, pero desde el
+## 2026-11-11 a la noche no elige ni deja agarrar: el rayo de la mano tiene que
+## tocar el modelo (InvReach). El objeto suelto no lleva ninguna forma.
+func _rod_hitbox() -> void:
+	var uids := _world_uids(&"varilla_corrida_de_prueba")
+	_check(uids.size() == 1, "la varilla con hitbox, creada y colocada con el panel, está en el piso")
+	if uids.is_empty():
+		return
+	var uid: int = uids[0]
+	var def := net.catalog.find(&"varilla_corrida_de_prueba")
+	var hitbox := def.pickup_hitbox if def != null else null
+	var view := net.world_view(uid)
+	_check(hitbox != null and InvPickupHitbox.active(def) != null and view != null
+			and view.find_children("*", "CollisionObject3D", true, false).is_empty(),
+			"el juego lee la caja guardada en su .tres (%s, en %s), pero no la arma en el mundo" % [
+			str(hitbox.box_size) if hitbox != null else "ninguna", str(hitbox.offset) if hitbox != null else "ningún lugar"])
+	if hitbox == null or view == null:
+		return
+	var on_disk := ResourceLoader.load(def.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE) as InvItemDef
+	_check(on_disk != null and on_disk.pickup_hitbox.effective_text() == hitbox.effective_text() and def.fingerprint_text().contains("agarre caja"),
+			"es la del disco, y va en la huella: %s" % InvPickupHitbox.fingerprint_of(def))
+	_check(view.interact_focus().bounds.is_equal_approx(InvPickupHitbox.model_bounds(def)), "el indicador enmarca su modelo, no la hitbox")
+	var spot: Vector3 = net.replica.world[uid]["pos"]
+	await _teleport(spot + Vector3(-1, 0, 0))
+	var model := view.interact_focus().bounds
+	model.position += view.global_position
+	var box := hitbox.bounds()
+	box.position += view.global_position
+	var y := model.get_center().y
+	var line := func(x: float) -> int:
+		var seen := net.interaction_target(actor, Vector3(x, y, model.get_center().z - 0.6), Vector3.BACK, false)
+		return seen.get("id", 0) if seen.get("kind", "") == "item" else 0
+	_check(line.call((model.end.x + box.end.x) / 2.0) != uid, "una línea entre el modelo y el borde de la hitbox no la elige: la hitbox no cuenta")
+	_check(line.call(model.get_center().x) == uid, "una línea por el modelo, sí")
+
+
 func _check(ok: bool, what: String) -> void:
 	_checks += 1
 	if not ok:
@@ -226,6 +266,7 @@ func _check(ok: bool, what: String) -> void:
 
 
 func _req(op: int, args: Array, uids: Array = []) -> Array:
+	args = Mano.aimed(net, lab._local_actor, op, args)
 	var seq := net.replica.request(op, args, uids)
 	if seq == 0:
 		return [false, "no salió"]
@@ -256,6 +297,7 @@ func _heal_part(uid: int, part: int) -> Array:
 
 
 func _peer2(op: int, args: Array) -> Array:
+	args = Mano.aimed(net, net.authority.actor_of(2), op, args)
 	_peer2_seq += 1
 	net._inbox.append([2, _peer2_seq, op, args])
 	for i in 4:

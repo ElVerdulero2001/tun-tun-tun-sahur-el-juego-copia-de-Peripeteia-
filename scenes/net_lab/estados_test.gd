@@ -12,6 +12,8 @@ extends Node
 ## --headless --fixed-fps 60 --scene res://scenes/net_lab/estados_test.tscn
 
 const Op := InvProtocol.Op
+## Recoger y abrir llevan la dirección de la mano (desde el 2026-11-11 a la noche).
+const Mano := preload("res://scenes/net_lab/inventario/pruebas/inv_mano_de_prueba.gd")
 const UNIT := ActorPowers.STAMINA_UNIT
 const H := ActorState.HEALTH_UNIT
 const ZONE := Vector3(37, 0, 13)
@@ -90,6 +92,7 @@ func _health() -> float:
 
 
 func _req(op: int, args: Array, uids: Array = []) -> Array:
+	args = Mano.aimed(net, lab._local_actor, op, args)
 	var seq := net.replica.request(op, args, uids)
 	if seq == 0:
 		return [false, "no salió"]
@@ -559,7 +562,7 @@ func _without_waiting() -> void:
 	var where: Vector3 = net.replica.world[bottle]["pos"]
 	# Lejos: el host dice que no y vuelve al piso.
 	await _teleport(where + Vector3(-6, 0, 0))
-	var seq := ui.pick_up_world(bottle)
+	var seq := ui.pick_up_world(bottle, "", Mano.toward_item(net, lab._local_actor, bottle))
 	_check(seq != 0 and _count_shown(&"botella") == bottles + quantity and net.replica.is_taken(bottle) and net.world_view(bottle) == null,
 			"lejos: en el mismo cuadro se ve en la grilla y no en el piso")
 	await _ticks(3)
@@ -568,7 +571,7 @@ func _without_waiting() -> void:
 	_check(ui.last_message().contains("lejos"), "y lo dice: %s" % ui.last_message())
 	# Cerca: queda.
 	await _teleport(where + Vector3(-1, 0, 0))
-	seq = ui.pick_up_world(bottle)
+	seq = ui.pick_up_world(bottle, "", Mano.toward_item(net, lab._local_actor, bottle))
 	_check(_count_shown(&"botella") == bottles + quantity and net.world_view(bottle) == null and not ui._waiting(_own(&"botella")),
 			"cerca: se ve en la grilla ya, sin \"esperando…\"")
 	await _ticks(3)

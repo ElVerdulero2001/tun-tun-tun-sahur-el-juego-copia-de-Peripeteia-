@@ -43,7 +43,9 @@ func _run() -> void:
 	await _rejections()
 	await _consumable_and_equippable()
 	await _edit_and_duplicate()
+	await _pickup_hitbox()
 	await _thumbnail_arranging()
+	await _hotbar_thumbnail()
 	await _pending_changes_dialog()
 	await _containers()
 	await _save_failures()
@@ -484,18 +486,392 @@ func _edit_and_duplicate() -> void:
 	panel.discard()
 
 
+# --- Hitbox de agarre (2026-11-07) ------------------------------------------------------------------
+
+## Un modelo de prueba con el origen lejos de lo que se ve: una varilla con
+## una perilla en la punta. Lo escribe esta prueba en la copia.
+const SHIFTED_MODEL := "res://scenes/net_lab/inventario/modelos_de_prueba/varilla_corrida.tscn"
+const KIND := InvPickupHitbox.Kind
+
+
+func _pickup_hitbox() -> void:
+	var form = panel._item_form
+	panel.new_item()
+	await _frames(2)
+	var titles: Array = form.find_children("*", "FoldableContainer", true, false).map(func(fold: FoldableContainer) -> String: return fold.title)
+	_check(titles.find("Hitbox de agarre") == titles.find("Apariencia") + 1 and titles.has("Apariencia"),
+			"la sección Hitbox de agarre va debajo de Apariencia: %s" % [titles])
+	var options := []
+	for i in form._hitbox_kind.item_count:
+		options.append(form._hitbox_kind.get_item_text(i))
+	_check(options == ["Forma del modelo", "Caja", "Esfera", "Cilindro", "Forma personalizada"], "ofrece %s" % [options])
+	_check(form._hitbox_kind.selected == KIND.MODEL and not form._hitbox_place.visible and panel._item_draft.get(&"pickup_hitbox") == null
+			and panel._preview.shown_hitbox() == null and not panel._preview._hitbox_toggle.visible and not form._hitbox_preview.visible,
+			"un ítem nuevo usa la forma del modelo: sin medidas, sin hitbox en el borrador ni en la vista previa")
+	# Con un modelo que tiene el origen lejos.
+	_write_shifted_model()
+	_type(form._name, "Varilla corrida de prueba")
+	var model: PackedScene = load(SHIFTED_MODEL)
+	form._model.edited_resource = model
+	form._model.resource_changed.emit(model)
+	form._world_size.value = 0.5
+	_pick_hitbox(form, KIND.BOX)
+	var draft: Resource = panel._item_draft
+	var hitbox: InvPickupHitbox = draft.get(&"pickup_hitbox")
+	var model_box := InvPickupHitbox.model_bounds(draft)
+	_check(model_box.position.y > -0.0001 and model_box.position.y < 0.0001 and Vector2(model_box.get_center().x, model_box.get_center().z).length() < 0.0001
+			and is_equal_approx(model_box.size.z, 0.5), "con el origen del modelo lejos, su caja queda en el centro, apoyada y escalada: %s" % model_box)
+	_check(hitbox != null and hitbox.kind == KIND.BOX and hitbox.bounds().encloses(model_box) and hitbox.bounds().size.distance_to(model_box.size) < 0.003,
+			"Caja arranca ajustada al modelo (%s; el modelo, %s)" % [str(hitbox.bounds()) if hitbox != null else "sin hitbox", model_box])
+	if hitbox == null:
+		return
+	await _frames(3)
+	var shown: Node3D = panel._preview.shown_hitbox()
+	_check(shown != null and shown.transform.is_equal_approx(hitbox.local_transform()) and _overlay_box(shown).is_equal_approx(
+			AABB(-hitbox.box_size / 2.0, hitbox.box_size)), "la vista previa la muestra en el mismo lugar y del mismo tamaño que la usa el juego")
+	var inline: Node = form._hitbox_preview
+	var inline_shape: Node3D = inline.shown_hitbox()
+	_check(inline.visible and inline_shape != null and inline_shape.transform.is_equal_approx(hitbox.local_transform())
+			and form._hitbox_fields.is_ancestor_of(form._hitbox_dims) and not form._hitbox_fields.is_ancestor_of(inline),
+			"la hitbox aparece junto a las medidas, con el visor fuera del desplazamiento de los controles")
+	panel._preview._hitbox_toggle.button_pressed = false
+	await _frames(3)
+	_check(panel._preview.shown_hitbox() == null and panel._preview._hitbox_toggle.visible, "la casilla la oculta")
+	panel._preview._hitbox_toggle.button_pressed = true
+	await _frames(3)
+	_check(panel._preview.shown_hitbox() != null, "y la vuelve a mostrar")
+	_check_preview_pan(inline)
+	_check_preview_pan(panel._preview)
+	var inline_pan: Vector3 = inline._pan
+	# A mano, al milímetro, y de a centímetro por cada lado.
+	var spins := _hitbox_spins(form)
+	_check(spins.size() == 3 and form._hitbox_rotation_box.visible and _hitbox_button(form, "Ajustar al modelo").visible,
+			"la caja muestra ancho, alto y largo, la rotación y Ajustar al modelo")
+	spins[0].value = 0.123
+	form._hitbox_offset[1].value = 0.012
+	_check(is_equal_approx(hitbox.box_size.x, 0.123) and is_equal_approx(hitbox.offset.y, 0.012),
+			"se ajusta al milímetro: ancho %s m, alto del centro %s m" % [hitbox.box_size.x, hitbox.offset.y])
+	await _frames(3)
+	inline_shape = inline.shown_hitbox()
+	_check(inline_shape != null and inline_shape.transform.is_equal_approx(hitbox.local_transform())
+			and _overlay_box(inline_shape).is_equal_approx(AABB(-hitbox.box_size / 2.0, hitbox.box_size)),
+			"el visor de la sección se actualiza al cambiar el ancho y el desplazamiento")
+	_check(inline._pan.is_equal_approx(inline_pan), "editar la hitbox conserva el desplazamiento de cámara")
+	var before := hitbox.box_size
+	_hitbox_button(form, "+1 cm").pressed.emit()
+	_check(hitbox.box_size.is_equal_approx(before + Vector3.ONE * 0.02) and is_equal_approx(_hitbox_spins(form)[0].value, 0.143),
+			"+1 cm la agranda 1 cm por cada lado: %s" % hitbox.box_size)
+	_hitbox_button(form, "−1 cm").pressed.emit()
+	_check(hitbox.box_size.is_equal_approx(before), "−1 cm la vuelve a achicar")
+	# Lo que no se guarda.
+	var path := Destinos.ITEMS_DIR.path_join("varilla_corrida_de_prueba.tres")
+	_hitbox_spins(form)[1].value = 0.0
+	var result: Dictionary = panel.save_current(false)
+	_check(not result["ok"] and result["message"].contains("Hitbox de agarre: la caja mide") and not FileAccess.file_exists(path),
+			"con alto 0 no se guarda nada: %s" % result["message"])
+	_hitbox_spins(form)[1].value = NAN
+	_check(" ".join(panel.problems()).contains("Hitbox de agarre"), "un alto que no es un número, tampoco")
+	_hitbox_button(form, "Ajustar al modelo").pressed.emit()
+	_check(hitbox.bounds().encloses(model_box) and panel.problems().is_empty(), "Ajustar al modelo la deja de nuevo encerrándolo")
+	_hitbox_button(form, "+1 cm").pressed.emit()
+	var saved_size := hitbox.box_size
+	var saved_offset := hitbox.offset
+	result = panel.save_current(false)
+	_check(result["ok"], "guardar la varilla con su hitbox: %s" % result["message"])
+	var text := FileAccess.get_file_as_string(path)
+	_check(text.contains("inv_pickup_hitbox.gd") and text.contains("pickup_hitbox = SubResource("), "la hitbox va adentro del .tres, con el resto")
+	var fresh: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	var fresh_hitbox: InvPickupHitbox = fresh.get(&"pickup_hitbox") if fresh != null else null
+	_check(fresh_hitbox != null and fresh_hitbox.kind == KIND.BOX and fresh_hitbox.box_size.is_equal_approx(saved_size)
+			and fresh_hitbox.offset.is_equal_approx(saved_offset), "leída de nuevo del disco, tiene lo mismo: %s" % (str(fresh_hitbox.box_size) if fresh_hitbox != null else "nada"))
+	# Reabrir.
+	panel.open_item(path)
+	await _frames(3)
+	var original: Resource = panel._item_original
+	hitbox = panel._item_draft.get(&"pickup_hitbox")
+	_check(not panel.is_dirty() and form._hitbox_kind.selected == KIND.BOX and is_equal_approx(_hitbox_spins(form)[0].value, saved_size.x)
+			and is_equal_approx(form._hitbox_offset[1].value, saved_offset.y), "reabierta, se ve igual y sin cambios")
+	_check(hitbox != null and hitbox != original.get(&"pickup_hitbox"), "el borrador tiene su propia hitbox, no la del original")
+	_hitbox_spins(form)[2].value = 0.4
+	_check(is_equal_approx((original.get(&"pickup_hitbox") as InvPickupHitbox).box_size.z, saved_size.z) and FileAccess.get_file_as_string(path) == text,
+			"cambiar el borrador no toca el original, ni en memoria ni en el disco")
+	panel.discard()
+	# Cambiar el tamaño del modelo: la hitbox no se mueve sola; se avisa.
+	hitbox = panel._item_draft.get(&"pickup_hitbox")
+	form._world_size.value = 0.8
+	_check(form._hitbox_notes.text.contains("Cambiaste el modelo o su tamaño") and hitbox.box_size.is_equal_approx(saved_size),
+			"más grande el modelo, la hitbox queda igual y la sección lo avisa: %s" % form._hitbox_notes.text)
+	result = panel.save_current(false)
+	_check(not result["ok"] and String(result.get("confirm", "")).contains("la hitbox de agarre quedó igual") and FileAccess.get_file_as_string(path) == text,
+			"al guardar pregunta antes: %s" % result.get("confirm", result["message"]))
+	_hitbox_button(form, "Ajustar al modelo").pressed.emit()
+	var bigger := InvPickupHitbox.model_bounds(panel._item_draft)
+	_check(hitbox.bounds().encloses(bigger) and not form._hitbox_notes.text.contains("Cambiaste"), "Ajustar al modelo la acomoda y el aviso se va")
+	_hitbox_button(form, "+1 cm").pressed.emit()
+	result = panel.save_current(false)
+	_check(result["ok"], "ajustada, se guarda sin preguntar: %s" % result["message"])
+	saved_size = hitbox.box_size
+	text = FileAccess.get_file_as_string(path)
+	# Colocarla, para la segunda parte (prueba_del_creador_juego).
+	result = panel.place_current(1, {})
+	_check(result["ok"], "colocar la varilla: %s" % result["message"])
+	panel._on_save_zone()
+	_check(_markers_of("varilla_corrida_de_prueba", _zone_file()).size() == 1, "y queda en la zona guardada")
+	# Las otras formas.
+	_pick_hitbox(form, KIND.SPHERE)
+	hitbox = panel._item_draft.get(&"pickup_hitbox")
+	var model_now := InvPickupHitbox.model_bounds(panel._item_draft)
+	_check(hitbox.kind == KIND.SPHERE and hitbox.bounds().encloses(model_now) and not form._hitbox_rotation_box.visible and _hitbox_spins(form).size() == 1,
+			"Esfera: un radio que llega a las esquinas del modelo, sin rotación")
+	_pick_hitbox(form, KIND.CYLINDER)
+	_check(hitbox.kind == KIND.CYLINDER and hitbox.rotation_degrees.is_equal_approx(Vector3(90, 0, 0)) and hitbox.bounds().encloses(model_now)
+			and form._hitbox_rotation_box.visible and is_equal_approx(form._hitbox_rotation[0].value, 90.0),
+			"Cilindro: acostado a lo largo del modelo (giro %s), encerrándolo" % hitbox.rotation_degrees)
+	_pick_hitbox(form, KIND.CUSTOM)
+	var picker: EditorResourcePicker = form._hitbox_dims.find_children("*", "EditorResourcePicker", true, false)[0] \
+			if not form._hitbox_dims.find_children("*", "EditorResourcePicker", true, false).is_empty() else null
+	_check(picker != null and not _hitbox_button(form, "Ajustar al modelo").visible and " ".join(panel.problems()).contains("falta el recurso"),
+			"Forma personalizada: pide un recurso de colisión, y sin él no se guarda")
+	if picker == null:
+		panel.discard()
+		return
+	_check(picker.base_type.contains("ConvexPolygonShape3D") and not picker.base_type.contains("Concave"), "y solo ofrece formas convexas: %s" % picker.base_type)
+	# Una cóncava el selector no la acepta; puesta igual (por ejemplo, en el
+	# Inspector), tampoco se guarda.
+	var concave := ConcavePolygonShape3D.new()
+	concave.set_faces(BoxMesh.new().get_faces())
+	form._put_hitbox(&"custom_shape", concave)
+	_check(" ".join(panel.problems()).contains("tiene que ser convexa"), "una cóncava, puesta a mano, se rechaza")
+	var empty := ConvexPolygonShape3D.new()
+	_assign(picker, empty)
+	_check(" ".join(panel.problems()).contains("vacía"), "una convexa vacía, también")
+	var tetra_points := PackedVector3Array([Vector3(-0.1, 0, -0.3), Vector3(0.1, 0, -0.3), Vector3(0, 0, 0.3), Vector3(0, 0.12, 0)])
+	# La convexa nueva, vacía, se edita en el Inspector (desde la auditoría del
+	# 2026-11-08, OBJ-01: antes no había cómo). Un clic en el recurso la abre
+	# ahí, y el panel se entera de los puntos que se le ponen.
+	await _frames(2)
+	_check(form._custom_note != null and form._custom_note.text.contains("Está vacía") and not form._custom_own.visible,
+			"la sección dice que está vacía y cómo ponerle los puntos: %s" % (form._custom_note.text if form._custom_note != null else "sin texto"))
+	_check(panel._preview.shown_hitbox() == null, "(vacía, la vista previa no la muestra)")
+	picker.resource_selected.emit(empty, true)
+	await _frames(2)
+	_check(EditorInterface.get_inspector().get_edited_object() == empty, "un clic en la forma la abre en el Inspector")
+	var before_points := Guardado.snapshot(panel._item_draft)
+	empty.points = tetra_points  # lo que hace el Inspector al escribirle los puntos
+	await _frames(3)
+	_check(panel.problems().is_empty() and Guardado.snapshot(panel._item_draft) != before_points and panel.is_dirty()
+			and panel._preview.shown_hitbox() != null and form._hitbox_preview.shown_hitbox() != null,
+			"con 4 puntos puestos en el Inspector, sirve, cuenta como cambio y las dos vistas previas la muestran")
+	var tetra := ConvexPolygonShape3D.new()
+	tetra.points = tetra_points
+	_assign(picker, tetra)
+	await _frames(3)
+	_check(panel.problems().is_empty() and panel._preview.shown_hitbox() != null, "una convexa con volumen sirve y se ve en la vista previa")
+	_check(EditorInterface.get_inspector().get_edited_object() != empty, "cambiada la forma, el Inspector suelta la de antes")
+	_pick_hitbox(form, KIND.MODEL)
+	_check(panel._item_draft.get(&"pickup_hitbox") == null and not form._hitbox_place.visible, "Forma del modelo deja el ítem sin hitbox")
+	_pick_hitbox(form, KIND.CUSTOM)
+	_check((panel._item_draft.get(&"pickup_hitbox") as InvPickupHitbox).custom_shape == tetra, "y volviendo a una forma, sigue la de antes")
+	# Un archivo aparte (arrastrado desde FileSystem): se avisa que lo comparten
+	# los ítems que lo usan, y «Usar una copia propia» la pasa adentro del ítem
+	# sin tocar el archivo.
+	var shared_path := SHIFTED_MODEL.get_base_dir().path_join("forma_compartida.tres")
+	ResourceSaver.save(tetra.duplicate(), shared_path)
+	var shared_text := FileAccess.get_file_as_string(shared_path)
+	var shared: ConvexPolygonShape3D = ResourceLoader.load(shared_path, "", ResourceLoader.CACHE_MODE_REPLACE)
+	picker = form._hitbox_dims.find_children("*", "EditorResourcePicker", true, false)[0]
+	_assign(picker, shared)
+	_check(form._custom_own.visible and form._custom_note.text.contains("forma_compartida.tres"),
+			"un archivo aparte: avisa que lo comparten los ítems que lo usan, y ofrece una copia propia")
+	form._custom_own.pressed.emit()
+	var owned := (panel._item_draft.get(&"pickup_hitbox") as InvPickupHitbox).custom_shape as ConvexPolygonShape3D
+	_check(owned != null and owned != shared and owned.resource_path == "" and owned.points == shared.points
+			and not form._custom_own.visible and FileAccess.get_file_as_string(shared_path) == shared_text,
+			"«Usar una copia propia» la copia adentro del ítem, con los mismos puntos, y el archivo no cambia")
+	owned.points = PackedVector3Array([Vector3(-0.2, 0, -0.3), Vector3(0.2, 0, -0.3), Vector3(0, 0, 0.3), Vector3(0, 0.2, 0)])
+	_check(shared.points == tetra_points, "cambiar la copia propia no toca el archivo compartido")
+	panel.discard()
+	# Duplicar: la copia tiene su propia hitbox (y su forma propia, si la tiene).
+	panel.duplicate_current()
+	var copy: Resource = panel._item_draft
+	var source: Resource = load(path)
+	_check(copy.get(&"pickup_hitbox") != null and copy.get(&"pickup_hitbox") != source.get(&"pickup_hitbox")
+			and (copy.get(&"pickup_hitbox") as InvPickupHitbox).box_size.is_equal_approx(saved_size), "la copia trae una hitbox igual, pero suya")
+	_pick_hitbox(form, KIND.CUSTOM)
+	picker = form._hitbox_dims.find_children("*", "EditorResourcePicker", true, false)[0]
+	# Como lo haría el usuario: una nueva desde el selector, con los puntos
+	# puestos en el Inspector (OBJ-01).
+	var fresh_shape := ConvexPolygonShape3D.new()
+	_assign(picker, fresh_shape)
+	picker.resource_selected.emit(fresh_shape, true)
+	fresh_shape.points = tetra_points
+	await _frames(2)
+	_check(panel.problems().is_empty() and EditorInterface.get_inspector().get_edited_object() == fresh_shape,
+			"la copia, con una forma nueva y sus puntos puestos en el Inspector, se puede guardar")
+	result = panel.save_current(false)
+	var copy_path := Destinos.ITEMS_DIR.path_join("varilla_corrida_de_prueba_copia.tres")
+	_check(result["ok"] and FileAccess.get_file_as_string(copy_path).contains("ConvexPolygonShape3D"),
+			"la copia, con una forma propia, se guarda con la forma adentro: %s" % result["message"])
+	_check(FileAccess.get_file_as_string(path) == text and (load(path).get(&"pickup_hitbox") as InvPickupHitbox).kind == KIND.BOX
+			and (load(path).get(&"pickup_hitbox") as InvPickupHitbox).box_size.is_equal_approx(saved_size),
+			"y el original sigue con su caja, en el disco y en memoria")
+	panel.open_item(copy_path)
+	var reopened: InvPickupHitbox = panel._item_draft.get(&"pickup_hitbox")
+	var stored: InvPickupHitbox = panel._item_original.get(&"pickup_hitbox")
+	_check(not panel.is_dirty() and reopened.custom_shape != null and reopened.custom_shape != stored.custom_shape
+			and (reopened.custom_shape as ConvexPolygonShape3D).points == tetra.points, "reabierta, el borrador edita una copia de su forma propia")
+	_check(EditorInterface.get_inspector().get_edited_object() != fresh_shape, "reabierta, el Inspector ya no edita la forma del borrador de antes")
+	# Duplicar la que tiene forma propia y cambiar los puntos de la copia: los
+	# del original no cambian, ni en memoria ni en el disco.
+	var copy_text := FileAccess.get_file_as_string(copy_path)
+	panel.duplicate_current()
+	var twin := (panel._item_draft.get(&"pickup_hitbox") as InvPickupHitbox).custom_shape as ConvexPolygonShape3D
+	var saved_shape := (load(copy_path).get(&"pickup_hitbox") as InvPickupHitbox).custom_shape as ConvexPolygonShape3D
+	twin.points = PackedVector3Array([Vector3(-0.15, 0, -0.3), Vector3(0.15, 0, -0.3), Vector3(0, 0, 0.35), Vector3(0, 0.15, 0)])
+	await _frames(2)
+	_check(twin != saved_shape and saved_shape.points == tetra.points and FileAccess.get_file_as_string(copy_path) == copy_text and panel.is_dirty(),
+			"duplicada otra vez, cambiar los puntos de la copia no toca los del original")
+	panel.discard()
+	# Sin modelo: la malla de respaldo (la caja de color), con la misma regla del juego.
+	panel.new_item()
+	_type(form._name, "Bloque de respaldo")
+	form._world_size.value = 0.3
+	_pick_hitbox(form, KIND.BOX)
+	var plain := InvPickupHitbox.model_bounds(panel._item_draft)
+	_check(plain.size.is_equal_approx(Vector3(0.3, 0.15, 0.3)) and (panel._item_draft.get(&"pickup_hitbox") as InvPickupHitbox).bounds().encloses(plain),
+			"sin modelo, se ajusta a la caja de color que se ve en el piso: %s" % plain)
+	panel.discard()
+	panel.new_item()
+
+
+func _check_preview_pan(preview: Node) -> void:
+	var before: Transform3D = preview._camera.transform
+	var button := InputEventMouseButton.new()
+	button.button_index = MOUSE_BUTTON_LEFT
+	button.pressed = true
+	preview._on_view_input(button)
+	var drag := InputEventMouseMotion.new()
+	drag.relative = Vector2(24.0, -12.0)
+	drag.shift_pressed = true
+	preview._on_view_input(drag)
+	var moved: Transform3D = preview._camera.transform
+	var offset: Vector3 = preview._pan
+	_check(moved.basis.is_equal_approx(before.basis) and offset.dot(before.basis.x) < 0.0
+			and offset.dot(before.basis.y) < 0.0 and moved.origin.is_equal_approx(before.origin + offset),
+			"Shift + arrastre izquierdo desplaza la cámara sin girarla")
+	drag.shift_pressed = false
+	preview._on_view_input(drag)
+	_check(preview._pan.is_equal_approx(offset) and not preview._camera.basis.is_equal_approx(moved.basis),
+			"arrastrar sin Shift sigue girando alrededor del centro desplazado")
+	button.pressed = false
+	preview._on_view_input(button)
+
+
+func _pick_hitbox(form: Node, kind: int) -> void:
+	form._hitbox_kind.select(kind)
+	form._hitbox_kind.item_selected.emit(kind)
+
+
+func _hitbox_spins(form: Node) -> Array:
+	return form._hitbox_dims.find_children("*", "EditorSpinSlider", true, false)
+
+
+func _hitbox_button(form: Node, text: String) -> Button:
+	for button: Button in form._hitbox_place.find_children("*", "Button", true, false):
+		if button.text == text:
+			return button
+	return null
+
+
+func _assign(picker: EditorResourcePicker, resource: Resource) -> void:
+	picker.edited_resource = resource
+	picker.resource_changed.emit(resource)
+
+
+## La caja del contorno de la hitbox que muestra la vista previa, en su espacio.
+func _overlay_box(shown: Node3D) -> AABB:
+	var outline := shown.get_node_or_null(^"Contorno") as MeshInstance3D
+	return outline.mesh.get_aabb() if outline != null else AABB()
+
+
+func _write_shifted_model() -> void:
+	var root := Node3D.new()
+	root.name = "VarillaCorrida"
+	var rod := MeshInstance3D.new()
+	var bar := BoxMesh.new()
+	bar.size = Vector3(0.04, 0.04, 0.6)
+	rod.mesh = bar
+	rod.position = Vector3(3.0, -2.0, 1.5)
+	root.add_child(rod)
+	rod.owner = root
+	var knob := MeshInstance3D.new()
+	var ball := SphereMesh.new()
+	ball.radius = 0.05
+	ball.height = 0.1
+	knob.mesh = ball
+	knob.position = Vector3(3.0, -2.0, 1.85)
+	root.add_child(knob)
+	knob.owner = root
+	var packed := PackedScene.new()
+	packed.pack(root)
+	root.free()
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SHIFTED_MODEL.get_base_dir()))
+	ResourceSaver.save(packed, SHIFTED_MODEL)
+	EditorInterface.get_resource_filesystem().update_file(SHIFTED_MODEL)
+
+
 # --- Acomodar la miniatura -------------------------------------------------------------------------
 # Sin pantalla no hay imagen: acá se prueban los valores que escribe. El
 # arrastre con el mouse y que la imagen no salte se prueban con ventana.
 
+## El ítem de las pruebas de miniatura (desde la auditoría del 2026-11-08,
+## PRU-01): uno que crea esta prueba con el panel, de 1 × 3, con la miniatura
+## de fábrica y sin encuadre propio en la barra. Antes se usaba el machete del
+## laboratorio, que es contenido que se edita: con su encuadre ya acomodado,
+## estas comprobaciones fallaban sin que nada estuviera roto.
+const THUMB_ITEM := "miniatura_de_prueba"
+
+
+func _thumbnail_item() -> String:
+	var path := Destinos.ITEMS_DIR.path_join(THUMB_ITEM + ".tres")
+	if FileAccess.file_exists(path):
+		return path
+	if not ResourceLoader.exists(SHIFTED_MODEL):
+		_write_shifted_model()
+	var form = panel._item_form
+	panel.new_item()
+	_type(form._name, "Miniatura de prueba")
+	form._height.value = 3
+	var model: PackedScene = load(SHIFTED_MODEL)
+	form._model.edited_resource = model
+	form._model.resource_changed.emit(model)
+	var result: Dictionary = panel.save_current(false)
+	_check(result["ok"] and FileAccess.file_exists(path), "(preparación) el ítem de las miniaturas se crea con el panel: %s" % result["message"])
+	return path
+
+
+## Si el .tres tiene escrita esa propiedad, en un renglón propio (así
+## "thumbnail_rotation" no coincide con "hotbar_thumbnail_rotation").
+static func _has_field(text: String, field: String) -> bool:
+	return text.begins_with(field + " = ") or text.contains("\n" + field + " = ")
+
+
+## Si el recurso, leído otra vez del disco, tiene la miniatura de la grilla de fábrica.
+static func _factory_thumbnail(path: String) -> bool:
+	var fresh := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as InvItemDef
+	var factory := InvItemDef.new()
+	return fresh != null and fresh.thumbnail_rotation == factory.thumbnail_rotation and fresh.thumbnail_zoom == factory.thumbnail_zoom \
+			and fresh.thumbnail_offset == factory.thumbnail_offset and fresh.thumbnail_auto_align == factory.thumbnail_auto_align
+
+
 func _thumbnail_arranging() -> void:
 	var form = panel._item_form
 	var arranger = form._arranger
-	var door_path := Destinos.ITEMS_DIR.path_join("machete.tres")
+	var door_path := _thumbnail_item()
 	panel.open_item(door_path)
 	var draft: Resource = panel._item_draft
 	_check(draft.get(&"thumbnail_auto_align") and draft.get(&"thumbnail_rotation") == Vector3(-20, 35, 0),
-			"el machete arranca con la miniatura automática")
+			"el ítem de prueba arranca con la miniatura automática")
 	arranger.face_front()
 	arranger.changed.emit()
 	_check(draft.get(&"thumbnail_rotation") == Vector3.ZERO and not draft.get(&"thumbnail_auto_align") and panel.is_dirty(),
@@ -517,8 +893,8 @@ func _thumbnail_arranging() -> void:
 			"correrlo y acercarlo: %s, %s" % [draft.get(&"thumbnail_offset"), draft.get(&"thumbnail_zoom")])
 	var result: Dictionary = panel.save_current(false)
 	var text := FileAccess.get_file_as_string(door_path)
-	_check(result["ok"] and text.contains("thumbnail_offset = Vector2(0.25, -0.1)") and text.contains("thumbnail_auto_align = false")
-			and text.contains("thumbnail_zoom = 1.1"), "se guarda como quedó: %s" % result["message"])
+	_check(result["ok"] and text.contains("\nthumbnail_offset = Vector2(0.25, -0.1)") and text.contains("\nthumbnail_auto_align = false")
+			and text.contains("\nthumbnail_zoom = 1.1"), "se guarda como quedó: %s" % result["message"])
 	_check(load(door_path).get(&"thumbnail_offset").is_equal_approx(Vector2(0.25, -0.1)), "y el recurso del juego lo tiene")
 	form._arranger.center()
 	_check(panel._item_draft.get(&"thumbnail_offset") == Vector2.ZERO and panel._item_draft.get(&"thumbnail_zoom") == 1.0, "Centrar")
@@ -528,8 +904,47 @@ func _thumbnail_arranging() -> void:
 	form._arranger.automatic()
 	result = panel.save_current(false)
 	text = FileAccess.get_file_as_string(door_path)
-	_check(result["ok"] and not text.contains("thumbnail_offset") and not text.contains("thumbnail_auto_align")
-			and not text.contains("thumbnail_rotation") and not text.contains("thumbnail_zoom"), "Automático vuelve a los valores de fábrica")
+	_check(result["ok"] and not _has_field(text, "thumbnail_offset") and not _has_field(text, "thumbnail_auto_align")
+			and not _has_field(text, "thumbnail_rotation") and not _has_field(text, "thumbnail_zoom") and _factory_thumbnail(door_path),
+			"Automático vuelve a los valores de fábrica (en el archivo y leído otra vez)")
+
+
+func _hotbar_thumbnail() -> void:
+	var form = panel._item_form
+	var path := _thumbnail_item()
+	panel.open_item(path)
+	var draft: InvItemDef = panel._item_draft
+	var grid_key := draft.appearance_key()
+	_check(not form._custom_hotbar.button_pressed and not draft.custom_hotbar_thumbnail
+			and is_equal_approx(form._hotbar_arranger._frame_rect().size.aspect(), 1.0),
+			"un ítem sin encuadre propio de la barra abre con la casilla apagada y la vista de la barra es cuadrada")
+	form._custom_hotbar.button_pressed = true
+	var arranger = form._hotbar_arranger
+	arranger.face_front()
+	arranger.turn(Vector3.BACK, 90.0)
+	arranger.shift_by(Vector2(0.15, 0.1))
+	arranger.zoom_by(1.1)
+	arranger.changed.emit()
+	_check(panel.is_dirty() and draft.custom_hotbar_thumbnail and draft.appearance_key() == grid_key
+			and draft.hotbar_thumbnail_rotation.is_equal_approx(Vector3(0, 0, 90))
+			and draft.hotbar_thumbnail_offset.is_equal_approx(Vector2(0.15, 0.1))
+			and is_equal_approx(draft.hotbar_thumbnail_zoom, 1.1),
+			"los controles de la barra cambian solo su giro, desplazamiento y zoom")
+	var result: Dictionary = panel.save_current(false)
+	panel.open_item(path)
+	draft = panel._item_draft
+	_check(result["ok"] and not panel.is_dirty() and form._custom_hotbar.button_pressed
+			and draft.appearance_key() == grid_key and draft.hotbar_thumbnail_offset.is_equal_approx(Vector2(0.15, 0.1)),
+			"al reabrir se conserva el encuadre propio de la barra")
+	var fresh := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as InvItemDef
+	_check(fresh != null and fresh.custom_hotbar_thumbnail and fresh.hotbar_thumbnail_rotation.is_equal_approx(Vector3(0, 0, 90))
+			and fresh.hotbar_thumbnail_offset.is_equal_approx(Vector2(0.15, 0.1)) and is_equal_approx(fresh.hotbar_thumbnail_zoom, 1.1)
+			and _factory_thumbnail(path), "leído otra vez del disco: el encuadre de la barra guardado, y el de la grilla sigue de fábrica")
+	form._custom_hotbar.button_pressed = false
+	_check(not draft.custom_hotbar_thumbnail and draft.hotbar_thumbnail_offset.is_equal_approx(Vector2(0.15, 0.1)),
+			"apagar el encuadre propio conserva los ajustes")
+	panel.discard()
+	await _frames(2)
 
 
 ## Dos giros iguales, salvo el redondeo a décimas de grado.
@@ -600,17 +1015,25 @@ func _containers() -> void:
 	form._size[0].value = 0.9
 	form._size[1].value = 1.6
 	form._size[2].value = 0.5
-	form._reach.value = 0.4
+	# Desde el 2026-11-11 una caja no tiene alcance propio: ni campo, ni aviso
+	# de los lados largos, ni rechazo por no llegar desde ningún lado (el
+	# alcance es el común del Tuning, hasta la parte más cercana de la caja).
+	var box_script: Script = InvContainer
+	_check(form.get(&"_reach") == null and not form.values.has("access_range") and not Guardado.BOX_FIELDS.has(&"access_range")
+			and not box_script.get_script_property_list().any(func(p: Dictionary) -> bool: return p["name"] == "access_range"),
+			"una caja no tiene campo de alcance propio")
+	form._size[0].value = 10.0
+	form._size[2].value = 0.1
+	_check(Guardado.check_box(form.values, form.path, true).is_empty(),
+			"una caja larga y finita no tiene avisos ni rechazos por el alcance")
+	form._size[0].value = 0.9
+	form._size[2].value = 0.5
 	var result: Dictionary = panel.save_current(false)
-	_check(not result["ok"] and result["message"].contains("no se abre desde ningún lado"), "un alcance que no llega se rechaza: %s" % result["message"])
-	_check(not DirAccess.dir_exists_absolute(Destinos.CONTAINERS_DIR), "y no se creó ni la carpeta")
-	form._reach.value = 1.6
-	result = panel.save_current(false)
 	_check(result["ok"], "guardar el armario: %s" % result["message"])
 	var path := Destinos.CONTAINERS_DIR.path_join("armario_de_prueba.tscn")
 	var text := FileAccess.get_file_as_string(path)
-	_check(text.contains('path="%s"' % Destinos.BOX_BASE_PATH) and text.contains("instance=ExtResource") and text.contains("columns = 3"),
-			"la escena hereda de caja.tscn y guarda sus valores")
+	_check(text.contains('path="%s"' % Destinos.BOX_BASE_PATH) and text.contains("instance=ExtResource") and text.contains("columns = 3")
+			and not text.contains("access_range"), "la escena hereda de caja.tscn y guarda sus valores, sin alcance propio")
 	var scene: PackedScene = load(path)
 	var probe := scene.instantiate()
 	_check(Guardado.check_box_node(probe) == "" and probe.get(&"inventory").name == "Inventario", "reabierta, su Inventory apunta a su InvInventory")
@@ -666,6 +1089,12 @@ func _containers() -> void:
 	var moved_to := moved.position
 	_check(Destinos.ZONE_PATH in EditorInterface.get_unsaved_scenes(), "(preparación) la zona quedó marcada sin guardar: %s, a la vista %s" % [
 			EditorInterface.get_unsaved_scenes(), EditorInterface.get_edited_scene_root().scene_file_path])
+	# Más de un segundo después del último guardado de la caja: así el editor
+	# siempre nota que su archivo cambió y vuelve a armar la zona al volver a
+	# ella, que borra su historial de deshacer (OBJ-02, auditoría del
+	# 2026-11-08). Antes de esperar, la prueba fallaba solo a veces: cuando los
+	# dos guardados caían en segundos distintos.
+	await get_tree().create_timer(1.2).timeout
 	panel.open_box(path)
 	form._rows.value = 3
 	result = panel.save_current(false)
@@ -675,6 +1104,13 @@ func _containers() -> void:
 	var now := EditorInterface.get_edited_scene_root().get_node_or_null(NodePath("Objetos/" + moved_name)) as Node3D
 	_check(now != null and now.position.is_equal_approx(moved_to), "el cambio de la zona sigue en el editor")
 	_check(Destinos.ZONE_PATH in EditorInterface.get_unsaved_scenes(), "y la zona sigue marcada sin guardar")
+	var rows_now: Array = EditorInterface.get_edited_scene_root().find_children("ArmarioDePrueba*", "", false, false) \
+			.map(func(node: Node) -> int: return node.get(&"rows"))
+	if result["message"].contains("historial de deshacer"):
+		_check(rows_now == [3, 3], "el editor la volvió a armar: las cajas colocadas ya tienen 3 filas (%s), y el aviso lo dice" % [rows_now])
+	else:
+		_check(rows_now == [2, 2] and result["message"].contains("valores de antes"),
+				"el editor no la volvió a armar: las cajas siguen con 2 filas (%s), y el aviso lo dice" % [rows_now])
 	EditorInterface.open_scene_from_path(Destinos.ZONE_PATH)
 	EditorInterface.save_scene()
 	_check(not _zone_file().contains("rows = 2"), "guardarla no deja pegadas las filas viejas")
@@ -735,7 +1171,7 @@ func _save_failures() -> void:
 
 ## Lo que explica cada burbujita: una frase de cada una, para buscarla.
 const HELP_PHRASES := [
-	"Busca por nombre, ID o archivo", "Arrastrá para girar; la rueda", "Guardar crea el objeto", "12 de a 5",
+	"Busca por nombre, ID o archivo", "Shift + arrastre izquierdo desplaza la cámara", "Guardar crea el objeto", "12 de a 5",
 	"baterías gastadas", "es lo que viaja por red", "Dónde se guarda su .tres", "Cómo se ve en el piso",
 	"Se arrastra desde FileSystem", "cuando está suelto en el mundo", "Arrastrá para girarlo", "Sin capacidades",
 	"Opcional. Son datos", "Positivo cura", "La reserva completa son 200", "Quita esa salud de a poco", "4 en 2 s",
@@ -796,7 +1232,8 @@ func _help_bubbles() -> void:
 			"un ítem ya creado: el ID y el archivo no se cambian")
 	panel.new_item()
 	panel._on_tab(1)  # contenedores
-	_check(panel._place_help.explanation.contains("Guardar crea el contenedor") and panel._preview_help.explanation.contains("círculo amarillo")
+	_check(panel._place_help.explanation.contains("Guardar crea el contenedor") and panel._preview_help.explanation.contains("Interaction Range")
+			and not panel._preview_help.explanation.contains("círculo amarillo")
 			and panel._box_form._path_help.explanation.contains("hereda de caja.tscn"),
 			"en contenedores, colocar, la vista previa y la escena explican lo suyo")
 	loose = _loose_help_labels()
@@ -819,7 +1256,7 @@ func _loose_help_labels() -> Array:
 	for label: Label in panel.find_children("*", "Label", true, false):
 		if not _shown(label) or _in_bubble(label):
 			continue
-		for phrase: String in HELP_PHRASES + ["Escribí arriba para buscar", "Datos propios de estas unidades", "El círculo amarillo"]:
+		for phrase: String in HELP_PHRASES + ["Escribí arriba para buscar", "Datos propios de estas unidades", "Interaction Range"]:
 			if label.text.contains(phrase):
 				loose.append(label.text.left(50))
 	return loose

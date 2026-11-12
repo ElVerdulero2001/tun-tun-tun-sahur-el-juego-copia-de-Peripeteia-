@@ -23,13 +23,20 @@ enum Op {
 	MERGE,  ## [origen, id, versión, destino, id de la pila de destino, cantidad]
 	SPLIT,  ## [origen, id, versión, cantidad, destino, x, y, giro]
 	DROP,  ## [origen, id, versión, cantidad]: al piso, desde el inventario propio o una caja abierta
-	PICKUP,  ## [id del objeto del mundo]
+	## Desde el 2026-11-11 a la noche, recoger y abrir llevan la dirección en
+	## que el jugador estira la mano desde los ojos (InvReach.aim_direction), de
+	## largo 1, y el tick del último input de esa máquina (o -1): el host espera
+	## a haber movido a ese personaje hasta ese tick, tira su propio rayo desde
+	## sus ojos, con su estado, en esa dirección (InvReach.first_hit), y lo
+	## primero que toca tiene que ser ese objeto o esa caja, al alcance. Hasta
+	## ese día iba solo el número.
+	PICKUP,  ## [id del objeto del mundo, x, y, z, tick]
 	USE,  ## [id, versión]
 	EQUIP,  ## [id, versión]: equipa o desequipa
 	HOTBAR_SET,  ## [acceso, id] (id 0 lo vacía)
 	HOTBAR_SWAP,  ## [acceso, acceso]
 	HOTBAR_PRESS,  ## [acceso]: usa o equipa lo que tiene
-	OPEN,  ## [id de la caja]
+	OPEN,  ## [id de la caja, x, y, z, tick]
 	CLOSE,  ## [id de la caja]
 	## Desde el 2026-11-04: como DROP, con el lugar donde esta máquina ya lo
 	## muestra en el piso, en milímetros. El host lo deja ahí si ese lugar sirve
@@ -49,19 +56,51 @@ const ARGS := {
 	Op.MERGE: [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT],
 	Op.SPLIT: [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT],
 	Op.DROP: [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT],
-	Op.PICKUP: [TYPE_INT],
+	Op.PICKUP: [TYPE_INT, TYPE_FLOAT, TYPE_FLOAT, TYPE_FLOAT, TYPE_INT],
 	Op.USE: [TYPE_INT, TYPE_INT],
 	Op.EQUIP: [TYPE_INT, TYPE_INT],
 	Op.HOTBAR_SET: [TYPE_INT, TYPE_INT],
 	Op.HOTBAR_SWAP: [TYPE_INT, TYPE_INT],
 	Op.HOTBAR_PRESS: [TYPE_INT],
-	Op.OPEN: [TYPE_INT],
+	Op.OPEN: [TYPE_INT, TYPE_FLOAT, TYPE_FLOAT, TYPE_FLOAT, TYPE_INT],
 	Op.CLOSE: [TYPE_INT],
 	Op.DROP_AT: [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT],
 }
 
 ## El lugar de DROP_AT viaja en milímetros.
 const DROP_STEP := 0.001
+## Cuánto puede diferir de 1 el largo de la dirección de PICKUP u OPEN.
+const DIRECTION_SLACK := 0.01
+
+
+## Los argumentos de PICKUP u OPEN: el número, la dirección de la mano y el
+## tick del último input de esta máquina (InvNet.aim_tick; -1: no esperar).
+static func aimed_args(id: int, direction: Vector3, tick := -1) -> Array:
+	return [id, direction.x, direction.y, direction.z, tick]
+
+
+## La dirección de la mano de un PICKUP u OPEN, de largo 1, o null si no
+## sirve: si no tiene la forma de aimed_args, si algún número no es finito (NAN
+## o INF) o si su largo no es 1 (con DIRECTION_SLACK). El host la mira siempre:
+## el pedido de su propio jugador no pasa por parse_request.
+static func direction_of(args: Array) -> Variant:
+	if args.size() != 5 or typeof(args[4]) != TYPE_INT:
+		return null
+	for i in range(1, 4):
+		if typeof(args[i]) != TYPE_FLOAT:
+			return null
+	var direction := Vector3(args[1], args[2], args[3])
+	if not direction.is_finite() or absf(direction.length() - 1.0) > DIRECTION_SLACK:
+		return null
+	return direction.normalized()
+
+
+## El tick hasta el que el host tiene que haber movido al personaje antes de
+## hacer un PICKUP u OPEN (-1: ninguno, o si el pedido no es de esos).
+static func aimed_tick_of(op: int, args: Array) -> int:
+	if (op == Op.PICKUP or op == Op.OPEN) and args.size() == 5 and typeof(args[4]) == TYPE_INT:
+		return args[4]
+	return -1
 
 
 static func drop_args(ref: int, uid: int, ver: int, quantity: int, spot: Vector3) -> Array:

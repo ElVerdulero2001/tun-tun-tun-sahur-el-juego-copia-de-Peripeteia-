@@ -7,11 +7,15 @@ extends StaticBody3D
 ## dibuja y choca con una caja de Box Size, apoyada en el piso.
 ##
 ## No hace falta numerarla: InvNet la numera según su orden en la escena.
+##
+## Hasta dónde se abre no es de cada caja (desde el 2026-11-11; hasta ese día
+## era su Access Range, de los pies al centro de su base): es el alcance común
+## del Tuning (interaction_range). Se abre con un rayo desde los ojos que la
+## toca antes que otra cosa, a no más del alcance (su colisión, la de
+## reach_box); abierta, sigue abierta mientras los ojos estén a no más del
+## alcance de su parte más cercana, con su lugar, su giro y su escala (InvReach).
 
 @export var display_name := "Caja"
-## Hasta qué distancia, de los pies del jugador al centro de la caja, se abre y
-## se opera. Alejándose más, se cierra sola.
-@export var access_range := 2.2
 @export_range(1, 64) var columns := 8
 @export_range(1, 64) var rows := 6
 @export var box_size := Vector3(1.0, 0.8, 0.7)
@@ -74,11 +78,14 @@ func interact_focus() -> InteractFocus:
 	return _focus
 
 
-## Hacia dónde se mide el alcance.
-func access_point() -> Vector3:
-	return global_position
+## El volumen hasta el que se mide el alcance con la caja abierta, en el
+## espacio de la caja (el mismo que su colisión, apoyado en el piso): InvReach
+## lo lleva al mundo con su lugar, su giro y su escala.
+func reach_box() -> AABB:
+	return AABB(Vector3(-box_size.x / 2.0, 0.0, -box_size.z / 2.0), box_size)
 
 
-## El centro de la caja: hacia ahí se mira si el personaje la ve.
+## El centro de la caja: en tercera persona, tiene que estar adelante del
+## cuerpo para abrirla (InvNet.look_cone_degrees).
 func center() -> Vector3:
 	return to_global(Vector3.UP * box_size.y / 2.0)

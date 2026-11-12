@@ -21,6 +21,8 @@ extends Node
 const ZONE := Vector3(37, 0, 13)
 const CRATE_SPOT := Vector3(38.8, 0, 10.6)
 const Op := InvProtocol.Op
+## Recoger y abrir llevan la dirección de la mano (desde el 2026-11-11 a la noche).
+const Mano := preload("res://scenes/net_lab/inventario/pruebas/inv_mano_de_prueba.gd")
 
 var role := ""
 var lab: Node3D
@@ -111,6 +113,7 @@ func _until(condition: Callable, seconds: float) -> bool:
 
 
 func _req(op: int, args: Array, uids: Array = []) -> Array:
+	args = Mano.aimed(net, lab._local_actor, op, args)
 	var seq := net.replica.request(op, args, uids)
 	if seq == 0:
 		return [false, "no salió"]
@@ -309,7 +312,8 @@ func _client_a() -> void:
 	var found := {}
 	await _until(func() -> bool:
 		var box := net.container(1)
-		return box != null and _actor().global_position.distance_to(box.access_point()) < box.access_range - 0.2, 5.0)
+		return box != null \
+				and InvReach.box_distance(InvAuthority.eyes(_actor(), _actor().global_position), box) < net.interaction_range - 0.2, 5.0)
 	var r := await _req(Op.OPEN, [1])
 	_check(r[0] and net.replica.box_id == 1, "A abre la caja compartida: %s" % r[1])
 	_check(await _until(func() -> bool:

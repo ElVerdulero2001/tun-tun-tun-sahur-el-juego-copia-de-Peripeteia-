@@ -67,9 +67,19 @@ var equipment := {}
 var pending := {}
 
 var _next_seq := 0
-## La caja que se cerró desde acá: lo que llegue de ella hasta volver a abrirla
-## (un paquete que ya venía en viaje) no la vuelve a mostrar.
-var _ignored_box := 0
+## La caja que esta máquina quiere ver (desde la auditoría del 2026-11-08,
+## CAJ-01): el pedido OPEN que la pidió (0: ninguna), qué caja es y si el host
+## ya contestó que sí. Lo que llega de una caja se muestra solo si es esa y el
+## host ya contestó ese pedido. Así una apertura que se dejó antes de que
+## contestara (con Tab, con E, cerrando el inventario o porque no contestó a
+## tiempo) no aparece cuando llega tarde, ni las novedades de esa caja que
+## vengan después; y una apertura posterior, de la misma caja o de otra, no se
+## confunde con la anterior. Hasta ese día era _ignored_box: la caja que se
+## cerró desde acá, olvidada al pedir cualquier apertura, y una respuesta tardía
+## mostraba la caja después de que la interfaz la había dado por fallida.
+var _want_seq := 0
+var _want_box := 0
+var _want_answered := false
 ## Consumibles usados que el host todavía no confirmó, en orden: {"uid",
 ## "counter" (su número de uso), "after" (el último pedido hecho antes),
 ## "order", "sent" (ya salió en un input)}.
@@ -92,7 +102,7 @@ func reset() -> void:
 	loadout = null
 	box_id = 0
 	box = null
-	_ignored_box = 0
+	_forget_want()
 	world.clear()
 	equipment.clear()
 	pending.clear()
@@ -117,10 +127,12 @@ func request(op: int, args: Array, uids: Array = [], slots: Array = []) -> int:
 	for slot in slots:
 		if is_slot_pending(slot):
 			return 0
-	if op == InvProtocol.Op.OPEN:
-		_ignored_box = 0
 	_next_seq += 1
 	_order += 1
+	if op == InvProtocol.Op.OPEN:
+		_want_seq = _next_seq
+		_want_box = args[0]
+		_want_answered = false
 	pending[_next_seq] = {"op": op, "args": args, "uids": uids, "slots": slots, "msec": Time.get_ticks_msec(),
 			"order": _order}
 	send.call(_next_seq, op, args, _last_use)
@@ -360,21 +372,34 @@ func apply_commit(payload: Dictionary) -> void:
 		if fresh != null and (loadout == null or fresh.revision > loadout.revision):
 			loadout = fresh
 		mine = true
-	if payload.has("box") and payload["box"] is Array and payload["box"].size() == 2 and typeof(payload["box"][0]) == TYPE_INT \
-			and payload["box"][0] != _ignored_box:
-		var grid := InvGrid.from_snapshot(payload["box"][1], catalog)
-		if grid != null and (box_id != payload["box"][0] or box == null or grid.revision >= box.revision):
-			box_id = payload["box"][0]
-			box = grid
+	var results: Array = payload.get("r", []) if payload.get("r") is Array else []
+	# La respuesta a la apertura que se quiere ver viene en el mismo paquete que
+	# la caja entera (InvAuthority.handle): se mira antes que la caja.
+	for result in results:
+		if _want_seq != 0 and result is Array and result.size() == 3 and result[0] == _want_seq:
+			if result[1]:
+				_want_answered = true
+			else:
+				_forget_want()
+	if payload.has("box") and payload["box"] is Array and payload["box"].size() == 2 and typeof(payload["box"][0]) == TYPE_INT:
+		# De otra caja, o de una apertura que se dejó o que el host todavía no
+		# contestó: no se muestra (CAJ-01).
+		if _want_answered and payload["box"][0] == _want_box:
+			var grid := InvGrid.from_snapshot(payload["box"][1], catalog)
+			if grid != null and (box_id != payload["box"][0] or box == null or grid.revision >= box.revision):
+				box_id = payload["box"][0]
+				box = grid
 		mine = true
 	if payload.has("closed") and payload["closed"] is Array and payload["closed"].size() == 2:
 		var id: int = payload["closed"][0]
+		mine = true
+		# Si es la que se ve. Una que esta máquina ya dejó, o la de una apertura
+		# vieja mientras se espera otra, no cierra nada ni avisa nada.
 		if box_id == id:
 			box_id = 0
 			box = null
-		mine = true
-		container_closed.emit(id, str(payload["closed"][1]))
-	var results: Array = payload.get("r", []) if payload.get("r") is Array else []
+			_forget_want()
+			container_closed.emit(id, str(payload["closed"][1]))
 	var world_view := in_world or payload.has("closed")
 	for result in results:
 		if result is Array and result.size() == 3:
@@ -414,14 +439,36 @@ func apply_commit(payload: Dictionary) -> void:
 		use_refused.emit(reason)
 
 
-## La interfaz cerró la caja (y le pidió al host que deje de mandarla). Se
-## deja de mostrar ya, sin esperar.
-func forget_box() -> void:
-	_ignored_box = box_id
-	box_id = 0
-	box = null
-	_mark_shown()
-	changed.emit()
+## La interfaz deja la caja que se ve o la que pidió (Tab, E, cerrar el
+## inventario, o el host no contestó a tiempo): deja de mostrarse ya, sin
+## esperar, y se le pide al host que la cierre. Ese pedido sale aunque el host
+## todavía no haya contestado la apertura: los procesa en orden, así que si la
+## abre, la cierra enseguida, y si no la abrió, cerrar no hace nada. Lo que
+## llegue después de esa caja no se muestra (ver _want_seq), hasta otra
+## apertura. Devuelve el número del último pedido de cerrar, o 0 si no había
+## nada que dejar.
+func leave_box() -> int:
+	var ids: Array[int] = []
+	if box_id != 0:
+		ids.append(box_id)
+	if _want_seq != 0 and not _want_box in ids:
+		ids.append(_want_box)
+	_forget_want()
+	var seq := 0
+	for id in ids:
+		seq = request(InvProtocol.Op.CLOSE, [id])
+	if box_id != 0 or box != null:
+		box_id = 0
+		box = null
+		_mark_shown()
+		changed.emit()
+	return seq
+
+
+func _forget_want() -> void:
+	_want_seq = 0
+	_want_box = 0
+	_want_answered = false
 
 
 ## El tipo de un objeto propio o de la caja abierta.

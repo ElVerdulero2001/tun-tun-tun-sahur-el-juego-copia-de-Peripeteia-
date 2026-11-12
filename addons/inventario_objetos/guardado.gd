@@ -19,11 +19,13 @@ const Destinos := preload("destinos.gd")
 ## Lo que el panel edita de un InvItemDef. Lo demás del recurso (metadatos, o
 ## campos que se agreguen un día) queda como estaba.
 const ITEM_FIELDS: Array[StringName] = [&"id", &"display_name", &"description", &"size", &"can_rotate", &"stackable",
-		&"max_stack", &"abilities", &"default_state", &"model", &"mesh", &"color", &"world_size",
-		&"thumbnail_rotation", &"thumbnail_zoom", &"thumbnail_offset", &"thumbnail_auto_align"]
+		&"max_stack", &"abilities", &"default_state", &"model", &"mesh", &"color", &"world_size", &"pickup_hitbox",
+		&"thumbnail_rotation", &"thumbnail_zoom", &"thumbnail_offset", &"thumbnail_auto_align",
+		&"custom_hotbar_thumbnail", &"hotbar_thumbnail_rotation", &"hotbar_thumbnail_zoom", &"hotbar_thumbnail_offset"]
 ## Lo que el panel edita de un contenedor (InvContainer), además del nombre
-## del nodo.
-const BOX_FIELDS: Array[StringName] = [&"display_name", &"columns", &"rows", &"box_size", &"color", &"access_range"]
+## del nodo. Desde el 2026-11-11 no hay alcance propio de cada caja: se abre con
+## el alcance común del Tuning (Interaction Range).
+const BOX_FIELDS: Array[StringName] = [&"display_name", &"columns", &"rows", &"box_size", &"color"]
 ## Las grillas van de 1 a 64 celdas por lado (InvInventory, InvContainer).
 const MAX_CELLS := 64
 const MAX_STACK := 9999
@@ -31,8 +33,8 @@ const MAX_STACK := 9999
 const MAX_EFFECT := 10000
 ## Lo más que puede durar un daño en el tiempo, en segundos (InvConsumable).
 const MAX_EFFECT_SECONDS := 600.0
-## Radio del personaje: desde el centro de una caja, los pies quedan por lo
-## menos a medio lado de la caja más esto.
+## Radio del personaje: en la vista previa de una caja, el personaje se para a
+## esto más medio lado de la caja, al lado de ella.
 const ACTOR_RADIUS := 0.35
 ## Archivo de paso para armar un contenedor heredado (se borra enseguida).
 const SEED_PATH := "user://inventario_objetos_contenedor_base.tscn"
@@ -113,12 +115,27 @@ static func check_item(draft: Resource, path: String, original: Resource, catalo
 	var shift: Vector2 = draft.get(&"thumbnail_offset")
 	if not shift.is_finite() or absf(shift.x) > 1.0 or absf(shift.y) > 1.0:
 		errors.append("En la miniatura, el objeto quedó corrido fuera del cuadro: apretá Centrar.")
+	var hotbar_zoom := float(draft.get(&"hotbar_thumbnail_zoom"))
+	if not is_finite(hotbar_zoom) or hotbar_zoom < 0.3 or hotbar_zoom > 3.0:
+		errors.append("El zoom de la miniatura de la barra rápida va de 0,3 a 3.")
+	var hotbar_turn: Vector3 = draft.get(&"hotbar_thumbnail_rotation")
+	if not hotbar_turn.is_finite():
+		errors.append("El giro de la miniatura de la barra rápida no es un número.")
+	var hotbar_shift: Vector2 = draft.get(&"hotbar_thumbnail_offset")
+	if not hotbar_shift.is_finite() or absf(hotbar_shift.x) > 1.0 or absf(hotbar_shift.y) > 1.0:
+		errors.append("La miniatura de la barra rápida quedó corrida fuera del cuadro: apretá Centrar.")
 	var model: Variant = draft.get(&"model")
 	if model != null and not model is PackedScene:
 		errors.append("El modelo tiene que ser una escena (.glb o .tscn).")
 	var mesh: Variant = draft.get(&"mesh")
 	if mesh != null and not mesh is Mesh:
 		errors.append("La malla no es una malla.")
+	var hitbox: Variant = draft.get(&"pickup_hitbox")
+	if hitbox != null and not hitbox is InvPickupHitbox:
+		errors.append("La hitbox de agarre no es una InvPickupHitbox.")
+	elif hitbox != null:
+		for problem in (hitbox as InvPickupHitbox).problems():
+			errors.append("Hitbox de agarre: " + problem)
 	errors.append_array(check_abilities(draft.get(&"abilities")))
 	var state_problem := check_state(draft.get(&"default_state"))
 	if state_problem != "":
@@ -289,7 +306,14 @@ static func fits(cells: Vector2i, rotates: bool, grid: Vector2i) -> bool:
 ## entran en una pila. Nada se corrige solo: se avisa para que decidas.
 static func edit_consequences(original: Resource, draft: Resource, zone_root: Node) -> PackedStringArray:
 	var lines := PackedStringArray()
-	if zone_root == null or original == null:
+	if original == null:
+		return lines
+	# La hitbox de agarre no se mueve sola con el modelo (desde el 2026-11-07).
+	var hitbox: Variant = draft.get(&"pickup_hitbox")
+	if hitbox is InvPickupHitbox and (hitbox as InvPickupHitbox).is_configured() \
+			and value_text(original.get(&"pickup_hitbox")) == value_text(hitbox) and look_changed(original, draft):
+		lines.append("Cambió el modelo o su tamaño, y la hitbox de agarre quedó igual: puede que ya no le quede bien. Revisala en la vista previa (o apretá «Ajustar al modelo»), o guardá igual.")
+	if zone_root == null:
 		return lines
 	var limit := stack_limit(draft)
 	var markers := 0
@@ -305,6 +329,15 @@ static func edit_consequences(original: Resource, draft: Resource, zone_root: No
 	if markers > 0 and Vector2i(draft.get(&"size")) != Vector2i(original.get(&"size")):
 		lines.append("Cambia el tamaño en la grilla: los %d marcadores de la zona siguen igual; revisá que entre donde lo pensabas guardar." % markers)
 	return lines
+
+
+## Si cambia lo que hace la caja del modelo en el piso: el modelo, la malla, el
+## tamaño en el piso o las celdas (la caja de color de los que no tienen modelo).
+static func look_changed(before: Resource, after: Resource) -> bool:
+	for field: StringName in [&"model", &"mesh", &"world_size", &"size"]:
+		if value_text(before.get(field)) != value_text(after.get(field)):
+			return true
+	return false
 
 
 ## Crea un ítem nuevo: guarda el borrador en `path` y lo suma una vez al
@@ -398,8 +431,9 @@ static func field_copy(source: Resource, field: StringName) -> Variant:
 	return value
 
 
-## Una copia de trabajo de un ítem: sus capacidades, su malla interna y su
-## estado son copias; el modelo y lo que esté en archivos aparte se comparten.
+## Una copia de trabajo de un ítem: sus capacidades, su malla interna, su
+## hitbox de agarre (con su forma propia, si es interna) y su estado son
+## copias; el modelo y lo que esté en archivos aparte se comparten.
 static func working_copy(def: Resource) -> Resource:
 	return def.duplicate(true)
 
@@ -483,26 +517,11 @@ static func check_box(values: Dictionary, path: String, is_new: bool) -> PackedS
 	var size: Vector3 = values["box_size"]
 	if not size.is_finite() or size.x < 0.1 or size.y < 0.1 or size.z < 0.1 or size.x > 10.0 or size.y > 10.0 or size.z > 10.0:
 		errors.append("Las medidas de la caja van de 0,1 a 10 m.")
-	var reach := float(values["access_range"])
-	if not is_finite(reach) or reach < 0.3 or reach > 20.0:
-		errors.append("El alcance va de 0,3 a 20 m.")
-	elif size.is_finite() and reach < minf(size.x, size.z) / 2.0 + ACTOR_RADIUS:
-		errors.append("Con ese alcance no se abre desde ningún lado: el personaje no llega a %s m del centro. Poné %s m o más." % [
-				_meters(reach), _meters(minf(size.x, size.z) / 2.0 + ACTOR_RADIUS + 0.3)])
 	if is_new:
 		var path_problem := Destinos.check_new_path(path, "tscn", Destinos.CONTAINERS_DIR)
 		if path_problem != "":
 			errors.append(path_problem)
 	return errors
-
-
-static func box_notes(values: Dictionary) -> PackedStringArray:
-	var notes := PackedStringArray()
-	var size: Vector3 = values["box_size"]
-	var reach := float(values["access_range"])
-	if reach < maxf(size.x, size.z) / 2.0 + ACTOR_RADIUS + 0.2:
-		notes.append("Con ese alcance se abre solo desde los lados largos.")
-	return notes
 
 
 ## Crea la escena de un contenedor nuevo, heredada de caja.tscn: la caja trae
@@ -562,7 +581,8 @@ static func check_box_node(root: Node) -> String:
 ## hace el editor (la abre, cambia la raíz y la guarda), así las cajas
 ## colocadas en otras escenas abiertas toman los valores nuevos y se conservan
 ## los nodos que le hayas agregado. No se hace si esa escena ya tenía cambios
-## sin guardar: no se guarda trabajo ajeno.
+## sin guardar: no se guarda trabajo ajeno. Las otras escenas con cambios sin
+## guardar que usan esa caja siguen marcadas así (_keep_unsaved).
 static func save_box(path: String, values: Dictionary) -> Dictionary:
 	var errors := check_box(values, path, false)
 	if not errors.is_empty():
@@ -595,26 +615,74 @@ static func save_box(path: String, values: Dictionary) -> Dictionary:
 		return _fail("No se pudo guardar %s (error %d): la escena quedó abierta como estaba, sin guardar." % [path.get_file(), saved])
 	_leave(path, was_open, previous)
 	var message := "Guardado %s." % path.get_file()
-	var stale := _refresh_instances(path, unsaved)
+	var rebuilt := _keep_unsaved(path, unsaved, previous)
+	var stale := _refresh_instances(path, unsaved, rebuilt)
+	if not rebuilt.is_empty():
+		message += " %s tiene cambios sin guardar: el editor la volvió a armar con las cajas nuevas y eso borró su historial de deshacer (Ctrl+Z ya no vuelve a lo de antes de guardar la caja). Tus cambios siguen ahí y sigue marcada sin guardar." \
+				% ", ".join(Array(rebuilt).map(func(scene: String) -> String: return scene.get_file()))
 	if not stale.is_empty():
 		message += " %s tiene cambios sin guardar: hasta que la guardes y la vuelvas a abrir, el editor muestra esas cajas con los valores de antes (al jugar ya salen con los nuevos)." \
 				% ", ".join(stale)
 	return {"ok": true, "message": message}
 
 
+## Las escenas que ya tenían cambios sin guardar y usan esa caja (desde la
+## auditoría del 2026-11-08, OBJ-02). Al volver a una de ellas, el editor de
+## Godot a veces la vuelve a armar con las cajas nuevas: cuando nota que el
+## archivo de la caja cambió (según su hora de modificación, que va de a
+## segundo). Así los cambios en memoria siguen, pero borra su historial de
+## deshacer, y con él la marca de cambios sin guardar: el panel dejaba de
+## ofrecer «Guardar la zona» y nada avisaba. Acá se pasa por cada una (así el
+## editor hace eso ahora y no más tarde, por sorpresa); si perdió la marca, se
+## le vuelve a poner. Devuelve las que el editor volvió a armar. Termina en la
+## escena que estaba a la vista.
+static func _keep_unsaved(path: String, unsaved: PackedStringArray, previous: String) -> PackedStringArray:
+	var rebuilt := PackedStringArray()
+	var touched := false
+	for scene in unsaved:
+		if scene == path or not scene in EditorInterface.get_open_scenes():
+			continue
+		var root := _open_root(scene)
+		if root == null or not _uses(root, path):
+			continue
+		var current := EditorInterface.get_edited_scene_root()
+		if current == null or current.scene_file_path != scene:
+			EditorInterface.open_scene_from_path(scene)
+			touched = true
+		if not scene in EditorInterface.get_unsaved_scenes():
+			EditorInterface.mark_scene_as_unsaved()
+			rebuilt.append(scene)
+	if touched and previous != "" and previous in EditorInterface.get_open_scenes():
+		EditorInterface.open_scene_from_path(previous)
+	return rebuilt
+
+
+## La raíz de esa escena abierta en el editor, o null.
+static func _open_root(scene: String) -> Node:
+	for root: Node in EditorInterface.get_open_scene_roots():
+		if root != null and root.scene_file_path == scene:
+			return root
+	return null
+
+
+## Si en esa escena hay alguna instancia de `path`.
+static func _uses(root: Node, path: String) -> bool:
+	return root.find_children("*", "", true, true).any(func(node: Node) -> bool: return node.scene_file_path == path)
+
+
 ## Las escenas abiertas que tienen cajas de ese contenedor siguen mostrando los
-## valores viejos: el editor no las actualiza solo. Las que no tienen cambios
-## sin guardar se vuelven a cargar; las otras no se tocan (se perdería ese
-## trabajo) y se devuelven sus nombres.
-static func _refresh_instances(path: String, unsaved: PackedStringArray) -> PackedStringArray:
+## valores viejos: el editor no siempre las actualiza solo. Las que no tienen
+## cambios sin guardar se vuelven a cargar; las otras no se tocan (se perdería
+## ese trabajo) y se devuelven sus nombres, salvo las que el editor ya volvió a
+## armar (`rebuilt`, de _keep_unsaved): esas ya muestran los valores nuevos.
+static func _refresh_instances(path: String, unsaved: PackedStringArray, rebuilt := PackedStringArray()) -> PackedStringArray:
 	var stale := PackedStringArray()
 	unsaved = unsaved + EditorInterface.get_unsaved_scenes()
 	var reload := PackedStringArray()
 	for root: Node in EditorInterface.get_open_scene_roots():
-		if root == null or root.scene_file_path == path or root.scene_file_path == "":
+		if root == null or root.scene_file_path == path or root.scene_file_path == "" or root.scene_file_path in rebuilt:
 			continue
-		var uses := root.find_children("*", "", true, true).any(func(node: Node) -> bool: return node.scene_file_path == path)
-		if not uses:
+		if not _uses(root, path):
 			continue
 		if root.scene_file_path in unsaved:
 			stale.append(root.scene_file_path.get_file())
@@ -665,6 +733,3 @@ static func _writer(writer: Callable) -> Callable:
 static func _fail(message: String) -> Dictionary:
 	return {"ok": false, "message": message}
 
-
-static func _meters(value: float) -> String:
-	return String.num(value, 2).replace(".", ",")

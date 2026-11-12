@@ -58,8 +58,8 @@ const MAX_USES_WAITING := 32
 ## anterior, antes de seguir sin él, en milisegundos. Lo normal es que llegue
 ## enseguida; esto es para que nada quede trabado para siempre.
 const ORDER_WAIT_MSEC := 3000
-## Hasta dónde se busca, sobre la línea de la mira, lo que se mira.
-const AIM_LENGTH := 6.0
+## El alcance para recoger y abrir si no hay Tuning (interaction_range), en metros.
+const DEFAULT_INTERACTION_RANGE := 2.0
 
 ## Se abrió o se cerró la caja del jugador local (para la interfaz).
 signal container_closed(id: int, reason: String)
@@ -72,8 +72,6 @@ signal container_closed(id: int, reason: String)
 @export var pickup_root: Node
 
 @export_group("Alcances")
-## Hasta qué distancia del pecho se recoge un objeto suelto, en metros.
-@export var pickup_range := 2.0
 ## A qué distancia adelante del personaje cae lo que se suelta.
 @export var drop_distance := 1.0
 
@@ -81,8 +79,6 @@ signal container_closed(id: int, reason: String)
 ## En tercera persona, qué tan al costado del cuerpo puede estar lo que se
 ## agarra o se abre: grados a cada lado de hacia donde mira el personaje.
 @export_range(10.0, 180.0, 1.0) var look_cone_degrees := 75.0
-## Cuánto se perdona al apuntar a un objeto suelto: metros alrededor de su tamaño.
-@export_range(0.0, 0.5, 0.01) var aim_margin := 0.12
 
 @export_group("Grilla del jugador")
 @export_range(1, 64) var player_columns := 12
@@ -93,6 +89,15 @@ var link: LinkSimulator
 ## Los valores del laboratorio (el nodo Tuning): los consumibles los usan para
 ## los máximos de salud y estamina. Lo pone el laboratorio.
 var tuning: ActorTuning
+## Hasta qué distancia se recoge un objeto suelto o se abre una caja, en
+## metros, de los ojos al punto que toca el rayo de la mano (InvReach): el del
+## Tuning (interaction_range, grupo Recoger y abrir), o
+## DEFAULT_INTERACTION_RANGE sin Tuning. Con la caja abierta, la distancia de
+## los ojos a su volumen. Desde el 2026-11-11 reemplaza a pickup_range y al
+## alcance de cada caja.
+var interaction_range: float:
+	get:
+		return tuning.interaction_range if tuning != null else DEFAULT_INTERACTION_RANGE
 var replica := InvReplica.new()
 ## Solo en el host.
 var authority: InvAuthority
@@ -124,6 +129,11 @@ var _use_counter := 0  # número del último uso puesto en fila en esta máquina
 ## Se usa también al repetir ticks, siempre con copias nuevas (ARQ-01).
 var _use_info := {}
 var _use_tick := -1
+## El tick del último input propio que armó esta máquina (fill_input): va en
+## los pedidos de recoger y abrir (aim_tick).
+var _input_tick := -1
+## Host: peer -> el último tick en que movió a su personaje (use_before_step).
+var _stepped := {}
 
 
 func _ready() -> void:
@@ -152,6 +162,14 @@ func _ready() -> void:
 		actors_root.child_exiting_tree.connect(_on_actor_exiting)
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
+
+
+## Los triángulos armados por tipo para el rayo de la mano (InvReach) son de
+## este mundo: al irse, se olvidan, así no quedan retenidos tipos y modelos de
+## un nivel o un catálogo que ya no está (como las formas para apuntar desde la
+## auditoría del 2026-11-08, REND-01, que ya no existen).
+func _exit_tree() -> void:
+	InvReach.clear_cache()
 
 
 ## Las cajas y los objetos iniciales, en el orden del árbol: el número de cada
@@ -187,7 +205,6 @@ func start(as_host: bool) -> void:
 	authority.catalog = catalog
 	authority.actors_root = actors_root
 	authority.tuning = tuning
-	authority.pickup_range = pickup_range
 	authority.drop_distance = drop_distance
 	authority.send = _send_commit
 	for box in _containers:
@@ -246,6 +263,7 @@ func queue_use(uid: int, def: InvItemDef, part := -1) -> bool:
 ## que ya viajen ActorInput.MAX_USES sin confirmar. Lo llama el laboratorio al
 ## armar ese input.
 func fill_input(input: ActorInput) -> void:
+	_input_tick = input.tick
 	if input.tick != _use_tick:
 		var counter := replica.send_next_use(ActorInput.MAX_USES)
 		if counter >= 0:
@@ -288,6 +306,10 @@ func predict_drop_spot(actor: ActorBody) -> Variant:
 ## el inventario, que lo cambia el host. Un input sin usos no cuenta: así uno
 ## armado sin ellos (las pruebas con guion) no hace nada.
 func use_before_step(actor: ActorBody, input: ActorInput) -> void:
+	if authority != null:
+		# Hasta qué tick movió el host a cada personaje: recoger y abrir lo esperan
+		# (aim_tick, _physics_process).
+		_stepped[actor.owner_peer_id] = input.tick
 	if input.uses.is_empty():
 		return
 	var state := actor.state
@@ -394,76 +416,101 @@ func containers() -> Array[InvContainer]:
 
 
 ## Lo que el jugador está mirando, si lo puede agarrar o abrir: {"kind": "box"
-## o "item", "id", "name", "node"}, o {} si no hay nada. "node" es lo que se ve
-## de ese objetivo en esta máquina (la InvContainer o la InvWorldItem, o null si
-## todavía no se armó): de ahí sale lo que marca el indicador (interact_focus,
-## desde el 2026-11-06).
+## o "item", "id", "name", "node", "direction"}, o {} si no hay nada. "node" es
+## lo que se ve de ese objetivo en esta máquina (la InvContainer o la
+## InvWorldItem): de ahí sale lo que marca el indicador (interact_focus, desde
+## el 2026-11-06). "direction" es la de la mano, la que va en el pedido al host
+## (InvProtocol.aimed_args): el host tira su propio rayo con ella.
 ##
-## La mira es la línea que sale de la cámara por el centro de la pantalla,
-## desde `from` (la cámara, o en tercera persona el punto a la altura de la
-## cabeza: lo que queda entre la cámara y el personaje no se elige) hacia
-## `look`. Gana lo primero que toca, si está al alcance y el personaje lo ve
-## desde los ojos, sin una pared en el medio. En tercera persona, además, tiene
-## que estar adelante del cuerpo: a no más de look_cone_degrees de hacia donde
-## mira el personaje, aunque la cámara lo vea desde otro lado.
+## Desde el 2026-11-11 a la noche (pedido del usuario), con la regla de
+## InvReach, la misma que usa el host:
 ##
-## Es solo lo que elige esta máquina: el host vuelve a medir el alcance y la vista.
+## 1. La mira es la línea que sale de la cámara por el centro de la pantalla,
+##    desde `from` (la cámara, o en tercera persona el punto a la altura de la
+##    cabeza: lo que queda entre la cámara y el personaje no se elige) hacia
+##    `look`, de largo aim_length. Lo primero que toca (un objeto, una caja o
+##    el nivel) es adonde apunta el jugador (InvReach.aim_direction).
+## 2. Desde los ojos del personaje sale un rayo hacia ese punto, de largo
+##    interaction_range (InvReach.first_hit). Lo primero que toca decide: el
+##    modelo de un objeto suelto (sus triángulos tal como se ven, no su hitbox
+##    de agarre), la colisión de una caja, o el nivel, que tapa. Si desde los
+##    ojos lo primero es otra cosa que lo que vio la cámara, gana eso: lo que
+##    marca el indicador es lo que pasa al apretar E.
+## 3. En tercera persona, además, tiene que estar adelante del cuerpo: a no más
+##    de look_cone_degrees de hacia donde mira el personaje (su punto de apoyo,
+##    o el centro de la caja).
+##
+## Lo que esta máquina recogió y el host todavía no confirmó ya no se ve: el
+## rayo lo atraviesa. Lo soltado sin confirmar no está en la lista del host:
+## tampoco se toca. Hasta ese día la mira elegía entre las formas que tocaba
+## (con un margen o la hitbox de agarre) y aparte se medía la distancia del
+## torso a la caja del modelo y una vista con pocos puntos.
+##
+## Es solo lo que elige esta máquina: el host vuelve a tirar el rayo con lo suyo.
 func interaction_target(actor: ActorBody, from: Vector3, look: Vector3, third_person: bool) -> Dictionary:
-	if actor == null or not actor.is_inside_tree() or look.length_squared() < 0.0001:
+	if actor == null or not actor.is_inside_tree() or look.length_squared() < 0.0001 or not look.is_finite() \
+			or not from.is_finite():
 		return {}
-	var direction := look.normalized()
 	var space := get_world_3d().direct_space_state
 	var feet := actor.global_position
-	var chest := feet + Vector3.UP * InvAuthority.CHEST
 	var eyes := InvAuthority.eyes(actor, feet)
+	var own := InvReach.own_shapes(actor)
+	var direction := InvReach.aim_direction(space, eyes, from, look.normalized(), aim_length(from, eyes), replica.world,
+			catalog, own, _not_shown)
+	return _target_of(InvReach.first_hit(space, eyes, direction, interaction_range, replica.world, catalog, own, _not_shown),
+			actor, third_person, direction)
+
+
+## El objetivo que corresponde a lo que tocó el rayo de la mano, o {} si no se
+## puede agarrar ni abrir (el nivel, nada, o atrás del cuerpo en tercera persona).
+func _target_of(hit: Dictionary, actor: ActorBody, third_person: bool, direction: Vector3) -> Dictionary:
+	var feet := actor.global_position
 	var forward := Vector3.FORWARD.rotated(Vector3.UP, actor.state.facing_yaw)
 	var cone := cos(deg_to_rad(look_cone_degrees))
 	var in_front := func(point: Vector3) -> bool:
 		var flat := Vector3(point.x - feet.x, 0.0, point.z - feet.z)
 		return not third_person or flat.length() < 0.3 or flat.normalized().dot(forward) >= cone
-	# Lo primero del nivel que toca la mira: una caja, o una pared que tapa lo de atrás.
-	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + direction * AIM_LENGTH,
-			InvAuthority.WORLD_MASK))
-	var wall := AIM_LENGTH if hit.is_empty() else from.distance_to(hit["position"])
-	var best := {}
-	var best_t := INF
-	var box := hit.get("collider") as InvContainer
-	if box != null and box.container_id != 0 and feet.distance_to(box.access_point()) <= box.access_range \
-			and in_front.call(box.center()) and InvAuthority.sees(space, eyes, box.center(), [box.get_rid()]):
-		best_t = wall
-		best = {"kind": "box", "id": box.container_id, "name": box.display_name, "node": box}
-	for uid in replica.world:
-		if replica.is_taken(uid):
-			continue
-		var item: Dictionary = replica.world[uid]
-		var stack: InvStack = item["stack"]
-		var def := catalog.find(stack.def_id)
-		var size := def.world_size if def != null else 0.4
-		var radius := size * 0.5 + aim_margin
-		var t := _ray_sphere(from, direction, item["pos"] + Vector3.UP * size * 0.35, radius)
-		if t >= best_t or t > wall + radius:
-			continue
-		var sight: Vector3 = item["pos"] + Vector3.UP * InvAuthority.ITEM_SIGHT
-		if chest.distance_to(item["pos"]) > pickup_range or not in_front.call(item["pos"]) \
-				or not InvAuthority.sees(space, eyes, sight):
-			continue
-		best_t = t
-		best = {"kind": "item", "id": uid, "name": (def.display_name if def != null else String(stack.def_id)) +
-				(" ×%d" % stack.quantity if stack.quantity > 1 else ""), "node": _world_views.get(uid)}
-	return best
+	match hit.get("kind", ""):
+		"item":
+			var uid: int = hit["id"]
+			var view: InvWorldItem = _world_views.get(uid)
+			var item: Dictionary = replica.world[uid]
+			if view == null or not in_front.call(item["pos"]):
+				return {}
+			var stack: InvStack = item["stack"]
+			var def := catalog.find(stack.def_id)
+			return {"kind": "item", "id": uid, "name": (def.display_name if def != null else String(stack.def_id)) +
+					(" ×%d" % stack.quantity if stack.quantity > 1 else ""), "node": view, "direction": direction}
+		"box":
+			var box: InvContainer = hit["node"]
+			if not in_front.call(box.center()):
+				return {}
+			return {"kind": "box", "id": box.container_id, "name": box.display_name, "node": box, "direction": direction}
+	return {}
 
 
-## A qué distancia sobre la línea entra en la esfera (0 si arranca adentro), o
-## INF si no la toca.
-static func _ray_sphere(from: Vector3, direction: Vector3, center: Vector3, radius: float) -> float:
-	var to_center := center - from
-	if to_center.length_squared() <= radius * radius:
-		return 0.0
-	var along := to_center.dot(direction)
-	var miss := to_center.length_squared() - along * along
-	if along < 0.0 or miss > radius * radius:
-		return INF
-	return along - sqrt(radius * radius - miss)
+## El tick que va en los pedidos de recoger y abrir (InvProtocol.aimed_args):
+## el del último input propio que armó esta máquina. El host no hace el pedido
+## antes de haber movido al personaje hasta ese tick, así tira el rayo con el
+## personaje donde estaba al apretar E (sin creerle ninguna posición).
+func aim_tick() -> int:
+	return _input_tick
+
+
+## Si el rayo de la mano atraviesa ese objeto en esta máquina: lo que ya se
+## recogió acá y el host todavía no confirmó, o lo que todavía no se dibuja.
+func _not_shown(uid: int) -> bool:
+	return replica.is_taken(uid) or not _world_views.has(uid)
+
+
+## Hasta dónde llega la línea de la cámara, desde `from` (donde arranca) con
+## los ojos del personaje en `eyes_at`: lo que hay de `from` a los ojos (en
+## tercera persona, la mira arranca a la altura de la cabeza y puede ir corrida
+## al costado del cuerpo) más el alcance. Lo que toca más allá tampoco lo
+## alcanza el rayo de la mano. Hasta el 2026-11-11 eran 6 m o el alcance más
+## 2 m; ese día, desde el torso, sumando lo más grande que se podía elegir.
+func aim_length(from: Vector3, eyes_at: Vector3) -> float:
+	return from.distance_to(eyes_at) + interaction_range
 
 
 # --- Personajes ---------------------------------------------------------------
@@ -529,6 +576,7 @@ func _forget_order(peer: int) -> void:
 	_done_seq.erase(peer)
 	_use_wait.erase(peer)
 	_request_wait.erase(peer)
+	_stepped.erase(peer)
 
 
 ## Host: cuando la sesión corta a alguien por silencio (NetSession), Godot no
@@ -619,6 +667,18 @@ func _physics_process(_delta: float) -> void:
 				kept.append(item)
 				continue
 			push_warning("[inventario] el pedido %d del jugador %d esperó demasiado al uso %d" % [item[1], peer, after_use])
+		# Recoger y abrir: el rayo se tira con el personaje como estaba en esa
+		# máquina al apretar E. El pedido puede llegar antes que los últimos
+		# inputs (los pasos de frenar, por ejemplo): espera a que el host lo haya
+		# movido hasta ese tick (desde el 2026-11-11 a la noche).
+		var aimed := InvProtocol.aimed_tick_of(item[2], item[3])
+		if aimed >= 0 and _stepped.has(peer) and _stepped[peer] < aimed:
+			if not _waited_too_long(_request_wait, peer, item[1]):
+				held[peer] = true
+				kept.append(item)
+				continue
+			push_warning("[inventario] el pedido %d del jugador %d esperó demasiado al tick %d (el host va por el %d)" % [item[1],
+					peer, aimed, _stepped[peer]])
 		_request_wait.erase(peer)
 		authority.handle(peer, item[1], item[2], item[3], space)
 		_done_seq[peer] = maxi(_done_seq.get(peer, 0), item[1])
@@ -714,6 +774,9 @@ func _sync_world_views() -> void:
 			view = InvWorldItem.new()
 			view.name = "Objeto%d" % uid
 			_world_layer.add_child(view)
+			# Ya en su lugar al armarse: su forma para apuntar entra a la física
+			# ahí mismo, y la mira la encuentra en este cuadro.
+			view.global_position = item["pos"]
 			# Lo soltado sin confirmar no trae "label": lleva cartel.
 			view.setup(def, stack, item.get("label", true))
 			_world_views[uid] = view
@@ -753,14 +816,22 @@ func world_view(uid: int) -> InvWorldItem:
 
 
 ## Lo que tiene que ser igual en el host y en los clientes (SimFingerprint):
-## los valores de acá, el catálogo, las cajas y los objetos iniciales.
+## los valores de acá, el catálogo, las cajas y los objetos iniciales (su tipo,
+## cantidad, estado y lugar). Los demás valores de cada InvPickupSpawn, como el
+## cartel (show_label), entran por el texto de la zona que suma el
+## laboratorio (SimFingerprint.level_text).
 func fingerprint_text() -> String:
 	var text := "jugador %d×%d alcance %s soltar %s\n" % [player_columns, player_rows,
-			snappedf(pickup_range, 0.0001), snappedf(drop_distance, 0.0001)]
+			snappedf(interaction_range, 0.0001), snappedf(drop_distance, 0.0001)]
 	text += catalog.fingerprint_text() if catalog != null else "sin catálogo"
+	# De cada caja, también su volumen para el alcance con su lugar, giro y
+	# escala (desde el 2026-11-11; antes, su alcance propio y solo su posición).
 	for box in _containers:
-		text += "\ncaja %d %s %d×%d alcance %s en %s" % [box.container_id, box.display_name, box.columns, box.rows,
-				snappedf(box.access_range, 0.0001), box.global_position.snapped(Vector3.ONE * 0.0001)]
+		var place := box.global_transform
+		text += "\ncaja %d %s %d×%d volumen %s %s en %s %s %s %s" % [box.container_id, box.display_name, box.columns,
+				box.rows, box.reach_box().position.snapped(Vector3.ONE * 0.0001), box.box_size.snapped(Vector3.ONE * 0.0001),
+				place.origin.snapped(Vector3.ONE * 0.0001), place.basis.x.snapped(Vector3.ONE * 0.0001),
+				place.basis.y.snapped(Vector3.ONE * 0.0001), place.basis.z.snapped(Vector3.ONE * 0.0001)]
 	for spawn in _spawns:
 		text += "\nobjeto %s ×%d %s en %s" % [String(spawn.item.id) if spawn.item != null else "?", spawn.quantity,
 				var_to_str(spawn.initial_state()), spawn.global_position.snapped(Vector3.ONE * 0.0001)]

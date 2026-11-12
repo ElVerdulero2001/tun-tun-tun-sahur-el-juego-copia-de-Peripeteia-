@@ -18,6 +18,8 @@ extends Node
 ## --headless --fixed-fps 60 --scene res://scenes/net_lab/integridad_test.tscn
 
 const Op := InvProtocol.Op
+## Recoger y abrir llevan la dirección de la mano (desde el 2026-11-11 a la noche).
+const Mano := preload("res://scenes/net_lab/inventario/pruebas/inv_mano_de_prueba.gd")
 const H := ActorState.HEALTH_UNIT
 const FULL := ActorState.INTEGRITY_FULL
 const LEGS := [ActorState.Part.LEG_LEFT, ActorState.Part.LEG_RIGHT]
@@ -117,6 +119,7 @@ func _others_full() -> bool:
 
 
 func _req(op: int, args: Array, uids: Array = []) -> Array:
+	args = Mano.aimed(net, lab._local_actor, op, args)
 	var seq := net.replica.request(op, args, uids)
 	if seq == 0:
 		return [false, "no salió"]

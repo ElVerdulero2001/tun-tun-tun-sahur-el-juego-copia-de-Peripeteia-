@@ -374,6 +374,22 @@ var _boosted_from: Array = []
 ## Cuánto se recuerda una pulsación de salto antes de tocar el piso, en segundos.
 @export var jump_buffer_time := 0.12
 
+@export_group("Recoger y abrir")
+## Hasta qué distancia se recoge un objeto suelto o se abre una caja, en
+## metros: un rayo desde los ojos del personaje (bajan al agacharse: 1,65 m
+## sobre los pies parado y 0,85 m agachado), hacia donde apunta la mira, tiene
+## que tocar el modelo del objeto o la caja antes que otra cosa, y a no más de
+## esto, medido de los ojos al punto tocado (InvReach). El mismo para los dos.
+## Con una caja abierta, si sus ojos quedan más lejos que esto de la caja, se
+## cierra sola. Lo mide la máquina que mira, para elegir y marcar, y lo vuelve
+## a medir el host en cada pedido. Desde el 2026-11-11 reemplaza a Pickup Range
+## y al Access Range de cada caja; ese día se medía desde el torso hasta la
+## parte más cercana, y a la noche pasó al rayo desde los ojos.
+@export_range(0.5, 5.0, 0.05, "or_greater") var interaction_range := 2.0
+# Del 2026-11-06 al 2026-11-11 hubo acá pickup_aim_margin (Pickup Aim Margin,
+# 2 cm): cuánto perdonaba la mira alrededor del modelo. Con el rayo directo el
+# rayo tiene que tocar el modelo, y se sacó (elegido por el usuario).
+
 
 ## La velocidad terminal que vale: max_fall_speed, o sin tope (INF) con
 ## unlimited_fall_speed.

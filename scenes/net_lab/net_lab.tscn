@@ -58,6 +58,7 @@ cable_reach = 0.6000000000000001
 cable_grab_body = 0.3
 slow_stamina_cost = 0.8
 boost_stamina_cost = 0.8
+interaction_range = 2.7
 
 [node name="Inventario" type="Node3D" parent="." unique_id=1742000102 node_paths=PackedStringArray("actors_root", "world_root", "pickup_root")]
 script = ExtResource("10_inventory")

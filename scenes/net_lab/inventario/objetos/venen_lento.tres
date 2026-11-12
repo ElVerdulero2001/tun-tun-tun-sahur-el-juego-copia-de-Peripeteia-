@@ -19,5 +19,6 @@ stackable = true
 max_stack = 8
 abilities = Array[ExtResource("1_udtfr")]([SubResource("Resource_udtfr")])
 model = ExtResource("3_xh8ik")
+world_size = 0.7000000000000001
 thumbnail_rotation = Vector3(0, -90, 0)
 thumbnail_auto_align = false

@@ -22,6 +22,8 @@ extends Node
 ## máquinas, sin tocar su archivo: así no depende de lo que tengan puesto.
 
 const Op := InvProtocol.Op
+## Recoger y abrir llevan la dirección de la mano (desde el 2026-11-11 a la noche).
+const Mano := preload("res://scenes/net_lab/inventario/pruebas/inv_mano_de_prueba.gd")
 const H := ActorState.HEALTH_UNIT
 const FULL := ActorState.INTEGRITY_FULL
 const HURT := 6050
@@ -216,8 +218,9 @@ func _pick_up(def_id: StringName) -> void:
 	if uid == 0:
 		return
 	_check(await _walk_to(net.replica.world[uid]["pos"] + Vector3(-1.0, 0, 0)), "camina hasta %s" % def_id)
-	var seq := ui.pick_up_world(uid, String(def_id))
-	_check(seq != 0 and await _until(func() -> bool: return _answers.has(seq), 5.0) and _answers[seq][0], "recoge %s" % def_id)
+	var seq := ui.pick_up_world(uid, String(def_id), Mano.toward_item(net, lab._local_actor, uid))
+	_check(seq != 0 and await _until(func() -> bool: return _answers.has(seq), 5.0) and _answers[seq][0], "recoge %s: %s" % [def_id,
+			_answers.get(seq, "sin respuesta")])
 
 
 func _uid_of(def_id: StringName) -> int:

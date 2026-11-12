@@ -10,6 +10,13 @@ extends Node3D
 ##
 ## Para el indicador de lo que se mira (desde el 2026-11-06), aporta su
 ## InteractFocus: el nombre visible del tipo y la caja de su modelo.
+##
+## Para agarrarlo no hace falta nada de acá: desde el 2026-11-11 a la noche,
+## el rayo de la mano (InvReach) toca los triángulos del modelo del tipo,
+## armados una vez por tipo sin este nodo, igual en el host. Del 2026-11-06 a
+## ese día, este nodo llevaba una forma invisible para la mira (un Area3D con
+## los triángulos del modelo, en la capa 4, o la hitbox de agarre del tipo, en
+## la 5); ya no la usa nada y no se arma.
 
 var uid := 0
 ## El cartel de arriba, o null si este objeto va sin cartel.

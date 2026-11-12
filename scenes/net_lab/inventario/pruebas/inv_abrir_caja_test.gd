@@ -17,10 +17,14 @@ extends Node
 ## tarde, pedido del usuario): el inventario sigue abierto con la integridad,
 ## con un objeto de la caja en la mano (vuelve a su lugar) y con uno propio
 ## (sigue en la mano). Después lejos de la caja (el host dice que no y todo
-## vuelve a como estaba antes de E), y Tab mientras espera. Antes y al final,
-## Tab solo: la integridad sigue a la derecha. Tab va por el camino de la tecla.
+## vuelve a como estaba antes de E), Tab mientras espera, y Tab mientras espera
+## seguido de otra E con la respuesta de la primera en viaje (desde la
+## auditoría del 2026-11-08, CAJ-01). Antes y al final, Tab solo: la
+## integridad sigue a la derecha. Tab va por el camino de la tecla.
 
 const Op := InvProtocol.Op
+## Recoger y abrir llevan la dirección de la mano (desde el 2026-11-11 a la noche).
+const Mano := preload("res://scenes/net_lab/inventario/pruebas/inv_mano_de_prueba.gd")
 
 var role := ""
 var lab: Node3D
@@ -267,6 +271,8 @@ func _route(box: InvContainer) -> void:
 	# 7. Tab mientras espera la caja.
 	_check(await _walk_to(box.global_position + Vector3(-1.3, 0, 0)), "vuelve a la caja")
 	await _tab_while_waiting(box)
+	# 8. Tab mientras espera y enseguida E otra vez (CAJ-01).
+	await _tab_then_e(box)
 	await _tab_shows_integrity("al final")
 
 
@@ -354,7 +360,7 @@ func _refused(box: InvContainer, was_open: bool) -> void:
 	var what := "lejos, con el inventario %s" % ("abierto con Tab" if was_open else "cerrado")
 	_check(ui.is_open == was_open, "%s: así empieza" % what)
 	var draws := hud.integrity_draws
-	var seq := ui.open_box(box.container_id, box.display_name)
+	var seq := ui.open_box(box.container_id, box.display_name, Mano.toward_box(net, lab._local_actor, box))
 	ui._layout()
 	_check(seq != 0 and ui.is_open and ui.is_waiting_box() and ui._reserved_panel_rect().has_area()
 			and not hud.integrity_panel_rect().has_area(), "%s: se pide la caja y el lado derecho queda reservado" % what)
@@ -400,6 +406,44 @@ func _tab_while_waiting(box: InvContainer) -> void:
 	await _ticks(10)
 
 
+## E, Tab antes de que conteste el host y otra vez E, en el mismo cuadro: la
+## respuesta de la primera sigue en viaje (desde la auditoría del 2026-11-08,
+## CAJ-01). Después de Tab se ve la integridad, E ya no cierra el inventario y
+## el indicador vuelve a marcar la caja (hasta ese día, E cerraba el
+## inventario y el indicador no marcaba nada hasta que llegaba la respuesta).
+## La segunda E la vuelve a pedir y se abre esa, en modo caja; el host la
+## tiene abierta. Tab la cierra.
+func _tab_then_e(box: InvContainer) -> void:
+	var id := box.container_id
+	await _aim(box.center())
+	_check(_aims_at(id), "Tab y E: E apunta a la caja")
+	_press_e()
+	var first: int = ui._box_wait.get("seq", 0)
+	_check(first != 0 and ui.is_waiting_box(), "Tab y E: la caja está pedida")
+	_press_tab()
+	ui._layout()
+	_check(ui.is_open and not ui.has_box() and not ui._e_closes_box() and ui.can_interact() and _aims_at(id)
+			and ui.side_panel_rect().has_area(),
+			"después de Tab, con la respuesta en viaje: E no cierra el inventario, el indicador marca la caja y a la derecha va la integridad")
+	_press_e()
+	var second: int = ui._box_wait.get("seq", 0)
+	_check(second != 0 and second != first and ui.is_waiting_box() and ui._reserved_panel_rect().has_area(),
+			"E otra vez la vuelve a pedir, sin esperar la respuesta de la primera, con el lado derecho reservado")
+	_check(await _answer_of(first) and await _answer_of(second) and _answers[second][0],
+			"el host contesta las dos: %s y %s" % [_answers.get(first, []), _answers.get(second, [])])
+	await _frames(3)
+	_check(net.replica.box_id == id and not ui.is_waiting_box() and ui.is_open and not hud.integrity_panel_rect().has_area(),
+			"se abre la de la segunda E, en modo caja")
+	if net.authority != null:
+		await _ticks(10)
+		_check(net.authority.open_container_of(multiplayer.get_unique_id()) == id, "y el host la tiene abierta")
+	await _tab_closes_box(box, "abierta con la segunda E")
+	_press_tab()
+	await _frames(2)
+	_check(not ui.is_open, "Tab otra vez cierra el inventario")
+	await _ticks(10)
+
+
 ## Pasa el objeto de la caja a la grilla propia, con un pedido.
 func _take_from_box(uid: int, id: int) -> void:
 	var stack := net.replica.box.get_stack(uid) if net.replica.box != null else null
@@ -428,7 +472,7 @@ func _pick_up_near(box: InvContainer) -> int:
 		var def_id: StringName = net.replica.world[uid]["stack"].def_id
 		if not await _walk_to(net.replica.world[uid]["pos"] + Vector3(-1.0, 0, 0)) or not net.replica.world.has(uid):
 			continue
-		var seq := ui.pick_up_world(uid, String(def_id))
+		var seq := ui.pick_up_world(uid, String(def_id), Mano.toward_item(net, lab._local_actor, uid))
 		if seq != 0 and await _answer_of(seq) and _answers[seq][0]:
 			for own_uid in net.replica.own.sorted_uids():
 				if net.replica.own.stacks[own_uid].def_id == def_id:

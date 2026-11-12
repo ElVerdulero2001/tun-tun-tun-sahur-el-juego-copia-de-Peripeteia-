@@ -6,6 +6,16 @@ extends VBoxContainer
 ## cuando algo cambia o lo girás arrastrando con el mouse. Usa las mismas
 ## reglas del juego: el objeto en el piso como InvWorldItem, en la mano como
 ## InvEquipView, la miniatura con InvThumbnails y la caja con InvContainer.look.
+##
+## En el piso, desde el 2026-11-07, también la hitbox de agarre, si tiene una
+## forma (InvPickupHitbox.build_shape), en su lugar del espacio del objeto
+## suelto, en celeste. El contorno se ve a través del modelo; el relleno es
+## translúcido. Se oculta con su casilla. Desde el 2026-11-11 a la noche el
+## juego no la usa para recoger (se recoge apuntando al modelo, InvReach).
+
+## El color de la hitbox de agarre.
+const HITBOX_COLOR := Color(0.35, 0.85, 1.0)
+const HITBOX_NODE := &"HitboxDeAgarre"
 
 const Destinos := preload("destinos.gd")
 const Guardado := preload("guardado.gd")
@@ -13,11 +23,13 @@ const Huella := preload("huella.gd")
 
 enum View { FLOOR, HAND }
 
+var _hitbox_only: bool
 var _viewport_box: SubViewportContainer
 var _viewport: SubViewport
 var _camera: Camera3D
 var _content: Node3D
 var _view_pick: OptionButton
+var _hitbox_toggle: CheckBox
 var _note: Label
 var _footprint: Huella
 var _thumbnail: SubViewport
@@ -28,11 +40,13 @@ var _pending := false
 var _yaw := 30.0
 var _pitch := -22.0
 var _distance := 1.5
+var _zoom := 1.0
 var _target := Vector3.ZERO
+var _pan := Vector3.ZERO
 var _dragging := false
 var _headless := false
-## Las mallas del personaje (sin su script), para la vista en la mano y el
-## alcance de las cajas: [[malla, lugar], …].
+## Las mallas del personaje (sin su script), para la vista en la mano y al
+## lado de las cajas: [[malla, lugar], …].
 var _actor_parts: Array = []
 ## Cómo hace sus miniaturas el juego (los valores de InvThumbnails).
 var _per_cell := 96
@@ -40,20 +54,30 @@ var _max_pixels := 384
 var _padding := 1.12
 
 
-func _init() -> void:
+func _init(hitbox_only := false) -> void:
+	_hitbox_only = hitbox_only
 	add_theme_constant_override("separation", 4)
 	_view_pick = OptionButton.new()
 	_view_pick.add_item("En el piso", View.FLOOR)
 	_view_pick.add_item("En la mano (como lo ven los demás)", View.HAND)
 	_view_pick.fit_to_longest_item = false
 	_view_pick.clip_text = true
-	_view_pick.item_selected.connect(func(_i: int) -> void: _schedule())
+	_view_pick.item_selected.connect(func(_i: int) -> void:
+		_reset_camera_frame()
+		_schedule())
 	add_child(_view_pick)
+	_hitbox_toggle = CheckBox.new()
+	_hitbox_toggle.text = "Ver la hitbox de agarre"
+	_hitbox_toggle.tooltip_text = "En celeste: la hitbox de agarre guardada. Hoy el juego no la usa para recoger: se recoge apuntando al modelo."
+	_hitbox_toggle.button_pressed = true
+	_hitbox_toggle.visible = false
+	_hitbox_toggle.toggled.connect(func(_on: bool) -> void: _schedule())
+	add_child(_hitbox_toggle)
 	_viewport_box = SubViewportContainer.new()
 	_viewport_box.stretch = true
-	_viewport_box.custom_minimum_size = Vector2(120, 190)
+	_viewport_box.custom_minimum_size = Vector2(120, 170 if _hitbox_only else 190)
 	_viewport_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_viewport_box.tooltip_text = "Arrastrá para girar; la rueda acerca y aleja."
+	_viewport_box.tooltip_text = "Arrastrá con clic izquierdo para girar. Shift + arrastre izquierdo desplaza la cámara. La rueda acerca y aleja."
 	_viewport_box.gui_input.connect(_on_view_input)
 	_viewport_box.resized.connect(_render_once)
 	add_child(_viewport_box)
@@ -81,7 +105,7 @@ func _init() -> void:
 	fill_light.light_energy = 0.45
 	_viewport.add_child(fill_light)
 	_camera = Camera3D.new()
-	_camera.near = 0.01
+	_camera.near = 0.001 if _hitbox_only else 0.01
 	_camera.fov = 35.0
 	_viewport.add_child(_camera)
 	_camera.current = true
@@ -94,6 +118,7 @@ func _init() -> void:
 	add_child(_note)
 	_footprint = Huella.new()
 	_footprint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_footprint.visible = not _hitbox_only
 	add_child(_footprint)
 
 
@@ -112,6 +137,8 @@ func _exit_tree() -> void:
 
 ## Muestra ese ítem (el borrador: se vuelve a leer en cada cambio).
 func show_item(def: Resource) -> void:
+	if def != _def:
+		_reset_camera_frame()
 	_def = def
 	_box = {}
 	_schedule()
@@ -119,12 +146,15 @@ func show_item(def: Resource) -> void:
 
 ## Muestra un contenedor con esos valores.
 func show_box(values: Dictionary) -> void:
+	if not is_same(values, _box):
+		_reset_camera_frame()
 	_def = null
-	_box = values.duplicate()
+	_box = values
 	_schedule()
 
 
 func clear() -> void:
+	_reset_camera_frame()
 	_def = null
 	_box = {}
 	_schedule()
@@ -152,6 +182,7 @@ func _refresh() -> void:
 	_thumbnail = null
 	_footprint.texture = null
 	_note.text = ""
+	_hitbox_toggle.visible = false
 	if _def != null:
 		_build_item()
 	elif not _box.is_empty():
@@ -168,10 +199,11 @@ func _refresh() -> void:
 func _build_item() -> void:
 	var def := _def
 	var equip: Resource = null
-	for ability: Resource in def.get(&"abilities"):
-		if Guardado.ability_kind(ability) == "equipable":
-			equip = ability
-			break
+	if not _hitbox_only:
+		for ability: Resource in def.get(&"abilities"):
+			if Guardado.ability_kind(ability) == "equipable":
+				equip = ability
+				break
 	_view_pick.visible = equip != null
 	var in_hand := equip != null and _view_pick.get_selected_id() == View.HAND
 	var shows_model := InvVisuals.has_visual(def)
@@ -194,8 +226,32 @@ func _build_item() -> void:
 		_target = Vector3(0, 1.0, 0)
 		_distance = 4.4
 	else:
-		_add_floor(maxf(world_size * 1.3, 0.3))
-		_content.add_child(InvVisuals.fitted(def, world_size, true) if shows_model else InvVisuals.placeholder(def, world_size))
+		var model := InvVisuals.fitted(def, world_size, true) if shows_model else InvVisuals.placeholder(def, world_size)
+		var floor_radius := maxf(world_size * 1.3, 0.3)
+		_target = Vector3(0, world_size * 0.6, 0)
+		_distance = maxf(world_size, 0.25) * 3.6
+		var framing := InvVisuals.bounds(model) if _hitbox_only else AABB()
+		var hitbox := def.get(&"pickup_hitbox") as InvPickupHitbox
+		if hitbox != null and hitbox.is_configured():
+			_hitbox_toggle.visible = true
+			var overlay := hitbox_overlay(hitbox) if _hitbox_toggle.button_pressed else null
+			if overlay != null:
+				_content.add_child(overlay)
+				# Que entre también la hitbox, si es más grande que el objeto.
+				var area := hitbox.bounds()
+				if _hitbox_only:
+					framing = framing.merge(area)
+				var reach := Vector2(absf(area.position.x), absf(area.position.z)).max(Vector2(absf(area.end.x), absf(area.end.z)))
+				floor_radius = maxf(floor_radius, reach.length() * 1.15)
+				_distance = maxf(_distance, area.size.length() * 2.4)
+			elif _hitbox_toggle.button_pressed:
+				_note.text = " ".join(PackedStringArray([_note.text, "La hitbox de agarre no se puede mostrar: %s" % " ".join(hitbox.problems())])).strip_edges()
+		_add_floor(floor_radius)
+		_content.add_child(model)
+		if _hitbox_only:
+			_target = framing.get_center()
+			_distance = maxf(framing.size.length() * 2.4, 0.025)
+			return
 		# El cartel, como el de InvWorldItem.
 		var label := Label3D.new()
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -205,8 +261,6 @@ func _build_item() -> void:
 		label.position = Vector3.UP * (world_size + 0.25)
 		label.text = String(def.get(&"display_name"))
 		_content.add_child(label)
-		_target = Vector3(0, world_size * 0.6, 0)
-		_distance = maxf(world_size, 0.25) * 3.6
 	_footprint.show_item(def.get(&"size"), def.get(&"can_rotate"), null, def.get(&"color"), String(def.get(&"display_name")))
 	if shows_model and not _headless:
 		_render_thumbnail(def)
@@ -215,33 +269,85 @@ func _build_item() -> void:
 func _build_box() -> void:
 	_view_pick.visible = false
 	var size: Vector3 = _box["box_size"]
-	var reach := float(_box["access_range"])
 	if not size.is_finite() or size.x <= 0.0 or size.y <= 0.0 or size.z <= 0.0:
 		_note.text = "Las medidas de la caja no sirven."
 		return
-	_add_floor(reach + 0.4)
+	# Hasta el 2026-11-11 había un círculo amarillo con el alcance de la caja:
+	# desde ese día el alcance es común (Interaction Range del Tuning): se abre
+	# con un rayo desde los ojos y abierta se mide hasta su parte más cercana.
+	_add_floor(maxf(size.x, size.z) * 0.5 + 1.2)
 	for part in InvContainer.look(String(_box["display_name"]), size, _box["color"]):
 		_content.add_child(part)
-	# El alcance: con los pies adentro del círculo, se abre.
-	var ring := MeshInstance3D.new()
-	var torus := TorusMesh.new()
-	torus.inner_radius = maxf(reach - 0.03, 0.01)
-	torus.outer_radius = reach + 0.03
-	torus.rings = 48
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(1.0, 0.8, 0.2)
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	torus.material = material
-	ring.mesh = torus
-	ring.scale = Vector3(1, 0.05, 1)
-	_content.add_child(ring)
-	# El personaje en el borde del alcance, mirando la caja.
-	var stand := maxf(reach - 0.15, size.x / 2.0 + Guardado.ACTOR_RADIUS)
-	_add_actor(Transform3D(Basis(Vector3.UP, PI / 2.0), Vector3(stand, 0, 0)))
-	# Qué es el círculo amarillo lo explica la burbujita de la sección (objetos_panel.gd).
+	# El personaje al lado de la caja, mirándola: para ver su tamaño.
+	_add_actor(Transform3D(Basis(Vector3.UP, PI / 2.0), Vector3(size.x / 2.0 + Guardado.ACTOR_RADIUS + 0.3, 0, 0)))
 	_target = Vector3(0, maxf(size.y, 1.0) * 0.5, 0)
-	_distance = maxf(maxf(reach * 3.4, maxf(size.x, size.z) * 3.0), 3.5)
+	_distance = maxf(maxf(size.x, size.z) * 3.0, 3.5)
 	_footprint.show_grid(int(_box["columns"]), int(_box["rows"]))
+
+
+## La hitbox de agarre guardada: su forma (build_shape) en su lugar
+## (local_transform), en el espacio del objeto suelto. El contorno
+## es el dibujo de depuración de Godot de esa forma, encima de todo; el relleno,
+## translúcido. null si no tiene forma o la forma no sirve.
+static func hitbox_overlay(hitbox: InvPickupHitbox) -> Node3D:
+	if hitbox == null or not hitbox.is_configured() or not hitbox.problems().is_empty():
+		return null
+	var shape := hitbox.build_shape()
+	if shape == null:
+		return null
+	var holder := Node3D.new()
+	holder.name = HITBOX_NODE
+	holder.transform = hitbox.local_transform()
+	var lines := StandardMaterial3D.new()
+	lines.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lines.albedo_color = HITBOX_COLOR
+	lines.no_depth_test = true
+	lines.render_priority = 1
+	var fill := StandardMaterial3D.new()
+	fill.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fill.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	fill.albedo_color = Color(HITBOX_COLOR, 0.16)
+	fill.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var debug := shape.get_debug_mesh()
+	var outline := MeshInstance3D.new()
+	outline.name = "Contorno"
+	outline.mesh = debug
+	var filled := false
+	for i in debug.get_surface_count():
+		var lined := debug.surface_get_primitive_type(i) in [Mesh.PRIMITIVE_LINES, Mesh.PRIMITIVE_LINE_STRIP]
+		filled = filled or not lined
+		outline.set_surface_override_material(i, lines if lined else fill)
+	holder.add_child(outline)
+	if not filled:
+		var solid: Mesh = null
+		if shape is BoxShape3D:
+			solid = BoxMesh.new()
+			(solid as BoxMesh).size = (shape as BoxShape3D).size
+		elif shape is SphereShape3D:
+			solid = SphereMesh.new()
+			(solid as SphereMesh).radius = (shape as SphereShape3D).radius
+			(solid as SphereMesh).height = (shape as SphereShape3D).radius * 2.0
+		elif shape is CylinderShape3D:
+			solid = CylinderMesh.new()
+			(solid as CylinderMesh).top_radius = (shape as CylinderShape3D).radius
+			(solid as CylinderMesh).bottom_radius = (shape as CylinderShape3D).radius
+			(solid as CylinderMesh).height = (shape as CylinderShape3D).height
+		elif shape is CapsuleShape3D:
+			solid = CapsuleMesh.new()
+			(solid as CapsuleMesh).radius = (shape as CapsuleShape3D).radius
+			(solid as CapsuleMesh).height = (shape as CapsuleShape3D).height
+		if solid != null:
+			var inside := MeshInstance3D.new()
+			inside.name = "Relleno"
+			inside.mesh = solid
+			inside.material_override = fill
+			holder.add_child(inside)
+	return holder
+
+
+## La hitbox que se ve ahora en la vista previa, o null (para las pruebas).
+func shown_hitbox() -> Node3D:
+	return _content.get_node_or_null(NodePath(HITBOX_NODE)) as Node3D
 
 
 func _add_floor(radius: float) -> void:
@@ -280,11 +386,17 @@ func _add_actor(place: Transform3D) -> void:
 	_content.add_child(body)
 
 
+func _reset_camera_frame() -> void:
+	_pan = Vector3.ZERO
+	_zoom = 1.0
+
+
 func _place_camera() -> void:
 	var turn := Basis.from_euler(Vector3(deg_to_rad(_pitch), deg_to_rad(_yaw), 0.0))
-	_camera.far = _distance * 4.0 + 10.0
-	_camera.position = _target + turn * Vector3(0, 0, _distance)
-	_camera.look_at_from_position(_camera.position, _target)
+	var distance := _distance * _zoom
+	_camera.far = distance * 4.0 + 10.0
+	var center := _target + _pan
+	_camera.look_at_from_position(center + turn * Vector3(0, 0, distance), center)
 	_render_once()
 
 
@@ -300,13 +412,20 @@ func _on_view_input(event: InputEvent) -> void:
 		if button.button_index == MOUSE_BUTTON_LEFT:
 			_dragging = button.pressed
 		elif button.pressed and button.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
-			_distance *= 0.9 if button.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1
+			var factor := 0.9 if button.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1
+			_zoom = clampf(_zoom * factor, 0.2, 5.0)
 			_place_camera()
 			_viewport_box.accept_event()
 	elif event is InputEventMouseMotion and _dragging:
 		var motion := event as InputEventMouseMotion
-		_yaw -= motion.relative.x * 0.5
-		_pitch = clampf(_pitch - motion.relative.y * 0.5, -85.0, 10.0)
+		if motion.shift_pressed:
+			# Un píxel de arrastre en el plano que pasa por el centro de la órbita.
+			var view_height := 2.0 * _distance * _zoom * tan(deg_to_rad(_camera.fov) * 0.5)
+			var meters_per_pixel := view_height / maxf(_viewport_box.size.y, 1.0)
+			_pan += (_camera.basis.y * motion.relative.y - _camera.basis.x * motion.relative.x) * meters_per_pixel
+		else:
+			_yaw -= motion.relative.x * 0.5
+			_pitch = clampf(_pitch - motion.relative.y * 0.5, -85.0, 10.0)
 		_place_camera()
 
 

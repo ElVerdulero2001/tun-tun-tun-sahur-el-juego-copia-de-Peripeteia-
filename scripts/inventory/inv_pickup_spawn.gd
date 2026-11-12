@@ -30,10 +30,13 @@ extends Marker3D
 
 ## El cartel que flota sobre el objeto en el juego, con su nombre y su
 ## cantidad. Apagado, el objeto aparece sin cartel; el indicador de lo que se
-## mira igual muestra su nombre. El host lo manda con cada objeto; como entra
-## en la huella del laboratorio, las dos PC lo tienen igual o la otra no entra.
-## Si alguien lo recoge y lo vuelve a soltar, ya es otro objeto y lleva cartel
-## (desde el 2026-11-06).
+## mira igual muestra su nombre. El host lo manda con cada objeto. Entra en la
+## huella del laboratorio, como los demás valores de este nodo, por el texto de
+## la zona o del nivel donde está (SimFingerprint.level_text, que recorre los
+## valores exportados de cada nodo con script) y no por
+## InvNet.fingerprint_text: las dos PC lo tienen igual o la otra no entra. Lo
+## comprueba inv_lab_test. Si alguien lo recoge y lo vuelve a soltar, ya es
+## otro objeto y lleva cartel (desde el 2026-11-06).
 @export var show_label := true
 
 var _preview: Node3D

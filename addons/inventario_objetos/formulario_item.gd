@@ -12,6 +12,7 @@ const Destinos := preload("destinos.gd")
 const EditorEstado := preload("editor_estado.gd")
 const Acomodador := preload("acomodador.gd")
 const Ayuda := preload("ayuda.gd")
+const VistaPrevia := preload("vista_previa.gd")
 
 enum Shape { NONE, BOX, CYLINDER, SPHERE, CAPSULE, FILE, OTHER }
 const SHAPE_NAMES := ["Sin malla", "Caja", "Cilindro", "Esfera", "Cápsula", "Malla de un archivo…", "Malla propia (se conserva)"]
@@ -23,6 +24,16 @@ const SHAPE_DIMS := {
 	Shape.CAPSULE: [["Radio", &"radius", -1], ["Alto", &"height", -1]],
 }
 const WRAP_WIDTH := 200.0
+## Las formas de la hitbox de agarre, en el orden de InvPickupHitbox.Kind.
+const HITBOX_KINDS := ["Forma del modelo", "Caja", "Esfera", "Cilindro", "Forma personalizada"]
+## Las medidas que se editan de cada forma de la hitbox: [texto, propiedad, eje].
+const HITBOX_DIMS := {
+	InvPickupHitbox.Kind.BOX: [["Ancho (x)", &"box_size", 0], ["Alto (y)", &"box_size", 1], ["Largo (z)", &"box_size", 2]],
+	InvPickupHitbox.Kind.SPHERE: [["Radio", &"sphere_radius", -1]],
+	InvPickupHitbox.Kind.CYLINDER: [["Radio", &"cylinder_radius", -1], ["Alto (a lo largo de su eje)", &"cylinder_height", -1]],
+}
+## Lo que agrandan o achican los botones de la hitbox, por cada lado, en metros.
+const HITBOX_STEP := 0.01
 
 var draft: Resource
 var is_new := true
@@ -54,8 +65,38 @@ var _mesh_file_label: Control
 var _color: ColorPickerButton
 var _simple_look: VBoxContainer
 var _world_size: EditorSpinSlider
+var _hitbox_kind: OptionButton
+var _hitbox_preview: VistaPrevia
+var _hitbox_fields: ScrollContainer
+var _hitbox_dims: VBoxContainer
+var _hitbox_place: VBoxContainer
+var _hitbox_offset: Array[EditorSpinSlider] = []
+var _hitbox_rotation: Array[EditorSpinSlider] = []
+var _hitbox_rotation_header: Control
+var _hitbox_rotation_box: Control
+var _hitbox_fit: Button
+var _hitbox_sizes: HBoxContainer
+var _hitbox_notes: Label
+## La última hitbox con forma de este borrador, mientras está en «Forma del
+## modelo»: si se vuelve a elegir una forma, sigue con sus medidas.
+var _spare_hitbox: InvPickupHitbox
+## Cómo se veía el objeto al abrirlo o al ajustar la hitbox: si cambia el
+## modelo o su tamaño, la hitbox no se mueve sola; se avisa.
+var _hitbox_look := ""
+## La forma personalizada del borrador, mientras se ve: si cambia en el
+## Inspector (sus puntos o sus medidas), el panel se entera (OBJ-01).
+var _watched_shape: Resource
+## Bajo el selector de la forma personalizada: qué es y cómo se edita.
+var _custom_note: Label
+## «Usar una copia propia», solo con una forma que es un archivo aparte.
+var _custom_own: Button
+var _model_box_key := ""
+var _model_box := AABB()
 var _arranger: Acomodador
 var _arranger_buttons: Array[Button] = []
+var _hotbar_arranger: Acomodador
+var _hotbar_buttons: Array[Button] = []
+var _custom_hotbar: CheckBox
 var _abilities: VBoxContainer
 var _add_use: Button
 var _add_equip: Button
@@ -67,7 +108,9 @@ func _init() -> void:
 	_build_identity()
 	_build_grid()
 	_build_look()
+	_build_hitbox()
 	_build_thumbnail()
+	_build_thumbnail(true)
 	_build_abilities()
 	_build_state()
 
@@ -174,31 +217,113 @@ func _build_look() -> void:
 	_row(grid2, "Tamaño en el piso", _world_size, _help("Lo que mide su lado más largo cuando está suelto en el mundo."))
 
 
-## La miniatura del inventario, para acomodarla con el mouse y unos botones.
-func _build_thumbnail() -> void:
-	var box := _section("Miniatura del inventario", _help("Así se ve en la grilla. Arrastrá para girarlo (con Ctrl, de a 15°); con el botón derecho, correlo; la rueda lo acerca o lo aleja."))
-	_arranger = Acomodador.new()
-	_arranger.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_arranger.changed.connect(func() -> void: edited.emit())
-	box.add_child(_arranger)
-	_arranger_buttons = [
-		_button("↺ 90°", "Un cuarto de vuelta, para la izquierda.", _arranger.turn.bind(Vector3.BACK, 90.0)),
-		_button("↻ 90°", "Un cuarto de vuelta, para la derecha.", _arranger.turn.bind(Vector3.BACK, -90.0)),
-		_button("De frente", "Sin giro: como se lo ve de frente.", _arranger.face_front),
-		_button("Centrar", "En el medio del cuadro y sin acercar.", _arranger.center),
-		_button("Automático", "Como sale solo: en diagonal, acostado si su lado largo no coincide con el de la huella, y en el medio.",
-				_arranger.automatic),
+## La hitbox de agarre (desde el 2026-11-07, pedido del usuario). Desde el
+## 2026-11-11 a la noche el juego no la usa para recoger: se recoge apuntando
+## al modelo (InvReach). Se sigue guardando, editando y viendo acá, y entra en
+## la huella. Se escribe en la InvPickupHitbox del borrador, que es una copia:
+## la del original no cambia hasta guardar.
+func _build_hitbox() -> void:
+	var box := _section("Hitbox de agarre", _help("\n\n".join([
+		"Hoy no interviene al recoger (desde el 2026-11-11): para agarrar un objeto suelto, un rayo desde los ojos del jugador, hacia donde apunta la mira, tiene que tocar su modelo antes que otra cosa, a no más de Interaction Range (nodo Tuning, grupo Recoger y abrir). Una hitbox más grande no lo hace más fácil de apuntar, ni deja agarrarlo desde más lejos o a través de una pared.",
+		"Se guarda con el ítem y se ve en celeste en la vista previa, para cuando vuelva a servir. Sirve para darle a algo chico un volumen fácil de apuntar, o para tapar los huecos de su silueta con una forma sencilla: caja, esfera, cilindro o una forma convexa propia.",
+		"Forma del modelo: sin hitbox, como cualquier ítem.",
+		"No choca con nada, ni cambia la física, la mano o la miniatura. Entra en la huella: si las dos PC no la tienen igual, la otra no entra.",
+	])))
+	var grid := _grid(box)
+	_hitbox_kind = OptionButton.new()
+	for kind_name in HITBOX_KINDS:
+		_hitbox_kind.add_item(kind_name)
+	_hitbox_kind.fit_to_longest_item = false
+	_hitbox_kind.clip_text = true
+	_hitbox_kind.item_selected.connect(_on_hitbox_kind)
+	_row(grid, "Forma", _hitbox_kind)
+	_hitbox_preview = VistaPrevia.new(true)
+	box.add_child(_hitbox_preview)
+	_hitbox_fields = ScrollContainer.new()
+	_hitbox_fields.custom_minimum_size.y = 210
+	_hitbox_fields.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(_hitbox_fields)
+	var fields := _grid(_hitbox_fields)
+	fields.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hitbox_dims = VBoxContainer.new()
+	_hitbox_dims.add_theme_constant_override("separation", 2)
+	fields.add_child(_hitbox_dims)
+	_hitbox_place = VBoxContainer.new()
+	_hitbox_place.add_theme_constant_override("separation", 4)
+	fields.add_child(_hitbox_place)
+	_hitbox_fit = _button("Ajustar al modelo",
+			"La deja encerrando el modelo como se ve suelto en el piso: ya escalado y apoyado. Es un punto de partida; después agrandala o corrala a mano.",
+			_fit_hitbox)
+	_hitbox_place.add_child(_hitbox_fit)
+	var shrink := _button("−1 cm", "Achica la forma 1 cm por cada lado.", _grow_hitbox.bind(-HITBOX_STEP))
+	var grow := _button("+1 cm", "Agranda la forma 1 cm por cada lado.", _grow_hitbox.bind(HITBOX_STEP))
+	_hitbox_sizes = _line([_label("Por cada lado"), shrink, grow])
+	_hitbox_place.add_child(_hitbox_sizes)
+	var place := _grid(_hitbox_place)
+	for i in 3:
+		var spin := _float_spin(-InvPickupHitbox.MAX_OFFSET, InvPickupHitbox.MAX_OFFSET, 0.001, " m")
+		spin.label = ["x", "y", "z"][i]
+		spin.value_changed.connect(func(_v: float) -> void:
+			_put_hitbox(&"offset", Vector3(_hitbox_offset[0].value, _hitbox_offset[1].value, _hitbox_offset[2].value)))
+		_hitbox_offset.append(spin)
+	_row(place, "Desplazamiento (m)", _column(_hitbox_offset),
+			_help("Cuánto se corre la forma desde el centro de la base del modelo, en el piso: x a lo ancho, y para arriba, z a lo largo, en metros. Es el mismo lugar que en el juego, tenga el modelo importado el origen que tenga."))
+	for i in 3:
+		var spin := _float_spin(-InvPickupHitbox.MAX_DEGREES, InvPickupHitbox.MAX_DEGREES, 1.0, "°")
+		spin.label = ["x", "y", "z"][i]
+		spin.value_changed.connect(func(_v: float) -> void:
+			_put_hitbox(&"rotation_degrees", Vector3(_hitbox_rotation[0].value, _hitbox_rotation[1].value, _hitbox_rotation[2].value)))
+		_hitbox_rotation.append(spin)
+	_hitbox_rotation_box = _column(_hitbox_rotation)
+	_hitbox_rotation_header = _row(place, "Rotación (°)", _hitbox_rotation_box,
+			_help("Cuánto se gira la forma, en grados, como en el Inspector. El cilindro va parado: para acostarlo a lo ancho, 90 en z; a lo largo, 90 en x."))
+	_hitbox_notes = _note(fields, "")
+
+
+## Los dos editores comparten los controles; cada uno ajusta su propio encuadre.
+func _build_thumbnail(hotbar := false) -> void:
+	var title := "Miniatura de la barra rápida" if hotbar else "Miniatura del inventario"
+	var gestures := "Arrastrá para girarlo (con Ctrl, de a 15°); con Shift + arrastre izquierdo o con el botón derecho, correlo; la rueda lo acerca o lo aleja."
+	var description := "Activá el encuadre propio para acomodar el ícono dentro del acceso cuadrado. Con la casilla apagada se usa la imagen de la grilla centrada." if hotbar else "Así se ve en la grilla."
+	var box := _section(title, _help(description + "\n\n" + gestures), hotbar)
+	if hotbar:
+		_custom_hotbar = CheckBox.new()
+		_custom_hotbar.text = "Usar un encuadre propio"
+		_custom_hotbar.toggled.connect(func(on: bool) -> void: _put(&"custom_hotbar_thumbnail", on))
+		box.add_child(_custom_hotbar)
+	var arranger := Acomodador.new(hotbar)
+	arranger.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	arranger.changed.connect(func() -> void: edited.emit())
+	box.add_child(arranger)
+	var auto_tip := "Vuelve al encuadre cuadrado inicial." if hotbar else "Como sale solo: en diagonal, acostado si hace falta, y en el medio."
+	var buttons: Array[Button] = [
+		_button("↺ 90°", "Un cuarto de vuelta, para la izquierda.", arranger.turn.bind(Vector3.BACK, 90.0)),
+		_button("↻ 90°", "Un cuarto de vuelta, para la derecha.", arranger.turn.bind(Vector3.BACK, -90.0)),
+		_button("De frente", "Sin giro: como se lo ve de frente.", arranger.face_front),
+		_button("Centrar", "En el medio del cuadro y sin acercar.", arranger.center),
+		_button("Automático", auto_tip, arranger.automatic),
 	]
-	box.add_child(_line(_arranger_buttons.slice(0, 2)))
-	box.add_child(_line(_arranger_buttons.slice(2, 4)))
-	box.add_child(_arranger_buttons[4])
+	box.add_child(_line(buttons.slice(0, 2)))
+	box.add_child(_line(buttons.slice(2, 4)))
+	box.add_child(buttons[4])
+	if hotbar:
+		_hotbar_arranger = arranger
+		_hotbar_buttons = buttons
+	else:
+		_arranger = arranger
+		_arranger_buttons = buttons
 
 
-## Vuelve a dibujar la miniatura con lo que tiene el borrador ahora.
+## Vuelve a dibujar las dos miniaturas con lo que tiene el borrador ahora.
 func refresh_thumbnail() -> void:
 	_arranger.show_item(draft)
+	_hotbar_arranger.show_item(draft)
+	var custom := draft != null and bool(draft.get(&"custom_hotbar_thumbnail"))
+	_custom_hotbar.set_pressed_no_signal(custom)
 	for button: Button in _arranger_buttons:
 		button.disabled = not _arranger.has_image()
+	for button: Button in _hotbar_buttons:
+		button.disabled = not custom or not _hotbar_arranger.has_image()
 
 
 func _build_abilities() -> void:
@@ -270,6 +395,9 @@ func load_draft(p_draft: Resource, p_is_new: bool, p_path: String) -> void:
 	_show_shape()
 	_color.color = draft.get(&"color")
 	_world_size.value = float(draft.get(&"world_size"))
+	_spare_hitbox = null
+	_hitbox_look = _look_key()
+	_show_hitbox()
 	_state.set_state(draft.get(&"default_state"))
 	_rebuild_abilities()
 	_refresh_source()
@@ -436,6 +564,297 @@ func _refresh_source() -> void:
 		"Se arrastra desde FileSystem: un .glb o un .tscn. Del modelo solo se usan sus mallas: no corren sus scripts, ni su física, ni sus efectos.",
 		text,
 	])
+
+
+# --- Hitbox de agarre ----------------------------------------------------------------
+
+func _hitbox() -> InvPickupHitbox:
+	return draft.get(&"pickup_hitbox") as InvPickupHitbox if draft != null else null
+
+
+func _hitbox_kind_of(hitbox: Resource) -> int:
+	return int(hitbox.get(&"kind")) if hitbox != null else InvPickupHitbox.Kind.MODEL
+
+
+## Muestra la hitbox del borrador: la forma elegida, sus medidas y su lugar.
+## Arma de nuevo solo las medidas; no se llama mientras se arrastra un número.
+func _show_hitbox() -> void:
+	var hitbox := _hitbox()
+	var kind := _hitbox_kind_of(hitbox)
+	_hitbox_kind.select(kind if kind >= 0 and kind < HITBOX_KINDS.size() else -1)
+	for child in _hitbox_dims.get_children():
+		_hitbox_dims.remove_child(child)
+		child.queue_free()
+	var configured := kind != InvPickupHitbox.Kind.MODEL
+	_hitbox_preview.visible = configured
+	_hitbox_fields.visible = configured
+	_hitbox_dims.visible = configured
+	_hitbox_place.visible = configured
+	_custom_note = null
+	_custom_own = null
+	if not configured:
+		_watch_custom_shape()
+		return
+	var grid := _grid(_hitbox_dims)
+	if kind == InvPickupHitbox.Kind.CUSTOM:
+		var picker := EditorResourcePicker.new()
+		picker.base_type = InvPickupHitbox.CUSTOM_TYPES
+		picker.custom_minimum_size.x = 120
+		picker.edited_resource = hitbox.get(&"custom_shape")
+		picker.resource_changed.connect(_on_custom_shape)
+		# Un clic en el recurso lo abre en el Inspector, para ponerle sus puntos o
+		# sus medidas (desde la auditoría del 2026-11-08, OBJ-01: hasta ese día,
+		# una forma nueva creada acá quedaba vacía y sin cómo editarla).
+		picker.resource_selected.connect(func(resource: Resource, _inspect: bool) -> void: _inspect_shape(resource))
+		_row(grid, "Recurso de colisión", picker, _help("\n\n".join([
+			"Un recurso de colisión convexo: una ConvexPolygonShape3D, o una caja, esfera, cilindro o cápsula de colisión. Se crea acá mismo (la flecha → New…) o se arrastra un .tres desde FileSystem.",
+			"Un clic en el recurso lo abre en el Inspector: ahí se le ponen los puntos (una ConvexPolygonShape3D necesita al menos 4 que no estén en un plano) o las medidas. La vista previa y el aviso de cambios sin guardar lo siguen.",
+			"Se usa tal cual, en metros, en el espacio del objeto suelto, y se corre y se gira con lo de abajo. Una vacía, sin volumen o que no sea convexa (una ConcavePolygonShape3D, por ejemplo) no se guarda.",
+			"Si es un archivo aparte (arrastrado desde FileSystem), lo comparten los ítems que lo usan: cambiarlo los cambia a todos. «Usar una copia propia» lo copia adentro de este ítem.",
+		])))
+		_custom_note = _note(grid, "")
+		_custom_own = _button("Usar una copia propia",
+				"Copia la forma adentro de este ítem: lo que cambies después no toca el archivo ni a los otros ítems que lo usan.",
+				_own_custom_shape)
+		grid.add_child(_custom_own)
+		_refresh_custom_note()
+	else:
+		for dim: Array in HITBOX_DIMS.get(kind, []):
+			var spin := _float_spin(InvPickupHitbox.MIN_SIZE, InvPickupHitbox.MAX_SIZE, 0.001, " m")
+			var value: Variant = hitbox.get(dim[1])
+			spin.value = value[dim[2]] if dim[2] >= 0 else value
+			spin.value_changed.connect(_on_hitbox_dim.bind(dim))
+			_row(grid, dim[0], spin)
+	var offset: Vector3 = hitbox.get(&"offset")
+	var turn: Vector3 = hitbox.get(&"rotation_degrees")
+	for i in 3:
+		_hitbox_offset[i].value = offset[i]
+		_hitbox_rotation[i].value = turn[i]
+	# Girar una esfera no cambia nada.
+	_hitbox_rotation_header.visible = kind != InvPickupHitbox.Kind.SPHERE
+	_hitbox_rotation_box.visible = kind != InvPickupHitbox.Kind.SPHERE
+	_hitbox_fit.visible = kind != InvPickupHitbox.Kind.CUSTOM
+	_hitbox_sizes.visible = kind != InvPickupHitbox.Kind.CUSTOM
+	_watch_custom_shape()
+
+
+# --- La forma personalizada (OBJ-01) ---------------------------------------------
+
+func _on_custom_shape(resource: Resource) -> void:
+	_put_hitbox(&"custom_shape", resource)
+	_watch_custom_shape()
+	_refresh_custom_note()
+
+
+## La forma personalizada del borrador, o null.
+func _custom_shape() -> Resource:
+	var hitbox := _hitbox()
+	if hitbox == null or _hitbox_kind_of(hitbox) != InvPickupHitbox.Kind.CUSTOM:
+		return null
+	return hitbox.get(&"custom_shape")
+
+
+## Abre la forma en el Inspector, para editar sus puntos o sus medidas.
+func _inspect_shape(resource: Resource) -> void:
+	if resource != null and Engine.is_editor_hint():
+		EditorInterface.edit_resource(resource)
+
+
+## Se entera de los cambios de la forma personalizada del borrador (los que se
+## hacen en el Inspector). Si el Inspector se quedó con la forma de antes (otro
+## ítem, o lo ya guardado), lo suelta: así no se editaría algo que el panel ya
+## no muestra.
+func _watch_custom_shape() -> void:
+	var shape := _custom_shape()
+	if shape == _watched_shape:
+		return
+	_forget_watched_shape()
+	_watched_shape = shape
+	if shape != null:
+		shape.changed.connect(_on_watched_shape_changed)
+
+
+func _forget_watched_shape() -> void:
+	if _watched_shape == null:
+		return
+	if _watched_shape.changed.is_connected(_on_watched_shape_changed):
+		_watched_shape.changed.disconnect(_on_watched_shape_changed)
+	if Engine.is_editor_hint():
+		var inspector := EditorInterface.get_inspector()
+		if inspector != null and inspector.get_edited_object() == _watched_shape:
+			inspector.edit(null)
+	_watched_shape = null
+
+
+func _on_watched_shape_changed() -> void:
+	if _loading:
+		return
+	_refresh_custom_note()
+	edited.emit()
+
+
+## Lo que dice bajo el selector: si falta la forma, si hay que ponerle puntos o
+## si es un archivo compartido.
+func _refresh_custom_note() -> void:
+	if _custom_note == null or not is_instance_valid(_custom_note):
+		return
+	var shape := _custom_shape()
+	var external := Guardado.is_external(shape)
+	var text := ""
+	if shape == null:
+		text = "Elegí una forma con la flecha (New…) o arrastrá un .tres desde FileSystem."
+	elif external:
+		text = "Es el archivo %s: lo comparten los ítems que lo usan, y cambiarlo en el Inspector los cambia a todos (se guarda con ese archivo, no con este ítem)." % shape.resource_path.get_file()
+	elif shape is ConvexPolygonShape3D and (shape as ConvexPolygonShape3D).points.size() < 4:
+		text = "Está vacía: un clic en el recurso la abre en el Inspector, para ponerle sus puntos (Points; al menos 4 que no estén en un plano)."
+	else:
+		text = "Un clic en el recurso la abre en el Inspector, para cambiar sus puntos o sus medidas."
+	_custom_note.text = text
+	if _custom_own != null and is_instance_valid(_custom_own):
+		_custom_own.visible = external
+
+
+## «Usar una copia propia»: la forma de un archivo aparte pasa a ser una copia
+## adentro de este ítem. El archivo no cambia. Lo llama un botón, que después
+## avisa el cambio.
+func _own_custom_shape() -> void:
+	var hitbox := _hitbox()
+	var shape := _custom_shape()
+	if hitbox == null or shape == null or not Guardado.is_external(shape):
+		return
+	hitbox.set(&"custom_shape", shape.duplicate(true))
+	_loading = true
+	_show_hitbox()
+	_loading = false
+
+
+func _exit_tree() -> void:
+	_forget_watched_shape()
+
+
+func _put_hitbox(field: StringName, value: Variant) -> void:
+	var hitbox := _hitbox()
+	if _loading or hitbox == null:
+		return
+	hitbox.set(field, value)
+	edited.emit()
+
+
+func _on_hitbox_dim(value: float, dim: Array) -> void:
+	var hitbox := _hitbox()
+	if _loading or hitbox == null:
+		return
+	if dim[2] >= 0:
+		var size: Vector3 = hitbox.get(dim[1])
+		size[dim[2]] = value
+		hitbox.set(dim[1], size)
+	else:
+		hitbox.set(dim[1], value)
+	edited.emit()
+
+
+## Otra forma. «Forma del modelo» deja el borrador sin hitbox (guarda la que
+## tenía por si se vuelve a elegir una forma). Una forma nueva, o pasar a otra
+## forma simple, arranca ajustada al modelo; la personalizada conserva el lugar.
+func _on_hitbox_kind(index: int) -> void:
+	if _loading or draft == null:
+		return
+	var current := _hitbox()
+	if index == _hitbox_kind_of(current):
+		return
+	if index == InvPickupHitbox.Kind.MODEL:
+		if current != null:
+			_spare_hitbox = current
+		draft.set(&"pickup_hitbox", null)
+	else:
+		var hitbox: InvPickupHitbox = current if current != null else _spare_hitbox
+		var fresh := hitbox == null
+		if fresh:
+			hitbox = InvPickupHitbox.new()
+		var changed := fresh or _hitbox_kind_of(hitbox) != index
+		hitbox.set(&"kind", index)
+		if changed and index != InvPickupHitbox.Kind.CUSTOM:
+			_fit_to_model(hitbox)
+		draft.set(&"pickup_hitbox", hitbox)
+		_spare_hitbox = null
+	_loading = true
+	_show_hitbox()
+	_loading = false
+	edited.emit()
+
+
+## «Ajustar al modelo»: un punto de partida con la caja del modelo como se ve
+## en el piso. Lo llama un botón, que después avisa el cambio.
+func _fit_hitbox() -> void:
+	var hitbox := _hitbox()
+	if hitbox == null:
+		return
+	_fit_to_model(hitbox)
+	_loading = true
+	_show_hitbox()
+	_loading = false
+
+
+func _fit_to_model(hitbox: InvPickupHitbox) -> void:
+	var box := _model_bounds()
+	_hitbox_look = _look_key()
+	if box.size.length() > 0.0:
+		hitbox.fit(box)
+
+
+## «−1 cm» y «+1 cm»: lo mismo por cada lado. Lo llama un botón.
+func _grow_hitbox(amount: float) -> void:
+	var hitbox := _hitbox()
+	if hitbox == null:
+		return
+	hitbox.grow(amount)
+	_loading = true
+	_show_hitbox()
+	_loading = false
+
+
+## Lo que cambia la caja del modelo en el piso.
+func _look_key() -> String:
+	if draft == null:
+		return ""
+	return "%s|%s|%s|%s" % [Guardado.value_text(draft.get(&"model")), Guardado.value_text(draft.get(&"mesh")),
+			draft.get(&"world_size"), draft.get(&"size")]
+
+
+## La caja del modelo como se ve suelto en el piso (la misma regla del juego).
+func _model_bounds() -> AABB:
+	var key := _look_key()
+	if key != _model_box_key:
+		_model_box_key = key
+		_model_box = InvPickupHitbox.model_bounds(draft) if draft != null else AABB()
+	return _model_box
+
+
+## Lo que conviene saber de la hitbox: cuánto ocupa al lado del modelo, si quedó
+## lejos de él y si cambió el modelo desde que se abrió o se ajustó. Lo llama el
+## panel en cada cambio; no impide guardar (lo que no sirve lo dice el panel
+## al guardar).
+func refresh_hitbox() -> void:
+	var lines := PackedStringArray()
+	var hitbox := _hitbox()
+	var configured := _hitbox_kind_of(hitbox) != InvPickupHitbox.Kind.MODEL
+	_hitbox_preview.show_item(draft if configured else null)
+	if configured:
+		var model_box := _model_bounds()
+		var has_model := model_box.size.length() > 0.0
+		if hitbox.problems().is_empty():
+			var area: AABB = hitbox.bounds()
+			lines.append("Ocupa %s; el modelo, %s (ancho × alto × largo)." % [_cm(area.size), _cm(model_box.size) if has_model else "nada: no tiene mallas"])
+			if has_model and not area.intersects(model_box):
+				lines.append("No toca el modelo: queda al lado, en el aire. Revisá el desplazamiento.")
+		if _look_key() != _hitbox_look:
+			lines.append("Cambiaste el modelo o su tamaño, y la hitbox quedó como estaba: mirala en la vista previa y, si hace falta, apretá «Ajustar al modelo».")
+	_hitbox_notes.text = "\n".join(lines)
+	_hitbox_notes.visible = not lines.is_empty()
+
+
+static func _cm(size: Vector3) -> String:
+	return "%s × %s × %s cm" % [Guardado.decimal(size.x * 100.0), Guardado.decimal(size.y * 100.0), Guardado.decimal(size.z * 100.0)]
 
 
 # --- Capacidades -------------------------------------------------------------------

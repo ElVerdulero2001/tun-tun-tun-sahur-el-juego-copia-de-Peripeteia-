@@ -294,11 +294,11 @@ func _set_mode(mode: int) -> void:
 	if mode == Mode.ITEM:
 		_place_help.explanation = "Guardar crea el objeto, pero no lo pone en ningún lado del mundo. Esto pone unidades en el piso de la zona de inventario (pasando el borde este del piso, a unos 30 m de donde aparecés), para recogerlas con E al jugar.\n\n" + after
 		_quantity_help.explanation = "Si se apila, van en pilas válidas: 12 de a 5 son tres pilas, de 5, 5 y 2. Con 0 no se coloca nada."
-		_preview_help.explanation = "Arrastrá para girar; la rueda acerca y aleja. Si es equipable, arriba se elige verlo en el piso o en la mano. Abajo, cómo ocupa la grilla del inventario (también girado, si se gira)."
+		_preview_help.explanation = "Arrastrá con clic izquierdo para girar. Shift + arrastre izquierdo desplaza la cámara. La rueda acerca y aleja. Si es equipable, arriba se elige verlo en el piso o en la mano. En el piso, si tiene una hitbox de agarre con forma, se ve en celeste, en su lugar y de su tamaño; la casilla la oculta. Hoy el juego no la usa para recoger: se recoge apuntando al modelo. Abajo, cómo ocupa la grilla del inventario (también girado, si se gira)."
 	else:
 		_place_help.explanation = "Guardar crea el contenedor, pero no lo pone en ningún lado del mundo. Esto pone cajas en el piso de la zona de inventario (pasando el borde este del piso), para abrirlas con E al jugar.\n\n" + after
 		_quantity_help.explanation = "Hasta 20 cajas por vez. Cada una nace vacía, con su propio inventario."
-		_preview_help.explanation = "Arrastrá para girar; la rueda acerca y aleja. El círculo amarillo es el alcance: con los pies adentro, se abre con E. Abajo, las celdas de su inventario."
+		_preview_help.explanation = "Arrastrá con clic izquierdo para girar. Shift + arrastre izquierdo desplaza la cámara. La rueda acerca y aleja. El personaje, al lado, es para ver el tamaño. Se abre con E apuntándole: un rayo desde los ojos tiene que tocarla a no más de Interaction Range (el alcance común del nodo Tuning); abierta, sigue abierta mientras los ojos estén a ese alcance de su parte más cercana. Abajo, las celdas de su inventario."
 	if mode == Mode.ITEM:
 		if _item_draft == null:
 			new_item()
@@ -542,6 +542,7 @@ static func _id_taken(id: String, catalog: Resource) -> bool:
 func _show_item() -> void:
 	_preview.show_item(_item_draft)
 	_item_form.refresh_thumbnail()
+	_item_form.refresh_hitbox()
 	_item_form.set_notes(Guardado.item_notes(_item_draft, _player_grid, _known_boxes))
 	_update_status()
 
@@ -591,7 +592,6 @@ func _duplicate_box() -> void:
 
 func _show_box() -> void:
 	_preview.show_box(_box_form.values)
-	_box_form.set_notes(Guardado.box_notes(_box_form.values))
 	_update_status()
 
 

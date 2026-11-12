@@ -8,9 +8,17 @@ extends RefCounted
 ## el orden en que llegaron (InvNet los pone en fila). Quién pide sale de la
 ## conexión, nunca del pedido: el inventario propio es el del actor de ese
 ## jugador, y una caja se opera solo si la tiene abierta y está cerca. Las
-## distancias se miden con el estado del actor en el host. Para recoger o abrir,
-## además, el personaje tiene que ver el objeto o la caja desde los ojos, sin
-## una pared en el medio.
+## distancias se miden con el estado del actor en el host.
+##
+## Recoger y abrir, desde el 2026-11-11 a la noche, con la regla común de
+## InvReach (la misma que usa cada máquina para elegir qué mira): el host tira
+## su propio rayo desde los ojos del actor, con su estado y su postura, en la
+## dirección que manda el jugador (InvProtocol.direction_of, que la valida), y
+## lo primero que toca, a no más de interaction_range del Tuning, tiene que ser
+## ese objeto (sus triángulos, con el tipo de su catálogo y su lugar) o esa caja
+## (su colisión en la escena del host). Del cliente se usa solo la dirección:
+## ni dónde está su cámara, ni distancias, ni lo que tocó, ni si lo ve. Con la
+## caja abierta, la distancia de los ojos del actor a su volumen.
 ##
 ## Después de cada pedido sale un solo paquete por jugador con todo lo que
 ## cambió: el resultado para el que pidió, sus inventarios, la caja que tiene
@@ -22,23 +30,32 @@ const RESULT_MEMORY := 64
 ## Capas de física: 1 el nivel (y las cajas), 2 los personajes, 3 las escaleras.
 const WORLD_MASK := 1 | 4
 const SOLID_MASK := 1 | 2 | 4
-## El pecho del personaje, desde los pies: de ahí se mide el alcance para
-## recoger y se ve dónde cae lo que se suelta.
+## El pecho del personaje, desde los pies: de ahí se ve dónde cae lo que se
+## suelta. El alcance para recoger y abrir no sale de acá: se mide desde los
+## ojos, que bajan al agacharse (eyes; desde el 2026-11-11).
 const CHEST := 0.9
 ## Los ojos, por debajo de la punta de la forma del personaje (con su postura).
 const EYES_BELOW_TOP := 0.15
-## A qué altura sobre su lugar se mira un objeto suelto.
-const ITEM_SIGHT := 0.2
 ## Cuánto más lejos que lo normal puede estar del personaje, en el host, el
 ## lugar que eligió el cliente para soltar (DROP_AT): lo que pudo moverse el
 ## personaje entre que el cliente lo eligió y el host lo mira, en metros.
 const DROP_LAG_MARGIN := 1.0
+## Al recoger o abrir, el rayo del host sigue más allá del alcance, solo para
+## decir por qué no: hasta pasar lo pedido (y al menos esto más que el
+## alcance). Si lo primero que toca más allá es lo pedido, "estás muy lejos"; lo
+## que se acepta es lo mismo que con un rayo del largo justo.
+const FAR_LOOK := 2.0
 
 var catalog: InvCatalog
 var actors_root: Node
 ## Los valores del laboratorio: los máximos de salud y estamina (ActorVitals).
 var tuning: ActorTuning
-var pickup_range := 2.0
+## Hasta qué distancia se recoge un objeto o se abre y se opera una caja: el
+## del Tuning (interaction_range), leído en el momento, o el de fábrica sin
+## Tuning. Se mide desde los ojos, con InvReach.
+var interaction_range: float:
+	get:
+		return tuning.interaction_range if tuning != null else InvNet.DEFAULT_INTERACTION_RANGE
 var drop_distance := 1.0
 ## Manda un paquete a un jugador: func(peer: int, payload: Dictionary).
 var send: Callable
@@ -250,7 +267,7 @@ func _run(peer: int, op: int, a: Array) -> String:
 		InvProtocol.Op.DROP_AT:
 			return _drop(peer, a[0], a[1], a[2], a[3], InvProtocol.drop_spot_of(a))
 		InvProtocol.Op.PICKUP:
-			return _pickup(peer, inventory, a[0])
+			return _pickup(peer, inventory, a)
 		InvProtocol.Op.USE:
 			return _use(peer, inventory, a[0], a[1], InvAbility.Kind.USE)
 		InvProtocol.Op.EQUIP:
@@ -262,7 +279,7 @@ func _run(peer: int, op: int, a: Array) -> String:
 		InvProtocol.Op.HOTBAR_PRESS:
 			return _hotbar_press(peer, inventory, a[0])
 		InvProtocol.Op.OPEN:
-			return _open(peer, a[0])
+			return _open(peer, a)
 		InvProtocol.Op.CLOSE:
 			if _open_of.get(peer, 0) == a[0]:
 				_open_of.erase(peer)
@@ -282,7 +299,7 @@ func _grid_for(peer: int, ref: int) -> Array:
 		return [null, "esa caja ya no está"]
 	if _open_of.get(peer, 0) != ref:
 		return [null, "no tenés esa caja abierta"]
-	if not _in_reach(peer, box):
+	if not _box_in_reach(peer, box):
 		return [null, "estás muy lejos de la caja"]
 	return [box.inventory.grid, ""]
 
@@ -330,15 +347,23 @@ func _drop(peer: int, ref: int, uid: int, ver: int, quantity: int, proposed: Var
 	return ""
 
 
-func _pickup(peer: int, inventory: InvInventory, uid: int) -> String:
+## Recoger: [número del objeto, dirección de la mano]. Lo primero que toca el
+## rayo del host desde los ojos del actor, al alcance, tiene que ser ese objeto
+## (_reach_reason). Si no entra entero, se lleva lo que entra y el resto queda.
+func _pickup(peer: int, inventory: InvInventory, a: Array) -> String:
+	var uid: int = a[0]
 	var item: Dictionary = world.get(uid, {})
 	if item.is_empty():
 		return "ya no está: lo agarró otro jugador"
-	if not _near(peer, item["pos"], pickup_range):
-		return "estás muy lejos para agarrarlo"
-	if not _sees(peer, item["pos"] + Vector3.UP * ITEM_SIGHT):
-		return "no lo ves desde ahí: hay algo en el medio"
 	var stack: InvStack = item["stack"]
+	var actor := actor_of(peer)
+	if actor == null:
+		return "estás muy lejos para agarrarlo"
+	var bounds := InvReach.item_bounds(catalog.find(stack.def_id))
+	var reason := _reach_reason(actor, a, "item", uid, item["pos"] + bounds.get_center(), bounds.size.length(),
+			"estás muy lejos para agarrarlo", "no lo ves desde ahí: hay algo en el medio", "no lo estás mirando")
+	if reason != "":
+		return reason
 	var result := InvOps.insert(inventory.grid, stack)
 	if result["reason"] != "":
 		return result["reason"]
@@ -510,14 +535,22 @@ func _hotbar_press(peer: int, inventory: InvInventory, slot: int) -> String:
 	return "%s no se usa ni se equipa" % def.display_name
 
 
-func _open(peer: int, id: int) -> String:
+## Abrir: [número de la caja, dirección de la mano]. Lo primero que toca el
+## rayo del host desde los ojos del actor, al alcance, tiene que ser esa caja.
+## Como ese punto es parte de su volumen, la caja abierta cumple ya la
+## distancia de los ojos a su volumen (_box_in_reach), y no se cierra sola.
+func _open(peer: int, a: Array) -> String:
+	var id: int = a[0]
 	var box: InvContainer = containers.get(id)
 	if box == null or not is_instance_valid(box) or not box.is_inside_tree():
 		return "esa caja ya no está"
-	if not _in_reach(peer, box):
+	var actor := actor_of(peer)
+	if actor == null:
 		return "estás muy lejos de la caja"
-	if not _sees(peer, box.center(), [box.get_rid()]):
-		return "no ves la caja desde ahí: hay algo en el medio"
+	var reason := _reach_reason(actor, a, "box", id, box.center(), (box.global_basis * box.box_size).length(),
+			"estás muy lejos de la caja", "no ves la caja desde ahí: hay algo en el medio", "no estás mirando la caja")
+	if reason != "":
+		return reason
 	_open_of[peer] = id
 	_box_snapshot_for[peer] = id
 	return ""
@@ -525,33 +558,46 @@ func _open(peer: int, id: int) -> String:
 
 # --- Alcance y lugar para soltar ---------------------------------------------
 
-func _in_reach(peer: int, box: InvContainer) -> bool:
+## El rayo de la mano en el host (InvReach.first_hit): desde los ojos del actor
+## con su estado y su postura, en la dirección del pedido, contra el nivel, las
+## cajas y los objetos sueltos del host. "" si lo primero que toca, al alcance,
+## es lo pedido (`kind` y `id`); si no, el motivo: `far` si lo pedido es lo
+## primero pero más allá del alcance, `blocked` si al alcance hay otra cosa
+## antes, `missed` si no lo toca, y uno propio si la dirección no sirve.
+## `center` y `size` (lo pedido, en el mundo) solo alargan la línea para elegir
+## el motivo (FAR_LOOK).
+func _reach_reason(actor: ActorBody, a: Array, kind: String, id: int, center: Vector3, size: float, far: String,
+		blocked: String, missed: String) -> String:
+	var direction: Variant = InvProtocol.direction_of(a)
+	if direction == null:
+		return "pedido inválido: la dirección de la mano no sirve"
+	var at := eyes(actor, BaseRegistry.world_position(actor.state))
+	var length := minf(maxf(interaction_range + FAR_LOOK, at.distance_to(center) + size), 1000.0)
+	var hit := InvReach.first_hit(_space, at, direction, length, world, catalog, InvReach.own_shapes(actor))
+	if hit.is_empty():
+		return missed
+	var reached: bool = hit["distance"] <= interaction_range
+	if hit["kind"] == kind and hit.get("id", 0) == id:
+		return "" if reached else far
+	return blocked if reached else missed
+
+
+## Si la caja abierta sigue al alcance del actor de ese jugador, en el host:
+## de sus ojos a la parte más cercana de su volumen (InvReach.box_distance,
+## desde el 2026-11-11 a la noche; antes, desde el torso). Para operar con ella
+## abierta y cerrarla al alejarse: no hace falta seguir mirándola.
+func _box_in_reach(peer: int, box: InvContainer) -> bool:
 	var actor := actor_of(peer)
-	return actor != null and BaseRegistry.world_position(actor.state).distance_to(box.access_point()) <= box.access_range
+	return actor != null \
+			and InvReach.box_distance(eyes(actor, BaseRegistry.world_position(actor.state)), box) <= interaction_range
 
 
-func _near(peer: int, position: Vector3, reach: float) -> bool:
-	var actor := actor_of(peer)
-	return actor != null and (BaseRegistry.world_position(actor.state) + Vector3.UP * CHEST).distance_to(position) <= reach
-
-
-func _sees(peer: int, target: Vector3, exclude: Array[RID] = []) -> bool:
-	var actor := actor_of(peer)
-	return actor != null and _space != null \
-			and sees(_space, eyes(actor, BaseRegistry.world_position(actor.state)), target, exclude)
-
-
-## Los ojos del personaje con los pies en `feet`: bajan si está agachado.
+## Los ojos del personaje con los pies en `feet`: bajan si está agachado. De
+## acá sale el rayo de la mano para recoger y abrir, y se mide la distancia a
+## la caja abierta (InvReach). Salen del estado del personaje y del alto de su
+## forma, iguales en el host y en los clientes; no de la cámara.
 static func eyes(actor: ActorBody, feet: Vector3) -> Vector3:
 	return feet + Vector3.UP * maxf(actor.stance_height(actor.state.stance) - EYES_BELOW_TOP, 0.3)
-
-
-## Si desde `from` se ve `to`: sin nada del nivel en el medio (ni paredes ni
-## cajas; los personajes no tapan). Lo de `exclude` no cuenta. La usa también
-## cada máquina para elegir qué se mira.
-static func sees(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3, exclude: Array[RID] = []) -> bool:
-	var query := PhysicsRayQueryParameters3D.create(from, to, WORLD_MASK, exclude)
-	return space.intersect_ray(query).is_empty()
 
 
 func _drop_spot(peer: int) -> Variant:
@@ -647,7 +693,7 @@ func watch_access() -> void:
 		var box: InvContainer = containers.get(_open_of[peer])
 		if box == null or not is_instance_valid(box) or not box.is_inside_tree():
 			_close_for(peer, "la caja ya no está")
-		elif not _in_reach(peer, box):
+		elif not _box_in_reach(peer, box):
 			_close_for(peer, "te alejaste de la caja")
 	if not _closed.is_empty():
 		flush({})

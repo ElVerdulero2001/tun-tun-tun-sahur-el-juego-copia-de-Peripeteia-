@@ -66,8 +66,11 @@
 
 .PARAMETER GodotExe
     Ruta al ejecutable de Godot. Default: $env:GODOT_EXE si está seteada,
-    si no una ruta fija de esta máquina (ajustar según dónde esté instalado
-    Godot en cada equipo, o setear la variable de entorno GODOT_EXE).
+    si no el Godot 4.7.2 de la PC principal
+    (%USERPROFILE%\Downloads\cositas\Godot_v4.7.2-stable_win64.exe\Godot_v4.7.2.exe).
+    En otro equipo, pasar -GodotExe o setear la variable de entorno GODOT_EXE.
+    Sirve tanto el _console.exe como el ejecutable principal: el principal
+    también escribe en la salida redirigida.
 
 .PARAMETER ProjectPath
     Raíz del proyecto Godot (donde está project.godot). Default: dos
@@ -111,7 +114,7 @@ param(
 
     [int]$TimeoutSeconds = 60,
 
-    [string]$GodotExe = $(if ($env:GODOT_EXE) { $env:GODOT_EXE } else { "C:\Godot\4.6.3\Godot_v4.6.3-stable_win64_console.exe" }),
+    [string]$GodotExe = $env:GODOT_EXE,
 
     [string]$ProjectPath,
 
@@ -130,9 +133,17 @@ if (-not $ProjectPath) {
 if (-not $LogDir) {
     $LogDir = Join-Path $PSScriptRoot "logs"
 }
+# Sin -GodotExe ni GODOT_EXE: el motor 4.7.2 de esta PC (el proyecto declara
+# 4.7). Es el ejecutable principal, no el _console.exe de al lado: ese busca
+# "Godot_v4.7.2-stable_win64.exe" en su carpeta y aca el motor se llama
+# "Godot_v4.7.2.exe", asi que no arranca. El principal sirve igual porque
+# Godot escribe en la salida redirigida aunque no tenga consola propia.
+if (-not $GodotExe) {
+    $GodotExe = Join-Path $env:USERPROFILE "Downloads\cositas\Godot_v4.7.2-stable_win64.exe\Godot_v4.7.2.exe"
+}
 
-if (-not (Test-Path $GodotExe)) {
-    Write-Error "No se encontró el ejecutable de Godot en '$GodotExe'. Pasá -GodotExe o seteá `$env:GODOT_EXE."
+if (-not (Test-Path -LiteralPath $GodotExe -PathType Leaf)) {
+    Write-Error "No se encontro el ejecutable de Godot en '$GodotExe'. Pasa -GodotExe o define `$env:GODOT_EXE."
     exit 2
 }
 if (-not (Test-Path (Join-Path $ProjectPath "project.godot"))) {

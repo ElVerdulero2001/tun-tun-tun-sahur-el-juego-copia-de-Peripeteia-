@@ -11,6 +11,9 @@ extends Node
 
 const ZONE := Vector3(37, 0, 13)
 const Op := InvProtocol.Op
+## Recoger y abrir llevan la dirección de la mano (desde el 2026-11-11 a la noche).
+const Mano := preload("res://scenes/net_lab/inventario/pruebas/inv_mano_de_prueba.gd")
+const Items := preload("inv_items_de_prueba.gd")
 
 var lab: Node3D
 var net: InvNet
@@ -29,6 +32,9 @@ func _ready() -> void:
 		print("[inv_lab_test] TIEMPO AGOTADO")
 		get_tree().quit(2))
 	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
+	# Lo que mide giros y lugares en la grilla usa una barra de prueba, en
+	# memoria, y no el machete, que es contenido que se edita (PRU-01).
+	Items.add_bar(lab)
 	add_child(lab)
 	net = lab.get_node("Inventario")
 	ui = lab.get_node("Hud/InventarioUI")
@@ -42,9 +48,24 @@ func _ready() -> void:
 	actor = lab._local_actor
 	_check(actor != null and net.replica.own != null and net.replica.own.columns == 12 and net.replica.own.rows == 16,
 			"jugando solo: el jugador tiene su grilla de 12 × 16")
-	var spawns := lab.get_node("ZonaDeInventario").find_children("*", "InvPickupSpawn", true, false).size()
-	_check(spawns >= 13 and net.replica.world.size() == spawns, "los %d objetos de la zona están en el mundo (hay %d)" % [
-			spawns, net.replica.world.size()])
+	# El host junta los de la zona y los del nivel (InvNet.world_root y
+	# pickup_root): se cuentan los dos, como él (PRU-01; antes, solo la zona).
+	var zone := lab.get_node("ZonaDeInventario").find_children("*", "InvPickupSpawn", true, false).size()
+	var spawns := Items.initial_spawns(net).size()
+	_check(zone >= 13 and net.replica.world.size() == spawns,
+			"los %d objetos iniciales (%d de la zona y %d del nivel) están en el mundo (hay %d)" % [
+			spawns, zone, spawns - zone, net.replica.world.size()])
+	# El cartel de un recogible (show_label) entra en la huella por el texto de
+	# la zona, no por InvNet.fingerprint_text (auditoría del 2026-11-08, DOC-01:
+	# así lo dice el comentario de InvPickupSpawn).
+	var zone_root := lab.get_node("ZonaDeInventario")
+	var labeled := zone_root.find_children("*", "InvPickupSpawn", true, false)[0] as InvPickupSpawn
+	var inventory_text := net.fingerprint_text()
+	var zone_text := SimFingerprint.level_text(zone_root)
+	labeled.show_label = not labeled.show_label
+	_check(net.fingerprint_text() == inventory_text and SimFingerprint.level_text(zone_root) != zone_text,
+			"el cartel de un recogible cambia la huella por la zona, no por el texto del inventario")
+	labeled.show_label = not labeled.show_label
 	var totals := _totals()
 	await _pickups()
 	await _stacks_and_split()
@@ -56,12 +77,14 @@ func _ready() -> void:
 	await _ui_rules()
 	await _hold_and_place()
 	await _look_and_reach()
+	await _aim_by_shape()
 	await _e_closes_box()
+	await _box_cancel_cycle()
 	await _container_disappears()
 	var after := _totals()
 	# La llave se fue con el segundo jugador y el banquito con la caja que
 	# desapareció: los dos se comprueban ahí.
-	for def_id in [&"tornillos", &"granada", &"bateria", &"machete", &"linterna", &"caja_de_herramientas"]:
+	for def_id in [&"tornillos", &"granada", &"bateria", &"machete", &"linterna", &"caja_de_herramientas", Items.BAR_ID]:
 		_check(after.get(def_id, 0) == totals.get(def_id, 0), "se conserva la cantidad de %s: %d → %d" % [
 				def_id, totals.get(def_id, 0), after.get(def_id, 0)])
 	print("[inv_lab_test] aceptados %d, rechazados %d, repetidos %d" % [net.authority.accepted, net.authority.rejected,
@@ -80,6 +103,7 @@ func _check(ok: bool, what: String) -> void:
 
 
 func _req(op: int, args: Array, uids: Array = []) -> Array:
+	args = Mano.aimed(net, lab._local_actor, op, args)
 	var seq := net.replica.request(op, args, uids)
 	if seq == 0:
 		return [false, "no salió"]
@@ -292,9 +316,15 @@ func _hotbar_use_and_dedup() -> void:
 # --- 9. Equipar, soltar ----------------------------------------------------------------
 
 func _equip_and_drop() -> void:
-	for def_id in [&"machete", &"linterna", &"llave", &"banquito", &"caja_de_herramientas"]:
+	for def_id in [&"machete", &"linterna", &"llave", &"banquito", &"caja_de_herramientas", Items.BAR_ID]:
 		var uid: int = _world_uids(def_id)[0]
-		await _teleport(net.replica.world[uid]["pos"] + Vector3(-1, 0, 0))
+		# Desde el 2026-11-11 a la noche los objetos sueltos tapan a los de
+		# atrás (el rayo de la mano toca lo primero): se para del lado desde el
+		# que se lo ve, como haría un jugador.
+		for side: Vector3 in [Vector3(-1, 0, 0), Vector3(0, 0, -1), Vector3(0, 0, 1), Vector3(1, 0, 0)]:
+			await _teleport(net.replica.world[uid]["pos"] + side)
+			if Mano.in_sight(net, actor, Op.PICKUP, uid):
+				break
 		var got := await _req(Op.PICKUP, [uid], [uid])
 		_check(got[0], "recoger %s: %s" % [def_id, got[1]])
 	var machete: int = _own_uids(&"machete")[0]
@@ -487,8 +517,8 @@ func _two_players() -> void:
 	other.state.position = spot + Vector3(0.8, 0, 0)
 	other.apply_state(other.state)
 	_peer2_seq += 1
-	net._inbox.append([2, _peer2_seq, Op.PICKUP, [key]])
-	var late := net.replica.request(Op.PICKUP, [key], [key])
+	net._inbox.append([2, _peer2_seq, Op.PICKUP, Mano.request_args(net, other, Op.PICKUP, key)])
+	var late := net.replica.request(Op.PICKUP, Mano.request_args(net, actor, Op.PICKUP, key), [key])
 	for i in 4:
 		await get_tree().physics_frame
 	_check(_result_peer2(_peer2_seq)[1] and not _answers.get(late, [true])[0] and other_inventory.grid.has(key),
@@ -515,6 +545,7 @@ func _two_players() -> void:
 
 
 func _peer2(op: int, args: Array) -> Array:
+	args = Mano.aimed(net, net.authority.actor_of(2), op, args)
 	_peer2_seq += 1
 	net._inbox.append([2, _peer2_seq, op, args])
 	for i in 4:
@@ -572,12 +603,13 @@ func _ui_rules() -> void:
 	# del punto del clic; cuatro veces vuelve.
 	var torch_world := _world_uids(&"linterna")
 	_check(torch_world.size() == 1, "la linterna sigue en el piso")
-	var machete: int = _own_uids(&"machete")[0]
-	var machete_name: String = net.replica.own.def_of(machete).display_name
-	var rect := ui._item_rect(0, machete)
+	# Con la barra de prueba, que mide 1 × 3 siempre (PRU-01).
+	var bar: int = _own_uids(Items.BAR_ID)[0]
+	var bar_name: String = net.replica.own.def_of(bar).display_name
+	var rect := ui._item_rect(0, bar)
 	ui._mouse = rect.position + Vector2(5, ui._cs * 2.9)
 	ui._left_press()
-	_check(ui._mode == InvUI.Mode.HOLD and net.replica.pending.is_empty(), "un clic agarra el machete, sin pedir nada")
+	_check(ui._mode == InvUI.Mode.HOLD and net.replica.pending.is_empty(), "un clic agarra la barra de prueba, sin pedir nada")
 	_check(ui._hold["grab"] == Vector2i(0, 2), "se agarró por la celda de abajo: %s" % ui._hold["grab"])
 	_check(ui._grab_offset(ui._hold).is_equal_approx(Vector2(0.5, 2.5) * ui._cs),
 			"el cursor queda en el centro de esa celda, no en la esquina donde se hizo clic")
@@ -612,14 +644,14 @@ func _ui_rules() -> void:
 	ui._menu.size = Vector2(200, 200)
 	_check(_target()["kind"] == "invalid", "sobre un menú se rechaza")
 	ui._menu.hide()
-	ui._mouse = ui._item_rect(0, machete).position + ui._grab_offset(ui._hold)
-	_check(ui._hold["rot"] == 0 and _target()["kind"] == "move" and _target()["cell"] == net.replica.own.placement(machete).cell,
+	ui._mouse = ui._item_rect(0, bar).position + ui._grab_offset(ui._hold)
+	_check(ui._hold["rot"] == 0 and _target()["kind"] == "move" and _target()["cell"] == net.replica.own.placement(bar).cell,
 			"sobre su propio lugar no lo bloquea")
 	_check(ui._escape() and ui._mode == InvUI.Mode.NONE and ui.is_open, "Esc suelta primero lo que está en la mano")
-	_check(net.replica.own.has(machete) and net.replica.pending.is_empty(), "soltarlo con Esc no cambió nada ni dejó pedidos")
+	_check(net.replica.own.has(bar) and net.replica.pending.is_empty(), "soltarlo con Esc no cambió nada ni dejó pedidos")
 	# Con la mano vacía, el cursor sobre un objeto muestra su nombre.
-	ui._mouse = ui._item_rect(0, machete).get_center()
-	_check(ui._hover_name() == machete_name, "el cursor sobre el machete muestra su nombre: '%s'" % ui._hover_name())
+	ui._mouse = ui._item_rect(0, bar).get_center()
+	_check(ui._hover_name() == bar_name, "el cursor sobre la barra muestra su nombre: '%s'" % ui._hover_name())
 	ui._mouse = _cell_center(_free_cell())
 	_check(ui._hover_name() == "", "sobre una celda vacía, nada")
 	for i in InvUI.KEYS.size():
@@ -629,8 +661,8 @@ func _ui_rules() -> void:
 			_check(ui._hover_name() == net.replica.own.def_of(in_slot).display_name,
 					"también sobre un acceso de la barra: '%s'" % ui._hover_name())
 			break
-	ui._mouse = ui._item_rect(0, machete).get_center()
-	ui._open_menu(0, machete)
+	ui._mouse = ui._item_rect(0, bar).get_center()
+	ui._open_menu(0, bar)
 	_check(ui._menu.visible, "clic derecho abre el menú")
 	_check(ui._hover_name() == "", "con el menú abierto no se muestra el nombre")
 	_check(ui._escape() and not ui._menu.visible and ui.is_open, "Esc después cierra el menú")
@@ -644,41 +676,43 @@ func _hold_and_place() -> void:
 	ui.size = Vector2(1600, 900)
 	ui.open()
 	ui._layout()
-	var machete: int = _own_uids(&"machete")[0]
-	var old_center := ui._item_rect(0, machete).get_center()
+	# Con la barra de prueba, de 1 × 3 (PRU-01): agarrada por el centro, por su
+	# celda del medio.
+	var bar: int = _own_uids(Items.BAR_ID)[0]
+	var old_center := ui._item_rect(0, bar).get_center()
 	ui._mouse = old_center
 	ui._left_press()
-	_check(not ui._shown(0, machete) and ui._item_at(old_center).is_empty(),
+	_check(not ui._shown(0, bar) and ui._item_at(old_center).is_empty(),
 			"en la mano, su lugar queda vacío: no se dibuja ni se agarra ahí")
-	var spot := _free_cell(Vector2i(1, 3))
+	var spot := _free_cell(Items.BAR_SIZE)
 	ui._mouse = ui._grid_rect(0).position + (Vector2(spot) + Vector2(0.5, 1.5)) * ui._cs
 	ui._left_press()
 	_check(ui._mode == InvUI.Mode.NONE, "otro clic lo deja: la mano queda vacía")
-	_check(not net.replica.pending.is_empty() and not ui._shown(0, machete) and ui._hover_name() == "",
+	_check(not net.replica.pending.is_empty() and not ui._shown(0, bar) and ui._hover_name() == "",
 			"esperando al host, tampoco se ve en el lugar de antes")
 	await _frames(4)
-	_check(net.replica.own.placement(machete).cell == spot, "el machete quedó donde se hizo el segundo clic")
-	_check(ui._shown(0, machete), "cuando contesta el host, se ve en el lugar nuevo")
+	_check(net.replica.own.placement(bar).cell == spot, "la barra quedó donde se hizo el segundo clic")
+	_check(ui._shown(0, bar), "cuando contesta el host, se ve en el lugar nuevo")
 	# Asignarlo a un acceso no lo saca de su lugar: se sigue viendo. Se usa un
 	# acceso vacío y después se deja todo como estaba.
 	var empty_slot := -1
 	for i in InvUI.KEYS.size():
 		if net.replica.loadout.hotbar[i] == 0:
 			empty_slot = i
-	var old_slot := net.replica.loadout.slot_of(machete)
-	ui._mouse = ui._item_rect(0, machete).get_center()
+	var old_slot := net.replica.loadout.slot_of(bar)
+	ui._mouse = ui._item_rect(0, bar).get_center()
 	ui._left_press()
 	ui._mouse = ui._slot_rect(empty_slot).get_center()
 	ui._left_press()
-	_check(empty_slot >= 0 and not net.replica.pending.is_empty() and ui._shown(0, machete),
+	_check(empty_slot >= 0 and not net.replica.pending.is_empty() and ui._shown(0, bar),
 			"asignado a un acceso y esperando al host, se sigue viendo en su lugar")
 	await _frames(4)
-	_check(net.replica.loadout.hotbar[empty_slot] == machete, "quedó en el acceso %s" % InvUI.KEYS[empty_slot])
-	var r := await _req(Op.HOTBAR_SET, [old_slot, machete] if old_slot >= 0 else [empty_slot, 0])
-	_check(r[0] and net.replica.loadout.slot_of(machete) == old_slot, "y vuelve a como estaba: %s" % r[1])
+	_check(net.replica.loadout.hotbar[empty_slot] == bar, "quedó en el acceso %s" % InvUI.KEYS[empty_slot])
+	var r := await _req(Op.HOTBAR_SET, [old_slot, bar] if old_slot >= 0 else [empty_slot, 0])
+	_check(r[0] and net.replica.loadout.slot_of(bar) == old_slot, "y vuelve a como estaba: %s" % r[1])
 	# Un clic donde no se puede lo dice, y el objeto sigue en la mano.
 	var screws := _biggest(&"tornillos")
-	ui._mouse = ui._item_rect(0, machete).get_center()
+	ui._mouse = ui._item_rect(0, bar).get_center()
 	ui._left_press()
 	ui._mouse = ui._item_rect(0, screws).get_center()
 	ui._left_press()
@@ -795,6 +829,72 @@ func _look_and_reach() -> void:
 			from.distance_to(camera.global_position)])
 
 
+# --- 9b. El rayo de la mano toca el modelo del objeto ---------------------------------------------
+
+## Desde el 2026-11-11 a la noche, un objeto suelto se agarra si el rayo desde
+## los ojos toca los triángulos de su modelo (InvReach), sin margen: hasta ese
+## día la mira lo elegía si pasaba a menos de Pickup Aim Margin (2 cm) de su
+## forma, y del 2026-11-06 para atrás, por una esfera alrededor de él. Con un
+## objeto con forma de caja, que su modelo llena justo, se apunta a pasar a
+## distancias conocidas de su borde.
+func _aim_by_shape() -> void:
+	var uid := 0
+	var keys := net.replica.world.keys()
+	keys.sort()
+	for id: int in keys:
+		var kind := net.catalog.find(net.replica.world[id]["stack"].def_id)
+		if kind != null and kind.model == null and kind.mesh is BoxMesh and net.world_view(id) != null:
+			uid = id
+			break
+	_check(uid != 0, "hay en el piso un objeto con forma de caja")
+	if uid == 0:
+		return
+	var view := net.world_view(uid)
+	var def := net.catalog.find(net.replica.world[uid]["stack"].def_id)
+	var spot: Vector3 = net.replica.world[uid]["pos"]
+	await _teleport(spot + Vector3(-1.2, 0, 0), -PI / 2.0)
+	_check(InvReach.item_mesh(def) != null and not net.tuning.get_property_list().any(func(p: Dictionary) -> bool: return p["name"] == "pickup_aim_margin"),
+			"%s tiene sus triángulos para el rayo, y Pickup Aim Margin ya no está en el Tuning" % def.id)
+	var box := view.interact_focus().bounds
+	var bounds := InvReach.item_bounds(def).grow(-0.001)
+	_check(bounds.position.distance_to(box.position) < 0.001 and bounds.size.distance_to(box.size) < 0.001,
+			"los triángulos del rayo son los del modelo que se ve: la misma caja (%s y %s)" % [bounds, box])
+	box.position += view.global_position
+	var eyes := InvAuthority.eyes(actor, actor.global_position)
+	var chosen := func(direction: Vector3) -> bool:
+		var seen := net.interaction_target(actor, eyes, direction, false)
+		return seen.get("kind", "") == "item" and seen.get("id", 0) == uid
+	var at_center := (box.get_center() - eyes).normalized()
+	_check(chosen.call(at_center), "apuntando al centro se elige")
+	_check(not chosen.call(_passing(eyes, box, 0.002)), "pasando a 2 mm de su borde, no: el rayo tiene que tocar el modelo")
+	_check(not chosen.call(_passing(eyes, box, 0.01)), "ni a 1 cm (con el margen de antes, sí)")
+	var inside := _passing(eyes, box.grow(-0.003), 0.0005)
+	_check(chosen.call(inside), "rozando su borde por adentro (a 3 mm), sí")
+
+
+## Una dirección desde `from` que pasa a `distance` de la caja `box` (en el
+## mundo), corrida de costado desde su centro.
+func _passing(from: Vector3, box: AABB, distance: float) -> Vector3:
+	var to_center := box.get_center() - from
+	var side := to_center.cross(Vector3.UP).normalized()
+	var direction := to_center.normalized()
+	var shift := 0.0
+	while shift < 1.0 and _line_box_distance(from, direction, box) < distance:
+		shift += 0.001
+		direction = (to_center + side * shift).normalized()
+	return direction
+
+
+## Lo más cerca que pasa de la caja la línea desde `from` hacia `direction`, en
+## sus primeros 4 m.
+func _line_box_distance(from: Vector3, direction: Vector3, box: AABB) -> float:
+	var nearest := INF
+	for i in 2001:
+		var point := from + direction * (4.0 * i / 2000.0)
+		nearest = minf(nearest, point.distance_to(point.clamp(box.position, box.end)))
+	return nearest
+
+
 # --- E abre la caja y también la cierra ------------------------------------------------------
 
 func _e_closes_box() -> void:
@@ -816,11 +916,10 @@ func _e_closes_box() -> void:
 	_check(ui.is_open, "con el inventario abierto con Tab y sin caja, E no lo cierra")
 	ui.close()
 	# E otra vez antes de que conteste el host: se cierra igual, y la caja no
-	# queda abierta cuando llega.
+	# queda abierta cuando llega. Pedida como la pide E (open_box).
 	ui.open()
-	var seq := net.replica.request(Op.OPEN, [1])
-	ui._sent[seq] = {"op": Op.OPEN, "name": crate.display_name}
-	_check(net.replica.is_op_pending(Op.OPEN), "la caja está pedida y el host todavía no contestó")
+	var seq := ui.open_box(1, crate.display_name, Mano.toward_box(net, lab._local_actor, crate))
+	_check(seq != 0 and ui.is_waiting_box() and net.replica.is_op_pending(Op.OPEN), "la caja está pedida y el host todavía no contestó")
 	ui._unhandled_key_input(e_key)
 	_check(not ui.is_open, "E con la caja pedida cierra el inventario")
 	await _frames(6)
@@ -828,6 +927,88 @@ func _e_closes_box() -> void:
 	_check(net.replica.box_id == 0 and net.replica.box == null, "cuando llega, no se muestra")
 	await _frames(4)
 	_check(net.authority.open_container_of(1) == 0, "y el host la cierra")
+
+
+# --- La caja pedida que se deja antes de la respuesta (CAJ-01) -------------------------------------
+
+## Desde la auditoría del 2026-11-08 (CAJ-01), abrir una caja tiene una sola
+## cancelación, igual para Tab, E, cerrar el inventario y el host que no
+## contesta a tiempo; una apertura dejada no aparece cuando su respuesta llega
+## tarde, y no estorba a la siguiente, de la misma caja o de otra. Acá los
+## pedidos del jugador quedan retenidos (como una red lenta) y se sueltan
+## cuando la prueba quiere: así la respuesta llega tarde de verdad, con el
+## host de verdad.
+func _box_cancel_cycle() -> void:
+	var crate := net.container(1)
+	var small := net.container(2)
+	var me := multiplayer.get_unique_id()
+	await _teleport(crate.global_position + Vector3(-1.2, 0, 0), -PI / 2.0)
+	var held := []
+	var real_send: Callable = net.replica.send
+	var hold := func() -> void:
+		net.replica.send = func(seq: int, op: int, args: Array, after: int) -> void: held.append([seq, op, args, after])
+	var release := func() -> void:
+		net.replica.send = real_send
+		for request: Array in held:
+			real_send.call(request[0], request[1], request[2], request[3])
+		held.clear()
+	# 1. El host no contesta a tiempo, con el inventario abierto con Tab, y la
+	# respuesta llega después.
+	ui.open()
+	hold.call()
+	var seq := ui.open_box(1, crate.display_name, Mano.toward_box(net, lab._local_actor, crate))
+	_check(seq != 0 and ui.is_waiting_box() and held.size() == 1, "(retenido) la caja está pedida")
+	net.replica.pending[seq]["msec"] -= InvReplica.PENDING_TIMEOUT_MSEC + 1000
+	for i in 3:
+		await get_tree().process_frame
+	_check(not ui.is_waiting_box() and ui.is_open and not ui.has_box() and ui.last_message().begins_with("El host no contestó"),
+			"sin respuesta a tiempo lo dice, y el inventario sigue abierto sin caja: %s" % ui.last_message())
+	_check(not ui._e_closes_box() and ui.can_interact() and ui.side_panel_rect().has_area(),
+			"E ya no cierra el inventario, el indicador puede marcar y a la derecha va la integridad")
+	var message := ui.last_message()
+	release.call()
+	await _frames(4)
+	_check(_answers.has(seq) and _answers[seq][0], "el host la abrió tarde: %s" % [_answers.get(seq, [])])
+	_check(net.replica.box_id == 0 and net.replica.box == null and not ui.has_box() and ui.side_panel_rect().has_area(),
+			"cuando llega tarde, no aparece: sigue la integridad")
+	_check(ui.last_message() == message, "y no avisa nada más: %s" % ui.last_message())
+	_check(net.authority.open_container_of(me) == 0, "el host la cerró: el pedido de cerrarla salió al cancelarla")
+	# 2. Tab con la caja pedida y E otra vez sobre la misma, con la respuesta
+	# de la primera en viaje.
+	hold.call()
+	var first := ui.open_box(1, crate.display_name, Mano.toward_box(net, lab._local_actor, crate))
+	ui.toggle()
+	_check(first != 0 and ui.is_open and not ui.has_box() and not ui._e_closes_box() and ui.can_interact() and ui.side_panel_rect().has_area(),
+			"Tab con la caja pedida la deja: inventario abierto con la integridad, y E vuelve a actuar sobre lo que se mira")
+	var second := ui.open_box(1, crate.display_name, Mano.toward_box(net, lab._local_actor, crate))
+	_check(second != 0 and second != first and ui.is_waiting_box(), "E otra vez la vuelve a pedir, con la respuesta anterior en viaje")
+	release.call()
+	await _frames(4)
+	_check(_answers.has(first) and _answers.has(second) and _answers[second][0] and net.replica.box_id == 1
+			and not ui.is_waiting_box() and not ui.side_panel_rect().has_area(), "se abre la de la segunda E, en modo caja")
+	_check(net.authority.open_container_of(me) == 1, "y el host la tiene abierta")
+	ui.toggle()
+	await _frames(4)
+	_check(ui.is_open and net.replica.box_id == 0 and net.authority.open_container_of(me) == 0, "Tab la cierra, también en el host")
+	# 3. Otra caja, con la respuesta de la primera en viaje. El cajón chico se
+	# acerca un rato, para tener las dos al alcance.
+	var small_place := small.global_position
+	small.global_position = crate.global_position + Vector3(-0.6, 0, 1.4)
+	await _frames(3)
+	hold.call()
+	first = ui.open_box(1, crate.display_name, Mano.toward_box(net, lab._local_actor, crate))
+	ui.toggle()
+	second = ui.open_box(2, small.display_name, Mano.toward_box(net, lab._local_actor, small))
+	release.call()
+	await _frames(4)
+	_check(_answers.has(first) and _answers.get(second, [false])[0] and net.replica.box_id == 2 and net.replica.box != null
+			and net.replica.box.columns == small.columns and net.authority.open_container_of(me) == 2,
+			"con la respuesta de la caja anterior en viaje, se abre la nueva y no la anterior: %s" % [_answers.get(second, [])])
+	ui.close()
+	await _frames(4)
+	_check(not ui.is_open and net.replica.box_id == 0 and net.authority.open_container_of(me) == 0, "cerrar el inventario la cierra")
+	small.global_position = small_place
+	await _frames(3)
 
 
 # --- 7. La caja desaparece con alguien operando -------------------------------------------

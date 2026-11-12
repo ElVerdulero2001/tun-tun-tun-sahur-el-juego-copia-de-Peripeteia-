@@ -31,8 +31,6 @@ var _columns: EditorSpinSlider
 var _rows: EditorSpinSlider
 var _size: Array[EditorSpinSlider] = []
 var _color: ColorPickerButton
-var _reach: EditorSpinSlider
-var _notes: Label
 var _read_only_note: Label
 
 
@@ -75,16 +73,11 @@ func _init() -> void:
 			_put("box_size", Vector3(_size[0].value, _size[1].value, _size[2].value)))
 		_size.append(spin)
 	_row(grid2, "Medidas de la caja", _column(_size),
-			Ayuda.new("Ancho (x), alto (y) y largo (z) de la caja que se ve y choca, apoyada en el piso."))
+			Ayuda.new("Ancho (x), alto (y) y largo (z) de la caja que se ve y choca, apoyada en el piso. Se abre con E apuntándole: un rayo desde los ojos del jugador tiene que tocar la caja antes que otra cosa, a no más de Interaction Range (el alcance común del nodo Tuning, para cajas y objetos). Abierta, sigue abierta mientras los ojos estén a no más de ese alcance de su parte más cercana, con su giro y su escala, sin mirarla."))
 	_color = ColorPickerButton.new()
 	_color.custom_minimum_size = Vector2(60, 24)
 	_color.color_changed.connect(func(value: Color) -> void: _put("color", value))
 	_row(grid2, "Color", _color)
-	_reach = _float_spin(0.3, 20.0, 0.1, " m")
-	_reach.value_changed.connect(func(v: float) -> void: _put("access_range", v))
-	_row(grid2, "Alcance", _reach,
-			Ayuda.new("Hasta qué distancia, de los pies del jugador al centro de la caja, se abre con E. Más lejos, se cierra sola."))
-	_notes = _note(inside, "")
 
 
 ## Muestra esos valores (una copia). `p_path`: su escena, o dónde se crearía.
@@ -112,9 +105,8 @@ func load_values(p_values: Dictionary, p_is_new: bool, p_path: String, p_read_on
 	for i in 3:
 		_size[i].value = size[i]
 	_color.color = values["color"]
-	_reach.value = float(values["access_range"])
 	_read_only_note.visible = read_only
-	for control: Control in [_name, _node_name, _columns, _rows, _size[0], _size[1], _size[2], _color, _reach]:
+	for control: Control in [_name, _node_name, _columns, _rows, _size[0], _size[1], _size[2], _color]:
 		if control is LineEdit:
 			(control as LineEdit).editable = not read_only
 		elif control is Range:
@@ -122,11 +114,6 @@ func load_values(p_values: Dictionary, p_is_new: bool, p_path: String, p_read_on
 		elif control is BaseButton:
 			(control as BaseButton).disabled = read_only
 	_loading = false
-
-
-func set_notes(lines: PackedStringArray) -> void:
-	_notes.text = "\n".join(lines)
-	_notes.visible = not lines.is_empty()
 
 
 func _put(field: String, value: Variant) -> void:

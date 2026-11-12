@@ -37,6 +37,9 @@ func problems() -> PackedStringArray:
 		if item.model != null and InvVisuals.has_scripts(item.model):
 			found.append("el modelo de %s (%s) tiene scripts: no se usa, se ve la caja de su color" % [item.id,
 					item.model.resource_path])
+		if item.pickup_hitbox != null and not item.pickup_hitbox.problems().is_empty():
+			found.append("la hitbox de agarre de %s no sirve (%s); igual el juego no la usa para recoger" % [item.id,
+					" ".join(item.pickup_hitbox.problems())])
 	return found
 
 

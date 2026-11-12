@@ -206,19 +206,33 @@ func close_box() -> void:
 	queue_redraw()
 
 
-## Deja la caja: se le pide al host que la cierre y deja de verse ya. Una
-## pedida que el host todavía no contestó no aparece cuando llega (_on_answered),
-## aunque mientras tanto el inventario se vuelva a abrir con Tab.
+## Deja la caja abierta o la pedida: deja de verse ya y se le pide al host que
+## la cierre (InvReplica.leave_box). Una pedida que el host todavía no contestó
+## no aparece cuando llega, aunque mientras tanto el inventario se vuelva a
+## abrir con Tab o se pida otra caja.
 func _leave_box() -> void:
 	if net == null:
 		return
-	if not _box_wait.is_empty():
-		if _sent.has(_box_wait["seq"]):
-			_sent[_box_wait["seq"]]["cancelled"] = true
-		_box_wait = {}
-	if _r().box_id != 0:
-		_r().request(InvProtocol.Op.CLOSE, [_r().box_id])
-		_r().forget_box()
+	_cancel_box_wait()
+	_r().leave_box()
+
+
+## La caja pedida deja de esperarse sin abrirse: la única transición de
+## cancelación (desde la auditoría del 2026-11-08, CAJ-01), igual para Tab, E,
+## cerrar el inventario y el host que no contestó a tiempo. El pedido conserva
+## su identidad hasta que llegue su respuesta (_sent, "cancelled"): entonces no
+## se dice nada y no se muestra (la réplica no muestra lo que llegue de ella y
+## el host ya la cerró). Hasta ese día, el vencimiento no la marcaba: si la
+## respuesta llegaba tarde, la caja aparecía después del aviso de que no se
+## abrió.
+func _cancel_box_wait() -> void:
+	if _box_wait.is_empty():
+		return
+	var seq: int = _box_wait["seq"]
+	if _sent.has(seq):
+		_sent[seq]["cancelled"] = true
+	_box_wait = {}
+	_r().leave_box()
 
 
 func open() -> void:
@@ -328,23 +342,27 @@ func _interact() -> void:
 		_say("Mirá lo que querés agarrar o abrir: tiene que estar cerca y a la vista")
 		return
 	if target["kind"] == "item":
-		pick_up_world(target["id"], target["name"])
+		pick_up_world(target["id"], target["name"], target["direction"])
 		return
 	if _r().box_id == target["id"]:
 		open()
 		return
-	open_box(target["id"], target["name"])
+	open_box(target["id"], target["name"], target["direction"])
 
 
 ## Pedirle al host que abra esa caja (lo que hace E mirándola). El inventario
 ## se abre ya, directo en modo caja: el lado derecho queda reservado para ella
 ## hasta que el host conteste (_box_wait). Devuelve el número del pedido, o 0
-## si no salió (ya hay una caja pedida, o todavía no llegó el inventario).
-func open_box(id: int, shown_name := "") -> int:
-	if _r().is_op_pending(InvProtocol.Op.OPEN):
+## si no salió (ya hay una caja pedida, o todavía no llegó el inventario). Una
+## pedida antes y dejada (_cancel_box_wait) no impide pedir otra aunque su
+## respuesta siga en viaje: el host las contesta en orden y la réplica muestra
+## solo la última (CAJ-01). `direction`: la de la mano, desde los ojos (la que
+## dio el selector, InvNet.interaction_target): el host tira su rayo con ella.
+func open_box(id: int, shown_name := "", direction := Vector3.ZERO) -> int:
+	if not _box_wait.is_empty():
 		return 0
 	var was_open := is_open
-	var seq := _r().request(InvProtocol.Op.OPEN, [id])
+	var seq := _r().request(InvProtocol.Op.OPEN, InvProtocol.aimed_args(id, direction, net.aim_tick()))
 	if seq == 0:
 		return 0
 	_sent[seq] = {"op": InvProtocol.Op.OPEN, "name": shown_name}
@@ -360,12 +378,14 @@ func is_waiting_box() -> bool:
 	return not _box_wait.is_empty()
 
 
-## La caja pedida dejó de esperar sin abrirse (el host dijo que no o no
-## contestó a tiempo): todo vuelve a como estaba antes de E. Si el inventario
-## estaba cerrado, se cierra; si estaba abierto con Tab, la integridad vuelve
-## a la derecha.
-func _box_wait_failed() -> void:
+## La caja pedida no se abrió (el host dijo que no, o no contestó a tiempo y se
+## canceló): todo vuelve a como estaba antes de E. Si el inventario estaba
+## cerrado, se cierra; si estaba abierto con Tab, la integridad vuelve a la
+## derecha.
+func _box_wait_failed(timed_out := false) -> void:
 	var was_open: bool = _box_wait["was_open"]
+	if timed_out:
+		_cancel_box_wait()
 	_box_wait = {}
 	if not was_open:
 		close()
@@ -375,8 +395,9 @@ func _box_wait_failed() -> void:
 ## Recoger un objeto del mundo. Se ve en la grilla ya, como lo va a meter el
 ## host (InvReplica.shown_own); si no entra, lo dice sin preguntarle. Si el
 ## host dice que no (otro lo agarró primero, por ejemplo), vuelve al piso y lo
-## dice. Devuelve el número del pedido, o 0 si no salió.
-func pick_up_world(uid: int, shown_name := "") -> int:
+## dice. Devuelve el número del pedido, o 0 si no salió. `direction`: la de la
+## mano, desde los ojos (la que dio el selector): el host tira su rayo con ella.
+func pick_up_world(uid: int, shown_name := "", direction := Vector3.ZERO) -> int:
 	var item: Dictionary = _r().world.get(uid, {})
 	var grid := _r().shown_own()
 	if item.is_empty() or grid == null:
@@ -385,7 +406,7 @@ func pick_up_world(uid: int, shown_name := "") -> int:
 	if room["reason"] != "":
 		_say(_sentence(room["reason"]))
 		return 0
-	var seq := _r().request(InvProtocol.Op.PICKUP, [uid], [uid])
+	var seq := _r().request(InvProtocol.Op.PICKUP, InvProtocol.aimed_args(uid, direction, net.aim_tick()), [uid])
 	if seq != 0:
 		_sent[seq] = {"op": InvProtocol.Op.PICKUP, "uid": uid, "name": shown_name}
 	queue_redraw()
@@ -401,9 +422,12 @@ func _look_target() -> Dictionary:
 
 
 ## Si E, en este momento, cierra la caja abierta (o pedida) en vez de
-## recoger o abrir lo que se mira.
+## recoger o abrir lo que se mira. Mira lo que se ve (has_box): una apertura
+## dejada con Tab cuya respuesta sigue en viaje ya no cuenta (CAJ-01; antes sí,
+## y E cerraba el inventario y el indicador no marcaba nada con la integridad
+## a la vista).
 func _e_closes_box() -> bool:
-	return is_open and not is_typing() and (_r().box_id != 0 or _r().is_op_pending(InvProtocol.Op.OPEN))
+	return is_open and not is_typing() and has_box()
 
 
 ## Si E, en este momento, actuaría sobre lo que se mira: con el personaje
@@ -939,15 +963,16 @@ func _on_replica_changed() -> void:
 func _on_answered(seq: int, ok: bool, reason: String) -> void:
 	var sent: Dictionary = _sent.get(seq, {})
 	_sent.erase(seq)
+	# Una caja que se dejó antes de que contestara el host: no se dice nada. La
+	# réplica no la muestra y el host ya la cerró (_cancel_box_wait).
+	if sent.get("cancelled", false):
+		queue_redraw()
+		return
 	if not ok:
 		_say(_sentence(reason))
 	elif sent.get("op", 0) == InvProtocol.Op.PICKUP and _r().world.has(sent["uid"]):
 		var left: InvStack = _r().world[sent["uid"]]["stack"]
 		_say("Solo entró una parte: quedan %d en el piso" % left.quantity)
-	elif sent.get("op", 0) == InvProtocol.Op.OPEN and (not is_open or sent.get("cancelled", false)) and _r().box_id != 0:
-		# Se cerró antes de que el host contestara: la caja también se cierra.
-		_r().request(InvProtocol.Op.CLOSE, [_r().box_id])
-		_r().forget_box()
 	if _box_wait.get("seq", 0) == seq:
 		# La caja ya llegó en este mismo paquete (ok), o no se abre.
 		if ok:
@@ -1489,9 +1514,10 @@ func _process(_delta: float) -> void:
 		_toast = ""
 	if not _box_wait.is_empty() and net != null and not _r().pending.has(_box_wait["seq"]):
 		# Sin respuesta a tiempo (InvReplica.expire_pending). Una respuesta
-		# limpia _box_wait en el mismo paquete, antes de llegar acá.
+		# limpia _box_wait en el mismo paquete, antes de llegar acá. Se cancela
+		# como con Tab: si la respuesta llega más tarde, no aparece (CAJ-01).
 		_say("El host no contestó: %s no se abrió" % (_box_wait["name"] if _box_wait["name"] != "" else "la caja"))
-		_box_wait_failed()
+		_box_wait_failed(true)
 	if _active():
 		queue_redraw()
 
@@ -1604,13 +1630,13 @@ func _draw_item(ref: int, uid: int) -> void:
 
 ## La imagen del objeto en ese rectángulo, girada de a 90° en el sentido del
 ## reloj según `rot`. Sin imagen, un rectángulo de su color con el nombre.
-func _draw_visual(rect: Rect2, def: InvItemDef, rot: int, alpha: float) -> void:
+func _draw_visual(rect: Rect2, def: InvItemDef, rot: int, alpha: float, hotbar := false) -> void:
 	var color := def.color if def != null else Color.GRAY
 	draw_rect(rect, Color(color.darkened(0.55), 0.85 * alpha))
 	draw_rect(rect, Color(color.lightened(0.2), 0.7 * alpha), false, 1.0)
-	var texture := thumbnails.texture_for(def)
+	var texture := thumbnails.texture_for(def, hotbar)
 	if texture != null:
-		InvThumbnails.draw_turned(self, texture, rect, rot, Color(1, 1, 1, alpha))
+		InvThumbnails.draw_turned(self, texture, rect, rot, Color(1, 1, 1, alpha), hotbar)
 	else:
 		var label := def.display_name if def != null else "?"
 		draw_string(get_theme_default_font(), rect.position + Vector2(4, minf(rect.size.y / 2.0 + 5.0, rect.size.y - 4.0)), label,
@@ -1661,7 +1687,7 @@ func _draw_hotbar() -> void:
 		var stack := _r().shown_own().get_stack(uid) if uid != 0 and _r().shown_own() != null else null
 		if stack != null:
 			var def := _r().shown_own().def_of(uid)
-			_draw_visual(rect.grow(-3), def, 0, 0.45 if _mode == Mode.SLOT_HOLD and _slot_from == i else 1.0)
+			_draw_visual(rect.grow(-3), def, 0, 0.45 if _mode == Mode.SLOT_HOLD and _slot_from == i else 1.0, true)
 			if stack.quantity > 1:
 				_text_right(rect.end - Vector2(4, 4), "%d" % stack.quantity, font_size - 1, Color.WHITE)
 			if loadout.equipped_uid == uid:

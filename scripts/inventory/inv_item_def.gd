@@ -48,6 +48,14 @@ extends Resource
 ## Medida del lado más largo en el mundo, en metros.
 @export var world_size := 0.45
 
+@export_group("Hitbox de agarre")
+## Un volumen fácil de apuntar para cuando está suelto en el mundo (desde el
+## 2026-11-07): una caja, una esfera, un cilindro o una forma convexa propia, en
+## el espacio del objeto suelto. Desde el 2026-11-11 a la noche el juego no la
+## usa para recoger (se recoge apuntando al modelo, InvReach); se guarda, se
+## edita y se ve en el panel Objetos, y entra en la huella. Ver InvPickupHitbox.
+@export var pickup_hitbox: InvPickupHitbox
+
 @export_group("Miniatura")
 ## Giro del modelo para la miniatura, en grados.
 @export var thumbnail_rotation := Vector3(-20.0, 35.0, 0.0)
@@ -58,6 +66,13 @@ extends Resource
 @export var thumbnail_offset := Vector2.ZERO
 ## Si el lado largo del modelo no coincide con el de la huella, lo acuesta 90°.
 @export var thumbnail_auto_align := true
+
+@export_group("Miniatura de la barra rápida")
+## Si está apagado, el acceso usa la miniatura de la grilla centrada.
+@export var custom_hotbar_thumbnail := false
+@export var hotbar_thumbnail_rotation := Vector3(-20.0, 35.0, 0.0)
+@export_range(0.3, 3.0, 0.05) var hotbar_thumbnail_zoom := 1.0
+@export var hotbar_thumbnail_offset := Vector2.ZERO
 
 
 ## Cuántas unidades entran en una pila de este tipo.
@@ -81,20 +96,31 @@ func ability_of(kind: int) -> InvAbility:
 
 ## Cómo se ve: dos tipos con el mismo modelo y el mismo encuadre comparten
 ## miniatura.
-func appearance_key() -> String:
+func appearance_key(custom_hotbar := false) -> String:
 	var source := ""
 	if model != null:
 		source = model.resource_path
 	elif mesh != null:
 		source = mesh.resource_path if mesh.resource_path != "" else "malla %d" % mesh.get_instance_id()
+	if custom_hotbar:
+		return "%s|%s|barra|%s|%s|%s" % [source, color.to_html(), hotbar_thumbnail_rotation,
+				hotbar_thumbnail_zoom, hotbar_thumbnail_offset]
 	return "%s|%s|%s|%s|%s|%s|%s" % [source, color.to_html(), size, thumbnail_rotation, thumbnail_zoom, thumbnail_offset,
 			thumbnail_auto_align]
 
 
 ## Lo que tiene que ser igual en el host y en los clientes (SimFingerprint).
+## Desde el 2026-11-07 también la hitbox de agarre (lo que cuenta de verdad,
+## con números redondeados: InvPickupHitbox.fingerprint_of), aunque desde el
+## 2026-11-11 a la noche no interviene al recoger. Desde ese día, también los
+## triángulos del modelo tal como se ve en el mundo (InvReach.fingerprint_of):
+## son los que toca el rayo de la mano, y el host los arma con su copia del
+## modelo. Un modelo o un tamaño distinto en las dos PC ya no es solo dibujo.
 func fingerprint_text() -> String:
 	var parts := PackedStringArray([String(id), str(size), str(can_rotate), str(stackable), str(stack_limit()),
 			var_to_str(default_state)])
 	for ability in abilities:
 		parts.append(ability.fingerprint_text() if ability != null else "null")
+	parts.append(InvPickupHitbox.fingerprint_of(self))
+	parts.append(InvReach.fingerprint_of(self))
 	return " ".join(parts)

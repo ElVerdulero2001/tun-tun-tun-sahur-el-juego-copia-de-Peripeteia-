@@ -19,6 +19,8 @@ extends Node
 ##   el cliente al final ("FINAL …"). Termina cuando el cliente se va.
 
 const Op := InvProtocol.Op
+## Recoger y abrir llevan la dirección de la mano (desde el 2026-11-11 a la noche).
+const Mano := preload("res://scenes/net_lab/inventario/pruebas/inv_mano_de_prueba.gd")
 const H := ActorState.HEALTH_UNIT
 
 var role := ""
@@ -251,7 +253,7 @@ func _pick_up(def_id: StringName) -> void:
 	var confirmed := _count(net.replica.own, def_id)
 	var sent := Time.get_ticks_msec()
 	_log("PIDE a las %d recoger %d (%s)" % [_now_ms(), uid, def_id])
-	var seq := ui.pick_up_world(uid, String(def_id))
+	var seq := ui.pick_up_world(uid, String(def_id), Mano.toward_item(net, lab._local_actor, uid))
 	_check(seq != 0, "pide recoger %s" % def_id)
 	var mine := _first_of(net.replica.shown_own(), def_id)
 	_check(_count(net.replica.shown_own(), def_id) == confirmed + quantity and _count(net.replica.own, def_id) == confirmed,
@@ -429,12 +431,19 @@ func _pick_up_then_use() -> void:
 	if mine != 0:
 		var seq := ui.drop_item(InvProtocol.OWN, mine, net.replica.own.get_stack(mine).ver, net.replica.own.get_stack(mine).quantity)
 		_check(seq != 0 and await _until(func() -> bool: return _answers.has(seq), 5.0) and _answers[seq][0], "suelta los venenos que le quedan")
-	var chest := actor.global_position + Vector3.UP * InvAuthority.CHEST
+	# Al alcance con la regla común (el rayo de la mano, InvReach, desde el
+	# 2026-11-11 a la noche), con 20 cm de margen por la demora: el más cercano.
+	var eyes := InvAuthority.eyes(actor, actor.global_position)
+	var space := actor.get_world_3d().direct_space_state
 	var uid := 0
+	var nearest := INF
 	for candidate in net.replica.world:
-		var item: Dictionary = net.replica.world[candidate]
-		if item["stack"].def_id == &"veneno" and chest.distance_to(item["pos"]) < net.pickup_range - 0.2 \
-				and (uid == 0 or chest.distance_to(item["pos"]) < chest.distance_to(net.replica.world[uid]["pos"])):
+		if net.replica.world[candidate]["stack"].def_id != &"veneno":
+			continue
+		var hit := InvReach.first_hit(space, eyes, Mano.toward_item(net, actor, candidate), net.interaction_range - 0.2,
+				net.replica.world, net.catalog, InvReach.own_shapes(actor))
+		if hit.get("kind", "") == "item" and hit.get("id", 0) == candidate and hit["distance"] < nearest:
+			nearest = hit["distance"]
 			uid = candidate
 	_check(uid != 0 and _count(net.replica.own, &"veneno") == 0, "tiene un veneno al alcance y ninguno en el inventario")
 	if uid == 0:
@@ -445,7 +454,7 @@ func _pick_up_then_use() -> void:
 	var original: Callable = net.replica.send
 	net.replica.send = func(seq: int, op: int, args: Array, after_use: int) -> void:
 		get_tree().create_timer(0.35, true, false, true).timeout.connect(func() -> void: original.call(seq, op, args, after_use))
-	var picked := ui.pick_up_world(uid, "veneno")
+	var picked := ui.pick_up_world(uid, "veneno", Mano.toward_item(net, lab._local_actor, uid))
 	net.replica.send = original
 	_check(picked != 0 and ui.use_item(uid), "recoge el veneno (el pedido sale 350 ms tarde) y lo usa enseguida")
 	await _ticks(2)

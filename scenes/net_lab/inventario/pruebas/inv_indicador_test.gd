@@ -33,10 +33,22 @@ extends Node
 ## --foco-detalle escribe también cada comprobación que dio bien.
 
 const Op := InvProtocol.Op
+## Recoger y abrir llevan la dirección de la mano (desde el 2026-11-11 a la noche).
+const Mano := preload("res://scenes/net_lab/inventario/pruebas/inv_mano_de_prueba.gd")
 ## Cuánto se gira la cámara en cada prueba de seguimiento, en radianes: lo
-## justo para que la mira siga sobre el mismo objeto.
-const TURN_FIRST := 0.04
-const TURN_THIRD := 0.08
+## justo para que la mira siga sobre el mismo objeto. Desde el 2026-11-11 a la
+## noche el rayo tiene que tocar su modelo, sin margen (hasta ese día, 2 cm de
+## Pickup Aim Margin; antes del 2026-11-06, una esfera más grande que él), y la
+## granada mide 9 cm de ancho: girando 0,015 en primera persona y 0,012 en
+## tercera, la mira pasa a unos 2 cm de su centro (con los 0,04 y 0,025 de
+## antes, a 5 o 6 cm, y se sale). En tercera persona la cámara queda a unos
+## 6,7 m de la granada, que en pantalla mide unos 10 px de ancho.
+const TURN_FIRST := 0.015
+const TURN_THIRD := 0.012
+## Lo mínimo que se tiene que mover el marco con esos giros, en píxeles (con
+## 0,04 y 0,025 eran 6 y 2,5).
+const MIN_SHIFT_FIRST := 2.0
+const MIN_SHIFT_THIRD := 1.0
 ## Dónde se para, respecto de lo que mira: en primera persona, justo atrás; en
 ## tercera, atrás y al costado, para que el cuerpo no lo tape.
 const NEAR_FIRST := Vector3(-1.1, 0, 0)
@@ -154,6 +166,7 @@ func _until(condition: Callable, seconds: float) -> bool:
 
 
 func _req(op: int, args: Array, uids: Array = []) -> Array:
+	args = Mano.aimed(net, lab._local_actor, op, args)
 	var seq := net.replica.request(op, args, uids)
 	if seq == 0:
 		return [false, "no salió"]
@@ -439,7 +452,7 @@ func _follows_camera(first_person: bool) -> void:
 		var horizontal: bool = step[0] != 0.0
 		var main := shift.x if horizontal else shift.y
 		var cross := shift.y if horizontal else shift.x
-		_check(absf(main) > 6.0 and absf(main) > 2.0 * absf(cross) and signf(main) == signf(step[0] + step[1]),
+		_check(absf(main) > (MIN_SHIFT_FIRST if first_person else MIN_SHIFT_THIRD) and absf(main) > 2.0 * absf(cross) and signf(main) == signf(step[0] + step[1]),
 				"%s: el marco se movió %s, %.1f px" % [what, "en horizontal" if horizontal else "en vertical", main])
 		if step[2] == "girada a la izquierda":
 			await _shot("sigue_%s" % ("primera" if first_person else "tercera"))
@@ -718,7 +731,7 @@ func _other_player_takes() -> void:
 	await _ticks(2)
 	_check(_marks(uid), "con el otro jugador al lado, sigue marcado")
 	_peer2_seq += 1
-	net._inbox.append([2, _peer2_seq, Op.PICKUP, [uid]])
+	net._inbox.append([2, _peer2_seq, Op.PICKUP, Mano.request_args(net, other, Op.PICKUP, uid)])
 	var marked_until_gone := true
 	var ticks := 0
 	while net.replica.world.has(uid) and ticks < 30:

@@ -10,6 +10,9 @@ extends Node
 
 const ZONE := Vector3(37, 0, 13)
 const Op := InvProtocol.Op
+## Recoger y abrir llevan la dirección de la mano (desde el 2026-11-11 a la noche).
+const Mano := preload("res://scenes/net_lab/inventario/pruebas/inv_mano_de_prueba.gd")
+const Items := preload("inv_items_de_prueba.gd")
 
 var lab: Node3D
 var net: InvNet
@@ -29,6 +32,10 @@ func _ready() -> void:
 		print("[inv_visual_test] TIEMPO AGOTADO")
 		get_tree().quit(2))
 	lab = load("res://scenes/net_lab/net_lab.tscn").instantiate()
+	# La miniatura alargada y el encuadre de la barra se miden con una barra de
+	# prueba en memoria, de valores conocidos, y no con el machete, que es
+	# contenido que se edita (PRU-01).
+	var bar_def := Items.add_bar(lab)
 	add_child(lab)
 	net = lab.get_node("Inventario")
 	ui = lab.get_node("Hud/InventarioUI")
@@ -42,15 +49,24 @@ func _ready() -> void:
 		if net.replica.own != null and is_instance_valid(lab._local_actor):
 			break
 	actor = lab._local_actor
-	for def_id in [&"botella", &"machete", &"linterna", &"banquito", &"caja_de_herramientas", &"tornillos", &"bateria", &"granada", &"llave"]:
+	for def_id in [&"botella", &"machete", &"linterna", &"banquito", &"caja_de_herramientas", &"tornillos", &"bateria", &"granada", &"llave",
+			Items.BAR_ID]:
 		for uid in _world_uids(def_id):
-			await _teleport(net.replica.world[uid]["pos"] + Vector3(-1, 0, 0))
+			# Desde el 2026-11-11 a la noche los objetos sueltos tapan a los de
+			# atrás (el rayo de la mano toca lo primero): se para del lado desde el
+			# que se lo ve.
+			for side: Vector3 in [Vector3(-1, 0, 0), Vector3(0, 0, -1), Vector3(0, 0, 1), Vector3(1, 0, 0)]:
+				await _teleport(net.replica.world[uid]["pos"] + side)
+				if Mano.in_sight(net, actor, Op.PICKUP, uid):
+					break
 			await _req(Op.PICKUP, [uid], [uid])
 	var machete := _own(&"machete")
 	await _req(Op.EQUIP, [machete, net.replica.own.get_stack(machete).ver], [machete])
 	await _req(Op.HOTBAR_SET, [0, _own(&"botella")])
 	await _req(Op.HOTBAR_SET, [1, _own(&"linterna")])
 	await _req(Op.HOTBAR_SET, [2, machete])
+	var bar := _own(Items.BAR_ID)
+	await _req(Op.HOTBAR_SET, [3, bar])
 	var torch := _own(&"linterna")
 	var place := _free(Vector2i(2, 1))
 	await _req(Op.MOVE, [0, torch, net.replica.own.get_stack(torch).ver, 0, place.x, place.y, 1], [torch])
@@ -69,7 +85,7 @@ func _ready() -> void:
 		await get_tree().process_frame
 	print("[inv_visual_test] miniaturas hechas %d, fallidas %d" % [ui.thumbnails.rendered, ui.thumbnails.failed])
 	_check(ui.thumbnails.rendered >= 6 and ui.thumbnails.failed == 0, "las miniaturas se hicieron con el modelo")
-	for def_id in [&"botella", &"linterna", &"machete", &"caja_de_herramientas"]:
+	for def_id in [&"botella", &"linterna", &"machete", &"caja_de_herramientas", Items.BAR_ID]:
 		var image := ui.thumbnails.image_for(net.catalog.find(def_id))
 		if image == null:
 			_check(false, "hay miniatura de %s" % def_id)
@@ -86,7 +102,36 @@ func _ready() -> void:
 				def_id, corner, covered, samples])
 		image.save_png(out_dir.path_join("miniatura_%s.png" % def_id))
 	ui._layout()
+	var icon_rect := ui._slot_rect(3).grow(-3)
+	# La barra de prueba: 1 × 3, con la miniatura de fábrica y sin encuadre
+	# propio en la barra rápida (PRU-01).
+	var bar_image := ui.thumbnails.image_for(bar_def)
+	_check(bar_image != null and bar_image.get_height() > bar_image.get_width(), "la barra de prueba tiene su miniatura alargada")
+	if bar_image != null:
+		var pixels := Vector2(bar_image.get_size())
+		var icon := InvThumbnails.fit_rect(icon_rect, pixels)
+		_check(icon_rect.encloses(icon) and icon.get_center().is_equal_approx(icon_rect.get_center())
+				and is_equal_approx(icon.size.aspect(), pixels.aspect()),
+				"el ícono alargado entra centrado y sin deformarse en la barra rápida")
 	await _shot("1_inventario_y_caja")
+	# Que las dos sean null también da "iguales": primero, que haya textura.
+	var shared := ui.thumbnails.texture_for(bar_def, true)
+	_check(not bar_def.custom_hotbar_thumbnail and shared != null and shared == ui.thumbnails.texture_for(bar_def),
+			"sin un encuadre propio, la barra comparte la textura de la grilla (y la hay)")
+	bar_def.custom_hotbar_thumbnail = true
+	bar_def.hotbar_thumbnail_rotation = Vector3(0, 0, -45)
+	bar_def.hotbar_thumbnail_offset = Vector2(0.05, -0.03)
+	ui.queue_redraw()
+	var icon_deadline := Time.get_ticks_msec() + 5000
+	var custom_icon: Image
+	while custom_icon == null and Time.get_ticks_msec() < icon_deadline:
+		await get_tree().process_frame
+		custom_icon = ui.thumbnails.image_for(bar_def, true)
+	_check(custom_icon != null and custom_icon.get_width() == custom_icon.get_height()
+			and ui.thumbnails.texture_for(bar_def, true) != ui.thumbnails.texture_for(bar_def)
+			and bar_image != null and bar_image.get_data() == ui.thumbnails.image_for(bar_def).get_data(),
+			"la barra genera un ícono cuadrado propio, con otra textura, y la imagen de la grilla sigue igual")
+	await _shot("1b_miniatura_propia_en_la_barra")
 	# En la mano, girada 90° sobre un lugar libre (verde), después 180° y 270°,
 	# y sobre otro objeto (rojo).
 	var tools := _own(&"caja_de_herramientas")
@@ -169,6 +214,7 @@ func _shot(file_name: String) -> void:
 
 
 func _req(op: int, args: Array, uids: Array = []) -> Array:
+	args = Mano.aimed(net, lab._local_actor, op, args)
 	var seq := net.replica.request(op, args, uids)
 	if seq == 0:
 		return [false, "no salió"]

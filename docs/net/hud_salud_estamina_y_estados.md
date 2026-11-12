@@ -15,7 +15,11 @@ Lo que trae:
 - **Los arreglos de la auditoría de GPT** (2026-11-04, a la noche, sección 13): cada uso llega al host aunque se pierda un tick, el host hace las cosas en el orden en que las hiciste, y la muerte gana a Kp 1 y Kp 2 en el mismo tick.
 - **Integridad corporal, luz naranja, daño de caída y muerte** (2026-11-05, punto 1 del [roadmap](roadmap_integridad_habilidades_y_luz.md), sección 14): seis partes del cuerpo con su porcentaje en un panel a la derecha del inventario, la luz naranja que avisa de lesiones, el daño al aterrizar y una caída de cámara y un desplome al morir. **Pendiente de tu prueba manual.**
 - **El botiquín sobre una parte del cuerpo y las vendas** (2026-11-06, sección 15): con Tab, el botiquín soltado sobre una parte dañada la deja al 100 %; las vendas curan la mitad que el botiquín. **Pendiente de tu prueba manual.**
-- **El panel del cuerpo y curar una parte, sin esperar al host** (2026-11-06 a la noche, sección 16): las piernas después de una caída y la parte curada se ven en el momento, también en el cliente con latencia. **Pendiente de tu prueba manual.**
+- **El panel del cuerpo y curar una parte, sin esperar al host** (2026-11-06 a la noche, sección 16): las piernas después de una caída y la parte curada se ven en el momento, también en el cliente con latencia. Lo probaste con latencia alta el 2026-11-08: "funciona correctamente".
+- **Abrir una caja sin que se vea la integridad** (2026-11-08, sección 17): E entra directo en modo caja; mientras el host contesta, el lado derecho queda reservado para la caja. Lo probaste en las dos PC, con latencia alta: funciona.
+- **Tab con una caja abierta cierra solo la caja** (2026-11-08 a la tarde, final de la sección 17): el inventario sigue abierto y a la derecha vuelve la integridad. Lo probaste en red: funciona.
+- **El selector de habilidades con la Q** (2026-11-08, punto 2 del [roadmap](roadmap_integridad_habilidades_y_luz.md), sección 18): mantener Q abre un círculo con velocidad y salto a la izquierda y cámara lenta a la derecha; soltar Q prende o apaga la marcada. La adopción pasó a F2. Lo probaste en las dos PC el 2026-11-09: funciona.
+- **Las luces arriba a la izquierda y la luz naranja que parpadea** (2026-11-09, sección 19): las luces de las habilidades quedan fijas arriba a la izquierda, también con el inventario o el selector abiertos; la luz naranja parpadea con alguna parte en 60 % o menos, como tu concepto. Lo probaste en red el 2026-11-10: funciona; las luces encima de la grilla pasaron a quedar debajo. Lo confirmaste: commit local `b6b1bfc`.
 
 ---
 
@@ -924,3 +928,208 @@ La repetición y el barrido no se volvieron a correr: el motor no cambió y un i
 2. **Curar:** recogé los botiquines y, con **Tab**, soltá uno sobre la pierna izquierda. Se pinta de verde en el momento y hay uno menos.
 3. **Otra vez, enseguida:** agarrá el botiquín de nuevo apenas lo soltaste y soltalo sobre la derecha. Se agarra y cura sin esperar, y la luz se apaga.
 4. **Las vendas** (con el 25 que les pusiste): lastimate otra vez y soltalas sobre una pierna. Sube 25 puntos en el momento.
+
+
+---
+
+## 17. Abrir una caja sin que se vea la integridad (2026-11-08)
+
+Notaste un destello del panel de integridad al abrir una caja. Pediste revisar el camino desde que apretás E hasta que se ve la grilla de la caja, que entre directo en modo caja, que el lado derecho quede reservado para la caja mientras el host contesta, que vuelva a como estaba si el host dice que no, y que Tab solo siga mostrando la integridad.
+
+**Lo que pasaba:** E abría el inventario en el momento, pero la caja recién existe en tu PC cuando contesta el host. Mientras tanto la interfaz era la de Tab, sin caja, y a la derecha se dibujaba la integridad. Claude lo midió con el código de antes, en esta PC, con la caja compartida vacía:
+
+| Visto en | Cuánto tardó la caja | Cuadros con la integridad, antes | Ahora |
+| --- | --- | --- | --- |
+| El host | 21 a 22 ms | 1 (el destello) | **0** |
+| El cliente con +200 ms, ±40 ms y 5 % de pérdida | 248 a 290 ms | 33 a 39 (desde los 8 ms hasta que llegó la caja) | **0** |
+
+### Qué cambió
+
+- **E entra directo en modo caja.** Desde el primer cuadro, el lado derecho es de la caja: su marco, su título ("Caja compartida (compartida) · 8 × 8"), la ayuda de abajo del título y la grilla vacía, del tamaño que va a tener. Cuando llega, aparecen sus objetos en ese mismo lugar: el marco no se mueve y las celdas no cambian de tamaño. Una caja vacía se ve igual que su lugar reservado.
+- **"Abriendo…"** en el medio del marco, solo si la caja tarda más de 0,15 s (elección de Claude: en el host llega en un cuadro y el texto sería otro destello).
+- **Si el host dice que no** (lejos, sin verla, o la caja ya no está), todo vuelve a como estaba antes de E (así entendió Claude tu "restaurá la vista previa"): si el inventario estaba cerrado, se cierra; si lo tenías abierto con Tab, vuelve la integridad. En los dos casos sale el motivo ("Estás muy lejos de la caja"). Si el host no contesta en 10 s, igual, con "El host no contestó: … no se abrió".
+- **Tab mientras espera** cerraba todo, como antes. Si volvías a abrir con Tab antes de que conteste el host, veías el inventario normal con la integridad, y la caja ya no aparece aunque el host la haya abierto (se le pide que la cierre). Antes, en ese caso, la caja aparecía igual. Desde la tarde del mismo día, Tab deja la caja y el inventario sigue abierto (al final de esta sección).
+- **Con algo en la mano**, un clic en el lugar reservado no lo suelta al piso: "Esperá a que se abra la caja".
+- **Tab solo no cambia:** la integridad sigue a la derecha.
+
+En la red no cambió nada: el pedido de abrir es el mismo y el host valida lo mismo.
+
+### Dónde está
+
+| Archivo | Qué cambió |
+| --- | --- |
+| `scripts/inventory/inv_ui.gd` | `open_box` (lo que hace E mirando una caja) guarda la caja pedida (`_box_wait`) antes de abrir el inventario; `side_panel_rect` queda vacío mientras tanto; `_reserved_grid_rect` y `_draw_reserved_box` dibujan el lugar; la respuesta del host, Tab, E y el vencimiento lo terminan; `is_waiting_box` para las pruebas |
+| `scenes/net_lab/hud/lab_hud.gd` | `integrity_draws`: cuántas veces se dibujó el panel, para que las pruebas cuenten los cuadros de verdad |
+| `scenes/net_lab/inventario/pruebas/inv_abrir_caja_test.gd` y `.tscn` (nuevos) | La prueba de abajo |
+
+### Probado (2026-11-08, en esta PC)
+
+| Prueba | Resultado |
+| --- | --- |
+| `inv_abrir_caja_test.tscn` (nueva), dos procesos: el host con el cajón chico y el cliente con la caja compartida, las dos vacías al empezar | Con +200 ms, ±40 ms y 5 %: **host 54 de 54 y cliente 53 de 53.** Con +400 ms: lo mismo. Cero correcciones. Cada uno: Tab muestra la integridad; E con la caja vacía, con un objeto adentro y con Tab ya abierto; en cada cuadro de la espera el lado derecho siguió reservado y el HUD no dibujó la integridad ni una vez; la grilla quedó justo en el lugar reservado. Lejos de la caja, el host dice que no y vuelve a como estaba (cerrado, o abierto con la integridad). Tab, Tab durante la espera: inventario normal y la caja no aparece. Al final, Tab muestra la integridad. La caja tardó 4 a 19 ms en el host, 207 a 295 ms con +200 y 390 a 475 ms con +400 |
+| La medición de antes y después (no es prueba fija: está en la carpeta de trabajo de Claude), en dos copias del proyecto, una con la interfaz de antes | La tabla de arriba. Con capturas de pantalla como cliente con +400 ms: a los 250 ms de E, antes la integridad entera; ahora el marco de la caja con "Abriendo…" |
+| `integridad_test`, `inv_indicador_test`, `inv_model_test`, `inv_partes_test` (+200 ms), `inv_instant_test` (+120 ms), `inv_pair_test` (tres procesos) | 106 de 106, 164 de 164, 92 de 92, 29 de 29 (cero correcciones), 83 de 83, host 18, A 24 y B 7: bien |
+| `inv_lab_test` | 176 comprobaciones, **11 fallas**, todas del machete al girarlo y moverlo con la mano, y "hay 23 objetos en la zona". **No vienen de este cambio:** con la interfaz de antes, en una copia, dan las mismas 11. Vienen del trabajo sin commit que ya estaba en la carpeta (el machete cambió en su `.tres` y la prueba sumó comprobaciones) |
+
+### Lo que no se probó y los límites
+
+- **A mano, en las dos PC y con el `.exe`.** Es tu prueba (abajo). Cambió el código: en la notebook hace falta `actualizar_lab.bat`.
+- **El lugar reservado usa las medidas de la caja en la escena** (Columns y Rows). Son las mismas que manda el host, porque las dos PC tienen el mismo nivel.
+
+### Tu prueba
+
+**Como cliente con latencia** (esta PC **Crear partida**; la notebook, después de `actualizar_lab.bat`, **Unirse** y **Alt + 4**). En la notebook, en la zona de inventario:
+
+1. **Caja vacía:** mirá el **Cajón chico** y apretá **E**. A la derecha tiene que aparecer directo el marco del cajón (4 × 3), sin la silueta del cuerpo en ningún momento. **E** lo cierra.
+2. **Con algo adentro:** abrí la **Caja compartida** con **E**, pasale un objeto, cerrala con **E** y abrila otra vez. Igual: directo la caja, y el objeto aparece en su lugar.
+3. **Desde Tab:** apretá **Tab** (la integridad a la derecha) y, con el inventario abierto, mirá una caja y apretá **E**. La integridad tiene que cambiar directo por la caja.
+4. **Tab solo:** cerrá todo y apretá **Tab** lejos de las cajas. La integridad sigue a la derecha.
+
+Lo mismo en esta PC, como host: tampoco tiene que verse la integridad al abrir.
+
+**Resultado de tu prueba (2026-11-08):** en las dos PC, con latencia alta, la integridad ya no aparece al abrir una caja y no hay demoras. Commit local `8ae157b`, solo el código (sin el cambio de la barra rápida del otro trabajo sin commit, que también está en `inv_ui.gd`). Verificado en una copia limpia de ese commit: host 54 de 54 y cliente 53 de 53.
+
+### Tab con la caja abierta cierra solo la caja (2026-11-08, a la tarde)
+
+Pediste que, con una caja abierta, **Tab** no cierre todo: que cierre la caja, deje el inventario abierto y muestre la integridad. Así Tab deja de cerrar el contenedor junto con el inventario. Más adelante a la derecha va a haber más cosas que la integridad.
+
+**Cómo quedó:**
+
+- **Con una caja abierta, Tab** cierra la caja (se le avisa al host) y el inventario sigue abierto: a la derecha se ve la integridad, en el lugar de la caja. **Tab otra vez** cierra el inventario, como siempre.
+- **Con una caja pedida con E, mientras el host contesta**, Tab hace lo mismo: deja la caja y el inventario sigue abierto con la integridad. Aunque el host la abra, no aparece.
+- **Lo que tenías en la mano** (elección de Claude): si venía de la caja, vuelve a la caja; si es de tu grilla, sigue en la mano, por ejemplo para soltar un botiquín sobre una pierna. Lo que ibas a dejar en la caja de a una unidad (clic derecho) y todavía no salió, no se deja.
+- **E y Esc no cambiaron** (no lo pediste): E con la caja abierta sigue cerrando la caja junto con el inventario, y Esc también cierra todo.
+
+**Dónde está:** `scripts/inventory/inv_ui.gd`: `toggle` (lo que hace Tab), `has_box`, `close_box` y `_leave_box` (lo que ya hacía `close` con la caja, ahora compartido). La prueba `inv_abrir_caja_test` suma los casos nuevos y aprieta Tab por el camino de la tecla.
+
+**Probado (2026-11-08 a la tarde, en esta PC):**
+
+| Prueba | Resultado |
+| --- | --- |
+| `inv_abrir_caja_test`, host y cliente | Con +200 ms y con +400 ms (±40 ms, 5 % de pérdida): **host 73 de 73 y cliente 70 de 70**, sin correcciones. Lo nuevo: con la caja abierta y su objeto en la mano, Tab cierra la caja, el inventario sigue abierto, se dibuja la integridad, la mano queda vacía y el host la da por cerrada; Tab otra vez cierra el inventario; al volver a abrirla, el objeto sigue en la caja; con un objeto propio en la mano, Tab cierra la caja y el objeto sigue en la mano, y Esc lo devuelve; Tab mientras espera al host deja la caja, el inventario sigue abierto con la integridad y la caja no aparece aunque el host la abra |
+| `integridad_test`, `inv_indicador_test`, `inv_partes_test` (+200 ms), `inv_pair_test` (tres procesos) | 106 de 106, 164 de 164, 29 de 29 (sin correcciones), host 18, A 24 y B 7 |
+| `inv_lab_test` | Las mismas 11 fallas del machete de antes, que no vienen de esto (arriba) |
+
+**Tu prueba** (en las dos PC; en la notebook, `actualizar_lab.bat` primero, porque cambió el código):
+
+1. Abrí la **Caja compartida** con **E** y apretá **Tab**: la caja se cierra, el inventario queda abierto y a la derecha aparece la integridad. **Tab** otra vez cierra el inventario.
+2. Abrila con **E**, agarrá con un clic un objeto **de la caja** y apretá **Tab**: la mano queda vacía y el objeto sigue en la caja (abrila de nuevo para verlo).
+3. Abrila con **E**, agarrá un botiquín **de tu grilla** y apretá **Tab**: el botiquín sigue en la mano y lo podés soltar sobre una pierna lastimada.
+4. Con una caja abierta, **E** sigue cerrando todo.
+
+**Resultado de tu prueba (2026-11-08):** en red, funciona. Commit local `cfc8760`, solo el código (otra vez sin el cambio de la barra rápida del otro trabajo sin commit). Verificado en una copia limpia de ese commit: host 73 de 73 y cliente 70 de 70 con +200 ms, sin correcciones.
+
+## 18. El selector de habilidades con la Q (2026-11-08)
+
+Punto 2 del [roadmap](roadmap_integridad_habilidades_y_luz.md). Pediste empezar la implementación y que Claude te preguntara las dudas.
+
+### Lo que decidiste vos
+
+- **En el roadmap:** mantener **Q** abre el selector, con dos sectores (velocidad y salto, cámara lenta). Mientras está abierto, el mouse mueve el indicador y no la cámara, y el mundo sigue. El indicador sale del centro y marca el sector según la dirección del mouse, también fuera del círculo, con una zona muerta en el centro. Soltar Q confirma: prende o apaga la marcada con el control de estados de siempre; en el centro, nada. Las dos se alternan por separado, con su costo y su agotamiento, y en red como hasta ahora. La Q dejaba de ser la adopción.
+- **Al empezar** (preguntas de Claude, 2026-11-08):
+    - velocidad y salto **a la izquierda** y cámara lenta **a la derecha**;
+    - los dibujos son **los íconos de las luces del HUD** (el rayo y el reloj de arena), dibujados por código; se pueden cambiar por imágenes cuando las haya;
+    - el **1 y el 2 del teclado numérico siguen** andando;
+    - la adopción pasa a **F2** (solo el host, como antes).
+
+### Lo que eligió Claude (lo podés cambiar)
+
+- **La zona muerta:** 40 píxeles de movimiento del mouse desde que apretás Q (**Dead Zone**). El movimiento se junta hasta 2,5 zonas muertas, 100 píxeles (**Reach**): así, para pasar al otro lado alcanza con volver un poco más que eso.
+- **El tamaño:** el círculo mide de radio el 20 % del alto de la pantalla (**Size Scale** lo agranda o achica).
+- Los tres valores están en el nodo **Hud → SelectorDeHabilidades**, en la escena `net_lab.tscn`. Son de cada PC, como los de la cámara: no tienen que ser iguales en las dos.
+- **Con el inventario abierto**, Q no abre el selector. **Tab con el selector abierto** abre el inventario y cierra el selector sin cambiar nada. **Perder la ventana** (por ejemplo, Alt + Tab) o **cortarse la conexión** también lo cierran sin cambiar nada: sin la ventana, el soltar Q no llega.
+- **Cada sector dice si su habilidad está prendida** (ícono y "Prendida" en verde) o apagada.
+- **El panel de texto de la izquierda se oculta** mientras el selector está abierto, como con el inventario: se mezclaba con el círculo. Vuelve solo al cerrarlo; F1 sigue igual.
+- **Lo demás sigue andando** con el selector abierto: caminar, correr, saltar, la barra rápida (1 a 9 y 0) y la rueda del mouse (solo se frena el giro de la cámara).
+
+### Cómo se ve
+
+En el medio de la pantalla, un círculo oscuro con dos mitades separadas por una línea. Cada mitad tiene su ícono, su nombre y su estado. La marcada se ilumina con un borde naranja. En el centro, un círculo chico: ahí no se elige nada. La aguja naranja sale del centro: mientras no pasaste la zona muerta queda corta y apagada, y al pasarla llega hasta el borde. Debajo, "Mové el mouse hacia una habilidad y soltá Q · en el centro no cambia nada".
+
+### En la red
+
+No viaja nada nuevo. Soltar Q sobre un sector suma una pulsación al mismo contador que el 1 (cámara lenta) o el 2 (velocidad y salto) del numérico. Ese contador ya iba en el input: tu PC lo predice al instante y el host hace la misma cuenta. La cámara lenta del mundo sigue con la demora programada de siempre (una de las mecánicas que dependen de un buen internet).
+
+### Dónde está
+
+| Archivo | Qué cambió |
+| --- | --- |
+| `scenes/net_lab/hud/ability_wheel.gd` (nuevo) | El selector (`AbilityWheel`): la Q, el mouse, el sector marcado, el dibujo y el aviso `chosen` con la habilidad elegida |
+| `scenes/net_lab/net_lab.tscn` | El nodo nuevo **Hud → SelectorDeHabilidades**, el último del Hud |
+| `scenes/net_lab/net_lab.gd` | `_press_power`: suma la pulsación de una habilidad; la usan el 1 y el 2 del numérico y el selector. La adopción pasó de Q a F2. El panel oculto con el selector abierto y las líneas de ayuda |
+| `scenes/net_lab/hud/lab_hud.gd` | El ícono de cada estado (`draw_icon`) se puede dibujar desde otro lado: lo usan las luces y el selector |
+| `project.godot` | La acción nueva `selector_habilidades`, en la Q (por la posición de la tecla, como las demás) |
+| `scenes/net_lab/selector_test.gd` y `.tscn` (nuevos) | La prueba de abajo |
+
+### Probado (2026-11-08, en esta PC)
+
+| Prueba | Resultado |
+| --- | --- |
+| `selector_test.tscn` (nueva), jugando solo | **44 de 44.** Las teclas y el mouse van como los de un jugador, por la ventana. Q sin mover: no cambia nada, ni los contadores. Un poco, dentro de la zona muerta: nada. Abierto, el mouse no le llega a la cámara. Izquierda prende velocidad y salto con el contador del 2. Derecha, mucho más allá del círculo, prende la cámara lenta y arranca la del mundo. Izquierda otra vez apaga solo velocidad y salto, y un segundo después la cámara lenta sigue (la propia y la del mundo). Q sin mover deja las dos. Ir a la izquierda y volver al centro no elige nada; sin soltar, de la izquierda a la derecha marca la derecha. Con el inventario abierto, Q no abre; Tab con el selector abierto lo cierra sin elegir; perder la ventana también. La barra rápida le llega al inventario con el selector abierto. El 2 del numérico sigue prendiendo y apagando. Derecha apaga la cámara lenta y termina la del mundo. Cerrado, el mouse vuelve a la cámara |
+| La misma, en red: el host y un cliente en esta PC | **Host 53 de 53 y cliente 44 de 44**, sin internet simulada (0 correcciones), con +200 ms, ±40 ms y 5 % de pérdida (dos veces: 1 corrección y 0) y con +400 ms (0). El cliente hace el recorrido entero, que incluye la prueba de cierre del roadmap; el host ve llegar las dos prendidas, después solo la cámara lenta con la del mundo andando, y al final nada. En el host, Q ya no toca la adopción y F2 sí. Cuando el cliente se va, el host hace el recorrido él |
+| `estados_test`, `integridad_test`, `inv_indicador_test` | 129 de 129, 106 de 106 y 164 de 164 |
+| Avisos de GDScript, cargando con el depurador los cuatro scripts | Ninguno |
+| Capturas con ventana (en la carpeta de trabajo de Claude) | El selector marcando cada lado, y con la cámara lenta prendida |
+
+### Lo que no se probó y los límites
+
+- **A mano, con el mouse y el teclado de verdad, y en las dos PC.** Es tu prueba (abajo). Cambiaron el código, la escena y el Mapa de entrada: en la notebook hace falta `actualizar_lab.bat`.
+- **Sin pantalla la cámara no gira** (el mouse no queda capturado), así que la prueba no mira el giro: mira que el movimiento no le llegue a la cámara mientras el selector está abierto, y que le llegue cerrado.
+- **Cuánto hay que mover el mouse** se ajusta con **Dead Zone**: los 40 píxeles son una elección para empezar.
+- **Sin commit.** Está en la rama `net-lab-auditoria-hitbox`, encima del trabajo sin commit de la auditoría de la hitbox; los archivos de los dos no se cruzan.
+
+### Tu prueba
+
+Jugando solo y en las dos PC (en la notebook, `actualizar_lab.bat` primero):
+
+1. **Q sin mover el mouse:** mantené **Q** y soltala sin mover el mouse. El círculo aparece y desaparece, y arriba no se prende ni se apaga ninguna luz.
+2. **Prender:** mantené **Q**, mové el mouse a la **izquierda** (esa mitad se pone naranja y la cámara no gira) y soltá: arriba se prende la luz **Súper**.
+3. **La prueba de cierre, como cliente** (la notebook, **Unirse** y **Alt + 4**): prendé las dos con la Q (izquierda y derecha) y después apagá solo velocidad y salto (Q, izquierda, soltar). La luz **Cámara lenta** sigue prendida y el mundo sigue lento.
+4. **F2 en el host:** en esta PC, como host, apretá **F2**: la línea "adopción:" del panel pasa a apagada; otra vez **F2** la prende.
+
+**Resultado de tu prueba (2026-11-09):** los cuatro pasos, jugando solo y en las dos PC (la notebook con Alt + 4): funciona. Commit local `e9468d7`, solo el código, la escena, el Mapa de entrada y la prueba (sin el trabajo sin commit de la auditoría de la hitbox ni estos md). Verificado en una copia limpia de ese commit: solo 44 de 44; en red, host 53 de 53 y cliente 44 de 44 con +200 ms.
+
+## 19. Las luces arriba a la izquierda y la luz naranja que parpadea (2026-11-09)
+
+Pediste, con tu concepto del HUD, que las luces de las habilidades prendidas pasen al lado izquierdo de la pantalla y que no se muevan al abrir el inventario o el selector (antes iban arriba al medio y, con el inventario abierto, se corrían a la derecha).
+
+### Lo que decidiste vos
+
+- **Las luces, arriba a la izquierda,** en fila, siempre en el mismo lugar.
+- **Con el inventario abierto, debajo de la grilla** (2026-11-10, al verlas en tu captura 1114): la grilla queda donde está y la tapa. El 2026-11-09 habías elegido que se dibujaran encima de su título (pregunta de Claude; la otra opción era bajar la grilla), y en tu prueba se veían sobre "Inventario · 12 × 16". Como el panel del inventario es un poco transparente, detrás se adivina el brillo verde.
+- **La luz naranja, como el concepto** (pregunta de Claude, porque tu concepto decía otra cosa que lo de hoy): parpadea mientras alguna parte del cuerpo esté en 60 % o menos, y se apaga del todo con todas arriba del 60 %. Hasta hoy se prendía fija con cualquier parte por debajo del 100 % (la regla provisoria del punto 1).
+
+### Lo que eligió Claude (lo podés cambiar)
+
+- **El 60 % cuenta como se lee en el panel:** una parte en 60,5 % dice "60 %" y hace parpadear la luz; en 61 %, no. Así la luz y el número nunca se contradicen. Por eso la tabla amarilla de la torre (que deja las piernas en 60,5 %) la hace parpadear.
+- **El parpadeo:** medio segundo prendida y medio apagada, en tiempo real (la cámara lenta no lo hace más lento), y arranca prendida.
+- Los dos valores, en el nodo **Hud → Instrumentos**, grupo **Luz naranja**: **Injury Light Percent** (60) e **Injury Blink Seconds** (0,5). Son de cada PC: solo cambian lo que se ve.
+- **Las luces se ordenan como siempre** (primero el súper, después la cámara lenta), sin huecos: con solo la cámara lenta, esa va primera.
+- **El panel de texto** (el de F1) empieza debajo de las luces mientras alguna está prendida. Con eso, en esta pantalla, sus últimas tres líneas de ayuda quedan detrás de los instrumentos; F1 lo oculta como siempre.
+
+### Dónde está
+
+| Archivo | Qué cambió |
+| --- | --- |
+| `scenes/net_lab/hud/lab_hud.gd` | Las luces, en un lugar fijo (`_lights_layout`, `lights_rect`), dibujadas con los instrumentos: el nodo Instrumentos va antes que el inventario en el Hud, así que la grilla las tapa (el 2026-11-09 iban en una capa propia encima del inventario, sacada el 2026-11-10). La luz naranja: `injury_warning` (avisa) e `injury_lamp_lit` (prendida en este momento), con los dos valores nuevos |
+| `scenes/net_lab/net_lab.gd` | El panel de texto baja debajo de las luces; dice "luz naranja parpadeando" o "apagada" |
+| `scenes/net_lab/integridad_test.gd`, `inventario/pruebas/inv_partes_test.gd` | La regla nueva: con una pierna en 85 % la luz ya no avisa. La de integridad suma el umbral (61 % no, 60,99 % y 60 % sí, 99,99 % no, 0,01 % sí) y el parpadeo |
+| `scenes/net_lab/selector_test.gd` | Las luces arriba a la izquierda, el panel debajo, y el mismo lugar con el selector y con el inventario abiertos |
+
+### Probado (2026-11-09, en esta PC)
+
+| Prueba | Resultado |
+| --- | --- |
+| `integridad_test` | **113 de 113** (antes 106; las nuevas: el umbral en cinco valores y que parpadee prendida, apagada, prendida) |
+| `selector_test`, solo y en red con +200 ms | Solo **50 de 50**; en red, **host 59 de 59 y cliente 50 de 50**, sin correcciones |
+| `inv_partes_test`, en red con +200 ms | 1 y **29 de 29**, sin correcciones |
+| `estados_test` | 129 de 129 |
+| Capturas con ventana (carpeta de trabajo de Claude) | Las luces arriba a la izquierda sin inventario, con el inventario (encima del título) y con el selector; la luz naranja prendida y apagada |
+
+### Tu prueba
+
+Jugando solo alcanza: no cambió nada de lo que viaja por la red. Para jugar en las dos PC, la notebook necesita `actualizar_lab.bat`, porque cambió el código.
+
+1. **Las luces:** prendé el súper con la Q (izquierda). La luz aparece arriba a la izquierda. Abrí el inventario con **Tab**: la grilla la tapa y el título "Tu inventario · 12 × 16" se lee entero. Cerralo y abrí el selector con **Q**: la luz no se mueve.
+2. **La luz naranja:** tirate de la **tabla amarilla** de la torre de parkour (7 m). Las piernas quedan en 60 % y la luz naranja de la salud parpadea. Con **Tab**, curá las dos piernas (un botiquín o las vendas sobre cada una): cuando ninguna diga 60 % o menos, se apaga del todo.
+**Resultado de tu prueba (2026-11-10 y 11):** en red funcionó todo; en tu captura 1114 las luces tapaban el título de la grilla y pediste que queden debajo. Con ese cambio, lo confirmaste. Commit local `b6b1bfc`, solo el código y las pruebas (sin el trabajo sin commit de la auditoría de la hitbox ni estos md). Verificado en una copia limpia de ese commit: selector 50 de 50, integridad 113 de 113 y partes en red con +200 ms 29 de 29, sin correcciones.

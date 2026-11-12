@@ -1,5 +1,7 @@
 # Prompt para Claude: herramienta de creación de ítems y contenedores
 
+Este prompt describe la ampliación original del panel **Objetos**. Para una adición nueva, consultá primero la sección 4 de [Inventario de grilla](inventario_de_grilla.md#4-crear-un-ítem-o-un-contenedor) y las secciones 14 y 16 de la [Guía del laboratorio](guia_del_laboratorio.md). Ahí están el visor de la hitbox de agarre, los gestos de cámara y los dos encuadres de miniaturas con giro por eje. Usá este prompt como antecedente de diseño.
+
 Necesito que implementes una herramienta visual dentro del editor de Godot para crear y configurar los objetos del inventario y los contenedores compartidos del laboratorio `net-lab`, sin tener que armar a mano recursos, entradas del catálogo y nodos de aparición.
 
 Ya existe una primera versión: el panel **Objetos**, en `addons/inventario_objetos/`. Revisalo y amplialo. No crees un segundo editor paralelo ni rehagas el inventario. El resultado debe servir para crear contenido compatible con el sistema actual y probarlo jugando solo y en cooperativo.

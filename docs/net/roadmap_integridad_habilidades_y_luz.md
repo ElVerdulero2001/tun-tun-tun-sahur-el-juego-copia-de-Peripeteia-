@@ -5,14 +5,14 @@ Decisiones y propuestas del 2026-11-05 para `net-lab`. Para el comportamiento ac
 | Punto | Estado |
 | --- | --- |
 | 1. Integridad corporal, luz naranja, caídas y muerte | **Implementado el 2026-11-05, pendiente de tu prueba manual.** Detalle, valores, pruebas y la lista para probar a mano: sección 14 de [`hud_salud_estamina_y_estados.md`](hud_salud_estamina_y_estados.md#14-integridad-corporal-luz-naranja-daño-de-caída-y-muerte-2026-11-05). **Seguido el 2026-11-06** con el botiquín sobre una parte del cuerpo y las Vendas, también pendiente de tu prueba: sección 15 del mismo documento. **A la noche**, el panel y la curación de partes sin esperar al host: sección 16 |
-| 2. Selector radial de habilidades | Pendiente |
+| 2. Selector radial de habilidades | **Implementado el 2026-11-08 y probado por vos en las dos PC el 2026-11-09: funciona** (commit local `e9468d7`). Detalle, decisiones, pruebas y la lista para probar a mano: sección 18 de [`hud_salud_estamina_y_estados.md`](hud_salud_estamina_y_estados.md#18-el-selector-de-habilidades-con-la-q-2026-11-08) |
 | 3. Termómetro de luz | Pendiente |
 
 ## 1. Integridad corporal, luz naranja, caídas y muerte
 
 **Implementado el 2026-11-05, pendiente de tu prueba manual.** Lo de abajo es el pedido tal como estaba; cómo quedó, en la sección 14 de `hud_salud_estamina_y_estados.md`. En resumen:
 
-- **Lo que decidiste al pedirlo** (reglas provisorias del laboratorio): el daño de integridad de una caída se reparte por igual entre las dos piernas, y cada una conserva su valor; por ahora las lesiones solo se ven en el panel y en la luz (no cambian el movimiento); el botiquín cura la salud general y no la integridad; la muerte de prueba devuelve las seis partes al 100 %. La luz se prende con cualquier parte por debajo del 100 %. El panel muestra directamente la silueta, y la caja abierta tiene prioridad en ese lugar.
+- **Lo que decidiste al pedirlo** (reglas provisorias del laboratorio): el daño de integridad de una caída se reparte por igual entre las dos piernas, y cada una conserva su valor; por ahora las lesiones solo se ven en el panel y en la luz (no cambian el movimiento); el botiquín cura la salud general y no la integridad; la muerte de prueba devuelve las seis partes al 100 %. La luz se prende con cualquier parte por debajo del 100 % (desde el 2026-11-09, como tu concepto del HUD: parpadea con alguna parte en 60 % o menos; sección 19 de `hud_salud_estamina_y_estados.md`). El panel muestra directamente la silueta, y la caja abierta tiene prioridad en ese lugar.
 - **Los valores iniciales** (nodo **Tuning**, grupo **Daño de caída**): **Fall Safe Speed** 10 m/s, **Fall Lethal Speed** 13 m/s y **Fall Leg Damage** 150. Un salto con el súper llega al piso a 7,2 m/s.
 - **En la torre de parkour**, tres tablas: verde a 4 m (segura), amarilla a 7 m (lastima la salud y las piernas) y roja a 9,5 m (letal).
 - **El 2026-11-06, el botiquín sobre una parte** (pedido tuyo): con Tab, un clic agarra el botiquín y otro lo suelta sobre una parte dañada del panel; esa parte vuelve al 100 % y se gasta uno, sin tocar la salud ni las otras partes (también con la salud completa). Sobre una parte sana o entre dos partes, sigue en la mano y no se gasta; nunca va al piso. Lo valida el host, que cura y gasta juntos. Usado normal, sigue curando 50 de salud. La capacidad va en los datos del consumible (**Part Repair**: 100 deja la parte entera; menos, la sube eso); desde la tarde se pone en el panel Objetos (**Cura una parte del cuerpo**). **Las Vendas** curan 25, la mitad que el botiquín, y no curan partes; hay una en la zona de inventario.
@@ -31,6 +31,12 @@ Decisiones y propuestas del 2026-11-05 para `net-lab`. Para el comportamiento ac
 - **Prueba de cierre:** repetir las tres caídas como cliente con latencia simulada y comprobar que el daño se aplica una vez, host y cliente coinciden, el panel y la luz reflejan la lesión y la animación aparece una vez. Cubrir un salto normal con el súper, un agarre antes de tocar el suelo y una plataforma móvil.
 
 ## 2. Selector radial de habilidades
+
+**Implementado el 2026-11-08 y probado por vos en las dos PC el 2026-11-09: funciona.** Lo de abajo es el pedido tal como estaba; cómo quedó, en la sección 18 de `hud_salud_estamina_y_estados.md`. En resumen:
+
+- **Lo que decidiste al empezar** (preguntas de Claude): velocidad y salto a la izquierda y cámara lenta a la derecha; los dibujos son los mismos íconos de las luces del HUD (el rayo y el reloj de arena), hasta que haya imágenes; el 1 y el 2 del teclado numérico siguen andando; la adopción pasa de la Q a **F2** (solo el host).
+- **Cómo funciona:** el selector suma una pulsación al mismo contador que el 1 o el 2 del numérico, así que viaja, se predice y lo cuenta el host como siempre, con el costo y el agotamiento de siempre. Los valores del mouse (la zona muerta, 40 píxeles) están en el nodo **Hud → SelectorDeHabilidades**.
+- **Probado en esta PC** (prueba nueva `selector_test`): jugando solo 44 de 44; en red, host 53 de 53 y cliente 44 de 44, sin internet simulada y con +200 y +400 ms, incluida la prueba de cierre de abajo.
 
 - **Mantener Q** abre el selector. Tiene dos sectores, con un sprite para **velocidad y salto** y otro para **cámara lenta**. Mientras está abierto, el movimiento del mouse orienta el indicador radial y deja de girar la cámara. El mundo sigue corriendo.
 - El indicador sale del centro y resalta el sector según la dirección del mouse, incluso fuera del círculo. La zona muerta central evita que una pulsación sin movimiento seleccione algo.

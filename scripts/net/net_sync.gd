@@ -238,6 +238,9 @@ func input_for(peer_id: int, tick: int) -> ActorInput:
 			chosen.jump_presses, chosen.ability_presses, chosen.power_presses)
 	input.use_presses = chosen.use_presses
 	input.uses = chosen.uses.duplicate(true)
+	# Lo que sostiene (desde el 2026-11-14): repetido, la mano sigue donde
+	# estaba; no agarra ni suelta nada por sí solo (eso son pedidos).
+	input.hold = chosen.hold.duplicate()
 	return input
 
 

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="InvItemDef" format=3]
+
+[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_tabla"]
+size = Vector3(0.12, 0.04, 1.6)
+
+[resource]
+script = ExtResource("1_def")
+id = &"tabla_larga"
+display_name = "Tabla larga"
+description = "Para probar la física (2026-11-14): agarrala por una punta, girala con el botón central y metela a lo largo por la ranura del muro de la pista de física."
+size = Vector2i(1, 5)
+mesh = SubResource("BoxMesh_tabla")
+color = Color(0.62, 0.45, 0.28, 1)
+world_size = 1.6

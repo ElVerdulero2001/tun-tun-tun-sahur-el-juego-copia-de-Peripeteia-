@@ -19,7 +19,7 @@ const Destinos := preload("destinos.gd")
 ## Lo que el panel edita de un InvItemDef. Lo demás del recurso (metadatos, o
 ## campos que se agreguen un día) queda como estaba.
 const ITEM_FIELDS: Array[StringName] = [&"id", &"display_name", &"description", &"size", &"can_rotate", &"stackable",
-		&"max_stack", &"abilities", &"default_state", &"model", &"mesh", &"color", &"world_size", &"pickup_hitbox",
+		&"max_stack", &"abilities", &"default_state", &"model", &"mesh", &"color", &"world_size", &"pickup_hitbox", &"body_shape",
 		&"thumbnail_rotation", &"thumbnail_zoom", &"thumbnail_offset", &"thumbnail_auto_align",
 		&"custom_hotbar_thumbnail", &"hotbar_thumbnail_rotation", &"hotbar_thumbnail_zoom", &"hotbar_thumbnail_offset"]
 ## Lo que el panel edita de un contenedor (InvContainer), además del nombre
@@ -136,6 +136,13 @@ static func check_item(draft: Resource, path: String, original: Resource, catalo
 	elif hitbox != null:
 		for problem in (hitbox as InvPickupHitbox).problems():
 			errors.append("Hitbox de agarre: " + problem)
+	# El cuerpo físico (desde el 2026-11-14): vacío es la forma automática.
+	var body: Variant = draft.get(&"body_shape")
+	if body != null and not body is InvBodyShape:
+		errors.append("El cuerpo físico no es un InvBodyShape.")
+	elif body != null:
+		for problem in (body as InvBodyShape).problems():
+			errors.append("Cuerpo físico: " + problem)
 	errors.append_array(check_abilities(draft.get(&"abilities")))
 	var state_problem := check_state(draft.get(&"default_state"))
 	if state_problem != "":

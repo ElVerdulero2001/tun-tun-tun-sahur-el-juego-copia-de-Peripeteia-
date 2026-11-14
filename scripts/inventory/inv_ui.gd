@@ -362,7 +362,7 @@ func open_box(id: int, shown_name := "", direction := Vector3.ZERO) -> int:
 	if not _box_wait.is_empty():
 		return 0
 	var was_open := is_open
-	var seq := _r().request(InvProtocol.Op.OPEN, InvProtocol.aimed_args(id, direction, net.aim_tick()))
+	var seq := _r().request(InvProtocol.Op.OPEN, InvProtocol.aimed_args(id, direction, net.aim_tick(), net.view_tick()))
 	if seq == 0:
 		return 0
 	_sent[seq] = {"op": InvProtocol.Op.OPEN, "name": shown_name}
@@ -406,7 +406,8 @@ func pick_up_world(uid: int, shown_name := "", direction := Vector3.ZERO) -> int
 	if room["reason"] != "":
 		_say(_sentence(room["reason"]))
 		return 0
-	var seq := _r().request(InvProtocol.Op.PICKUP, InvProtocol.aimed_args(uid, direction, net.aim_tick()), [uid])
+	var seq := _r().request(InvProtocol.Op.PICKUP, InvProtocol.aimed_args(uid, direction, net.aim_tick(), net.view_tick()),
+			[uid])
 	if seq != 0:
 		_sent[seq] = {"op": InvProtocol.Op.PICKUP, "uid": uid, "name": shown_name}
 	queue_redraw()
@@ -887,13 +888,14 @@ func _send_placing(entry: Dictionary) -> void:
 			uids = []
 			slots = [target["slot"]]
 		"world":
-			var spot: Variant = net.predict_drop_spot(actor)
+			var spot: Variant = net.predict_drop_spot(actor, entry.get("def"))
 			if spot == null:
 				_say("No hay lugar cerca para soltarlo")
 				_drop_placing_of(uid)
 				return
 			op = InvProtocol.Op.DROP_AT
-			args = InvProtocol.drop_args(entry["src"], uid, stack.ver, quantity, spot)
+			args = InvProtocol.drop_args(entry["src"], uid, stack.ver, quantity, (spot as Transform3D).origin,
+					actor.state.facing_yaw)
 	var seq := _r().request(op, args, uids, slots)
 	if seq == 0:
 		_say("Eso está esperando al host: no se movió")
@@ -1160,11 +1162,13 @@ func use_item(uid: int) -> bool:
 ## muestra ahí ya y se lo manda en el pedido (InvProtocol.Op.DROP_AT). Sin
 ## lugar, lo dice sin preguntarle. Devuelve el número del pedido, o 0.
 func drop_item(ref: int, uid: int, ver: int, quantity: int) -> int:
-	var spot: Variant = net.predict_drop_spot(actor)
+	var grid := _grid(ref)
+	var spot: Variant = net.predict_drop_spot(actor, grid.def_of(uid) if grid != null else null)
 	if spot == null:
 		_say("No hay lugar cerca para soltarlo")
 		return 0
-	var seq := _r().request(InvProtocol.Op.DROP_AT, InvProtocol.drop_args(ref, uid, ver, quantity, spot), [uid])
+	var seq := _r().request(InvProtocol.Op.DROP_AT, InvProtocol.drop_args(ref, uid, ver, quantity,
+			(spot as Transform3D).origin, actor.state.facing_yaw), [uid])
 	queue_redraw()
 	return seq
 
@@ -1782,6 +1786,11 @@ func _say(text: String) -> void:
 	_toast = text
 	_toast_until = Time.get_ticks_msec() + TOAST_MSEC
 	queue_redraw()
+
+
+## Un aviso abajo, como los del inventario (lo usa también la mano, InvHands).
+func say(text: String) -> void:
+	_say(text)
 
 
 ## Un motivo del host como oración: con mayúscula al principio.

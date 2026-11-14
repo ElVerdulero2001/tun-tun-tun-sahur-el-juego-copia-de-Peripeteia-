@@ -384,7 +384,7 @@ func _uid_at(spot: Vector3) -> int:
 func _model_box(uid: int) -> AABB:
 	var view := net.world_view(uid)
 	var box := view.interact_focus().bounds
-	box.position += view.global_position
+	box = view.global_transform * box
 	return box
 
 
@@ -512,6 +512,9 @@ func _drop_own(def_id: StringName) -> int:
 		return 0
 	for key: int in net.replica.world:
 		if not before.has(key) and net.replica.world[key]["stack"].def_id == def_id:
+			# Desde el 2026-11-14 lo soltado cae: se espera a que repose.
+			await _until(func() -> bool: return Mano.rested(net, key), 6.0)
+			await _ticks(2)
 			return key
 	return 0
 
@@ -825,9 +828,11 @@ func _hole() -> void:
 ## Un punto arriba de la barra de un marco que va a lo largo (z), la de este
 ## lado (`side` −1, x más chica) o la de allá (+1), a mitad de su largo.
 func _bar(uid: int, side: float) -> Vector3:
-	var model := _model_box(uid)
+	# En el espacio del marco (desde el 2026-11-14 lo soltado puede quedar girado).
+	var view := net.world_view(uid)
+	var model := view.interact_focus().bounds
 	var x := model.get_center().x + side * (FRAME_WIDTH - FRAME_BAR) / 2.0
-	return Vector3(x, model.end.y - 0.002, model.get_center().z)
+	return view.global_transform * Vector3(x, model.end.y - 0.002, model.get_center().z)
 
 
 ## La llave con la cámara, en primera persona: apuntando al costado, adentro

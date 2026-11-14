@@ -114,6 +114,33 @@ func _req(op: int, args: Array, uids: Array = []) -> Array:
 	return [false, "sin respuesta"]
 
 
+## Desde el 2026-11-14 lo soltado cae: espera a que repose (como mucho 6 s).
+func _rested(uid: int) -> void:
+	var limit := Time.get_ticks_msec() + 6000
+	while not Mano.rested(net, uid) and Time.get_ticks_msec() < limit:
+		await get_tree().physics_frame
+
+
+## La caja del modelo de un objeto suelto en el mundo, con su lugar y su giro.
+func _world_box(uid: int) -> AABB:
+	var view := net.world_view(uid)
+	return view.global_transform * view.interact_focus().bounds if view != null else AABB()
+
+
+## La altura del punto más bajo del modelo de un objeto suelto, con su lugar y
+## su giro (los triángulos, no la caja: una caja girada baja más que lo que
+## envuelve, como la de la linterna acostada y algo girada sobre su eje).
+func _lowest_point(uid: int) -> float:
+	var view := net.world_view(uid)
+	var def := net.catalog.find(net.replica.world[uid]["stack"].def_id) if net.replica.world.has(uid) else null
+	if view == null or def == null:
+		return NAN
+	var low := INF
+	for vertex in InvReach.item_faces(def):
+		low = minf(low, (view.global_transform * vertex).y)
+	return low
+
+
 func _teleport(position: Vector3, yaw := 0.0) -> void:
 	var state := actor.state
 	state.position = position
@@ -132,6 +159,11 @@ func _teleport(position: Vector3, yaw := 0.0) -> void:
 func _world_uids(def_id: StringName) -> Array:
 	var list := []
 	for uid in net.replica.world:
+		# Solo la zona de inventario: desde el 2026-11-14 la pista de física, al
+		# norte (z menor que 6), tiene otras baterías, granadas, tornillos y una
+		# llave (como en inv_pair_test).
+		if (net.replica.world[uid]["pos"] as Vector3).z < 6.0:
+			continue
 		if net.replica.world[uid]["stack"].def_id == def_id:
 			list.append(uid)
 	list.sort()
@@ -350,10 +382,13 @@ func _equip_and_drop() -> void:
 	_check(net.replica.loadout.equipped_uid == 0 and net.replica.loadout.hotbar[1] == 0 and net.replica.equipment.get(1, "x") == "",
 			"soltarla la desequipa y limpia su acceso")
 	if net.replica.world.has(torch):
-		var spot: Vector3 = net.replica.world[torch]["pos"]
+		# Desde el 2026-11-14 aparece a la altura del pecho y cae: se mira cuando reposa.
+		await _rested(torch)
+		var box := _world_box(torch)
 		var feet := BaseRegistry.world_position(actor.state)
-		_check(absf(spot.y) < 0.01 and Vector2(spot.x - feet.x, spot.z - feet.z).length() >= 0.6,
-				"cae en el piso, afuera del personaje: %s (pies en %s)" % [spot, feet])
+		var low := _lowest_point(torch)
+		_check(absf(low) < 0.03 and Vector2(box.get_center().x - feet.x, box.get_center().z - feet.z).length() >= 0.4,
+				"cae en el piso, afuera del personaje: lo más bajo a %.3f m del piso, %s (pies en %s)" % [low, box, feet])
 		await get_tree().process_frame
 		_check(net.world_view(torch) != null, "se ve en el mundo")
 	var screws := _biggest(&"tornillos")
@@ -374,8 +409,10 @@ func _drop_near_wall_and_cage() -> void:
 	await _teleport(Vector3(wall_x - 0.6, 0, ZONE.z - 3.0), -PI / 2.0)
 	var key: int = _own_uids(&"llave")[0]
 	var r := await _req(Op.DROP, [0, key, _stack(key).ver, 1], [key])
-	_check(r[0] and net.replica.world.has(key) and net.replica.world[key]["pos"].x < wall_x - 0.2,
-			"contra la pared cae de este lado: %s" % (net.replica.world[key]["pos"] if net.replica.world.has(key) else r[1]))
+	if net.replica.world.has(key):
+		await _rested(key)
+	_check(r[0] and net.replica.world.has(key) and _world_box(key).end.x < wall_x + 0.005,
+			"contra la pared cae de este lado: %s" % (_world_box(key) if net.replica.world.has(key) else r[1]))
 	r = await _req(Op.PICKUP, [key], [key])
 	_check(r[0], "la llave se vuelve a recoger")
 	# Encerrado entre paredes: no hay lugar y no se suelta nada.
@@ -859,7 +896,7 @@ func _aim_by_shape() -> void:
 	var bounds := InvReach.item_bounds(def).grow(-0.001)
 	_check(bounds.position.distance_to(box.position) < 0.001 and bounds.size.distance_to(box.size) < 0.001,
 			"los triángulos del rayo son los del modelo que se ve: la misma caja (%s y %s)" % [bounds, box])
-	box.position += view.global_position
+	box = view.global_transform * box
 	var eyes := InvAuthority.eyes(actor, actor.global_position)
 	var chosen := func(direction: Vector3) -> bool:
 		var seen := net.interaction_target(actor, eyes, direction, false)

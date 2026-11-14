@@ -543,6 +543,7 @@ func _show_item() -> void:
 	_preview.show_item(_item_draft)
 	_item_form.refresh_thumbnail()
 	_item_form.refresh_hitbox()
+	_item_form.refresh_body()
 	_item_form.set_notes(Guardado.item_notes(_item_draft, _player_grid, _known_boxes))
 	_update_status()
 

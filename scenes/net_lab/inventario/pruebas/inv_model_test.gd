@@ -426,7 +426,9 @@ func _input_round_trip() -> void:
 			and back.uses == [[123456, 9, -1], [4000000000, 0, ActorState.Part.LEG_RIGHT]]
 			and back.power_presses == 7 and back.is_possible(), "se lee igual del otro lado, con la parte de cada uso")
 	var wrong_part := b.data_array.duplicate()
-	wrong_part[wrong_part.size() - 1] = ActorState.PARTS + 1
+	# Desde el 2026-11-14 al final va si sostiene algo (un byte): la parte del
+	# último uso es el anteúltimo.
+	wrong_part[wrong_part.size() - 2] = ActorState.PARTS + 1
 	var odd := StreamPeerBuffer.new()
 	odd.data_array = wrong_part
 	_check(ActorInput.read_from(odd) == null, "uno con una parte del cuerpo que no existe se descarta")
@@ -434,10 +436,31 @@ func _input_round_trip() -> void:
 	cut.data_array = b.data_array.slice(0, b.data_array.size() - 3)
 	_check(ActorInput.read_from(cut) == null, "uno cortado se descarta")
 	var bytes := b.data_array.duplicate()
-	bytes[ActorInput.BYTE_SIZE - 1] = ActorInput.MAX_USES + 1
+	# Cuántos usos van: el último byte de los 14 fijos (desde el 2026-11-14 hay
+	# uno más al final, si sostiene algo).
+	bytes[ActorInput.BYTE_SIZE - 2] = ActorInput.MAX_USES + 1
 	var many := StreamPeerBuffer.new()
 	many.data_array = bytes
 	_check(ActorInput.read_from(many) == null, "uno con más usos de los que pueden ir se descarta")
+	# Desde el 2026-11-14 lo que sostiene la mano viaja en el input de cada tick.
+	var holding := ActorInput.make(78, Vector2.ZERO, 0.4, 0, 0)
+	holding.hold = ActorInput.pack_hold(12, -0.3, 1.234, Quaternion(Vector3.UP, 0.7))
+	var hb := StreamPeerBuffer.new()
+	holding.write_to(hb)
+	_check(hb.data_array.size() == ActorInput.BYTE_SIZE + ActorInput.HOLD_BYTES, "sosteniendo algo: el fijo más lo de la mano")
+	hb.seek(0)
+	var held := ActorInput.read_from(hb)
+	_check(held != null and held.hold == holding.hold and held.hold_session() == 12 and absf(held.hold_distance() - 1.234) < 0.001
+			and absf(held.hold_pitch() + 0.3) < 0.001 and held.hold_rotation().angle_to(Quaternion(Vector3.UP, 0.7)) < 0.001
+			and held.is_possible(), "lo de la mano se lee igual del otro lado (sesión, pitch, distancia y giro)")
+	var bad_hold := ActorInput.make(79, Vector2.ZERO, 0.0, 0, 0)
+	bad_hold.hold = [0, 0, 1000, 0, 0, 0, 32767]
+	_check(not bad_hold.is_possible(), "una mano con sesión 0 no es de este juego")
+	var flag := hb.data_array.duplicate()
+	flag[ActorInput.BYTE_SIZE - 1] = 2
+	var odd_flag := StreamPeerBuffer.new()
+	odd_flag.data_array = flag
+	_check(ActorInput.read_from(odd_flag) == null, "uno con la marca de la mano en 2 se descarta")
 
 
 ## EDT-01: un modelo con scripts no se instancia ni se usa como apariencia.

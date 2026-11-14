@@ -16,6 +16,9 @@ extends VBoxContainer
 ## El color de la hitbox de agarre.
 const HITBOX_COLOR := Color(0.35, 0.85, 1.0)
 const HITBOX_NODE := &"HitboxDeAgarre"
+## El cuerpo físico (desde el 2026-11-14): con qué choca suelto, en naranja.
+const BODY_COLOR := Color(1.0, 0.55, 0.15)
+const BODY_NODE := &"CuerpoFisico"
 
 const Destinos := preload("destinos.gd")
 const Guardado := preload("guardado.gd")
@@ -30,6 +33,7 @@ var _camera: Camera3D
 var _content: Node3D
 var _view_pick: OptionButton
 var _hitbox_toggle: CheckBox
+var _body_toggle: CheckBox
 var _note: Label
 var _footprint: Huella
 var _thumbnail: SubViewport
@@ -73,6 +77,13 @@ func _init(hitbox_only := false) -> void:
 	_hitbox_toggle.visible = false
 	_hitbox_toggle.toggled.connect(func(_on: bool) -> void: _schedule())
 	add_child(_hitbox_toggle)
+	_body_toggle = CheckBox.new()
+	_body_toggle.text = "Ver el cuerpo físico"
+	_body_toggle.tooltip_text = "En naranja: las formas con que choca suelto en el mundo (cae, rebota, reposa). No son con lo que se agarra: eso es el modelo."
+	_body_toggle.button_pressed = true
+	_body_toggle.visible = false
+	_body_toggle.toggled.connect(func(_on: bool) -> void: _schedule())
+	add_child(_body_toggle)
 	_viewport_box = SubViewportContainer.new()
 	_viewport_box.stretch = true
 	_viewport_box.custom_minimum_size = Vector2(120, 170 if _hitbox_only else 190)
@@ -183,6 +194,7 @@ func _refresh() -> void:
 	_footprint.texture = null
 	_note.text = ""
 	_hitbox_toggle.visible = false
+	_body_toggle.visible = false
 	if _def != null:
 		_build_item()
 	elif not _box.is_empty():
@@ -247,6 +259,11 @@ func _build_item() -> void:
 				_distance = maxf(_distance, area.size.length() * 2.4)
 			elif _hitbox_toggle.button_pressed:
 				_note.text = " ".join(PackedStringArray([_note.text, "La hitbox de agarre no se puede mostrar: %s" % " ".join(hitbox.problems())])).strip_edges()
+		# El cuerpo físico, en naranja (desde el 2026-11-14), en la vista general.
+		if not _hitbox_only:
+			_body_toggle.visible = true
+			if _body_toggle.button_pressed:
+				_content.add_child(body_overlay(def))
 		_add_floor(floor_radius)
 		_content.add_child(model)
 		if _hitbox_only:
@@ -344,6 +361,32 @@ static func hitbox_overlay(hitbox: InvPickupHitbox) -> Node3D:
 			inside.material_override = fill
 			holder.add_child(inside)
 	return holder
+
+
+## El cuerpo físico del tipo (InvItemPhysics.parts: las mismas formas que usa
+## el juego, en el espacio del objeto suelto): el contorno de cada una, en
+## naranja, encima de todo.
+static func body_overlay(def: Resource) -> Node3D:
+	var holder := Node3D.new()
+	holder.name = BODY_NODE
+	var lines := StandardMaterial3D.new()
+	lines.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lines.albedo_color = BODY_COLOR
+	lines.no_depth_test = true
+	lines.render_priority = 1
+	for part: Array in InvItemPhysics.parts(def as InvItemDef):
+		var outline := MeshInstance3D.new()
+		outline.name = "Forma%d" % holder.get_child_count()
+		outline.mesh = (part[0] as Shape3D).get_debug_mesh()
+		outline.transform = part[1]
+		outline.material_override = lines
+		holder.add_child(outline)
+	return holder
+
+
+## El cuerpo físico que se ve ahora en la vista previa, o null (para las pruebas).
+func shown_body() -> Node3D:
+	return _content.get_node_or_null(NodePath(BODY_NODE)) as Node3D
 
 
 ## La hitbox que se ve ahora en la vista previa, o null (para las pruebas).

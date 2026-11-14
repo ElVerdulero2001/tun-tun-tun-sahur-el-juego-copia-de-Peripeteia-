@@ -603,6 +603,10 @@ func _dropped_and_placed() -> void:
 	var dropped := _world_uid(&"veneno")
 	_check(r[0] and dropped != 0, "un veneno soltado al piso: %s" % r[1])
 	if dropped != 0:
+		# Desde el 2026-11-14 lo soltado cae: se espera a que repose.
+		var limit := Time.get_ticks_msec() + 6000
+		while not Mano.rested(net, dropped) and Time.get_ticks_msec() < limit:
+			await get_tree().physics_frame
 		await _set_first_person(true)
 		await _aim(_center_of(dropped))
 		_check(_marks(dropped) and indicator.shown_name() == "Frasco de veneno", "lo soltado se marca: %s" % _describe())

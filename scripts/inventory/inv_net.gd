@@ -43,6 +43,14 @@ extends Node3D
 ## Los inventarios son de cada entidad: al personaje el host le agrega un nodo
 ## InvInventory (INVENTORY_NODE) al aparecer; cada caja trae el suyo. Las cajas
 ## y los objetos iniciales se buscan en `world_root`, la zona de prueba.
+##
+## Objetos con física (desde el 2026-11-14): los objetos sueltos son cuerpos
+## que simula el host (InvBodies, el nodo ObjetosSueltos) y se pueden sostener
+## en el mundo con la mano (InvHands). Lo discreto (agarrar, soltar, lanzar,
+## recoger, entrar y salir del mundo) va por los pedidos y paquetes de siempre,
+## confiables y en orden; la pose de lo que se mueve, en paquetes de poses sin
+## confiable (send_poses), 30 por segundo y solo de lo que se mueve; y lo que
+## pide la mano mientras sostiene, en el input de cada tick (ActorInput.hold).
 
 ## Nombre del componente de inventario que el host le agrega a cada personaje.
 const INVENTORY_NODE := &"Inventario"
@@ -128,7 +136,8 @@ var _request_wait := {}  # host: peer -> [número de pedido, desde cuándo en ms
 var _out_seq := {}  # host: peer -> último número de paquete mandado
 var _commit_expected := 1
 var _commit_waiting := {}
-var _world_views := {}  # uid -> InvWorldItem
+# Los objetos sueltos se dibujan en InvBodies (desde el 2026-11-14; antes,
+# _world_views en esta capa).
 var _world_layer: Node3D
 var _use_counter := 0  # número del último uso puesto en fila en esta máquina
 ## Número de uso -> lo que hace falta para predecirlo, como estaba al usarlo:
@@ -159,13 +168,24 @@ var aims_at_tick := 0
 var aims_late := 0
 var aims_guessed := 0
 var aims_now := 0
+## Los objetos sueltos con física (desde el 2026-11-14): sus cuerpos o copias.
+var bodies: InvBodies
+## La mano del jugador local (InvHands): lo que sostiene en el mundo. La pone
+## el laboratorio.
+var hands: Node
+## El reloj de ticks del laboratorio. Lo pone el laboratorio.
+var clock: SimClock
 
 
 func _ready() -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-	_world_layer = Node3D.new()
-	_world_layer.name = "ObjetosSueltos"
-	add_child(_world_layer)
+	bodies = InvBodies.new()
+	bodies.name = "ObjetosSueltos"
+	bodies.net = self
+	bodies.catalog = catalog
+	bodies.tuning = tuning
+	_world_layer = bodies
+	add_child(bodies)
 	replica.catalog = catalog
 	replica.send = _send_request
 	# Una vez por paquete del host o por pedido, y no por cada consumible usado
@@ -195,6 +215,7 @@ func _ready() -> void:
 ## auditoría del 2026-11-08, REND-01, que ya no existen).
 func _exit_tree() -> void:
 	InvReach.clear_cache()
+	InvItemPhysics.clear_cache()
 
 
 ## Las cajas y los objetos iniciales, en el orden del árbol: el número de cada
@@ -226,6 +247,14 @@ func start(as_host: bool) -> void:
 	_inbox.clear()
 	_aim_poses.clear()
 	_aim_latest.clear()
+	bodies.tuning = tuning
+	bodies.catalog = catalog
+	bodies.reset()
+	if clock != null and not clock.tick_started.is_connected(_on_tick_started):
+		# Después de los del laboratorio, que se conectaron antes: en el cliente,
+		# la interpolación ya avanzó; en el host, ya se adoptó lo que afirman.
+		clock.tick_started.connect(_on_tick_started)
+		clock.tick_finished.connect(_on_tick_finished)
 	if not as_host:
 		return
 	authority = InvAuthority.new()
@@ -234,6 +263,10 @@ func start(as_host: bool) -> void:
 	authority.tuning = tuning
 	authority.drop_distance = drop_distance
 	authority.send = _send_commit
+	authority.space.catalog = catalog
+	authority.bodies = bodies
+	authority.clock_tick = func() -> int: return clock.tick if clock != null else -1
+	bodies.authority = authority
 	for box in _containers:
 		if box.inventory == null:
 			push_warning("[inventario] %s no tiene inventario" % box.get_path())
@@ -258,6 +291,9 @@ func connection_lost() -> void:
 	replica.reset()
 	_commit_expected = 1
 	_commit_waiting.clear()
+	bodies.reset()
+	if hands != null:
+		hands.call(&"drop_hold", "se cortó la conexión", false)
 
 
 # --- Consumibles sin esperar al host --------------------------------------------
@@ -298,6 +334,8 @@ func fill_input(input: ActorInput) -> void:
 			use_presses = counter
 	input.use_presses = use_presses
 	input.uses = replica.uses_in_flight()
+	# Lo que sostiene la mano (desde el 2026-11-14), si sostiene algo.
+	input.hold = hands.call(&"hold_for_input") if hands != null else []
 
 
 ## El personaje propio apareció (al entrar o al volver de un corte): los
@@ -308,17 +346,21 @@ func sync_use_counter(seen: int) -> void:
 	_use_counter = seen & 0xFF
 
 
-## Dónde caería lo que suelta este personaje, como lo va a buscar el host
-## (InvAuthority.find_drop_spot), con lo que esta máquina ve suelto, también lo
-## que ya soltó y el host todavía no confirmó. null si no hay lugar.
-func predict_drop_spot(actor: ActorBody) -> Variant:
+## Dónde aparecería lo que suelta este personaje (un objeto de tipo `def`),
+## como lo va a buscar el host (InvAuthority.find_drop_spot), con lo que esta
+## máquina ve suelto, también lo que ya soltó y el host todavía no confirmó. El
+## lugar y el giro (Transform3D), o null si no cabe en ningún lado.
+func predict_drop_spot(actor: ActorBody, def: InvItemDef = null) -> Variant:
 	if actor == null or not actor.is_inside_tree():
 		return null
-	var places := replica.world.keys().filter(func(uid: int) -> bool: return not replica.is_taken(uid)) \
-			.map(func(uid: int) -> Vector3: return replica.world[uid]["pos"])
-	places.append_array(replica.predicted_drops().map(func(drop: Dictionary) -> Vector3: return drop["pos"]))
+	var taken: Array = []
+	for drop: Dictionary in replica.predicted_drops():
+		taken.append([drop.get("xf", Transform3D(Basis.IDENTITY, drop["pos"])),
+				catalog.find((drop["stack"] as InvStack).def_id)])
+	var items := bodies.selector_space()
+	items.catalog = catalog
 	return InvAuthority.find_drop_spot(get_world_3d().direct_space_state, BaseRegistry.world_position(actor.state),
-			actor.state.facing_yaw, drop_distance, InvAuthority.crowded_by.bind(places))
+			actor.state.facing_yaw, drop_distance, def, InvAuthority.crowded_in.bind(items, taken))
 
 
 ## Antes de mover a un actor en un tick (SimClock.before_step, y al repetir
@@ -333,6 +375,11 @@ func predict_drop_spot(actor: ActorBody) -> Variant:
 ## el inventario, que lo cambia el host. Un input sin usos no cuenta: así uno
 ## armado sin ellos (las pruebas con guion) no hace nada.
 func use_before_step(actor: ActorBody, input: ActorInput) -> void:
+	# Lo que pide la mano en este tick (desde el 2026-11-14): en el host lo
+	# guarda InvBodies para llevar el objeto; en un cliente no hace nada (al
+	# repetir ticks no se mueve ningún objeto).
+	if authority != null:
+		bodies.hold_input(actor, input)
 	if input.uses.is_empty():
 		return
 	var state := actor.state
@@ -470,22 +517,35 @@ func containers() -> Array[InvContainer]:
 ## torso a la caja del modelo y una vista con pocos puntos.
 ##
 ## Es solo lo que elige esta máquina: el host vuelve a tirar el rayo con lo suyo.
+##
+## Desde el 2026-11-14 los objetos se mueven y giran: el rayo los toca en la
+## pose en que se dibujan en esta máquina (InvBodies.selector_space, con su
+## índice espacial: no recorre todos). Uno que sostiene otro jugador tapa,
+## pero no se marca ni se agarra. Mientras el jugador sostiene algo, E elige lo
+## que sostiene, mire donde mire: lo guarda.
 func interaction_target(actor: ActorBody, from: Vector3, look: Vector3, third_person: bool) -> Dictionary:
 	if actor == null or not actor.is_inside_tree() or look.length_squared() < 0.0001 or not look.is_finite() \
 			or not from.is_finite():
 		return {}
+	var held: int = hands.call(&"held_uid") if hands != null else 0
+	if held != 0 and replica.world.has(held) and bodies.view(held) != null:
+		return _item_target(held, look.normalized(), {})
 	var space := get_world_3d().direct_space_state
 	var feet := actor.global_position
 	var eyes := InvAuthority.eyes(actor, feet)
 	var own := InvReach.own_shapes(actor)
-	var direction := InvReach.aim_direction(space, eyes, from, look.normalized(), aim_length(from, eyes), replica.world,
+	var items := bodies.selector_space()
+	items.catalog = catalog
+	var direction := InvReach.aim_direction(space, eyes, from, look.normalized(), aim_length(from, eyes), items,
 			catalog, own, _not_shown)
-	return _target_of(InvReach.first_hit(space, eyes, direction, interaction_range, replica.world, catalog, own, _not_shown),
+	return _target_of(InvReach.first_hit(space, eyes, direction, interaction_range, items, catalog, own, _not_shown),
 			actor, third_person, direction)
 
 
 ## El objetivo que corresponde a lo que tocó el rayo de la mano, o {} si no se
-## puede agarrar ni abrir (el nivel, nada, o atrás del cuerpo en tercera persona).
+## puede agarrar ni abrir (el nivel, nada, lo que sostiene otro jugador, o
+## atrás del cuerpo en tercera persona). De un objeto, también "point" (dónde
+## lo tocó), "place" (su pose en esta máquina) y "distance" (de los ojos).
 func _target_of(hit: Dictionary, actor: ActorBody, third_person: bool, direction: Vector3) -> Dictionary:
 	var feet := actor.global_position
 	var forward := Vector3.FORWARD.rotated(Vector3.UP, actor.state.facing_yaw)
@@ -496,20 +556,43 @@ func _target_of(hit: Dictionary, actor: ActorBody, third_person: bool, direction
 	match hit.get("kind", ""):
 		"item":
 			var uid: int = hit["id"]
-			var view: InvWorldItem = _world_views.get(uid)
-			var item: Dictionary = replica.world[uid]
-			if view == null or not in_front.call(item["pos"]):
+			var view := bodies.view(uid)
+			var item: Dictionary = replica.world.get(uid, {})
+			if view == null or item.is_empty() or not in_front.call(view.global_position):
 				return {}
-			var stack: InvStack = item["stack"]
-			var def := catalog.find(stack.def_id)
-			return {"kind": "item", "id": uid, "name": (def.display_name if def != null else String(stack.def_id)) +
-					(" ×%d" % stack.quantity if stack.quantity > 1 else ""), "node": view, "direction": direction}
+			var holder: int = item.get("holder", 0)
+			if holder != 0 and holder != multiplayer.get_unique_id():
+				return {}
+			return _item_target(uid, direction, hit)
 		"box":
 			var box: InvContainer = hit["node"]
 			if not in_front.call(box.center()):
 				return {}
 			return {"kind": "box", "id": box.container_id, "name": box.display_name, "node": box, "direction": direction}
 	return {}
+
+
+func _item_target(uid: int, direction: Vector3, hit: Dictionary) -> Dictionary:
+	var item: Dictionary = replica.world[uid]
+	var view := bodies.view(uid)
+	var stack: InvStack = item["stack"]
+	var def := catalog.find(stack.def_id)
+	var target := {"kind": "item", "id": uid, "name": (def.display_name if def != null else String(stack.def_id)) +
+			(" ×%d" % stack.quantity if stack.quantity > 1 else ""), "node": view, "direction": direction,
+			"place": bodies.selector_space().transform_of(uid)}
+	if not hit.is_empty():
+		target["point"] = hit["point"]
+		target["distance"] = hit["distance"]
+	return target
+
+
+## El tick del host de lo que muestra esta máquina de los objetos, para los
+## pedidos de recoger y agarrar (InvProtocol.aimed_args): en un cliente, el
+## que se interpola (el de los demás jugadores); en el host, -1 (lo de ahora).
+func view_tick() -> float:
+	if authority != null or not bodies.render_tick.is_valid():
+		return -1.0
+	return bodies.render_tick.call()
 
 
 ## El tick que va en los pedidos de recoger y abrir (InvProtocol.aimed_args):
@@ -571,7 +654,7 @@ func _aim_eyes(peer: int, aimed: int) -> Variant:
 ## Si el rayo de la mano atraviesa ese objeto en esta máquina: lo que ya se
 ## recogió acá y el host todavía no confirmó, o lo que todavía no se dibuja.
 func _not_shown(uid: int) -> bool:
-	return replica.is_taken(uid) or not _world_views.has(uid)
+	return replica.is_taken(uid) or bodies.view(uid) == null
 
 
 ## Hasta dónde llega la línea de la cámara, desde `from` (donde arranca) con
@@ -828,35 +911,70 @@ func _receive_reliable(packet: Callable) -> void:
 ## Lo que se ve suelto en el mundo: lo que dice el host, menos lo que esta
 ## máquina ya recogió entero y el host todavía no confirmó, más lo que ya soltó
 ## y el host todavía no confirmó (con un número negativo, el de su pedido).
+## Desde el 2026-11-14 lo arma InvBodies: en el host, los cuerpos; en un
+## cliente, las copias, que toman la pose de cada paquete confiable como una
+## muestra más (con su tick) y después siguen con los paquetes de poses.
 func _sync_world_views() -> void:
-	var shown := {}
-	for uid in replica.world:
-		if not replica.is_taken(uid):
-			shown[uid] = replica.world[uid]
-	for drop: Dictionary in replica.predicted_drops():
-		shown[drop["key"]] = drop
-	for uid in _world_views.keys():
-		if not shown.has(uid):
-			_world_views[uid].queue_free()
-			_world_views.erase(uid)
-	for uid in shown:
-		var item: Dictionary = shown[uid]
-		var stack: InvStack = item["stack"]
-		var def := catalog.find(stack.def_id)
-		var view: InvWorldItem = _world_views.get(uid)
-		if view == null:
-			view = InvWorldItem.new()
-			view.name = "Objeto%d" % uid
-			_world_layer.add_child(view)
-			# Ya en su lugar al armarse: su forma para apuntar entra a la física
-			# ahí mismo, y la mira la encuentra en este cuadro.
-			view.global_position = item["pos"]
-			# Lo soltado sin confirmar no trae "label": lleva cartel.
-			view.setup(def, stack, item.get("label", true))
-			_world_views[uid] = view
-		else:
-			view.refresh(def, stack)
-		view.global_position = item["pos"]
+	if authority == null:
+		for uid: int in replica.world:
+			var item: Dictionary = replica.world[uid]
+			var newest := bodies.newest_sample(uid)
+			if item.get("t", -1) >= 0 and (newest.is_empty() or newest[0] < item["t"]):
+				bodies.add_sample(uid, item["t"], item["xf"], item.get("lv", Vector3.ZERO), item.get("sleep", true),
+						item.get("holder", 0) != 0)
+			elif newest.is_empty():
+				bodies.add_sample(uid, 0, item["xf"], Vector3.ZERO, true)
+	bodies.sync_views(replica)
+	if hands != null:
+		hands.call(&"world_changed")
+
+
+# --- Los ticks y las poses (desde el 2026-11-14) ------------------------------
+
+## Al empezar cada tick. Host: lee la pose de los cuerpos que se movieron.
+## Cliente: coloca las copias en el tick del host que se muestra.
+func _on_tick_started(tick: int) -> void:
+	if not started:
+		return
+	if authority != null:
+		bodies.on_tick_started(tick)
+	else:
+		bodies.place_copies(hands.call(&"predicted_uid") if hands != null else -1)
+
+
+## Al terminar cada tick, con los personajes ya movidos. Host: lleva lo que se
+## sostiene y manda las poses. En las dos, la mano propia coloca lo que sostiene.
+func _on_tick_finished(tick: int) -> void:
+	if not started:
+		return
+	if authority != null:
+		bodies.on_tick_finished(tick)
+	if hands != null:
+		hands.call(&"after_tick", tick)
+
+
+## Host: un paquete de poses (InvBodies.encode_poses) a cada cliente, sin
+## confiable (si se pierde, llega el siguiente) y por el simulador de red.
+func send_poses(data: PackedByteArray) -> void:
+	for peer in multiplayer.get_peers():
+		if authority.is_welcomed(peer):
+			var to: int = peer
+			var send := func() -> void:
+				if to in multiplayer.get_peers():
+					_inv_poses.rpc_id(to, data)
+			if link != null:
+				link.deliver(send)
+			else:
+				send.call()
+
+
+@rpc("authority", "call_remote", "unreliable")
+func _inv_poses(data: PackedByteArray) -> void:
+	var accept := func() -> void: bodies.accept_poses(data)
+	if link != null:
+		link.deliver(accept)
+	else:
+		accept.call()
 
 
 func _sync_equipment() -> void:
@@ -884,9 +1002,20 @@ func queued_requests() -> int:
 	return count
 
 
-## La vista de un objeto suelto, para las pruebas.
+## Lo que se ve de un objeto suelto: su cuerpo en el host, su copia en un
+## cliente; null si no se ve (en el host, lo que su jugador ya recogió y todavía
+## no se procesó queda con el cuerpo, escondido).
 func world_view(uid: int) -> InvWorldItem:
-	return _world_views.get(uid)
+	var view := bodies.view(uid)
+	return view if view != null and view.visible else null
+
+
+## Dónde está un objeto suelto en esta máquina (lo que se ve), o null.
+func item_transform(uid: int) -> Variant:
+	var items := bodies.selector_space()
+	if not items.has(uid):
+		return null
+	return items.transform_of(uid)
 
 
 ## Lo que tiene que ser igual en el host y en los clientes (SimFingerprint):
@@ -895,7 +1024,8 @@ func world_view(uid: int) -> InvWorldItem:
 ## cartel (show_label), entran por el texto de la zona que suma el
 ## laboratorio (SimFingerprint.level_text).
 func fingerprint_text() -> String:
-	var text := "jugador %d×%d alcance %s soltar %s\n" % [player_columns, player_rows,
+	# La versión de los pedidos y paquetes (desde el 2026-11-14).
+	var text := "protocolo %d jugador %d×%d alcance %s soltar %s\n" % [InvProtocol.VERSION, player_columns, player_rows,
 			snappedf(interaction_range, 0.0001), snappedf(drop_distance, 0.0001)]
 	text += catalog.fingerprint_text() if catalog != null else "sin catálogo"
 	# De cada caja, también su volumen para el alcance con su lugar, giro y
@@ -907,6 +1037,10 @@ func fingerprint_text() -> String:
 				place.origin.snapped(Vector3.ONE * 0.0001), place.basis.x.snapped(Vector3.ONE * 0.0001),
 				place.basis.y.snapped(Vector3.ONE * 0.0001), place.basis.z.snapped(Vector3.ONE * 0.0001)]
 	for spawn in _spawns:
-		text += "\nobjeto %s ×%d %s en %s" % [String(spawn.item.id) if spawn.item != null else "?", spawn.quantity,
-				var_to_str(spawn.initial_state()), spawn.global_position.snapped(Vector3.ONE * 0.0001)]
+		# Desde el 2026-11-14, también su giro: el objeto arranca girado como el marcador.
+		var place := spawn.spawn_transform()
+		text += "\nobjeto %s ×%d %s en %s giro %s %s %s" % [String(spawn.item.id) if spawn.item != null else "?",
+				spawn.quantity, var_to_str(spawn.initial_state()), place.origin.snapped(Vector3.ONE * 0.0001),
+				place.basis.x.snapped(Vector3.ONE * 0.0001), place.basis.y.snapped(Vector3.ONE * 0.0001),
+				place.basis.z.snapped(Vector3.ONE * 0.0001)]
 	return text

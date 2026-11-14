@@ -56,6 +56,15 @@ extends Resource
 ## edita y se ve en el panel Objetos, y entra en la huella. Ver InvPickupHitbox.
 @export var pickup_hitbox: InvPickupHitbox
 
+@export_group("Cuerpo físico")
+## Con qué forma choca suelto en el mundo, cae y reposa (desde el 2026-11-14):
+## una caja, una esfera, un cilindro o una forma convexa propia, en el espacio
+## del objeto suelto, o la forma automática partida a mano. Vacío, la forma
+## automática con lo que elige sola (InvItemPhysics): los objetos de antes no
+## necesitan nada. No cambia lo que se ve ni con qué se agarra (los triángulos
+## del modelo). Ver InvBodyShape.
+@export var body_shape: InvBodyShape
+
 @export_group("Miniatura")
 ## Giro del modelo para la miniatura, en grados.
 @export var thumbnail_rotation := Vector3(-20.0, 35.0, 0.0)
@@ -123,4 +132,7 @@ func fingerprint_text() -> String:
 		parts.append(ability.fingerprint_text() if ability != null else "null")
 	parts.append(InvPickupHitbox.fingerprint_of(self))
 	parts.append(InvReach.fingerprint_of(self))
+	# Desde el 2026-11-14, las formas con que choca (las simula el host, pero el
+	# cliente las usa para ver dónde cabe lo que suelta).
+	parts.append(InvItemPhysics.fingerprint_of(self))
 	return " ".join(parts)

@@ -247,7 +247,7 @@ func _rod_hitbox() -> void:
 	var model := view.interact_focus().bounds
 	model.position += view.global_position
 	var box := hitbox.bounds()
-	box.position += view.global_position
+	box = view.global_transform * box
 	var y := model.get_center().y
 	var line := func(x: float) -> int:
 		var seen := net.interaction_target(actor, Vector3(x, y, model.get_center().z - 0.6), Vector3.BACK, false)

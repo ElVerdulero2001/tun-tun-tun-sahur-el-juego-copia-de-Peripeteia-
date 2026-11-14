@@ -17,8 +17,14 @@ const ALL_BUTTONS := BUTTON_JUMP | BUTTON_CROUCH | BUTTON_RUN | BUTTON_THIRD_PER
 const AXIS_STEPS := 127.0
 ## Largo de write_to() sin usos de consumibles: 12 hasta el 2026-11-04, cuando
 ## se sumó el uso (17, con un solo objeto); 14 desde la auditoría de ese mismo
-## día (el contador y cuántos usos van), más USE_BYTES por cada uso que va.
-const BYTE_SIZE := 14
+## día (el contador y cuántos usos van), más USE_BYTES por cada uso que va; 15
+## desde el 2026-11-14 (si sostiene algo), más HOLD_BYTES si sostiene.
+const BYTE_SIZE := 15
+## Lo que sostiene: la sesión (4), hacia dónde mira la cámara para arriba o
+## para abajo (2), la distancia (2) y el giro pedido (8).
+const HOLD_BYTES := 16
+const PITCH_STEPS := 32767.0
+const ROTATION_STEPS := 32767.0
 ## Cada uso: el objeto (4), el último pedido antes (4) y, desde el 2026-11-06 a
 ## la noche, la parte del cuerpo sobre la que se soltó (1: 0 es el uso normal,
 ## de 1 a 6 una de ActorState.Part).
@@ -65,6 +71,14 @@ var use_presses := 0
 ## cada uso viaja en todos los inputs hasta que el host lo confirma, y el host
 ## no lo valida antes de procesar ese pedido (INV-02: lo recogido justo antes).
 var uses: Array = []
+## Lo que el jugador sostiene con la mano en el mundo (desde el 2026-11-14),
+## vacío si nada: [sesión del agarre (InvProtocol.Op.GRAB), pitch de la cámara
+## (en pasos de PITCH_STEPS sobre 90°), distancia de los ojos al punto agarrado
+## (en milímetros), y el giro pedido relativo al yaw de la cámara (cuatro
+## números en pasos de ROTATION_STEPS)]. Es una intención: el host lleva el
+## objeto hacia ahí con su física y sus límites (InvBodies). No lo usa el
+## motor del personaje, y al repetir ticks en el cliente no hace nada.
+var hold: Array = []
 
 
 static func make(p_tick: int, p_move: Vector2, p_look_yaw: float, p_buttons: int, p_jump_presses: int, p_ability_presses: int = 0, p_power_presses: int = 0) -> ActorInput:
@@ -96,12 +110,51 @@ func is_held(button: int) -> bool:
 	return (buttons & button) != 0
 
 
+## Lo que va en `hold`, cuantizado: así lo que usa esta máquina es lo mismo que
+## lee el host. `pitch` en radianes (positivo mira para arriba), `distance` en
+## metros y `rotation` relativo al yaw de la cámara.
+static func pack_hold(session: int, pitch: float, distance: float, rotation: Quaternion) -> Array:
+	var q := rotation.normalized() if rotation.is_finite() and rotation.length_squared() > 0.0001 else Quaternion.IDENTITY
+	if q.w < 0.0:
+		q = -q
+	return [session, clampi(roundi(pitch / (PI / 2.0) * PITCH_STEPS), -32767, 32767),
+			clampi(roundi(distance * 1000.0), 0, 65535),
+			roundi(q.x * ROTATION_STEPS), roundi(q.y * ROTATION_STEPS), roundi(q.z * ROTATION_STEPS), roundi(q.w * ROTATION_STEPS)]
+
+
+func hold_session() -> int:
+	return hold[0] if not hold.is_empty() else 0
+
+
+func hold_pitch() -> float:
+	return hold[1] / PITCH_STEPS * (PI / 2.0) if not hold.is_empty() else 0.0
+
+
+func hold_distance() -> float:
+	return hold[2] / 1000.0 if not hold.is_empty() else 0.0
+
+
+func hold_rotation() -> Quaternion:
+	if hold.is_empty():
+		return Quaternion.IDENTITY
+	var q := Quaternion(hold[3] / ROTATION_STEPS, hold[4] / ROTATION_STEPS, hold[5] / ROTATION_STEPS, hold[6] / ROTATION_STEPS)
+	return q.normalized() if q.length_squared() > 0.25 else Quaternion.IDENTITY
+
+
+## Hacia dónde mira la cámara de este input, con el yaw y el pitch de lo que
+## sostiene (sin sostener, el pitch es 0).
+func hold_look() -> Vector3:
+	return Basis(Vector3.UP, look_yaw) * Basis(Vector3.RIGHT, hold_pitch()) * Vector3.FORWARD
+
+
 ## Si pudo salir de make(): ejes dentro del círculo (con el redondeo de la
 ## cuantización) y solo botones que existen. Lo que llega por red y no lo
 ## cumple no es de este juego.
 func is_possible() -> bool:
 	return move.length_squared() <= 1.01 and (buttons & ~ALL_BUTTONS) == 0 and uses.size() <= MAX_USES \
-			and uses.all(func(use: Array) -> bool: return use.size() < 3 or (use[2] >= -1 and use[2] < ActorState.PARTS))
+			and uses.all(func(use: Array) -> bool: return use.size() < 3 or (use[2] >= -1 and use[2] < ActorState.PARTS)) \
+			and (hold.is_empty() or (hold.size() == 7 and hold[0] >= 1 and absi(hold[1]) <= 32767 and hold[2] >= 0
+					and hold[2] <= 65535))
 
 
 ## Escribe el input en BYTE_SIZE bytes, más USE_BYTES por cada uso. Como ya
@@ -122,6 +175,13 @@ func write_to(b: StreamPeerBuffer) -> void:
 		b.put_u32(uses[i][0] & 0xFFFFFFFF)
 		b.put_u32(uses[i][1] & 0xFFFFFFFF)
 		b.put_u8(((uses[i][2] if uses[i].size() > 2 else -1) + 1) & 0xFF)
+	b.put_u8(1 if hold.size() == 7 else 0)
+	if hold.size() == 7:
+		b.put_u32(hold[0] & 0xFFFFFFFF)
+		b.put_16(hold[1])
+		b.put_u16(hold[2])
+		for i in range(3, 7):
+			b.put_16(hold[i])
 
 
 ## El input que escribió write_to(), o null si no tiene esa forma (más usos de
@@ -150,4 +210,11 @@ static func read_from(b: StreamPeerBuffer) -> ActorInput:
 		if part >= ActorState.PARTS:
 			return null
 		input.uses.append([uid, after, part])
+	if b.get_available_bytes() < 1:
+		return null
+	var holding := b.get_u8()
+	if holding > 1 or (holding == 1 and b.get_available_bytes() < HOLD_BYTES):
+		return null
+	if holding == 1:
+		input.hold = [b.get_u32(), b.get_16(), b.get_u16(), b.get_16(), b.get_16(), b.get_16(), b.get_16()]
 	return input

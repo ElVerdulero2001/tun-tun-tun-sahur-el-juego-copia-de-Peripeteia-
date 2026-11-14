@@ -587,11 +587,15 @@ func _without_waiting() -> void:
 	var at := ghost.global_position if ghost != null else Vector3.INF
 	await _ticks(3)
 	var landed := 0
+	# Desde el 2026-11-14 aparece en ese lugar y cae: en 3 ticks bajó un poco,
+	# derecho (soltada quieta).
 	for uid in net.replica.world:
-		if net.replica.world[uid]["stack"].def_id == &"botella" and (net.replica.world[uid]["pos"] as Vector3).distance_to(at) < 0.002:
+		var pos: Vector3 = net.replica.world[uid]["pos"]
+		if net.replica.world[uid]["stack"].def_id == &"botella" and Vector2(pos.x - at.x, pos.z - at.z).length() < 0.002 \
+				and pos.y <= at.y + 0.001 and pos.y > at.y - 0.1:
 			landed = uid
 	_check(_answers.has(seq) and _answers[seq][0] and landed != 0 and net.world_view(-seq) == null and net.world_view(landed) != null,
-			"el host la deja en ese mismo lugar")
+			"el host la deja en ese mismo lugar (y cae desde ahí)")
 	_check(net.replica.shown_own() == net.replica.own and net.replica.predicted_drops().is_empty(), "y no queda nada sin confirmar")
 
 

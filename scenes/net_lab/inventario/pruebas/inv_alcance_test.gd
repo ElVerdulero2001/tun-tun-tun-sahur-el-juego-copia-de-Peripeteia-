@@ -514,7 +514,7 @@ func _ref_hit(from: Vector3, direction: Vector3, length: float, only := 0) -> Ar
 			continue
 		var view := net.world_view(uid)
 		var drawn := view.interact_focus().bounds.grow(0.01)
-		drawn.position += view.global_position
+		drawn = view.global_transform * drawn
 		if drawn.intersects_segment(from, from + direction * best[1]) == null:
 			continue
 		var faces := _drawn_faces(uid)
@@ -531,7 +531,7 @@ func _ref_hit(from: Vector3, direction: Vector3, length: float, only := 0) -> Ar
 func _top_of(uid: int) -> Vector3:
 	var view := net.world_view(uid)
 	var box := view.interact_focus().bounds
-	box.position += view.global_position
+	box = view.global_transform * box
 	var from := Vector3(box.get_center().x, box.end.y + 1.0, box.get_center().z)
 	var faces := _drawn_faces(uid)
 	var best := Vector3(box.get_center().x, box.position.y, box.get_center().z)
@@ -1044,7 +1044,8 @@ func _camera_views() -> void:
 		if uid == 0:
 			continue
 		var spot: Vector3 = net.replica.world[uid]["pos"]
-		await _teleport(spot + Vector3(-1.3, 0, 0), spot)
+		# Desde el 2026-11-14 la granada soltada cae y queda acostada: más cerca.
+		await _teleport(spot + Vector3(-1.0, 0, 0), spot)
 		await _set_first_person(first)
 		await _aim(_top_of(uid) + Vector3.DOWN * 0.03)
 		await _e_picks(uid, "%s, la granada" % what)
@@ -1088,6 +1089,11 @@ func _drop_grenade_near(near: Vector3) -> int:
 		return 0
 	for key: int in net.replica.world:
 		if not before.has(key):
+			# Desde el 2026-11-14 lo soltado cae y puede rodar: se espera a que
+			# repose (el host lo duerme) antes de mirarlo.
+			await _until(func() -> bool: return not net.authority.world.has(key) or net.authority.world[key].get("sleep", false),
+					6.0)
+			await _ticks(2)
 			return key
 	return 0
 
@@ -1114,14 +1120,18 @@ func _invalid_requests() -> void:
 	if uid == 0:
 		return
 	var spot: Vector3 = net.replica.world[uid]["pos"]
-	await _teleport(spot + Vector3(-1.2, 0, 0), spot)
+	# Desde el 2026-11-14 la granada soltada cae y queda acostada: más cerca.
+	await _teleport(spot + Vector3(-1.0, 0, 0), spot)
 	var good := Mano.toward_item(net, actor, uid)
 	_check(_picks(uid, _eyes(), good), "con la mano bien puesta, se elige")
-	for case: Array in [["sin dirección", [uid]], ["con NAN", [uid, NAN, 0.0, 0.0, -1]], ["con INF", [uid, INF, 0.0, 0.0, -1]],
-			["con la dirección en cero", [uid, 0.0, 0.0, 0.0, -1]],
-			["con una dirección de largo 2", [uid, good.x * 2.0, good.y * 2.0, good.z * 2.0, -1]],
-			["con enteros", [uid, 1, 0, 0, -1]], ["con un número de más", [uid, good.x, good.y, good.z, -1, 0.0]],
-			["con el tick con decimales", [uid, good.x, good.y, good.z, 1.0]]]:
+	# Desde el 2026-11-14 recoger lleva seis datos: el último es el tick de lo
+	# que se veía (-1: lo de ahora).
+	for case: Array in [["sin dirección", [uid]], ["con NAN", [uid, NAN, 0.0, 0.0, -1, -1]],
+			["con INF", [uid, INF, 0.0, 0.0, -1, -1]],
+			["con la dirección en cero", [uid, 0.0, 0.0, 0.0, -1, -1]],
+			["con una dirección de largo 2", [uid, good.x * 2.0, good.y * 2.0, good.z * 2.0, -1, -1]],
+			["con enteros", [uid, 1, 0, 0, -1, -1]], ["con un número de más", [uid, good.x, good.y, good.z, -1, -1, 0.0]],
+			["con el tick con decimales", [uid, good.x, good.y, good.z, 1.0, -1]]]:
 		var seq := net.replica.request(Op.PICKUP, case[1], [uid])
 		await _until(func() -> bool: return _answers.has(seq), 5.0)
 		var answer: Array = _answers.get(seq, [true, "sin respuesta"])
@@ -1468,7 +1478,7 @@ func _tuning_live() -> void:
 	var tuning_text := SimFingerprint.tuning_text(net.tuning)
 	_check(tuning_text != before_tuning and tuning_text.contains("interaction_range=2.5") and not tuning_text.contains("pickup_aim_margin")
 			and not tuning_text.contains("pickup_range"), "Interaction Range entra en la huella del Tuning (y Pickup Aim Margin ya no está)")
-	_check(net.fingerprint_text() != before_inventory and net.fingerprint_text().begins_with("jugador 12×16 alcance 2.5 "),
+	_check(net.fingerprint_text() != before_inventory and net.fingerprint_text().begins_with("protocolo %d jugador 12×16 alcance 2.5 " % InvProtocol.VERSION),
 			"y en la del inventario: %s" % net.fingerprint_text().get_slice("\n", 0))
 	net.tuning.interaction_range = REACH
 	var text := grenade_def.fingerprint_text()
@@ -1666,7 +1676,7 @@ func _strafe_pick(uid: int) -> void:
 func _eyes_to(uid: int) -> Callable:
 	var view := net.world_view(uid)
 	var box := view.interact_focus().bounds
-	box.position += view.global_position
+	box = view.global_transform * box
 	return func(eyes: Vector3) -> float: return eyes.clamp(box.position, box.end).distance_to(eyes)
 
 

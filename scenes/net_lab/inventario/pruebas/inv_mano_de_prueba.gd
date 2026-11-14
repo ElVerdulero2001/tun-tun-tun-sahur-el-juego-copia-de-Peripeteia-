@@ -40,8 +40,20 @@ static func in_sight(net: InvNet, actor: ActorBody, op: int, id: int) -> bool:
 		var box := net.container(id)
 		return box != null and _find(net, actor, box.global_transform, box.reach_box(), "box", id) != null
 	var item: Dictionary = _world(net).get(id, {})
-	return not item.is_empty() and _find(net, actor, Transform3D(Basis.IDENTITY, item["pos"]),
+	return not item.is_empty() and _find(net, actor, _place(item),
 			InvReach.item_bounds(net.catalog.find((item["stack"] as InvStack).def_id)), "item", id) != null
+
+
+## Dónde está un objeto suelto, con su giro (desde el 2026-11-14 los objetos giran).
+static func _place(item: Dictionary) -> Transform3D:
+	return item["xf"] if item.has("xf") else Transform3D(Basis.IDENTITY, item["pos"])
+
+
+## Si ese objeto ya reposa (duerme) o ya no está: desde el 2026-11-14 lo
+## soltado cae y puede rodar, y las pruebas lo miran recién cuando quedó quieto.
+static func rested(net: InvNet, uid: int) -> bool:
+	var item: Dictionary = _world(net).get(uid, {})
+	return item.is_empty() or item.get("sleep", true)
 
 
 ## Una dirección desde los ojos de `actor` que toca primero ese objeto suelto.
@@ -51,7 +63,7 @@ static func toward_item(net: InvNet, actor: ActorBody, uid: int) -> Vector3:
 	if item.is_empty():
 		return Vector3.FORWARD
 	var def := net.catalog.find((item["stack"] as InvStack).def_id)
-	return _toward(net, actor, Transform3D(Basis.IDENTITY, item["pos"]), InvReach.item_bounds(def), "item", uid)
+	return _toward(net, actor, _place(item), InvReach.item_bounds(def), "item", uid)
 
 
 ## Una dirección desde los ojos de `actor` que toca primero esa caja.

@@ -210,8 +210,12 @@ func _legs_hurt() -> bool:
 
 func _pick_up(def_id: StringName) -> void:
 	var uid := 0
-	for item in net.replica.world:
-		if net.replica.world[item]["stack"].def_id == def_id:
+	var keys := net.replica.world.keys()
+	keys.sort()
+	for item: int in keys:
+		# Solo la zona de inventario: desde el 2026-11-14 la pista de física, al
+		# norte (z menor que 6), tiene otro botiquín, arriba de un estante.
+		if net.replica.world[item]["stack"].def_id == def_id and (net.replica.world[item]["pos"] as Vector3).z >= 6.0:
 			uid = item
 			break
 	_check(uid != 0, "ve %s en el piso" % def_id)

@@ -172,6 +172,10 @@ func _world_uid(def_id: StringName, quantity := -1, state := {}) -> int:
 	keys.sort()
 	for uid in keys:
 		var stack: InvStack = net.replica.world[uid]["stack"]
+		# Solo la zona de inventario: desde el 2026-11-14 la pista de física, al
+		# norte (z menor que 6), tiene otras baterías y otra llave.
+		if (net.replica.world[uid]["pos"] as Vector3).z < 6.0:
+			continue
 		if stack.def_id == def_id and (quantity < 0 or stack.quantity == quantity) \
 				and (state.is_empty() or InvStack.same_state(stack.state, state)):
 			found = uid

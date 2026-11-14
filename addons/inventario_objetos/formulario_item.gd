@@ -34,6 +34,9 @@ const HITBOX_DIMS := {
 }
 ## Lo que agrandan o achican los botones de la hitbox, por cada lado, en metros.
 const HITBOX_STEP := 0.01
+## Las formas del cuerpo físico, en el orden de InvPickupHitbox.Kind (desde el
+## 2026-11-14). La propia se pone en el Inspector: acá solo se muestra.
+const BODY_KINDS := ["Automática (del modelo)", "Caja", "Esfera", "Cilindro", "Forma propia (en el Inspector)"]
 
 var draft: Resource
 var is_new := true
@@ -77,6 +80,15 @@ var _hitbox_rotation_box: Control
 var _hitbox_fit: Button
 var _hitbox_sizes: HBoxContainer
 var _hitbox_notes: Label
+var _body_kind: OptionButton
+var _body_auto: VBoxContainer
+var _body_parts: EditorSpinSlider
+var _body_axis: OptionButton
+var _body_dims: VBoxContainer
+var _body_place: VBoxContainer
+var _body_offset: Array[EditorSpinSlider] = []
+var _body_rotation: Array[EditorSpinSlider] = []
+var _body_notes: Label
 ## La última hitbox con forma de este borrador, mientras está en «Forma del
 ## modelo»: si se vuelve a elegir una forma, sigue con sus medidas.
 var _spare_hitbox: InvPickupHitbox
@@ -109,6 +121,7 @@ func _init() -> void:
 	_build_grid()
 	_build_look()
 	_build_hitbox()
+	_build_body()
 	_build_thumbnail()
 	_build_thumbnail(true)
 	_build_abilities()
@@ -280,6 +293,67 @@ func _build_hitbox() -> void:
 	_hitbox_notes = _note(fields, "")
 
 
+## El cuerpo físico (desde el 2026-11-14): con qué choca el objeto suelto en el
+## mundo. Se escribe en la InvBodyShape del borrador (una copia). Sin una, o en
+## «Automática» con las partes y el eje en automático, el ítem no lleva nada y
+## el juego arma la forma automática (InvItemPhysics), como con los ítems de
+## antes. Se ve en naranja en la vista previa general.
+func _build_body() -> void:
+	var box := _section("Cuerpo físico", _help("\n\n".join([
+		"Con qué choca suelto en el mundo: cae, rebota y reposa con estas formas, contra el nivel, las cajas, las escaleras y los demás objetos (no con los personajes). Se ven en naranja en la vista previa.",
+		"No es con lo que se agarra: eso es el modelo, tal como se ve (un hueco del modelo no se vuelve agarrable aunque el cuerpo lo tape). Tampoco cambia la mano ni la miniatura.",
+		"Automática: sale sola del modelo, en tajadas a lo largo de un eje; cada pedazo que no se toca con otro es una forma convexa. Así las patas de un banquito o los lados de un marco no se tapan. «Partes» en 0 y «Eje» en automático: las elige sola. Con 1, una sola forma convexa, que tapa los huecos.",
+		"Caja, esfera o cilindro: una sola forma, que arranca ajustada al modelo. Una forma convexa propia se pone en el Inspector (Body Shape → Kind: Custom).",
+		"Entra en la huella: si las dos PC no la tienen igual, la otra no entra.",
+	])))
+	var grid := _grid(box)
+	_body_kind = OptionButton.new()
+	for kind_name in BODY_KINDS:
+		_body_kind.add_item(kind_name)
+	_body_kind.fit_to_longest_item = false
+	_body_kind.clip_text = true
+	_body_kind.item_selected.connect(_on_body_kind)
+	_row(grid, "Forma", _body_kind)
+	_body_auto = VBoxContainer.new()
+	box.add_child(_body_auto)
+	var auto := _grid(_body_auto)
+	_body_parts = _int_spin(0, InvBodyShape.MAX_PARTS)
+	_body_parts.value_changed.connect(func(value: float) -> void: _put_body(&"auto_parts", int(value)))
+	_row(auto, "Partes (0: las elige)", _body_parts, _help("En cuántas tajadas se parte el modelo. 0: las elige sola (una para lo compacto, varias para lo largo o con huecos). 1: una sola forma convexa."))
+	_body_axis = OptionButton.new()
+	for axis_name in ["Automático", "x (a lo ancho)", "y (para arriba)", "z (a lo largo)"]:
+		_body_axis.add_item(axis_name)
+	_body_axis.clip_text = true
+	_body_axis.item_selected.connect(func(index: int) -> void: _put_body(&"auto_axis", index))
+	_row(auto, "Eje de las tajadas", _body_axis, _help("A lo largo de qué eje del objeto van las tajadas. Automático: el que encuentra más huecos, o el más largo."))
+	_body_dims = VBoxContainer.new()
+	_body_dims.add_theme_constant_override("separation", 2)
+	box.add_child(_body_dims)
+	_body_place = VBoxContainer.new()
+	_body_place.add_theme_constant_override("separation", 4)
+	box.add_child(_body_place)
+	_body_place.add_child(_button("Ajustar al modelo", "La deja encerrando el modelo como se ve suelto en el piso.", _fit_body))
+	_body_place.add_child(_line([_label("Por cada lado"), _button("−1 cm", "Achica la forma 1 cm por cada lado.", _grow_body.bind(-HITBOX_STEP)),
+			_button("+1 cm", "Agranda la forma 1 cm por cada lado.", _grow_body.bind(HITBOX_STEP))]))
+	var place := _grid(_body_place)
+	for i in 3:
+		var spin := _float_spin(-InvPickupHitbox.MAX_OFFSET, InvPickupHitbox.MAX_OFFSET, 0.001, " m")
+		spin.label = ["x", "y", "z"][i]
+		spin.value_changed.connect(func(_v: float) -> void:
+			_put_body(&"offset", Vector3(_body_offset[0].value, _body_offset[1].value, _body_offset[2].value)))
+		_body_offset.append(spin)
+	_row(place, "Desplazamiento (m)", _column(_body_offset),
+			_help("Cuánto se corre la forma desde el centro de la base del modelo: x a lo ancho, y para arriba, z a lo largo."))
+	for i in 3:
+		var spin := _float_spin(-InvPickupHitbox.MAX_DEGREES, InvPickupHitbox.MAX_DEGREES, 1.0, "°")
+		spin.label = ["x", "y", "z"][i]
+		spin.value_changed.connect(func(_v: float) -> void:
+			_put_body(&"rotation_degrees", Vector3(_body_rotation[0].value, _body_rotation[1].value, _body_rotation[2].value)))
+		_body_rotation.append(spin)
+	_row(place, "Rotación (°)", _column(_body_rotation))
+	_body_notes = _note(box, "")
+
+
 ## Los dos editores comparten los controles; cada uno ajusta su propio encuadre.
 func _build_thumbnail(hotbar := false) -> void:
 	var title := "Miniatura de la barra rápida" if hotbar else "Miniatura del inventario"
@@ -398,6 +472,7 @@ func load_draft(p_draft: Resource, p_is_new: bool, p_path: String) -> void:
 	_spare_hitbox = null
 	_hitbox_look = _look_key()
 	_show_hitbox()
+	_show_body()
 	_state.set_state(draft.get(&"default_state"))
 	_rebuild_abilities()
 	_refresh_source()
@@ -851,6 +926,145 @@ func refresh_hitbox() -> void:
 			lines.append("Cambiaste el modelo o su tamaño, y la hitbox quedó como estaba: mirala en la vista previa y, si hace falta, apretá «Ajustar al modelo».")
 	_hitbox_notes.text = "\n".join(lines)
 	_hitbox_notes.visible = not lines.is_empty()
+
+
+# --- Cuerpo físico (desde el 2026-11-14) ----------------------------------------------
+
+func _body() -> InvBodyShape:
+	return draft.get(&"body_shape") as InvBodyShape if draft != null else null
+
+
+func _body_kind_of(body: Resource) -> int:
+	return int(body.get(&"kind")) if body != null else InvPickupHitbox.Kind.MODEL
+
+
+## Muestra el cuerpo del borrador: la forma, las partes de la automática o las
+## medidas y el lugar de la simple.
+func _show_body() -> void:
+	var body := _body()
+	var kind := _body_kind_of(body)
+	_body_kind.select(kind if kind >= 0 and kind < BODY_KINDS.size() else -1)
+	_body_kind.set_item_disabled(InvPickupHitbox.Kind.CUSTOM, kind != InvPickupHitbox.Kind.CUSTOM)
+	for child in _body_dims.get_children():
+		_body_dims.remove_child(child)
+		child.queue_free()
+	var auto := kind == InvPickupHitbox.Kind.MODEL
+	var simple := kind in HITBOX_DIMS
+	_body_auto.visible = auto
+	_body_place.visible = simple
+	_body_dims.visible = simple
+	_body_parts.value = body.auto_parts if body != null else 0
+	_body_axis.select(body.auto_axis if body != null else 0)
+	if not simple:
+		return
+	var grid := _grid(_body_dims)
+	for dim: Array in HITBOX_DIMS[kind]:
+		var spin := _float_spin(InvPickupHitbox.MIN_SIZE, InvPickupHitbox.MAX_SIZE, 0.001, " m")
+		var value: Variant = body.get(dim[1])
+		spin.value = value[dim[2]] if dim[2] >= 0 else value
+		spin.value_changed.connect(_on_body_dim.bind(dim))
+		_row(grid, dim[0], spin)
+	var offset: Vector3 = body.offset
+	var turn: Vector3 = body.rotation_degrees
+	for i in 3:
+		_body_offset[i].value = offset[i]
+		_body_rotation[i].value = turn[i]
+
+
+## Otra forma. «Automática» con todo en automático deja el ítem sin cuerpo
+## propio; una simple nueva arranca ajustada al modelo.
+func _on_body_kind(index: int) -> void:
+	if _loading or draft == null:
+		return
+	var body := _body()
+	if index == _body_kind_of(body):
+		return
+	if index == InvPickupHitbox.Kind.MODEL and body != null and body.auto_parts == 0 and body.auto_axis == InvBodyShape.Axis.AUTO:
+		draft.set(&"body_shape", null)
+	else:
+		if body == null:
+			body = InvBodyShape.new()
+			body.kind = InvPickupHitbox.Kind.MODEL
+		body.kind = index
+		if index in HITBOX_DIMS:
+			var box := _model_bounds()
+			if box.size.length() > 0.0:
+				body.fit(box)
+		draft.set(&"body_shape", body)
+	_loading = true
+	_show_body()
+	_loading = false
+	edited.emit()
+
+
+## Escribe un valor del cuerpo; las partes y el eje de la automática arman uno
+## si el ítem no tenía, y lo sacan si vuelven a todo automático.
+func _put_body(field: StringName, value: Variant) -> void:
+	if _loading or draft == null:
+		return
+	var body := _body()
+	if body == null:
+		body = InvBodyShape.new()
+		body.kind = InvPickupHitbox.Kind.MODEL
+	body.set(field, value)
+	if body.kind == InvPickupHitbox.Kind.MODEL and body.auto_parts == 0 and body.auto_axis == InvBodyShape.Axis.AUTO:
+		draft.set(&"body_shape", null)
+	else:
+		draft.set(&"body_shape", body)
+	edited.emit()
+
+
+func _on_body_dim(value: float, dim: Array) -> void:
+	var body := _body()
+	if _loading or body == null:
+		return
+	if dim[2] >= 0:
+		var size: Vector3 = body.get(dim[1])
+		size[dim[2]] = value
+		body.set(dim[1], size)
+	else:
+		body.set(dim[1], value)
+	edited.emit()
+
+
+func _fit_body() -> void:
+	var body := _body()
+	var box := _model_bounds()
+	if body == null or box.size.length() <= 0.0:
+		return
+	body.fit(box)
+	_loading = true
+	_show_body()
+	_loading = false
+
+
+func _grow_body(amount: float) -> void:
+	var body := _body()
+	if body == null:
+		return
+	body.grow(amount)
+	_loading = true
+	_show_body()
+	_loading = false
+
+
+## Lo que conviene saber del cuerpo: cuántas formas, cuánto ocupa al lado del
+## modelo y si no sirve. Lo llama el panel en cada cambio.
+func refresh_body() -> void:
+	if draft == null:
+		return
+	var lines := PackedStringArray()
+	var body := _body()
+	if body != null and not body.problems().is_empty():
+		lines.append("No sirve: %s Se usa la automática." % " ".join(body.problems()))
+	else:
+		var parts := InvItemPhysics.parts(draft as InvItemDef)
+		var area := InvItemPhysics.body_bounds(draft as InvItemDef)
+		var model_box := _model_bounds()
+		lines.append("%d %s; ocupa %s (el modelo, %s)." % [parts.size(), "forma" if parts.size() == 1 else "formas", _cm(area.size),
+				_cm(model_box.size) if model_box.size.length() > 0.0 else "nada"])
+	_body_notes.text = "\n".join(lines)
+	_body_notes.visible = not lines.is_empty()
 
 
 static func _cm(size: Vector3) -> String:

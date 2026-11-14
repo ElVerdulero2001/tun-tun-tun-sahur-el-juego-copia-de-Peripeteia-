@@ -469,6 +469,11 @@ var _remote_last_positions := {}  # peer -> Vector3
 @onready var _inventory_ui: InvUI = $Hud/InventarioUI
 @onready var _hud: LabHud = $Hud/Instrumentos
 @onready var _wheel: AbilityWheel = $Hud/SelectorDeHabilidades
+## La mano del jugador local (desde el 2026-11-14): sostener, girar y lanzar
+## objetos sueltos (InvHands). Se arma en _ready, sin tocar la escena.
+var _hands: InvHands
+## El panel Opciones (F3 o el botón del menú): las preferencias de la mano.
+var _options: LabOptions
 ## Si el panel estaba a la vista al abrir el inventario: al cerrarlo vuelve así.
 var _info_before_inventory := true
 ## Dónde empieza el panel de texto sin luces de estados arriba (el de la escena).
@@ -509,7 +514,34 @@ func _ready() -> void:
 	_session.net_sync = _net_sync
 	_inventory.link = _link
 	_inventory.tuning = tuning
+	_inventory.clock = _clock
+	# Los objetos sueltos de los clientes se ven en el mismo tick del host que
+	# los demás jugadores (desde el 2026-11-14).
+	_inventory.bodies.render_tick = _interpolation.shown_tick
 	_session.actor_replaced.connect(_inventory.actor_replaced)
+	# La mano y Opciones (desde el 2026-11-14): se arman acá, sin tocar la escena.
+	_hands = InvHands.new()
+	_hands.name = "Manos"
+	_hands.net = _inventory
+	_hands.ui = _inventory_ui
+	_hands.camera = _camera
+	_hands.tuning = tuning
+	_hands.prefs = InvHandPrefs.load_saved()
+	add_child(_hands)
+	_inventory.hands = _hands
+	_options = LabOptions.new()
+	_options.name = "Opciones"
+	_options.hands = _hands
+	_options.camera = _camera
+	$Hud.add_child(_options)
+	_hands.blockers.append(func() -> bool: return _wheel.is_open)
+	_hands.blockers.append(func() -> bool: return _options.visible)
+	_hands.blockers.append(func() -> bool: return _menu.visible)
+	var options_button := Button.new()
+	options_button.name = "Opciones"
+	options_button.text = "Opciones (F3)"
+	options_button.pressed.connect(_options.toggle)
+	$Hud/Menu/Box.add_child(options_button)
 	# Con el inventario abierto, el panel de valores se oculta: tapa la grilla.
 	_inventory_ui.opened.connect(func() -> void:
 		_info_before_inventory = _info.visible
@@ -590,6 +622,9 @@ func _real_timer(seconds: float, callback: Callable) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("captura"):
 		_save_capture()
+	elif event.is_action_pressed("opciones"):
+		# Desde el 2026-11-14 (elegido por el usuario): F3 abre y cierra Opciones.
+		_options.toggle()
 	elif event.is_action_pressed("jump"):
 		jump_presses = (jump_presses + 1) & 0xFF
 	elif _started and role == Role.LOCAL and event.is_action_pressed("toggle_debug_freeze"):
@@ -662,6 +697,8 @@ func _set_paused(on: bool) -> void:
 	for base in BaseRegistry.all():
 		if base is HostRaft and base.simulated:
 			base.freeze = on
+	# Los objetos sueltos los mueve Jolt, como la balsa (desde el 2026-11-14).
+	_inventory.bodies.set_paused(on)
 
 
 func _process(_delta: float) -> void:
@@ -2343,6 +2380,7 @@ func _on_local_actor_spawned(actor: ActorBody) -> void:
 	_inventory_ui.activate(actor)
 	_hud.activate(actor)
 	_wheel.activate(actor)
+	_hands.activate(actor)
 	if role == Role.CLIENT:
 		# El contador de saltos arranca donde lo dejó el host: si se apretó
 		# Espacio mientras estaba cortado, al volver no salta solo.

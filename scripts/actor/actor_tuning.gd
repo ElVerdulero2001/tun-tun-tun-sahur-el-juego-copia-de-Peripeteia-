@@ -390,6 +390,61 @@ var _boosted_from: Array = []
 # 2 cm): cuánto perdonaba la mira alrededor del modelo. Con el rayo directo el
 # rayo tiene que tocar el modelo, y se sacó (elegido por el usuario).
 
+@export_group("Objetos sueltos")
+## Desde el 2026-11-14 los objetos sueltos del inventario tienen física: caen,
+## chocan con el nivel, las cajas, las escaleras y entre sí (no con los
+## personajes, decidido por el usuario), reposan y se pueden sostener, girar y
+## lanzar. Los simula solo el host; los demás los ven con la demora de la red.
+## Todos tienen por ahora la misma masa y el mismo lanzamiento: no es un
+## sistema de peso. Estos números los eligió Claude, para ajustarlos jugando.
+##
+## Masa de cada objeto suelto, en kg (la misma para todos).
+@export_range(0.1, 50.0, 0.1) var item_mass := 2.0
+## Cuánto roza contra lo que toca, de 0 (hielo) a 1.
+@export_range(0.0, 1.0, 0.01) var item_friction := 0.8
+## Cuánto rebota, de 0 (nada) a 1.
+@export_range(0.0, 1.0, 0.01) var item_bounce := 0.05
+## Cuánto se frena su giro, por segundo. Jolt no frena lo que rueda (no tiene
+## resistencia a la rodadura): sin esto, una granada en el piso rueda para
+## siempre y nunca se duerme. También hace que gire menos lanzada.
+@export_range(0.0, 20.0, 0.1) var item_angular_damp := 2.0
+## El impulso al lanzar, en N·s, el mismo para todos: un objeto sale a esto
+## dividido su masa, en m/s, además de lo que ya traía (con 16 y 2 kg, 8 m/s).
+## Va hacia donde mira la cámara.
+@export_range(0.0, 200.0, 0.5) var throw_impulse := 16.0
+## Sostenido: lo más cerca y lo más lejos de los ojos que puede ir el punto por
+## donde se agarró, en metros (la rueda lo acerca y lo aleja dentro de esto).
+@export_range(0.2, 3.0, 0.05) var hold_min_distance := 0.6
+@export_range(0.5, 5.0, 0.05) var hold_max_distance := 2.5
+## En cuánto tiempo, más o menos, va el punto agarrado hasta donde lo lleva la
+## vista, en segundos. Más chico, más rígido.
+@export_range(0.02, 0.5, 0.01) var hold_follow_time := 0.08
+## Lo más rápido que lo mueve la mano, en m/s, y lo más que lo acelera, en
+## m/s². Contra una pared empuja con esto como mucho: no junta fuerza ni la
+## atraviesa.
+@export_range(1.0, 40.0, 0.5) var hold_move_limit := 12.0
+@export_range(5.0, 400.0, 1.0) var hold_accel_limit := 80.0
+## Lo más rápido que lo gira la mano, en grados por segundo, y lo más que
+## acelera el giro, en grados por segundo al cuadrado.
+@export_range(30.0, 3600.0, 10.0) var hold_turn_limit := 720.0
+@export_range(100.0, 40000.0, 100.0) var hold_turn_accel := 7200.0
+## Si el punto agarrado queda más lejos que esto de donde lo lleva la mano
+## (trabado contra algo) durante Hold Break Time, se suelta solo, sin
+## impulso. Lo mismo si queda más lejos de los ojos que Hold Max Distance más
+## esto.
+@export_range(0.1, 3.0, 0.05) var hold_break_distance := 0.8
+@export_range(0.05, 3.0, 0.05) var hold_break_time := 0.5
+## Cuánto aleja o acerca cada paso de la rueda, en metros. De fábrica la rueda
+## para arriba aleja y para abajo acerca (elegido en el pedido); con Hold Wheel
+## Inverted, al revés.
+@export_range(0.01, 1.0, 0.01) var hold_wheel_step := 0.1
+@export var hold_wheel_inverted := false
+## Con el botón central apretado, cuántos grados gira por cada píxel que se
+## mueve el mouse: de costado gira alrededor del eje vertical de la vista, para
+## arriba o abajo alrededor del horizontal, y con Shift de costado, alrededor
+## del eje que va hacia adelante (como un volante).
+@export_range(0.02, 2.0, 0.01) var hold_rotate_sensitivity := 0.25
+
 
 ## La velocidad terminal que vale: max_fall_speed, o sin tope (INF) con
 ## unlimited_fall_speed.

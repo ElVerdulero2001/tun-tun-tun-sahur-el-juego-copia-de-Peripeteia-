@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://b7en182aor4of"]
 
 [ext_resource type="PackedScene" path="res://scenes/inventory/caja.tscn" id="1_caja"]
+[ext_resource type="PackedScene" path="res://scenes/net_lab/inventario/zona_de_fisica.tscn" id="21_fisica"]
 [ext_resource type="Script" uid="uid://ovn5c0xoupah" path="res://scripts/inventory/inv_pickup_spawn.gd" id="2_spawn"]
 [ext_resource type="Resource" uid="uid://bwi24ksycw8ut" path="res://scenes/net_lab/inventario/objetos/botella.tres" id="3_botella"]
 [ext_resource type="Resource" uid="uid://dxrhfomcpnlup" path="res://scenes/net_lab/inventario/objetos/machete.tres" id="4_machete"]
@@ -211,3 +212,6 @@ item = ExtResource("19_g0v66")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1)
 script = ExtResource("2_spawn")
 item = ExtResource("20_vendas")
+
+[node name="PistaDeFisica" parent="." instance=ExtResource("21_fisica")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -12)

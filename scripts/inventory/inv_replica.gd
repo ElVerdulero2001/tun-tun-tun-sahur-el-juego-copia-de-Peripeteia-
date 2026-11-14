@@ -45,6 +45,11 @@ signal answered(seq: int, ok: bool, reason: String)
 signal use_refused(reason: String)
 ## Se cerró la caja abierta (el jugador se alejó, la caja desapareció…).
 signal container_closed(id: int, reason: String)
+## El host aceptó un agarre de esta máquina (desde el 2026-11-14): [número,
+## sesión, punto agarrado en el espacio del objeto (3), distancia, giro (4)].
+signal grabbed(answer: Array)
+## El host soltó solo algo que sostenía esta máquina (se trabó, quedó lejos…).
+signal hold_lost(uid: int, reason: String)
 
 ## Sin respuesta del host en este tiempo, un pedido deja de estar pendiente.
 const PENDING_TIMEOUT_MSEC := 10000
@@ -58,8 +63,12 @@ var own: InvGrid
 var loadout: InvLoadout
 var box_id := 0
 var box: InvGrid
-## uid -> {"stack": InvStack, "pos": Vector3, "label": bool}; "label" es si se
-## ve su cartel, como lo dice el host.
+## uid -> {"stack": InvStack, "pos": Vector3, "xf": Transform3D, "label":
+## bool, "lv", "sleep", "holder", "session", "t"}, como lo dice el host
+## (InvAuthority._world_entry). "label" es si se ve su cartel. "xf" y "pos" son
+## la pose más nueva que se sabe: la de un paquete del inventario o, más
+## seguido, la de los paquetes de poses (InvBodies.add_sample); lo que se
+## dibuja es la interpolada (InvBodies).
 var world := {}
 ## peer -> id del tipo equipado ("" si nada)
 var equipment := {}
@@ -303,7 +312,8 @@ func _rebuild_shown() -> void:
 		if out[1] != null:
 			var dropped: InvStack = (out[1] as InvStack).copy()
 			dropped.uid = -seq
-			_drops.append({"key": -seq, "stack": dropped, "pos": InvProtocol.drop_spot_of(args)})
+			var place := InvProtocol.drop_place_of(args)
+			_drops.append({"key": -seq, "stack": dropped, "pos": place.origin, "xf": place})
 
 
 ## Si hay algún recoger o soltar sin contestar (lo que cambia lo que se ve en el mundo).
@@ -426,6 +436,16 @@ func apply_commit(payload: Dictionary) -> void:
 			if entry is Array and entry.size() == 2:
 				equipment[entry[0]] = str(entry[1])
 		equipment_changed.emit()
+	# Sostener (desde el 2026-11-14): por dónde agarró lo pedido, y lo que el
+	# host soltó solo.
+	var grab: Variant = payload.get("g")
+	if grab is Array and grab.size() == 10:
+		grabbed.emit(grab)
+	var lost: Variant = payload.get("hr")
+	if lost is Array:
+		for entry in lost:
+			if entry is Array and entry.size() == 2 and typeof(entry[0]) == TYPE_INT:
+				hold_lost.emit(entry[0], str(entry[1]))
 	if in_world or mine:
 		_mark_shown(world_view or (mine and _has_predicted()))
 	if in_world:
@@ -476,13 +496,39 @@ func def_of(grid: InvGrid, uid: int) -> InvItemDef:
 	return grid.def_of(uid) if grid != null else null
 
 
-## Un objeto suelto como lo manda el host: [pila, x, y, z, cartel]. Sin el
-## último (las pruebas del modelo), lleva cartel.
+## Un objeto suelto como lo manda el host (InvAuthority._world_entry): [pila,
+## x, y, z, cartel, giro (4), velocidad (3), velocidad de giro (3), si duerme,
+## quién lo sostiene, su sesión, el tick de la pose]. Con solo las cinco
+## primeras (como hasta el 2026-11-14, y las pruebas del modelo), sin girar,
+## quieto y sin nadie que lo sostenga; sin el cartel, lleva cartel.
 func _world_put(entry: Variant) -> void:
-	if not entry is Array or entry.size() < 4 or entry.size() > 5:
+	if not entry is Array or not entry.size() in [4, 5, 19]:
 		return
 	var stack := InvStack.from_array(entry[0])
 	if stack == null:
 		return
-	var label: bool = entry[4] if entry.size() == 5 and entry[4] is bool else true
-	world[stack.uid] = {"stack": stack, "pos": Vector3(entry[1], entry[2], entry[3]), "label": label}
+	for i in [1, 2, 3]:
+		if not (typeof(entry[i]) in [TYPE_FLOAT, TYPE_INT]):
+			return
+	var origin := Vector3(entry[1], entry[2], entry[3])
+	if not origin.is_finite():
+		return
+	var label: bool = entry[4] if entry.size() >= 5 and entry[4] is bool else true
+	var place := Transform3D(Basis.IDENTITY, origin)
+	var fields := {"lv": Vector3.ZERO, "sleep": true, "holder": 0, "session": 0, "t": -1}
+	if entry.size() == 19:
+		for i in range(5, 15):
+			if not (typeof(entry[i]) in [TYPE_FLOAT, TYPE_INT]):
+				return
+		var q := Quaternion(entry[5], entry[6], entry[7], entry[8])
+		if not q.is_finite() or q.length_squared() < 0.25:
+			return
+		place = Transform3D(Basis(q.normalized()), origin)
+		fields["lv"] = Vector3(entry[9], entry[10], entry[11])
+		fields["sleep"] = entry[15] == true
+		fields["holder"] = int(entry[16]) if typeof(entry[16]) == TYPE_INT else 0
+		fields["session"] = int(entry[17]) if typeof(entry[17]) == TYPE_INT else 0
+		fields["t"] = int(entry[18]) if typeof(entry[18]) == TYPE_INT else -1
+	var item := {"stack": stack, "pos": origin, "xf": place, "label": label}
+	item.merge(fields)
+	world[stack.uid] = item

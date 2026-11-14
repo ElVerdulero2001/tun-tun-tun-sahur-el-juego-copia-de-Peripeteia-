@@ -209,12 +209,13 @@ func _build_item() -> void:
 	var shows_model := InvVisuals.has_visual(def)
 	if def.model != null and InvVisuals.has_scripts(def.model):
 		_note.text = "Este modelo tiene scripts (lógica): en el juego no se usa como apariencia, porque al armarlo correría esa lógica. Se ve una caja de su color. Usá un modelo sin scripts (un .glb, por ejemplo)."
-	if shows_model:
-		var probe := InvVisuals.build(def)
-		if probe.get_child_count() == 0 or InvVisuals.bounds(probe).size.length() <= 0.0:
-			shows_model = false
-			_note.text = "Este modelo no tiene mallas que se vean: en el juego no se vería en el piso (solo el cartel) y su miniatura sería un rectángulo con el nombre. Acá se muestra una caja de su color."
-		probe.free()
+	# Desde la auditoría del 2026-11-12 (DAT-01), el juego hace lo mismo que esta
+	# vista: sin nada que se vea, la caja de su color, que se ve y se agarra.
+	match InvVisuals.empty_source(def):
+		"modelo":
+			_note.text = "Este modelo no tiene mallas que se vean: en el juego se usa una caja de su color, como acá (se ve y se agarra esa caja), y su miniatura es un rectángulo con el nombre. Elegí un modelo con mallas visibles o sacalo."
+		"malla":
+			_note.text = "Esta malla no tiene triángulos: en el juego se usa una caja de su color, como acá (se ve y se agarra esa caja), y su miniatura es un rectángulo con el nombre. Elegí otra malla o sacala."
 	var world_size := float(def.get(&"world_size"))
 	if in_hand:
 		_add_actor(Transform3D.IDENTITY)

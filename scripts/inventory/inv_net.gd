@@ -60,6 +60,13 @@ const MAX_USES_WAITING := 32
 const ORDER_WAIT_MSEC := 3000
 ## El alcance para recoger y abrir si no hay Tuning (interaction_range), en metros.
 const DEFAULT_INTERACTION_RANGE := 2.0
+## Host: cuántos ticks se recuerda dónde quedaron los ojos de cada personaje
+## (record_aim_pose), para tirar el rayo de recoger o abrir desde los del tick
+## en que el jugador apretó E aunque el pedido llegue después (auditoría del
+## 2026-11-12, INT-01). Un segundo: lo normal es que el pedido llegue antes de
+## que el host simule ese tick, o pocos ticks después; uno más viejo se hace
+## con los ojos de ahora, como antes de este cambio.
+const AIM_HISTORY_TICKS := 60
 
 ## Se abrió o se cerró la caja del jugador local (para la interfaz).
 signal container_closed(id: int, reason: String)
@@ -132,8 +139,26 @@ var _use_tick := -1
 ## El tick del último input propio que armó esta máquina (fill_input): va en
 ## los pedidos de recoger y abrir (aim_tick).
 var _input_tick := -1
-## Host: peer -> el último tick en que movió a su personaje (use_before_step).
-var _stepped := {}
+## Host: peer -> {tick: [ojos de su personaje al terminar ese tick, si el host
+## tuvo que repetir un input anterior porque el de ese tick no había llegado]},
+## los últimos AIM_HISTORY_TICKS (record_aim_pose).
+var _aim_poses := {}
+## Host: peer -> el último tick anotado en _aim_poses.
+var _aim_latest := {}
+## Host, para las pruebas y el diagnóstico: el último pedido de recoger o abrir
+## procesado. {"peer", "tick" (el del pedido, -1 sin tick), "eyes" (de dónde
+## salió el rayo), "from" ("tick": los ojos al terminar ese tick; "ahora": los
+## de ahora, porque el pedido no trae tick o ya no se recuerda), "guessed" (los
+## de ese tick salieron de un input repetido)}.
+var last_aim := {}
+## Host: cuántos pedidos de recoger o abrir tiraron el rayo desde los ojos de
+## su tick (de esos, cuántos llegaron cuando el host ya había simulado ticks
+## después, y cuántos con los ojos de un tick sin su input) y cuántos desde los
+## de ahora. Los imprime el resumen del laboratorio.
+var aims_at_tick := 0
+var aims_late := 0
+var aims_guessed := 0
+var aims_now := 0
 
 
 func _ready() -> void:
@@ -199,6 +224,8 @@ func start(as_host: bool) -> void:
 	_request_wait.clear()
 	_out_seq.clear()
 	_inbox.clear()
+	_aim_poses.clear()
+	_aim_latest.clear()
 	if not as_host:
 		return
 	authority = InvAuthority.new()
@@ -306,10 +333,6 @@ func predict_drop_spot(actor: ActorBody) -> Variant:
 ## el inventario, que lo cambia el host. Un input sin usos no cuenta: así uno
 ## armado sin ellos (las pruebas con guion) no hace nada.
 func use_before_step(actor: ActorBody, input: ActorInput) -> void:
-	if authority != null:
-		# Hasta qué tick movió el host a cada personaje: recoger y abrir lo esperan
-		# (aim_tick, _physics_process).
-		_stepped[actor.owner_peer_id] = input.tick
 	if input.uses.is_empty():
 		return
 	var state := actor.state
@@ -490,11 +513,59 @@ func _target_of(hit: Dictionary, actor: ActorBody, third_person: bool, direction
 
 
 ## El tick que va en los pedidos de recoger y abrir (InvProtocol.aimed_args):
-## el del último input propio que armó esta máquina. El host no hace el pedido
-## antes de haber movido al personaje hasta ese tick, así tira el rayo con el
-## personaje donde estaba al apretar E (sin creerle ninguna posición).
+## el del último input propio que armó esta máquina. Al apretar E, el
+## personaje que se ve es el de después de ese tick. El host tira el rayo
+## desde los ojos que tenía su personaje al terminar ese mismo tick
+## (record_aim_pose), sin creerle ninguna posición al jugador: si el pedido
+## llega antes, espera a simularlo; si llega después, usa los que anotó.
+##
+## Hasta el 2026-11-12 (auditoría, INT-01) el host esperaba solo a haber
+## empezado ese tick y tiraba el rayo desde los ojos de ese momento: un pedido
+## que llegaba unos ticks tarde usaba al personaje ya movido (caminando de
+## costado, un objeto chico se rechazaba), y un tick simulado sin su input
+## contaba como si hubiera llegado.
 func aim_tick() -> int:
 	return _input_tick
+
+
+## Host, al terminar cada tick y después de adoptar lo que afirman los
+## clientes (net_lab._on_tick_finished): anota dónde quedaron los ojos del
+## personaje (InvAuthority.eyes, con su postura). Con lo adoptado, son los
+## mismos que tenía el personaje en la máquina del jugador en ese tick.
+## `guessed`: el host lo movió en ese tick repitiendo un input anterior, porque
+## el de ese tick no había llegado (NetSync.used_input_tick). Esos ojos
+## valen igual: son donde el host dice que estaba, como el resto del
+## movimiento; casi siempre coinciden y, si no, el pedido se rechaza y la
+## máquina del jugador recibe la corrección.
+func record_aim_pose(actor: ActorBody, tick: int, guessed: bool) -> void:
+	if authority == null or actor == null or not actor.is_inside_tree():
+		return
+	var peer := actor.owner_peer_id
+	var poses: Dictionary = _aim_poses.get_or_add(peer, {})
+	poses[tick] = [InvAuthority.eyes(actor, BaseRegistry.world_position(actor.state)), guessed]
+	_aim_latest[peer] = maxi(_aim_latest.get(peer, tick), tick)
+	poses.erase(tick - AIM_HISTORY_TICKS)
+	if poses.size() > AIM_HISTORY_TICKS:
+		for old: int in poses.keys():
+			if old <= _aim_latest[peer] - AIM_HISTORY_TICKS:
+				poses.erase(old)
+
+
+## Host: los ojos desde donde se tira el rayo de un pedido de recoger o abrir
+## hecho en el tick `aimed`: los anotados al terminar ese tick, o null (los de
+## ahora) si el pedido no trae tick o ese tick ya no se recuerda (más de
+## AIM_HISTORY_TICKS atrás, o el personaje recién aparece). Lo anota en last_aim.
+func _aim_eyes(peer: int, aimed: int) -> Variant:
+	var pose: Array = _aim_poses.get(peer, {}).get(aimed, []) if aimed >= 0 else []
+	last_aim = {"peer": peer, "tick": aimed, "eyes": pose[0] if not pose.is_empty() else null,
+			"from": "tick" if not pose.is_empty() else "ahora", "guessed": pose[1] if not pose.is_empty() else false}
+	if pose.is_empty():
+		aims_now += 1
+		return null
+	aims_at_tick += 1
+	aims_late += 1 if _aim_latest.get(peer, aimed) > aimed else 0
+	aims_guessed += 1 if pose[1] else 0
+	return pose[0]
 
 
 ## Si el rayo de la mano atraviesa ese objeto en esta máquina: lo que ya se
@@ -576,7 +647,8 @@ func _forget_order(peer: int) -> void:
 	_done_seq.erase(peer)
 	_use_wait.erase(peer)
 	_request_wait.erase(peer)
-	_stepped.erase(peer)
+	_aim_poses.erase(peer)
+	_aim_latest.erase(peer)
 
 
 ## Host: cuando la sesión corta a alguien por silencio (NetSession), Godot no
@@ -667,20 +739,22 @@ func _physics_process(_delta: float) -> void:
 				kept.append(item)
 				continue
 			push_warning("[inventario] el pedido %d del jugador %d esperó demasiado al uso %d" % [item[1], peer, after_use])
-		# Recoger y abrir: el rayo se tira con el personaje como estaba en esa
-		# máquina al apretar E. El pedido puede llegar antes que los últimos
-		# inputs (los pasos de frenar, por ejemplo): espera a que el host lo haya
-		# movido hasta ese tick (desde el 2026-11-11 a la noche).
+		# Recoger y abrir: el rayo sale de los ojos que tenía el personaje al
+		# terminar el tick en que el jugador apretó E (aim_tick). Si el host
+		# todavía no lo simuló (el pedido llegó antes que los últimos inputs, los
+		# pasos de frenar, por ejemplo), espera; si ya pasó, usa los anotados
+		# (record_aim_pose; desde el 2026-11-12, INT-01).
 		var aimed := InvProtocol.aimed_tick_of(item[2], item[3])
-		if aimed >= 0 and _stepped.has(peer) and _stepped[peer] < aimed:
+		if aimed >= 0 and _aim_latest.has(peer) and _aim_latest[peer] < aimed:
 			if not _waited_too_long(_request_wait, peer, item[1]):
 				held[peer] = true
 				kept.append(item)
 				continue
 			push_warning("[inventario] el pedido %d del jugador %d esperó demasiado al tick %d (el host va por el %d)" % [item[1],
-					peer, aimed, _stepped[peer]])
+					peer, aimed, _aim_latest[peer]])
 		_request_wait.erase(peer)
-		authority.handle(peer, item[1], item[2], item[3], space)
+		var aimed_op: bool = item[2] == InvProtocol.Op.PICKUP or item[2] == InvProtocol.Op.OPEN
+		authority.handle(peer, item[1], item[2], item[3], space, _aim_eyes(peer, aimed) if aimed_op else null)
 		_done_seq[peer] = maxi(_done_seq.get(peer, 0), item[1])
 	# Lo que llegó mientras tanto va después de lo que quedó esperando.
 	_inbox = kept + _inbox

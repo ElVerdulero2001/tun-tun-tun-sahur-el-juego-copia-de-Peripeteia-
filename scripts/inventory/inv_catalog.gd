@@ -21,7 +21,7 @@ func find(def_id: StringName) -> InvItemDef:
 
 
 ## Avisos de un catálogo mal armado: ids vacíos o repetidos, y modelos con
-## scripts, que no se usan como apariencia (InvVisuals).
+## scripts o sin nada que se vea, que no se usan como apariencia (InvVisuals).
 func problems() -> PackedStringArray:
 	var found := PackedStringArray()
 	var seen := {}
@@ -37,6 +37,15 @@ func problems() -> PackedStringArray:
 		if item.model != null and InvVisuals.has_scripts(item.model):
 			found.append("el modelo de %s (%s) tiene scripts: no se usa, se ve la caja de su color" % [item.id,
 					item.model.resource_path])
+		# Desde la auditoría del 2026-11-12 (DAT-01): un modelo o una malla sin
+		# nada que se vea tampoco se usa.
+		var empty := InvVisuals.empty_source(item)
+		if empty != "":
+			var source: Resource = item.model
+			if empty == "malla":
+				source = item.mesh
+			found.append("%s de %s (%s) no tiene nada que se vea: se ve y se agarra la caja de su color" % [
+					"la malla" if empty == "malla" else "el modelo", item.id, source.resource_path])
 		if item.pickup_hitbox != null and not item.pickup_hitbox.problems().is_empty():
 			found.append("la hitbox de agarre de %s no sirve (%s); igual el juego no la usa para recoger" % [item.id,
 					" ".join(item.pickup_hitbox.problems())])

@@ -15,10 +15,15 @@ extends RefCounted
 
 ## Modelo -> si tiene scripts (se mira una sola vez por modelo).
 static var _scripted := {}
+## Modelo o malla -> si lo que se arma con él se ve (has_visual; una sola vez
+## por recurso, fuera del editor).
+static var _drawable := {}
 
 
 ## Un nodo con las mallas del tipo (su modelo, o su malla suelta). Vacío si no
-## tiene ninguna de las dos (o si su modelo tiene scripts y no tiene malla).
+## tiene ninguna de las dos (o si su modelo tiene scripts y no tiene malla), o
+## si lo que tiene no deja nada que se vea: quien lo dibuja mira antes
+## has_visual y, si da falso, usa placeholder.
 static func build(def: InvItemDef) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Modelo"
@@ -135,8 +140,55 @@ static func placeholder(def: InvItemDef, size: float) -> Node3D:
 	return holder
 
 
+## Si el tipo se ve con su modelo (sin scripts) o su malla: lo que arma build()
+## con eso tiene que dejar algún triángulo que se vea y con tamaño. Si no (una
+## escena vacía, todas sus mallas ocultas, una malla sin triángulos), se usa la
+## caja de su color, igual que sin modelo: se ve, se agarra (InvReach toca sus
+## triángulos) y se avisa (empty_source). Hasta la auditoría del 2026-11-12
+## (DAT-01) bastaba con tener modelo o malla, y un modelo vacío dejaba un
+## objeto sin nada que ver ni agarrar.
 static func has_visual(def: InvItemDef) -> bool:
-	return def != null and (usable_model(def) != null or def.mesh != null)
+	var source := _source(def)
+	if source == null:
+		return false
+	# En el editor el modelo se puede cambiar mientras tanto: se mira siempre.
+	if not Engine.is_editor_hint() and _drawable.has(source):
+		return _drawable[source]
+	var root := build(def)
+	var drawable := _has_faces(root)
+	root.free()
+	if not Engine.is_editor_hint():
+		_drawable[source] = drawable
+	return drawable
+
+
+## Si el tipo tiene modelo (sin scripts) o malla, pero no se ve (has_visual):
+## "modelo" o "malla", el que usaría. "" si se ve, o si no tiene ninguno de los
+## dos (la caja de su color de siempre, sin aviso).
+static func empty_source(def: InvItemDef) -> String:
+	var source := _source(def)
+	if source == null or has_visual(def):
+		return ""
+	return "modelo" if source is PackedScene else "malla"
+
+
+## Lo que usa build(): el modelo si no tiene scripts; si no, la malla suelta; o null.
+static func _source(def: InvItemDef) -> Resource:
+	if def == null:
+		return null
+	var model := usable_model(def)
+	if model != null:
+		return model
+	return def.mesh
+
+
+## Si en `root` (lo de build) hay al menos un triángulo y su caja tiene tamaño
+## (fitted no escala lo que mide menos de 0,1 mm).
+static func _has_faces(root: Node3D) -> bool:
+	if faces(root).size() < 3:
+		return false
+	var box := bounds(root)
+	return maxf(box.size.x, maxf(box.size.y, box.size.z)) > 0.0001
 
 
 ## El modelo del tipo, si se puede usar como apariencia: sin scripts. O null.

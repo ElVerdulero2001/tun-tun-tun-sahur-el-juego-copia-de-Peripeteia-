@@ -39,6 +39,14 @@ extends Node
 ## - la caja abierta, sin mirarla: se opera mientras los ojos están al alcance
 ##   de su volumen y se cierra al pasarlo (también la girada, junto a la
 ##   esquina vacía de la caja alineada al mundo que la encierra);
+## - los ojos del tick del pedido (auditoría del 2026-11-12, INT-01): uno que
+##   llega cuando el host ya pasó su tick, con el personaje corrido 30 cm o ya
+##   parado, usa los ojos de ese tick; uno de un tick futuro espera; uno de hace
+##   más de InvNet.AIM_HISTORY_TICKS usa los de ahora; con un jugador 2 sin red
+##   al que le falta un input, NetSync.used_input_tick lo dice y sus ojos de ese
+##   tick se anotan como adivinados y valen igual;
+## - un objeto con un modelo sin nada que se vea (DAT-01), sin cartel: se ve y
+##   se agarra la caja de su color;
 ## - Interaction Range en vivo, la huella (los triángulos de cada tipo, sin
 ##   Pickup Aim Margin), y cuánto cuesta el selector.
 ##
@@ -48,7 +56,8 @@ extends Node
 ## del laboratorio (--host --bind=127.0.0.1 --port=N o --client
 ## --address=127.0.0.1 --port=N, y la internet simulada que se quiera), sin
 ## --fixed-fps: el cliente camina y apunta con su cámara; recoge una granada y
-## la varilla que sobresale del estante con E (el host acepta); pide el cubito
+## la varilla que sobresale del estante con E y el bloque caminando de costado,
+## con E apenas el selector lo elige (el host acepta); pide el cubito
 ## metido que no asoma, la tabla fuera de alcance y una dirección de largo 2
 ## (el host rechaza cada uno, como dijo su selector); abre la caja larga con E,
 ## deja de mirarla, mete la granada y camina hasta que el host se la cierra.
@@ -129,6 +138,21 @@ const ROD_AT := Vector3(SHELF_EDGE_X - 0.03 + 0.5, SHELF_TOP, 7.8)
 ## En pareja, cuánto adentro o afuera del alcance se para el cliente (camina, no
 ## se teletransporta).
 const PAIR_MARGIN := 0.35
+## INT-01 (auditoría del 2026-11-12): los ojos del tick del pedido. En el lugar
+## libre de las cajas, entre la larga y la girada: un cubito a 70 cm de los
+## pies (correrse 30 cm de costado lo pierde), otro para agacharse y dos más.
+const AIM_FEET := Vector3(17.0, 0, 25.0)
+const AIM_CUBE_AT := Vector3(17.0, 0, 25.7)
+const AIM_SIDE := Vector3(0.3, 0, 0)
+const STANCE_FEET := Vector3(17.0, 0, 26.6)
+const STANCE_CUBE_AT := Vector3(17.0, 0, 27.3)
+const LATER_CUBE_AT := Vector3(16.4, 0, 27.0)
+const OLD_CUBE_AT := Vector3(17.6, 0, 27.0)
+## El jugador 2 de la prueba en un proceso, con su cubito.
+const OTHER_FEET := Vector3(22.5, 0, 26.0)
+const OTHER_CUBE_AT := Vector3(22.5, 0, 26.7)
+## DAT-01: un objeto con un modelo sin nada que se vea, sin cartel.
+const EMPTY_AT := Vector3(31.0, 0, 10.0)
 
 var role := ""
 var verbose := false
@@ -150,6 +174,7 @@ var frame_def: InvItemDef
 var block_def: InvItemDef
 var cube_def: InvItemDef
 var rod_def: InvItemDef
+var empty_def: InvItemDef
 var _answers := {}
 var _checks := 0
 var _failures := 0
@@ -215,7 +240,8 @@ func _prepare() -> void:
 	block_def = _box_item(&"bloque_de_prueba", "Bloque de prueba", BLOCK_SIZE, Vector2i(2, 2))
 	cube_def = _box_item(&"cubito_de_prueba", "Cubito de prueba", Vector3.ONE * CUBE, Vector2i.ONE)
 	rod_def = _box_item(&"varilla_de_prueba", "Varilla de prueba", ROD_SIZE, Vector2i(1, 4))
-	for def in [table_def, big_key_def, frame_def, block_def, cube_def, rod_def]:
+	empty_def = _empty_def()
+	for def in [table_def, big_key_def, frame_def, block_def, cube_def, rod_def, empty_def]:
 		catalog.items.append(def)
 	var level := lab.get_node("Level")
 	_add_spawn(level, "GranadaDeAlcance", grenade_def, GRENADE_AT)
@@ -232,6 +258,7 @@ func _prepare() -> void:
 	_add_spawn(level, "CubitoQueAsoma", cube_def, STRIP_AT)
 	_add_spawn(level, "CubitoMetido", cube_def, HIDDEN_AT)
 	_add_spawn(level, "VarillaQueSobresale", rod_def, ROD_AT)
+	_add_spawn(level, "ObjetoSinMalla", empty_def, EMPTY_AT)
 	shelf = _body(SHELF_BOX.get_center(), SHELF_BOX.size)
 	add_child(shelf)
 
@@ -281,6 +308,22 @@ func _frame_def() -> InvItemDef:
 	hitbox.fit(InvPickupHitbox.model_bounds(def))
 	hitbox.grow(0.01)
 	def.pickup_hitbox = hitbox
+	return def
+
+
+## DAT-01: un tipo cuyo modelo es una escena sin nada que se vea (solo un Node3D).
+func _empty_def() -> InvItemDef:
+	var root := Node3D.new()
+	root.name = "Vacio"
+	var packed := PackedScene.new()
+	packed.pack(root)
+	root.free()
+	var def := InvItemDef.new()
+	def.id = &"sin_malla_de_prueba"
+	def.display_name = "Sin malla de prueba"
+	def.size = Vector2i(1, 1)
+	def.model = packed
+	def.world_size = 0.2
 	return def
 
 
@@ -653,6 +696,12 @@ func _solo() -> void:
 	await _box_edges()
 	await _open_without_aiming()
 	await _turned_box_closes()
+	await _set_first_person(true)
+	await _aim_tick()
+	await _stance_at_aim_tick()
+	await _aim_tick_limits()
+	await _guessed_input()
+	await _empty_model()
 	await _tuning_live()
 	await _cost()
 	_finish(true)
@@ -1237,6 +1286,168 @@ func _turned_box_closes() -> void:
 	_check(closed.size() == 1 and closed[0][1] == "te alejaste de la caja", "ahí el host la cierra: %s" % [closed])
 
 
+# --- Los ojos del tick del pedido (INT-01, auditoría del 2026-11-12) ---------------
+
+## Recoger con la mano en `direction` y el tick `tick` en el pedido: [aceptado, motivo].
+func _pick_at(uid: int, direction: Vector3, tick: int) -> Array:
+	return await _req(Op.PICKUP, InvProtocol.aimed_args(uid, direction, tick), [uid])
+
+
+## Si el host tiró el rayo del último pedido desde esos ojos, los anotados al
+## terminar el tick `tick`.
+func _aimed_from(eyes: Vector3, tick: int) -> bool:
+	var used: Variant = net.last_aim.get("eyes")
+	return net.last_aim.get("from") == "tick" and net.last_aim.get("tick") == tick and used is Vector3 \
+			and (used as Vector3).is_equal_approx(eyes)
+
+
+## El host anota los ojos de cada personaje al terminar cada tick. Un pedido
+## que llega cuando el host ya pasó su tick tira el rayo desde los de ese tick,
+## no desde los de ahora: el personaje se corrió 30 cm de costado y la misma
+## dirección ya no toca el cubito.
+func _aim_tick() -> void:
+	var peer := multiplayer.get_unique_id()
+	var cube := await _put_on_shelf(AIM_CUBE_AT)
+	await _teleport(AIM_FEET, AIM_CUBE_AT)
+	var eyes := _eyes()
+	var tick := net.aim_tick()
+	var pose: Array = net._aim_poses.get(peer, {}).get(tick, [])
+	_check(cube != 0 and not pose.is_empty() and (pose[0] as Vector3).is_equal_approx(eyes) and not pose[1],
+			"el host anota los ojos de cada tick: en el %d, %s (los del personaje, %s)" % [tick, pose, eyes])
+	var direction := (AIM_CUBE_AT + Vector3.UP * CUBE / 2.0 - eyes).normalized()
+	_check(_picks(cube, eyes, direction), "parado ahí, el selector elige el cubito")
+	await _teleport(AIM_FEET + AIM_SIDE, AIM_CUBE_AT + AIM_SIDE)
+	var r := await _pick(cube, direction)
+	_check(not r[0] and net.last_aim.get("from") == "ahora",
+			"sin tick, el host tira el rayo desde los ojos de ahora, 30 cm al costado, y no lo deja: %s" % r[1])
+	var later: int = net._aim_latest.get(peer, -1)
+	r = await _pick_at(cube, direction, tick)
+	_check(later >= tick + 3, "el host ya iba %d ticks más adelante que el pedido" % (later - tick))
+	_check(r[0] and _aimed_from(eyes, tick) and not net.last_aim.get("guessed", true),
+			"con el tick en que apuntó, el rayo sale de los ojos de ese tick y lo recoge: %s, %s" % [r[1], net.last_aim])
+	_check(not net.replica.world.has(cube) and not net.authority.world.has(cube), "el cubito ya no está en el piso")
+
+
+## Agachado en el tick del pedido y parado al procesarlo: el rayo sale de los
+## ojos agachados de ese tick (0,85 m), no de los de ahora (1,65 m).
+func _stance_at_aim_tick() -> void:
+	var cube := await _put_on_shelf(STANCE_CUBE_AT)
+	await _teleport(STANCE_FEET, STANCE_CUBE_AT)
+	await _crouch(true)
+	var eyes := _eyes()
+	var tick := net.aim_tick()
+	var direction := (STANCE_CUBE_AT + Vector3.UP * CUBE / 2.0 - eyes).normalized()
+	_check(cube != 0 and actor.state.stance == ActorState.Stance.CROUCHED and _picks(cube, eyes, direction),
+			"agachado, el selector elige el cubito")
+	await _crouch(false)
+	var r := await _pick(cube, direction)
+	_check(not r[0], "ya parado, sin tick, la misma dirección desde los ojos de ahora no lo toca: %s" % r[1])
+	r = await _pick_at(cube, direction, tick)
+	_check(r[0] and _aimed_from(eyes, tick),
+			"con el tick, sale de los ojos agachados de ese tick (a %.2f m de los pies) y lo recoge: %s" % [
+			eyes.y - actor.global_position.y, r[1]])
+
+
+## Un pedido con un tick que el host todavía no simuló espera a simularlo y usa
+## esos ojos; uno de hace más de AIM_HISTORY_TICKS usa los de ahora.
+func _aim_tick_limits() -> void:
+	var peer := multiplayer.get_unique_id()
+	var later_cube := await _put_on_shelf(LATER_CUBE_AT)
+	var old_cube := await _put_on_shelf(OLD_CUBE_AT)
+	await _teleport(STANCE_FEET, LATER_CUBE_AT)
+	var eyes := _eyes()
+	var ahead := net.aim_tick() + 20
+	var r := await _pick_at(later_cube, (LATER_CUBE_AT + Vector3.UP * CUBE / 2.0 - eyes).normalized(), ahead)
+	_check(later_cube != 0 and r[0] and _aimed_from(eyes, ahead) and net._aim_latest.get(peer, -1) >= ahead,
+			"con un tick que el host todavía no simuló (20 adelante), espera a simularlo y usa esos ojos: %s" % r[1])
+	var old := net.aim_tick() - InvNet.AIM_HISTORY_TICKS - 5
+	var poses: Dictionary = net._aim_poses.get(peer, {})
+	r = await _pick_at(old_cube, (OLD_CUBE_AT + Vector3.UP * CUBE / 2.0 - eyes).normalized(), old)
+	_check(old_cube != 0 and r[0] and net.last_aim.get("from") == "ahora" and net.last_aim.get("tick") == old and not poses.has(old)
+			and poses.size() <= InvNet.AIM_HISTORY_TICKS,
+			"uno de hace más de %d ticks ya no se recuerda (quedan %d): usa los ojos de ahora: %s" % [InvNet.AIM_HISTORY_TICKS,
+			poses.size(), r[1]])
+
+
+## Un jugador sin red (el 2, en este proceso) del que al host le falta el input
+## de un tick: NetSync lo mueve repitiendo el anterior (input_for devuelve un
+## input con el tick pedido) y lo dice used_input_tick; el host anota esos ojos
+## como adivinados y un pedido de ese tick los usa igual, porque son donde el
+## host dice que estaba.
+func _guessed_input() -> void:
+	var other: ActorBody = load("res://scenes/actor/actor.tscn").instantiate()
+	other.name = "ActorDePrueba2"
+	other.owner_peer_id = 2
+	other.state.position = OTHER_FEET
+	other.state.mode = ActorState.Mode.GROUND
+	other.state.on_floor = true
+	other.position = OTHER_FEET
+	net.test_peers[2] = true
+	lab.get_node("Actors").add_child(other)
+	var cube := await _put_on_shelf(OTHER_CUBE_AT)
+	await _ticks(3)
+	var sync: NetSync = lab._net_sync
+	var first: int = net._aim_latest.get(2, -1)
+	var poses: Dictionary = net._aim_poses.get(2, {})
+	_check(cube != 0 and net.authority.player_inventory(2) != null and poses.has(first) and poses[first][1]
+			and sync.used_input_tick(2) == -1,
+			"el jugador 2 tiene inventario; sin ningún input suyo, el host lo deja quieto y anota sus ojos como adivinados")
+	var start := first + 5
+	var missing := start + 10
+	var inputs: Dictionary = sync._inputs.get_or_add(2, {})
+	for t in range(start, start + 40):
+		if t != missing:
+			inputs[t] = ActorInput.make(t, Vector2.ZERO, 0.0, 0, 0)
+	await _until(func() -> bool: return net._aim_latest.get(2, -1) >= missing + 5, 3.0)
+	var latest: int = net._aim_latest.get(2, -1)
+	poses = net._aim_poses.get(2, {})
+	_check(poses.has(missing - 1) and poses.has(missing + 1) and not poses[missing - 1][1] and poses[missing][1]
+			and not poses[missing + 1][1] and sync.used_input_tick(2) == latest,
+			"con los inputs de verdad, sus ojos no son adivinados; en el %d, que no llegó, sí (y used_input_tick dice el último que llegó)" % missing)
+	var repeated := sync.input_for(2, missing)
+	_check(repeated != null and repeated.tick == missing and sync.used_input_tick(2) == missing - 1,
+			"input_for devuelve un input con el tick %d, pero el que usó es el %d" % [missing, sync.used_input_tick(2)])
+	var eyes := InvAuthority.eyes(other, BaseRegistry.world_position(other.state))
+	var direction := (OTHER_CUBE_AT + Vector3.UP * CUBE / 2.0 - eyes).normalized()
+	net._queue_request(2, [1, Op.PICKUP, InvProtocol.aimed_args(cube, direction, missing), -1])
+	await _until(func() -> bool: return net.authority._results.get(2, {}).has(1), 3.0)
+	var result: Array = net.authority._results.get(2, {}).get(1, [false, "sin respuesta"])
+	_check(result[0] and _aimed_from(eyes, missing) and net.last_aim.get("guessed", false),
+			"un pedido del tick sin input usa los ojos que calculó el host repitiendo el anterior, y recoge: %s, %s" % [result,
+			net.last_aim])
+	_check(not net.authority.world.has(cube) and net.authority.player_inventory(2).grid.has(cube), "el cubito pasó al jugador 2")
+	other.queue_free()
+	await _ticks(3)
+	# Como al desconectarse (InvNet._on_peer_disconnected).
+	net.test_peers.erase(2)
+	net._forget_order(2)
+	sync.forget_peer(2)
+	await _ticks(2)
+	_check(net.authority.actor_of(2) == null and not net._aim_poses.has(2) and not net._aim_latest.has(2),
+			"el jugador 2 de la prueba se fue y se olvidaron sus ojos")
+
+
+## DAT-01 (auditoría del 2026-11-12): un objeto cuyo modelo no tiene nada que
+## se vea (una escena con un Node3D solo), sin cartel, se ve y se agarra como
+## la caja de su color, con el selector y E, y el host lo acepta.
+func _empty_model() -> void:
+	var uid := _uid_at(EMPTY_AT)
+	_check(uid != 0, "el objeto sin malla está en el piso")
+	if uid == 0:
+		return
+	var drawn := _drawn_faces(uid)
+	var view := net.world_view(uid)
+	_check(not InvVisuals.has_visual(empty_def) and InvVisuals.empty_source(empty_def) == "modelo" and drawn.size() == 36
+			and InvReach.item_mesh(empty_def) != null and InvReach.item_mesh(empty_def).get_faces().size() == 36 and view != null
+			and not view.has_label(),
+			"no se ve su modelo vacío: se dibuja la caja de su color (%d vértices), sin cartel, y el rayo toca esa caja" % drawn.size())
+	_check(Array(catalog.problems()).any(func(problem: String) -> bool: return problem.contains("sin_malla_de_prueba")),
+			"el catálogo lo avisa")
+	await _teleport(EMPTY_AT + Vector3(0, 0, -0.8), EMPTY_AT)
+	await _aim(EMPTY_AT + Vector3.UP * 0.05)
+	await _e_picks(uid, "el objeto sin malla y sin cartel")
+
+
 ## Interaction Range se lee en vivo, igual en el selector y en el host, y entra
 ## en la huella; también los triángulos de cada tipo. Pickup Aim Margin ya no está.
 func _tuning_live() -> void:
@@ -1316,10 +1527,14 @@ func _pair_host() -> void:
 	var rod := _uid_at(ROD_AT)
 	var hidden := _uid_at(HIDDEN_AT)
 	var table := _uid_at(TABLE_AT)
+	var block := _uid_at(BLOCK_AT)
 	_check(await _until(func() -> bool: return multiplayer.get_peers().is_empty(), 150.0), "el cliente terminó y se fue")
 	var other := net.authority.player_inventory(found.get("peer", -1))
 	_check(not net.authority.world.has(grenade), "el host le dejó recoger la granada que su selector elegía")
 	_check(not net.authority.world.has(rod), "y la varilla que sobresale del estante")
+	_check(block != 0 and not net.authority.world.has(block), "y el bloque, caminando de costado")
+	_check(net.aims_at_tick >= 4, "los pedidos con E del cliente (granada, varilla, bloque y caja) usaron los ojos de su tick: %d con esos ojos (%d llegaron cuando el host ya iba más adelante, %d con un input repetido), %d con los de ahora" % [
+			net.aims_at_tick, net.aims_late, net.aims_guessed, net.aims_now])
 	_check(net.authority.world.has(hidden) and net.authority.world.has(table), "y no el cubito metido ni la tabla lejana")
 	var in_box := long_box.inventory.grid.sorted_uids()
 	_check(in_box.has(grenade), "la granada quedó en la caja larga, metida sin mirarla: %s" % [in_box])
@@ -1352,6 +1567,8 @@ func _pair_client() -> void:
 	await _walk_spot(Vector3(SHELF_EDGE_X - 0.5, 0, ROD_AT.z), ROD_AT)
 	await _aim(Vector3(SHELF_EDGE_X - 0.015, SHELF_TOP, ROD_AT.z))
 	await _e_picks(rod, "la varilla que sobresale del estante")
+	# El bloque, caminando de costado y sin frenar (INT-01).
+	await _strafe_pick(_uid_at(BLOCK_AT))
 	# El cubito metido: el selector no lo elige y el host no lo deja.
 	await _walk_spot(Vector3(SHELF_EDGE_X - 0.5, 0, HIDDEN_AT.z), HIDDEN_AT)
 	var to_hidden := (HIDDEN_AT + Vector3.UP * CUBE / 2.0 - _eyes()).normalized()
@@ -1410,6 +1627,38 @@ func _pair_client() -> void:
 			last_open, closed.get("distance", 0.0)])
 	await _ticks(30)
 	_finish(true)
+
+
+## Caminando de costado, E apenas el selector elige ese objeto, sin frenar
+## (INT-01, auditoría del 2026-11-12): el host tira el rayo desde los ojos que
+## tenía el personaje al terminar el tick en que se apretó E, aunque el pedido
+## le llegue cuando ya lo movió más, y lo acepta.
+func _strafe_pick(uid: int) -> void:
+	_check(uid != 0, "el cliente ve el bloque")
+	var start := Vector3(BLOCK_AT.x - 1.0, 0, BLOCK_AT.z - 0.9)
+	await _walk_spot(start, Vector3(BLOCK_AT.x, 0, start.z))
+	await _aim(Vector3(BLOCK_AT.x - BLOCK_SIZE.x / 2.0, BLOCK_SIZE.y / 2.0, actor.global_position.z))
+	var before := net.replica.pending.keys()
+	var seen := {}
+	# Mirando hacia +x, la derecha es +z: hacia el bloque.
+	Input.action_press("move_right")
+	var limit := Time.get_ticks_msec() + 4000
+	while Time.get_ticks_msec() < limit and not seen.has("seq"):
+		await get_tree().process_frame
+		var target := ui.interaction_target()
+		if target.get("kind", "") == "item" and target.get("id", 0) == uid:
+			seen["speed"] = Vector2(actor.state.velocity.x, actor.state.velocity.z).length()
+			_press_e()
+			var sent := net.replica.pending.keys().filter(func(number: int) -> bool: return not number in before)
+			seen["seq"] = sent[0] if not sent.is_empty() else 0
+	# Sigue caminando un poco después de apretar E, como un jugador.
+	await _ticks(10)
+	Input.action_release("move_right")
+	var seq: int = seen.get("seq", 0)
+	var ok := seq != 0 and await _until(func() -> bool: return _answers.has(seq), 5.0)
+	_check(ok and _answers[seq][0] and float(seen.get("speed", 0.0)) > 3.0,
+			"caminando de costado a %.1f m/s, E apenas el selector elige el bloque: el host lo acepta: %s" % [seen.get("speed", 0.0),
+			_answers.get(seq, "no salió el pedido")])
 
 
 ## La distancia de los ojos a la parte más cercana del modelo de ese objeto

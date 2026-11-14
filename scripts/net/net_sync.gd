@@ -241,6 +241,15 @@ func input_for(peer_id: int, tick: int) -> ActorInput:
 	return input
 
 
+## Host: el tick del input recibido que usó input_for() la última vez para
+## ese jugador, o -1 si nunca llegó ninguno. Si es menor que el tick que se
+## simuló, el de ese tick no había llegado y se repitió uno anterior: el
+## input que devolvió input_for() lleva el tick pedido, pero no es el del
+## jugador (auditoría del 2026-11-12, INT-01).
+func used_input_tick(peer_id: int) -> int:
+	return _used_input_tick.get(peer_id, -1)
+
+
 ## El input más nuevo que llegó de un jugador, o null. Con él el host se entera
 ## de una pulsación apenas llega, sin esperar a simular ese tick.
 func latest_input(peer_id: int) -> ActorInput:

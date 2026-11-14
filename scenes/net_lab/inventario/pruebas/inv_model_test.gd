@@ -28,6 +28,7 @@ func _ready() -> void:
 	_use_answers()
 	_input_round_trip()
 	_scripted_models()
+	_empty_models()
 	print("[inv_model_test] %d comprobaciones, %d fallas" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -481,3 +482,79 @@ func _scripted_models() -> void:
 	_catalog.items.erase(def)
 	_catalog.items.erase(clean)
 	Engine.remove_meta(&"inv_model_test_init")
+
+
+## DAT-01 (auditoría del 2026-11-12): un modelo o una malla sin nada que se vea
+## (una escena vacía, todas sus mallas ocultas, una malla sin triángulos) se
+## trata como sin modelo: la caja de su color, que se dibuja y que toca el
+## rayo de la mano (en el host también: es la misma cuenta), y el catálogo lo
+## avisa. Sin modelo y con un modelo normal, como siempre y sin aviso. Guardado
+## y abierto otra vez, igual.
+func _empty_models() -> void:
+	var empty_root := Node3D.new()
+	var empty_scene := PackedScene.new()
+	empty_scene.pack(empty_root)
+	empty_root.free()
+	var hidden_root := Node3D.new()
+	for i in 2:
+		var hidden := MeshInstance3D.new()
+		hidden.mesh = BoxMesh.new()
+		hidden.visible = false
+		hidden_root.add_child(hidden)
+		hidden.owner = hidden_root
+	var hidden_scene := PackedScene.new()
+	hidden_scene.pack(hidden_root)
+	hidden_root.free()
+	var shown_root := Node3D.new()
+	var shown := MeshInstance3D.new()
+	shown.mesh = BoxMesh.new()
+	shown_root.add_child(shown)
+	shown.owner = shown_root
+	var shown_scene := PackedScene.new()
+	shown_scene.pack(shown_root)
+	shown_root.free()
+	var cases := {
+		&"modelo_vacio": [empty_scene, null, "modelo"],
+		&"mallas_ocultas": [hidden_scene, null, "modelo"],
+		&"malla_sin_triangulos": [null, ArrayMesh.new(), "malla"],
+		&"modelo_normal": [shown_scene, null, ""],
+		&"sin_modelo": [null, null, ""],
+	}
+	var defs := []
+	for id: StringName in cases:
+		var def := _def(id, Vector2i(2, 1))
+		def.model = cases[id][0]
+		def.mesh = cases[id][1]
+		def.world_size = 0.3
+		defs.append(def)
+	var problems := Array(_catalog.problems())
+	for def: InvItemDef in defs:
+		var expected: String = cases[def.id][2]
+		var world := InvVisuals.world_model(def)
+		var faces := InvVisuals.faces(world)
+		var mesh_node := world.get_child(0) as MeshInstance3D if world.get_child_count() > 0 else null
+		var boxed := mesh_node != null and mesh_node.mesh is BoxMesh and world.get_child_count() == 1
+		var warned := problems.any(func(problem: String) -> bool: return problem.contains(String(def.id)))
+		world.free()
+		var triangles := InvReach.item_mesh(def)
+		if expected != "":
+			_check(not InvVisuals.has_visual(def) and InvVisuals.empty_source(def) == expected and boxed and faces.size() == 36
+					and triangles != null and triangles.get_faces().size() == 36 and warned,
+					"%s: se ve y se agarra la caja de su color, y el catálogo lo avisa" % def.id)
+		elif def.model != null:
+			_check(InvVisuals.has_visual(def) and InvVisuals.empty_source(def) == "" and not boxed and faces.size() == 36
+					and triangles != null and not warned, "%s: se ve su modelo, sin aviso" % def.id)
+		else:
+			_check(not InvVisuals.has_visual(def) and InvVisuals.empty_source(def) == "" and boxed and triangles != null and not warned,
+					"%s: la caja de su color de siempre, sin aviso" % def.id)
+	# Guardado y abierto otra vez (el modelo vacío va adentro del .tres).
+	var path := "user://inv_model_test_modelo_vacio.tres"
+	var saved := ResourceSaver.save(defs[0], path)
+	var loaded := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as InvItemDef
+	_check(saved == OK and loaded != null and loaded.model != null and not InvVisuals.has_visual(loaded)
+			and InvVisuals.empty_source(loaded) == "modelo" and InvReach.item_mesh(loaded) != null,
+			"guardado y abierto otra vez, el modelo vacío sigue con la caja de su color")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	for def: InvItemDef in defs:
+		_catalog.items.erase(def)
+	InvReach.clear_cache()

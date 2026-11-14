@@ -2,9 +2,12 @@ class_name InvProtocol
 extends RefCounted
 
 ## Forma de los pedidos que un jugador le hace al host. Viajan como
-## [número de pedido, operación, argumentos, uso anterior], solo con números
-## enteros: nunca nodos, recursos ni rutas. El host descarta lo que no tenga
-## exactamente esta forma.
+## [número de pedido, operación, argumentos, uso anterior], con números enteros
+## (ids, versiones, cantidades, celdas, ticks), salvo la dirección de la mano de
+## recoger y abrir: tres números con decimales (TYPE_FLOAT; con enteros, el
+## pedido se descarta). Nunca nodos, recursos ni rutas. El host descarta lo que
+## no tenga exactamente la forma de ARGS. (Hasta el 2026-11-11 eran solo
+## enteros; este texto se corrigió tras la auditoría del 2026-11-12, DOC-02.)
 ##
 ## El uso anterior (desde la auditoría del 2026-11-04, INV-02 e INV-03) es el
 ## número del último consumible que ese jugador usó antes de hacer el pedido

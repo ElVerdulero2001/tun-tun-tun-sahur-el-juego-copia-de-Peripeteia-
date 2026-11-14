@@ -12,8 +12,10 @@ extends RefCounted
 ##
 ## Recoger y abrir, desde el 2026-11-11 a la noche, con la regla común de
 ## InvReach (la misma que usa cada máquina para elegir qué mira): el host tira
-## su propio rayo desde los ojos del actor, con su estado y su postura, en la
-## dirección que manda el jugador (InvProtocol.direction_of, que la valida), y
+## su propio rayo desde los ojos del actor, con su estado y su postura al
+## terminar el tick en que el jugador apretó E (desde el 2026-11-12, INT-01:
+## los anota InvNet.record_aim_pose), en la dirección que manda el jugador
+## (InvProtocol.direction_of, que la valida), y
 ## lo primero que toca, a no más de interaction_range del Tuning, tiene que ser
 ## ese objeto (sus triángulos, con el tipo de su catálogo y su lugar) o esa caja
 ## (su colisión en la escena del host). Del cliente se usa solo la dirección:
@@ -80,6 +82,7 @@ var _results := {}  # peer -> {número de pedido: [ok, motivo]}
 var _result_order := {}  # peer -> números en el orden en que se recuerdan
 var _equip_sent := {}  # peer -> id del tipo equipado que ya se contó a todos
 var _space: PhysicsDirectSpaceState3D
+var _aim_eyes: Variant = null  # los ojos para el rayo del pedido que se procesa (handle), o null
 # Lo que cambió en el paso que se está procesando.
 var _dirty_players := {}
 var _dirty_boxes := {}
@@ -209,10 +212,15 @@ func open_container_of(peer: int) -> int:
 # --- Pedidos -----------------------------------------------------------------
 
 ## Procesa un pedido: valida y aplica en el mismo paso, y manda lo que cambió.
-func handle(peer: int, seq: int, op: int, args: Array, space: PhysicsDirectSpaceState3D) -> void:
+## `aim_eyes`: para recoger y abrir, desde dónde sale el rayo de la mano (los
+## ojos del personaje al terminar el tick del pedido, que anota InvNet); con
+## null, los de ahora.
+func handle(peer: int, seq: int, op: int, args: Array, space: PhysicsDirectSpaceState3D, aim_eyes: Variant = null) -> void:
 	_space = space
+	_aim_eyes = aim_eyes
 	var reason := _run(peer, op, args)
 	_space = null
+	_aim_eyes = null
 	if reason == "":
 		accepted += 1
 	else:
@@ -559,8 +567,9 @@ func _open(peer: int, a: Array) -> String:
 # --- Alcance y lugar para soltar ---------------------------------------------
 
 ## El rayo de la mano en el host (InvReach.first_hit): desde los ojos del actor
-## con su estado y su postura, en la dirección del pedido, contra el nivel, las
-## cajas y los objetos sueltos del host. "" si lo primero que toca, al alcance,
+## (los del tick del pedido si InvNet los pasó a handle, o los de ahora con su
+## estado y su postura), en la dirección del pedido, contra el nivel, las cajas
+## y los objetos sueltos del host como están ahora. "" si lo primero que toca, al alcance,
 ## es lo pedido (`kind` y `id`); si no, el motivo: `far` si lo pedido es lo
 ## primero pero más allá del alcance, `blocked` si al alcance hay otra cosa
 ## antes, `missed` si no lo toca, y uno propio si la dirección no sirve.
@@ -571,7 +580,7 @@ func _reach_reason(actor: ActorBody, a: Array, kind: String, id: int, center: Ve
 	var direction: Variant = InvProtocol.direction_of(a)
 	if direction == null:
 		return "pedido inválido: la dirección de la mano no sirve"
-	var at := eyes(actor, BaseRegistry.world_position(actor.state))
+	var at: Vector3 = _aim_eyes if _aim_eyes is Vector3 else eyes(actor, BaseRegistry.world_position(actor.state))
 	var length := minf(maxf(interaction_range + FAR_LOOK, at.distance_to(center) + size), 1000.0)
 	var hit := InvReach.first_hit(_space, at, direction, length, world, catalog, InvReach.own_shapes(actor))
 	if hit.is_empty():

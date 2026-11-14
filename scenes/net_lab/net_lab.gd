@@ -1884,7 +1884,14 @@ func _on_tick_finished(tick: int) -> void:
 				_adoption.consider(actor, _net_sync.claim_for(actor.owner_peer_id, tick), tuning)
 		var rafts := BaseRegistry.all().filter(func(base) -> bool: return base is HostRaft and base.simulated)
 		_net_sync.send_snapshot(tick, _clock.sorted_actors(), rafts)
-	elif role == Role.CLIENT and is_instance_valid(_local_actor) and _local_actor.simulated \
+	if role != Role.CLIENT:
+		# Ya adoptado lo que afirman los clientes: dónde quedaron los ojos de cada
+		# uno en este tick, para recoger y abrir con los del tick en que apretó E
+		# (InvNet.record_aim_pose; auditoría del 2026-11-12, INT-01).
+		for actor in _clock.sorted_actors():
+			if actor.simulated:
+				_inventory.record_aim_pose(actor, tick, _is_remote(actor) and _net_sync.used_input_tick(actor.owner_peer_id) != tick)
+	if role == Role.CLIENT and is_instance_valid(_local_actor) and _local_actor.simulated \
 			and _current_input != null and _current_input.tick == tick:
 		if test_perturb_mm > 0.0:
 			_perturb(_local_actor)
@@ -2729,6 +2736,9 @@ func _print_summary_and_quit() -> void:
 		])
 	if respawns > 0:
 		print("[net_lab] reapariciones: %d" % respawns)
+	if _inventory.is_host() and _inventory.aims_at_tick + _inventory.aims_now > 0:
+		print("[net_lab] recoger y abrir: %d con los ojos de su tick (%d llegaron cuando el host ya iba más adelante, %d con un input repetido), %d con los de ahora" % [
+			_inventory.aims_at_tick, _inventory.aims_late, _inventory.aims_guessed, _inventory.aims_now])
 	if not test_cut_seconds_at.is_empty() or _session.reconnects > 0 or _session.players_back > 0 or _session.players_dropped > 0:
 		print("[net_lab] reconexión: el cliente volvió %d veces (%d intentos en el último corte, reconectando=%s, quieto sin noticias del host %d veces); en el host, %d jugadores volvieron y %d no volvieron a tiempo" % [
 			_session.reconnects, _session.reconnect_attempts, _session.reconnecting, host_silences, _session.players_back, _session.players_dropped])

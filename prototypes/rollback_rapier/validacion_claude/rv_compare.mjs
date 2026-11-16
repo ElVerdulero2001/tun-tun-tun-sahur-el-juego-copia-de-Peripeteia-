@@ -61,7 +61,7 @@ if (cx.every((x) => x.s)) {
 
 // R3: transporte e integridad.
 const ex = R('r3_export'), exn = R('r3_enet_export');
-const imps = ['r3_import_noise_reverse', 'r3_import_swap', 'r3_import_second', 'r3_import_second_control'].map((n) => ({ n, r: R(n) })).filter((x) => x.r);
+const imps = ['r3_import_noise_reverse', 'r3_import_swap', 'r3_import_second', 'r3_import_second_control', 'r3_import_reverse_only'].map((n) => ({ n, r: R(n) })).filter((x) => x.r);
 if (ex) {
   check('R3k_archivo_integro', imps.length > 0 && imps.every((x) => x.r.facts?.received?.sha256 === ex.facts?.artifact_sha256),
     imps.map((x) => `${x.n}: ${x.r.facts?.received?.bytes} bytes`).join('; ') + ` / exportado ${ex.facts?.artifact_bytes}`, 'mismo SHA-256 que el exportado');

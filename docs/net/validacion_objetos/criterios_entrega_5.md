@@ -299,3 +299,23 @@ Si algo falla por un error de mis instrumentos, se conserva el intento y se repi
 - Altas y bajas dentro del checkpoint, y cambios de formas.
 - Inventario, articulaciones, áreas, personaje, cámara lenta, rendimiento y tamaño de snapshots en producción.
 - La convivencia de Rapier y Jolt en un mismo proceso, y abrir escenas Rapier en el editor.
+
+## 6. Agregado después de la primera corrida de Rapier, antes de repetir (la hora real es la del commit que lo agrega)
+
+La corrida `tmp/validacion_objetos/entrega_5/rapier/20261116_185001` se conserva entera. Sobre ella:
+
+- **R4d era un error del instrumento.** Pedía que X informara contacto con FloorS 40 pasos después de apoyarse, y un cuerpo dormido no informa contactos. Por eso el control falló, con la lista vacía. En la corrida con restauración "pasó" con una lista que pudo haber quedado vieja. **Ese R4d no cuenta en ninguna de las dos corridas.** Corrección, decidida antes de repetir:
+  1. Después de las consultas de R4c, sin cambiarlas, se da un impulso (3; 0; 0) a X (segundo espacio) y a Z (isla).
+  2. Se dan 10 pasos.
+  3. **R4d (corregido) decide:**
+     - X y Z despiertos;
+     - cada uno avanza ≥ 0,1 m según la posición informada (lo esperado son unos 0,39 m, con fricción 0,8);
+     - X informa FloorS y Z informa FloorA;
+     - nodo = servidor ≤ EPS, y `sleeping` igual.
+
+  El avance es necesario porque, si la sincronización de un cuerpo se corta, nodo y servidor pueden coincidir en una posición vieja. Se repiten solo `r4_spaces` y `r4_spaces_control`.
+- **Diagnóstico de R3** (no son criterios nuevos; sirven para separar causas). En la primera corrida, `r3_enet_import` cambió dos cosas a la vez: el transporte (ENet) y el orden de creación (invertido sin ruido). Se agregan:
+  - `r3_import_reverse_only`: archivo, orden invertido, sin ruido.
+  - `r3_enet_import` con `--noise=7`: ENet, orden invertido, con ruido.
+
+  Esto también requiere repetir `r3_export` y `r3_enet_export` en la copia nueva. Se aplican los mismos R3a a R3g y R3k/R3l.

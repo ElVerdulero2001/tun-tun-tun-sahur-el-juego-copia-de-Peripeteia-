@@ -10,6 +10,7 @@ param(
     [string]$EnginePath = 'C:\Users\ElCaido97\Desktop\Godot_v4.7.2.exe',
     [string[]]$Stages = @(),
     [ValidateRange(1024, 65000)][int]$Port = 45731,
+    [string[]]$EnetImportExtra = @(),
     [switch]$CheckOnly
 )
 $ErrorActionPreference = 'Stop'
@@ -121,7 +122,9 @@ $plan = [ordered]@{
     'r3_import_second' = @('--scene', 'res://validacion_claude/rv_exchange.tscn', '--', (Res 'r3_import_second'), '--role=import', ('--source=file:' + $art), '--second-first', '--post-create')
     'r3_import_second_control' = @('--scene', 'res://validacion_claude/rv_exchange.tscn', '--', (Res 'r3_import_second_control'), '--role=import', ('--source=file:' + $art), '--second-first', '--post-create', '--no-import')
     'r3_enet_export' = @('--scene', 'res://validacion_claude/rv_exchange.tscn', '--', (Res 'r3_enet_export'), '--role=export', ('--serve-port=' + $Port))
-    'r3_enet_import' = @('--scene', 'res://validacion_claude/rv_exchange.tscn', '--', (Res 'r3_enet_import'), '--role=import', ('--source=enet:' + $Port), '--reverse')
+    'r3_enet_import' = @('--scene', 'res://validacion_claude/rv_exchange.tscn', '--', (Res 'r3_enet_import'), '--role=import', ('--source=enet:' + $Port), '--reverse') + $EnetImportExtra
+    # Diagnóstico agregado después de la primera corrida (criterios §6): orden invertido sin ruido, por archivo.
+    'r3_import_reverse_only' = @('--scene', 'res://validacion_claude/rv_exchange.tscn', '--', (Res 'r3_import_reverse_only'), '--role=import', ('--source=file:' + $art), '--reverse')
     'r4_spaces' = @('--scene', 'res://validacion_claude/rv_spaces.tscn', '--', (Res 'r4_spaces'))
     'r4_spaces_control' = @('--scene', 'res://validacion_claude/rv_spaces.tscn', '--', (Res 'r4_spaces_control'), '--control')
 }

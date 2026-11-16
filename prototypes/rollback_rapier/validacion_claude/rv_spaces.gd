@@ -131,6 +131,16 @@ func _run() -> void:
 	step_all(10)
 	var q2 := {"X": ray(space_s, Vector3(2, 3, 0), Vector3(2, -1, 0)), "X_hits": read_body(X).hits,
 		"Z": ray(space_a, Vector3(-3, 3, 0), Vector3(-3, -1, 0)), "Z_hits": read_body(Z).hits}
+	# R4d corregido (criterios §6): X y Z despiertos y deslizándose antes de mirar
+	# contactos y si el nodo sigue al cuerpo. El primer intento no consideraba el reposo.
+	var p0 := {"X": read_body(X).p, "Z": read_body(Z).p}
+	impulse(X, Vector3(3, 0, 0))
+	impulse(Z, Vector3(3, 0, 0))
+	step_all(10)
+	var d := {"X": read_body(X), "Z": read_body(Z)}
+	d.X["moved"] = Vector3(d.X.p[0] - p0.X[0], d.X.p[1] - p0.X[1], d.X.p[2] - p0.X[2]).length()
+	d.Z["moved"] = Vector3(d.Z.p[0] - p0.Z[0], d.Z.p[1] - p0.Z[1], d.Z.p[2] - p0.Z[2]).length()
+	facts["after_impulse"] = d
 	step_all(TOTAL - step_n)
 	facts["queries_after_creation"] = q1
 	facts["queries_after_free_Y"] = q2
@@ -145,10 +155,11 @@ func _run() -> void:
 		and q1.Y.get("collider", "") == "Y" and q1.Z.get("collider", "") == "Z" \
 		and q2.X.get("collider", "") == "X" and q2.X.get("rid", -1) == X.get_rid().get_id() and q2.Z.get("collider", "") == "Z"
 	check("R4c_consultas_identifican_objetos", q_ok, {"after_creation": q1, "after_free_Y": q2}, "cada rayo devuelve su cuerpo y su RID")
-	var c_ok: bool = q1.X_hits == ["FloorS"] and q1.Y_hits == ["FloorS"] and q1.Z_hits == ["FloorA"] \
-		and q2.X_hits == ["FloorS"] and q2.Z_hits == ["FloorA"]
-	check("R4d_contactos_identifican_objetos", c_ok, {"after_creation": [q1.X_hits, q1.Y_hits, q1.Z_hits], "after_free_Y": [q2.X_hits, q2.Z_hits]},
-		"X, Y → FloorS; Z → FloorA")
+	var c_ok: bool = not d.X.sl and not d.Z.sl and d.X.hits == ["FloorS"] and d.Z.hits == ["FloorA"] \
+		and d.X.node_err <= EPS and d.Z.node_err <= EPS and d.X.node_sl == d.X.sl and d.Z.node_sl == d.Z.sl \
+		and d.X.moved >= 0.1 and d.Z.moved >= 0.1
+	check("R4d_contactos_y_nodos_tras_liberar_Y", c_ok, d, "X y Z despiertos y avanzan ≥ 0,1 m; X → FloorS, Z → FloorA; nodo = servidor ≤ EPS",
+		"corregido (§6); contactos antes del impulso, informativos: %s" % str({"after_creation": [q1.X_hits, q1.Y_hits, q1.Z_hits], "after_free_Y": [q2.X_hits, q2.Z_hits]}))
 	var es := cmp([s_pre], [s_post], ["S"], false)
 	check("R4e_segundo_espacio_intacto_al_restaurar", within(es), es, "≤ EPS")
 	var eo := cmp([o_pre], [o_post], ["O"], false)

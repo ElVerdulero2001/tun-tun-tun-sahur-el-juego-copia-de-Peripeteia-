@@ -1,5 +1,7 @@
 # Plan de refactorización y reconstrucción de la sincronización de objetos
 
+**Decisión después de la validación 5:** se rechaza integrar `StateManager3D` publicado como predictor aislado por R3/R4 reproducidos. El siguiente candidato será un [núcleo nativo con mundos de objetos propios](contrato_nucleo_fisico_objetos.md), conservando Jolt para el personaje. [Entrega 6, correcciones y bloqueo de compilación](entregas/revision_codex_entrega_5.md). La capacidad básica de replay confirmada debajo no aprueba la integración.
+
 **Actualización de capacidad (entrega 5, 2026-11-16):** Rapier v0.36.0 restauró y repitió contactos en una fixture de tres cuerpos, localmente y mediante checkpoint entre dos procesos con IDs distintos. [Evidencia y límites](entregas/ensayo_rollback_rapier_entrega_5.md). No se aprobó el modelo de red ni se migró el laboratorio; falta comprobar aislamiento de espacios, topología y el controlador real. Las decisiones y limitaciones históricas de Jolt que siguen se conservan como antecedentes.
 
 ## Estado y decisión

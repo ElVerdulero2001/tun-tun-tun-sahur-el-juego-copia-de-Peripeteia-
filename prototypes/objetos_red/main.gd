@@ -243,12 +243,7 @@ func _physics_process(delta: float) -> void:
 			else:
 				o.goals = {}
 		if uid == local_uid:
-			o.body.goal = target
-			o.last_goal = tick
-			if role == "client":
-				_hand_history.push_front({"uid": uid, "epoch": o.state.epoch,
-					"session": local_session, "tick": tick, "target": target})
-				while _hand_history.size() > HandInput.REDUNDANCY: _hand_history.pop_back()
+			_apply_local_hand_goal(uid, o)
 		if not o.body.freeze:
 			o.body.prepare(tick, DT * slow)
 			if o.body.held:
@@ -266,6 +261,23 @@ func _physics_process(delta: float) -> void:
 		if not packet.is_empty(): _send(1, "_hand_inputs", [packet], false)
 		else: _log("hand_input_encode_failed", {"step_tick": tick, "uid": local_uid,
 			"session": local_session, "frames": _hand_history.size()})
+
+func _apply_local_hand_goal(uid: int, o: Dictionary) -> bool:
+	# Validar antes de simular y antes de conservar la redundancia. Un tick
+	# inválido no debe impedir que se transmitan los siguientes cinco.
+	var frame := {"uid": uid, "epoch": o.state.epoch, "session": local_session,
+		"tick": tick, "target": target}
+	if not HandInput.valid(frame):
+		_log("hand_input_encode_failed", {"step_tick": tick, "uid": uid,
+			"session": local_session, "frames": _hand_history.size(),
+			"reason": "invalid_local_frame", "discarded_before_history": true})
+		return false
+	o.body.goal = target
+	o.last_goal = tick
+	if role == "client":
+		_hand_history.push_front(frame)
+		while _hand_history.size() > HandInput.REDUNDANCY: _hand_history.pop_back()
+	return true
 
 func _capture(uid: int, physics_delta: float) -> void:
 	var o: Dictionary = objects[uid]
@@ -342,7 +354,10 @@ func estimated_server_tick() -> float:
 	return _server_tick + rtt_ms * RATE / 2000.0 + float(Time.get_ticks_usec() - _server_at_usec) * RATE / 1_000_000.0
 
 func request_grab(uid: int, point: Vector3, desired: Transform3D) -> void:
-	if not ready_for_input or local_uid != 0 or _pending_grab != 0 or not objects.has(uid) or not point.is_finite(): return
+	if not ready_for_input or local_uid != 0 or _pending_grab != 0 or not objects.has(uid): return
+	if not point.is_finite():
+		_log("invalid_local_anchor", {"operation": "grab", "uid": uid})
+		return
 	var canonical = HandRotation.rotation_only_target(desired)
 	if canonical == null:
 		_log("invalid_local_target", {"operation": "grab"})

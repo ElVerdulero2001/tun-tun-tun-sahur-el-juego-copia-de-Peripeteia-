@@ -1,0 +1,1753 @@
+{
+  "delivery": 6,
+  "independent_validation_commit": "637fa91",
+  "previous_delivery": "dcd5fce64f62e3b609aba66e94814ef4a0fe0599",
+  "prior_corrections_independently_accepted": [
+    "N3",
+    "L19"
+  ],
+  "model_approved": false,
+  "laboratory_migrated": false,
+  "published_StateManager_isolated_predictor_approved": false,
+  "native_core_implemented": false,
+  "native_build_blocked": true,
+  "toolchain": {
+    "cargo_on_path": false,
+    "rustc_on_path": false,
+    "cargo_at_default_path": false,
+    "rustc_at_default_path": false,
+    "vswhere_at_default_path": false,
+    "user_profile": "C:\\Users\\ElCaido97",
+    "native_backend_compiled": false
+  },
+  "native_reproductions": [
+    {
+      "stage": "r3_export",
+      "passed": 1,
+      "failed": 0,
+      "checks": [
+        {
+          "id": "R3x_exportar",
+          "ok": true,
+          "metric": {
+            "node_error": {
+              "pos": 0.0,
+              "sleep_mismatch": 0
+            },
+            "enet": {}
+          },
+          "tol": "nodo = servidor; con ENet, entrega confirmada",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "stage": "r3_import_reverse_only",
+      "passed": 3,
+      "failed": 2,
+      "checks": [
+        {
+          "id": "R3a_restaurado",
+          "ok": true,
+          "metric": {
+            "len_a": 1,
+            "len_b": 1,
+            "pos": 0.0,
+            "basis": 0.0,
+            "vel": 0.0,
+            "sleep_mismatch": 0,
+            "hits_mismatch": 0,
+            "first_bad_step": -1,
+            "exact": true
+          },
+          "tol": "≤ EPS",
+          "note": ""
+        },
+        {
+          "id": "R3b_rama_incorrecta_previa",
+          "ok": true,
+          "metric": {
+            "len_a": 240,
+            "len_b": 240,
+            "pos": 0.43359831207731836,
+            "basis": 0.3822997414728248,
+            "vel": 8.372065853566278,
+            "sleep_mismatch": 8,
+            "hits_mismatch": 40,
+            "first_bad_step": 0,
+            "exact": false
+          },
+          "tol": "> 0,1 mm (validez del instrumento)",
+          "note": ""
+        },
+        {
+          "id": "R3c_ids_unicos_tras_importar",
+          "ok": true,
+          "metric": {},
+          "tol": "ningún id de Rapier compartido entre objetos vivos",
+          "note": ""
+        },
+        {
+          "id": "R3f_repeticion_entre_procesos",
+          "ok": false,
+          "metric": {
+            "len_a": 240,
+            "len_b": 240,
+            "pos": 0.05675280612090609,
+            "basis": 0.30595934336807884,
+            "vel": 0.0,
+            "sleep_mismatch": 179,
+            "hits_mismatch": 122,
+            "first_bad_step": 0,
+            "exact": false
+          },
+          "tol": "240 pasos ≤ EPS; reposo y contactos iguales",
+          "note": ""
+        },
+        {
+          "id": "R3g_nodos_y_servidor",
+          "ok": false,
+          "metric": {
+            "pos": 0.04446747899055481,
+            "sleep_mismatch": 240
+          },
+          "tol": "nodo = servidor ≤ EPS",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "stage": "r4_spaces",
+      "passed": 1,
+      "failed": 4,
+      "checks": [
+        {
+          "id": "R4a_contador_vuelve_al_checkpoint",
+          "ok": null,
+          "metric": {
+            "before_checkpoint": 14,
+            "after_X": 16,
+            "after_load": 14,
+            "after_Y_Z": 18
+          },
+          "tol": "se registra",
+          "note": "hecho de código, ver criterios"
+        },
+        {
+          "id": "R4b_ids_unicos_tras_crear",
+          "ok": false,
+          "metric": {
+            "15": [
+              "X",
+              "Y"
+            ],
+            "16": [
+              "X/shape",
+              "Y/shape"
+            ]
+          },
+          "tol": "ningún id de Rapier compartido entre objetos vivos",
+          "note": ""
+        },
+        {
+          "id": "R4c_consultas_identifican_objetos",
+          "ok": false,
+          "metric": {
+            "after_creation": {
+              "X": {
+                "hit": true,
+                "rid": 42,
+                "collider": "Y",
+                "collider_id": 28085061125
+              },
+              "Y": {
+                "hit": true,
+                "rid": 42,
+                "collider": "Y",
+                "collider_id": 28085061125
+              },
+              "Z": {
+                "hit": true,
+                "rid": 44,
+                "collider": "Z",
+                "collider_id": 28152169993
+              },
+              "X_hits": [
+                "FloorS"
+              ],
+              "Y_hits": [
+                "FloorS"
+              ],
+              "Z_hits": [
+                "FloorA"
+              ]
+            },
+            "after_free_Y": {
+              "X": {
+                "hit": true,
+                "rid": 0,
+                "collider": "<ninguno>",
+                "collider_id": 0
+              },
+              "X_hits": [
+                "FloorS"
+              ],
+              "Z": {
+                "hit": true,
+                "rid": 44,
+                "collider": "Z",
+                "collider_id": 28152169993
+              },
+              "Z_hits": [
+                "FloorA"
+              ]
+            }
+          },
+          "tol": "cada rayo devuelve su cuerpo y su RID",
+          "note": ""
+        },
+        {
+          "id": "R4d_contactos_y_nodos_tras_liberar_Y",
+          "ok": false,
+          "metric": {
+            "X": {
+              "p": [
+                2.000004529953003,
+                0.19993114471435547,
+                1.3849237802787684E-05
+              ],
+              "b": [
+                1.0,
+                -1.796520905372745E-07,
+                3.737410825266352E-09,
+                1.796520905372745E-07,
+                1.0,
+                -2.2270425859005627E-07,
+                -3.737370857237465E-09,
+                2.2270425859005627E-07,
+                1.0
+              ],
+              "lv": [
+                1.6571773290634155,
+                1.3468924180415343E-06,
+                -2.9752041882602498E-05
+              ],
+              "av": [
+                8.914445970731322E-06,
+                -8.209560635463742E-12,
+                6.416392466235266E-07
+              ],
+              "sl": false,
+              "node_err": 0.0,
+              "node_sl": false,
+              "hits": [
+                "FloorS"
+              ],
+              "moved": 0.0
+            },
+            "Z": {
+              "p": [
+                -2.6145808696746826,
+                0.1999451220035553,
+                1.0749506145657506E-05
+              ],
+              "b": [
+                0.9999997019767761,
+                -0.00028528942493721843,
+                -3.2565588981015026E-07,
+                0.00028528939583338797,
+                0.9999996423721313,
+                -4.010925840702839E-05,
+                3.370987258222158E-07,
+                4.010917473351583E-05,
+                1.0
+              ],
+              "lv": [
+                1.6579058170318604,
+                -0.00016387760115321726,
+                4.961831564287422E-06
+              ],
+              "av": [
+                0.00040330603951588273,
+                -5.383521184398887E-09,
+                0.0011475604260340333
+              ],
+              "sl": false,
+              "node_err": 0.0,
+              "node_sl": false,
+              "hits": [
+                "FloorA"
+              ],
+              "moved": 0.38541460037231445
+            }
+          },
+          "tol": "X y Z despiertos y avanzan ≥ 0,1 m; X → FloorS, Z → FloorA; nodo = servidor ≤ EPS",
+          "note": "corregido (§6); contactos antes del impulso, informativos: { \"after_creation\": [[\"FloorS\"], [\"FloorS\"], [\"FloorA\"]], \"after_free_Y\": [[\"FloorS\"], [\"FloorA\"]] }"
+        },
+        {
+          "id": "R4e_segundo_espacio_intacto_al_restaurar",
+          "ok": true,
+          "metric": {
+            "len_a": 1,
+            "len_b": 1,
+            "pos": 0.0,
+            "basis": 0.0,
+            "vel": 0.0,
+            "sleep_mismatch": 0,
+            "hits_mismatch": 0,
+            "first_bad_step": -1,
+            "exact": true
+          },
+          "tol": "≤ EPS",
+          "note": ""
+        },
+        {
+          "id": "R4f_mismo_espacio_fuera_de_la_raiz",
+          "ok": false,
+          "metric": {
+            "post_vs_pre": {
+              "len_a": 1,
+              "len_b": 1,
+              "pos": 0.0,
+              "basis": 0.0,
+              "vel": 3.315704703484441,
+              "sleep_mismatch": 0,
+              "hits_mismatch": 0,
+              "first_bad_step": 0,
+              "exact": false
+            },
+            "post_vs_checkpoint": {
+              "len_a": 1,
+              "len_b": 1,
+              "pos": 2.1866617598243714,
+              "basis": 0.04686012683827914,
+              "vel": 0.0,
+              "sleep_mismatch": 0,
+              "hits_mismatch": 0,
+              "first_bad_step": 0,
+              "exact": false
+            }
+          },
+          "tol": "O conserva su estado al restaurar la isla",
+          "note": "si falla: restaurar la isla rebobina también lo que comparte su espacio"
+        }
+      ]
+    },
+    {
+      "stage": "r4_spaces_control",
+      "passed": 4,
+      "failed": 0,
+      "checks": [
+        {
+          "id": "R4b_ids_unicos_tras_crear",
+          "ok": true,
+          "metric": {},
+          "tol": "ningún id de Rapier compartido entre objetos vivos",
+          "note": ""
+        },
+        {
+          "id": "R4c_consultas_identifican_objetos",
+          "ok": true,
+          "metric": {
+            "after_creation": {
+              "X": {
+                "hit": true,
+                "rid": 40,
+                "collider": "X",
+                "collider_id": 28001175040
+              },
+              "Y": {
+                "hit": true,
+                "rid": 42,
+                "collider": "Y",
+                "collider_id": 28085061125
+              },
+              "Z": {
+                "hit": true,
+                "rid": 44,
+                "collider": "Z",
+                "collider_id": 28152169993
+              },
+              "X_hits": [],
+              "Y_hits": [
+                "FloorS"
+              ],
+              "Z_hits": [
+                "FloorA"
+              ]
+            },
+            "after_free_Y": {
+              "X": {
+                "hit": true,
+                "rid": 40,
+                "collider": "X",
+                "collider_id": 28001175040
+              },
+              "X_hits": [],
+              "Z": {
+                "hit": true,
+                "rid": 44,
+                "collider": "Z",
+                "collider_id": 28152169993
+              },
+              "Z_hits": [
+                "FloorA"
+              ]
+            }
+          },
+          "tol": "cada rayo devuelve su cuerpo y su RID",
+          "note": ""
+        },
+        {
+          "id": "R4d_contactos_y_nodos_tras_liberar_Y",
+          "ok": true,
+          "metric": {
+            "X": {
+              "p": [
+                2.385313034057617,
+                0.19993354380130768,
+                9.926418897521216E-06
+              ],
+              "b": [
+                0.9999996423721313,
+                -0.00028211798053234816,
+                -2.071809745984865E-07,
+                0.00028211798053234816,
+                0.9999996423721313,
+                -2.7350301934347954E-06,
+                2.0795262400952197E-07,
+                2.7349724405212328E-06,
+                1.0
+              ],
+              "lv": [
+                1.6571773290634155,
+                1.3468924180415343E-06,
+                -2.9752041882602498E-05
+              ],
+              "av": [
+                8.914445970731322E-06,
+                -8.209560635463742E-12,
+                6.416392466235266E-07
+              ],
+              "sl": false,
+              "node_err": 0.0,
+              "node_sl": false,
+              "hits": [
+                "FloorS"
+              ],
+              "moved": 0.38530850410461426
+            },
+            "Z": {
+              "p": [
+                -2.6146202087402344,
+                0.1999329775571823,
+                9.728539225761779E-06
+              ],
+              "b": [
+                0.9999996423721313,
+                -0.00028316915268078446,
+                -2.7910596145375166E-07,
+                0.00028316915268078446,
+                0.9999995827674866,
+                -1.2161425729573239E-05,
+                2.825497915637243E-07,
+                1.2161350241512991E-05,
+                1.0
+              ],
+              "lv": [
+                1.6577974557876587,
+                1.271232122235233E-06,
+                -2.3238020730786957E-05
+              ],
+              "av": [
+                -2.7702029910869896E-05,
+                -4.903085576435373E-11,
+                1.3747739103564527E-05
+              ],
+              "sl": false,
+              "node_err": 0.0,
+              "node_sl": false,
+              "hits": [
+                "FloorA"
+              ],
+              "moved": 0.3853752613067627
+            }
+          },
+          "tol": "X y Z despiertos y avanzan ≥ 0,1 m; X → FloorS, Z → FloorA; nodo = servidor ≤ EPS",
+          "note": "corregido (§6); contactos antes del impulso, informativos: { \"after_creation\": [[], [\"FloorS\"], [\"FloorA\"]], \"after_free_Y\": [[], [\"FloorA\"]] }"
+        },
+        {
+          "id": "R4e_segundo_espacio_intacto_al_restaurar",
+          "ok": true,
+          "metric": {
+            "len_a": 1,
+            "len_b": 1,
+            "pos": 0.0,
+            "basis": 0.0,
+            "vel": 0.0,
+            "sleep_mismatch": 0,
+            "hits_mismatch": 0,
+            "first_bad_step": -1,
+            "exact": true
+          },
+          "tol": "≤ EPS",
+          "note": ""
+        }
+      ]
+    }
+  ],
+  "native_runner": {
+    "runtime": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_6\\rapier\\20261116_191307",
+    "archive": "C:\\Users\\ElCaido97\\Downloads\\godot-rapier-3d-single.zip",
+    "archive_bytes": 63038621,
+    "archive_sha256": "9700717c8ef83acd219e62edaeb3af503556273bc5afa2be4e363ebc8f243c7a",
+    "pinned_sha256": "9700717c8ef83acd219e62edaeb3af503556273bc5afa2be4e363ebc8f243c7a",
+    "engine": "C:\\Users\\ElCaido97\\Desktop\\Godot_v4.7.2.exe",
+    "limit_ms": 8000,
+    "check_only": false,
+    "extracted": [
+      {
+        "path": "addons/godot-rapier3d/logo_square_3d.png",
+        "sha256": "55924380ad6c5d6bc62913833b53f71c1efecb909e6b94a959d1ce003f6ee830"
+      },
+      {
+        "path": "addons/godot-rapier3d/LICENSE",
+        "sha256": "b876a61b43cc648b56428d56a484784a88d4231809e4d7f4fd8dbdb6772400e8"
+      },
+      {
+        "path": "addons/godot-rapier3d/fluid_3d_box.gd",
+        "sha256": "5c3ff3a1a011bb69538da6f330121b2d67b4d443cf54823bf35ec8b45501162d"
+      },
+      {
+        "path": "addons/godot-rapier3d/fluid_3d_renderer.gd.uid",
+        "sha256": "e5e65081f032268866e966e8ac4787f40a055fe85261f3a35cea3973cd23dd93"
+      },
+      {
+        "path": "addons/godot-rapier3d/fluid_3d_sphere.gd",
+        "sha256": "b0d64e0c06f327d4d7123ee4e343ac0f87d928356be319a01fc2dd9e620fff0d"
+      },
+      {
+        "path": "addons/godot-rapier3d/fluid_3d_box.gd.uid",
+        "sha256": "a325d48ff7361cb3acb77bbf6890ed171bff77fa6a92dbab322db143195abe2c"
+      },
+      {
+        "path": "addons/godot-rapier3d/plugin.info.cfg",
+        "sha256": "3f3c3116ac56f1f0b9957ed1df2c2298eaf62d8b9ee473acd588f4eca6b62305"
+      },
+      {
+        "path": "addons/godot-rapier3d/faucet_3d.gd",
+        "sha256": "5991af620292360be053a3522700ce2622b1f09163270ce8ba45d09679b469b1"
+      },
+      {
+        "path": "addons/godot-rapier3d/bin/libgodot_rapier.windows.x86_64-pc-windows-msvc.dll",
+        "sha256": "ef7b355c344b4d2e0fde98bf2bc5b90e47ecf9f82fc5a91e8bbde1e14e6ba7e5"
+      },
+      {
+        "path": "addons/godot-rapier3d/icons/StateManager3D.svg",
+        "sha256": "556beb8fe516803d408fdda9fc8e4f7785c474ed65284ad36a9e79955eca9b49"
+      },
+      {
+        "path": "addons/godot-rapier3d/icons/StateManager3D.svg.import",
+        "sha256": "a7bb62d10838735ae12b6a9186ec071bcec6076a3dac8440da8c810b3721b9d9"
+      },
+      {
+        "path": "addons/godot-rapier3d/icons/Fluid3D.svg.import",
+        "sha256": "c7c5259a3b74f72a920c2daf18c37ede2e9643fc21126a3e30d5ed49be852d15"
+      },
+      {
+        "path": "addons/godot-rapier3d/icons/Fluid3D.svg",
+        "sha256": "a0a3aef0abdadc649d066f8152274801b4e9a610e1e5716922110c4eb78aa71d"
+      },
+      {
+        "path": "addons/godot-rapier3d/godot-rapier3d.gdextension.uid",
+        "sha256": "547d3f4842ca6c2d001179c1ec573957783d583f5eb82b6d40d93b34939397f3"
+      },
+      {
+        "path": "addons/godot-rapier3d/THIRDPARTY.txt",
+        "sha256": "63405a03af6a0a85dace7cc08001b34f28e8792dd2b7fb4de09137a6b58392df"
+      },
+      {
+        "path": "addons/godot-rapier3d/fluid_3d_renderer.gd",
+        "sha256": "a0bb527a0e4971845825c95b46d6391f97a13697000497d00f675fa98e711138"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_hinge_joint_3d.gd.uid",
+        "sha256": "5237559eb712610f0becc75fea215a0fa2962fe02fb2447e826e3096598d7dcf"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_pin_joint_3d.gd.uid",
+        "sha256": "680d86c805769c61bb4eb5a076240a585d72e108aaf34ff63acf3fbe3d260260"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_rigid_body_3d.gd.uid",
+        "sha256": "584079e8ad633375d29b630efbb7442b954cbc56ec185a970d0905c9cf307cda"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_physical_bone_3d.gd.uid",
+        "sha256": "8b4254a01e808b97aac6557a4c97fadf4870a7e7e4da791cdd391a879e9c0a42"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_vehicle_body_3d.gd.uid",
+        "sha256": "f567d51ce89477e88a4c08458a3a2cf66fc79d506433fd212162ab29a542dcf8"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_rope_joint_3d.gd.uid",
+        "sha256": "6ed3fd0d18f1b4301dd231e785a794dfeb540d2bf7aba19c9ef55884f6323e5b"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_fixed_joint_3d.gd.uid",
+        "sha256": "30aaab007e9e67592289e65b638af0b6b750ffc48134f3a0a39acc2b65d21c1f"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_generic_6dof_joint_3d.gd.uid",
+        "sha256": "bfaf36eaddf4cf1774e5cc0a525b63d8d99f4451d5427287fea8bc7ca539643a"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_static_body_3d.gd.uid",
+        "sha256": "2d8a35a6a8aece6a9be704ddeb063e37861553f157906341334a44cf43bc470c"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_fixed_joint_3d.gd",
+        "sha256": "d76cb4b26474cfdc89e474c24a3fdabd90c48f887bee7039af02be8ec7c96c75"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_character_body_3d.gd.uid",
+        "sha256": "62ed400f90241ac56d1d3dc06059b6456bd830c28cc4a24c965fa61eaf54cc65"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_area_3d.gd",
+        "sha256": "7c099dc64ff761401340e40856ab296ea7cfe30eef93f623ec78362d7d3e4d32"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_animatable_body_3d.gd.uid",
+        "sha256": "a7850823f2b6a1d958b5007217bad027d316a24e25eae267f8d11d112a723e8e"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_rigid_body_3d.gd",
+        "sha256": "510f6c9268eefdefdfb2a493306efc22ca3e4d41651b85538ea5a18c3c67d675"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_hinge_joint_3d.gd",
+        "sha256": "ad5b4a683202542b268471ee56acbc5d931ee675823473750b6339bdf076e56f"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_generic_6dof_joint_3d.gd",
+        "sha256": "ac306ed5ad2695694b6d0afd18f82bc7d7e5c3cd75c4abd1299cae392b634cb5"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_slider_joint_3d.gd",
+        "sha256": "be976ddfd5d08b61dc4683e8a99002dd5f8d7cb5083b61c5ecf30c4a8568bf85"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_vehicle_body_3d.gd",
+        "sha256": "ec43f547c4cac96ddb3904f38c7f7081b244a94c4c9fa71381aa04721373f6df"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_rope_joint_3d.gd",
+        "sha256": "b6cd10aeb4872f56556dd92cad26e4a1498c6364a9adaa2e4f9468b9b39018ee"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_static_body_3d.gd",
+        "sha256": "bd79a53c8da10914f3e3e84674a00c544e8023ffbbfbb562d0a7d0a16f4b93c6"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_character_body_3d.gd",
+        "sha256": "fb2bef1259f41b53566440a9f9d583bedf8414bb843556c8241d09269d0ae066"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_pin_joint_3d.gd",
+        "sha256": "843af7e8d10a40c234fd3f4642db1754649dcb28344744546ea5d1e6d3e8fcc6"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_area_3d.gd.uid",
+        "sha256": "490e7a4443e30f447ddeb253dd38529147e65523c980bce922a778cd20fb6409"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_cone_twist_joint_3d.gd",
+        "sha256": "8c5b317430c77ecb7172191cd17f3fd73e558c62a1661b30d9e256c86ff70b7a"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_animatable_body_3d.gd",
+        "sha256": "ed2995ae03d6e42b0c91b83ef8f325ef8c106b4fd95ff80d16a139499e4f3bcb"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_slider_joint_3d.gd.uid",
+        "sha256": "7175cdc99451e257a13d4376f7559ca19be97a29ea187beba8d62b99190a75b2"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_physical_bone_3d.gd",
+        "sha256": "477a1efd0b46e2326d0a2bba9e5d13648d8c8fc0e6a86ad91fe619f902cc2277"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_cone_twist_joint_3d.gd.uid",
+        "sha256": "1f0ecb4adbca12244e8ea444633d90a53691664eb9987427ed4783f6d046c8e5"
+      },
+      {
+        "path": "addons/godot-rapier3d/fluid_3d_sphere.gd.uid",
+        "sha256": "c77a4cb6dd17ebadf18cd5bd08d13e618dea0f41698ab53c41fe959bc1ac376c"
+      },
+      {
+        "path": "addons/godot-rapier3d/faucet_3d.gd.uid",
+        "sha256": "3576747e3c2b797ac514baf4bd39f1cb07a7bbe8b42713c63cfed3730ab53d3f"
+      },
+      {
+        "path": "addons/godot-rapier3d/logo_square_3d.png.import",
+        "sha256": "c59966fb066ceb0842fe5802e7da628c81d1d8708cde969da6d59dcd86b5f4e1"
+      },
+      {
+        "path": "addons/godot-rapier3d/godot-rapier3d.gdextension",
+        "sha256": "beccd45e80d52071dfc843e9cd0a188b303c7414b4f1dfbcd07234496805712d"
+      }
+    ],
+    "stages": [
+      {
+        "stage": "r3_export",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 362,
+        "limit_ms": 8000,
+        "error_lines": [],
+        "warning_lines": [],
+        "result_file": true,
+        "status": "passed=1 failed=0",
+        "backend": "RapierPhysicsServer3D",
+        "cmd": "\"C:\\Users\\ElCaido97\\Desktop\\Godot_v4.7.2.exe\" --headless --path C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307 --log-file C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307/r3_export.godot.log --scene res://validacion_claude/rv_exchange.tscn -- --result=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307/r3_export.result.json --role=export --out-file=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307/r3_artifact.bin"
+      },
+      {
+        "stage": "r3_import_reverse_only",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 334,
+        "limit_ms": 8000,
+        "error_lines": [],
+        "warning_lines": [],
+        "result_file": true,
+        "status": "passed=3 failed=2",
+        "backend": "RapierPhysicsServer3D",
+        "cmd": "\"C:\\Users\\ElCaido97\\Desktop\\Godot_v4.7.2.exe\" --headless --path C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307 --log-file C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307/r3_import_reverse_only.godot.log --scene res://validacion_claude/rv_exchange.tscn -- --result=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307/r3_import_reverse_only.result.json --role=import --source=file:C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307/r3_artifact.bin --reverse"
+      },
+      {
+        "stage": "r4_spaces",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 351,
+        "limit_ms": 8000,
+        "error_lines": [],
+        "warning_lines": [],
+        "result_file": true,
+        "status": "passed=1 failed=4",
+        "backend": "RapierPhysicsServer3D",
+        "cmd": "\"C:\\Users\\ElCaido97\\Desktop\\Godot_v4.7.2.exe\" --headless --path C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307 --log-file C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307/r4_spaces.godot.log --scene res://validacion_claude/rv_spaces.tscn -- --result=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307/r4_spaces.result.json"
+      },
+      {
+        "stage": "r4_spaces_control",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 362,
+        "limit_ms": 8000,
+        "error_lines": [],
+        "warning_lines": [],
+        "result_file": true,
+        "status": "passed=4 failed=0",
+        "backend": "RapierPhysicsServer3D",
+        "cmd": "\"C:\\Users\\ElCaido97\\Desktop\\Godot_v4.7.2.exe\" --headless --path C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307 --log-file C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307/r4_spaces_control.godot.log --scene res://validacion_claude/rv_spaces.tscn -- --result=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/rapier/20261116_191307/r4_spaces_control.result.json --control"
+      }
+    ],
+    "godot_left_running": 0
+  },
+  "native_comparison": {
+    "dir": "tmp/revision_entrega_6/rapier/20261116_191307",
+    "checks": [
+      {
+        "id": "E0_procesos",
+        "ok": true,
+        "metric": "r3_export: exit 0, 362 ms; r3_import_reverse_only: exit 0, 334 ms; r4_spaces: exit 0, 351 ms; r4_spaces_control: exit 0, 362 ms",
+        "tol": "exit 0, sin vencer 8 s, con resultado",
+        "note": ""
+      },
+      {
+        "id": "E1_sin_errores_de_script",
+        "ok": true,
+        "metric": "ninguno",
+        "tol": "ningún SCRIPT ERROR (validez de los instrumentos)",
+        "note": ""
+      },
+      {
+        "id": "E2_errores_del_motor",
+        "ok": null,
+        "metric": {},
+        "tol": "se registra",
+        "note": ""
+      },
+      {
+        "id": "E3_procesos_abiertos",
+        "ok": true,
+        "metric": 0,
+        "tol": "0",
+        "note": ""
+      },
+      {
+        "id": "R1a_sha_del_paquete",
+        "ok": true,
+        "metric": "9700717c8ef83acd219e62edaeb3af503556273bc5afa2be4e363ebc8f243c7a (63038621 bytes)",
+        "tol": "igual al fijado",
+        "note": ""
+      },
+      {
+        "id": "R3k_archivo_integro",
+        "ok": true,
+        "metric": "r3_import_reverse_only: 176056 bytes / exportado 176056",
+        "tol": "mismo SHA-256 que el exportado",
+        "note": ""
+      },
+      {
+        "id": "R4g_segundo_espacio_igual_al_control",
+        "ok": true,
+        "metric": {
+          "len_a": 120,
+          "len_b": 120,
+          "pos": 0,
+          "basis": 0,
+          "vel": 0,
+          "sleep_mismatch": 0,
+          "hits_mismatch": 0,
+          "first_bad_step": -1,
+          "exact": true
+        },
+        "tol": "≤ EPS en los 120 pasos",
+        "note": ""
+      },
+      {
+        "id": "R4h_mismo_espacio_contra_control",
+        "ok": null,
+        "metric": {
+          "len_a": 120,
+          "len_b": 120,
+          "pos": 2.1318678364979653,
+          "basis": 0.04686106189276517,
+          "vel": 7.07547376614801,
+          "sleep_mismatch": 30,
+          "hits_mismatch": 54,
+          "first_bad_step": 50,
+          "exact": false
+        },
+        "tol": "se registra",
+        "note": ""
+      },
+      {
+        "id": "R4i_contador",
+        "ok": null,
+        "metric": {
+          "rollback": {
+            "before_checkpoint": 14,
+            "after_X": 16,
+            "after_load": 14,
+            "after_Y_Z": 18
+          },
+          "control": {
+            "before_checkpoint": 14,
+            "after_X": 16,
+            "after_load": 16,
+            "after_Y_Z": 20
+          },
+          "X": {
+            "rid": 40,
+            "rapier": 15,
+            "shape_rapier": 16
+          },
+          "Y": {
+            "rid": 42,
+            "rapier": 15,
+            "shape_rapier": 16
+          },
+          "Z": {
+            "rid": 44,
+            "rapier": 17,
+            "shape_rapier": 18
+          },
+          "Y_control": {
+            "rid": 42,
+            "rapier": 17,
+            "shape_rapier": 18
+          },
+          "Z_control": {
+            "rid": 44,
+            "rapier": 19,
+            "shape_rapier": 20
+          }
+        },
+        "tol": "se registra",
+        "note": ""
+      }
+    ],
+    "per_stage": {
+      "r3_export": [
+        "PASS R3x_exportar"
+      ],
+      "r3_import_reverse_only": [
+        "PASS R3a_restaurado",
+        "PASS R3b_rama_incorrecta_previa",
+        "PASS R3c_ids_unicos_tras_importar",
+        "FAIL R3f_repeticion_entre_procesos",
+        "FAIL R3g_nodos_y_servidor"
+      ],
+      "r4_spaces": [
+        "INFO R4a_contador_vuelve_al_checkpoint",
+        "FAIL R4b_ids_unicos_tras_crear",
+        "FAIL R4c_consultas_identifican_objetos",
+        "FAIL R4d_contactos_y_nodos_tras_liberar_Y",
+        "PASS R4e_segundo_espacio_intacto_al_restaurar",
+        "FAIL R4f_mismo_espacio_fuera_de_la_raiz"
+      ],
+      "r4_spaces_control": [
+        "PASS R4b_ids_unicos_tras_crear",
+        "PASS R4c_consultas_identifican_objetos",
+        "PASS R4d_contactos_y_nodos_tras_liberar_Y",
+        "PASS R4e_segundo_espacio_intacto_al_restaurar"
+      ]
+    }
+  },
+  "network": [
+    {
+      "case": "grab_bad_target",
+      "directory": "tmp/revision_entrega_6/red/20261116_191320_grab_bad_target_clean",
+      "process": {
+        "case": "grab_bad_target",
+        "net": "clean",
+        "slow": 1.0,
+        "port": 43211,
+        "limit_s": 12,
+        "engine": "C:\\Users\\ElCaido97\\Desktop\\Godot_v4.7.2.exe",
+        "run_dir": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_6\\red\\20261116_191320_grab_bad_target_clean",
+        "host_cmd": "\"C:\\Users\\ElCaido97\\Desktop\\Godot_v4.7.2.exe\" --headless --path C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\prototypes\\objetos_red --log-file C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/red/20261116_191320_grab_bad_target_clean/host.godot.log --scene res://validation/driver.tscn -- --host --port=43211 --case=grab_bad_target --trace=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/red/20261116_191320_grab_bad_target_clean/host.jsonl --dlog=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/red/20261116_191320_grab_bad_target_clean/host.driver.jsonl --duration-ms=11000 --slow=1",
+        "client_cmd": "\"C:\\Users\\ElCaido97\\Desktop\\Godot_v4.7.2.exe\" --headless --path C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\prototypes\\objetos_red --log-file C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/red/20261116_191320_grab_bad_target_clean/client.godot.log --scene res://validation/driver.tscn -- --join=127.0.0.1 --port=43211 --case=grab_bad_target --trace=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/red/20261116_191320_grab_bad_target_clean/client.jsonl --dlog=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/red/20261116_191320_grab_bad_target_clean/client.driver.jsonl --duration-ms=10000 --slow=1",
+        "host_boot_s": 0.375,
+        "client_start_s": 0.382,
+        "total_s": 3.464,
+        "killed": [],
+        "host_exit": 0,
+        "host_errors": [],
+        "client_exit": 0,
+        "client_errors": [],
+        "failures": []
+      },
+      "checks": [
+        {
+          "id": "E0_procesos",
+          "ok": true,
+          "metric": "host=0 client=0 killed=0",
+          "tol": "código esperado, sin errores ni procesos matados",
+          "note": ""
+        },
+        {
+          "id": "P1_host_callback_en_el_mismo_cuadro",
+          "ok": true,
+          "metric": "0/166",
+          "tol": "0",
+          "note": ""
+        },
+        {
+          "id": "P2_host_un_callback_por_tick",
+          "ok": true,
+          "metric": "0/166",
+          "tol": "0",
+          "note": ""
+        },
+        {
+          "id": "P3_host_dt",
+          "ok": true,
+          "metric": "0/166",
+          "tol": "slow/60 ±1e-6 rel",
+          "note": ""
+        },
+        {
+          "id": "P4_host_un_paso_por_tick",
+          "ok": true,
+          "metric": "engine_frame-tick=[1]",
+          "tol": "un solo valor",
+          "note": ""
+        },
+        {
+          "id": "P5_host_cinematica_un_paso",
+          "ok": true,
+          "metric": "pares=18 pos_mal=0 (max 0 m) vel_mal=0 (exceso max 0)",
+          "tol": "1e-5 m; g·dt ± amortiguación",
+          "note": ""
+        },
+        {
+          "id": "P1_client_callback_en_el_mismo_cuadro",
+          "ok": true,
+          "metric": "0/110",
+          "tol": "0",
+          "note": ""
+        },
+        {
+          "id": "P2_client_un_callback_por_tick",
+          "ok": true,
+          "metric": "0/110",
+          "tol": "0",
+          "note": ""
+        },
+        {
+          "id": "P3_client_dt",
+          "ok": true,
+          "metric": "0/110",
+          "tol": "slow/60 ±1e-6 rel",
+          "note": ""
+        },
+        {
+          "id": "P4_client_un_paso_por_tick",
+          "ok": true,
+          "metric": "engine_frame-tick=[-24]",
+          "tol": "un solo valor",
+          "note": ""
+        },
+        {
+          "id": "P5_client_cinematica_un_paso",
+          "ok": true,
+          "metric": "pares=18 pos_mal=0 (max 0 m) vel_mal=0 (exceso max 0)",
+          "tol": "1e-5 m; g·dt ± amortiguación",
+          "note": ""
+        },
+        {
+          "id": "C5_correcciones_<=2mm",
+          "ok": true,
+          "metric": "0 > 2 mm (agarre 0, suelta 0); max 0 m, subida max 0 m",
+          "tol": "2 mm / 0,3°",
+          "note": ""
+        },
+        {
+          "id": "C1_divergencia_antes_del_contacto",
+          "ok": true,
+          "metric": "0 m / 0° (59 ticks)",
+          "tol": "2 mm / 0,3°",
+          "note": ""
+        },
+        {
+          "id": "C2_primer_contacto",
+          "ok": true,
+          "metric": "host 118 / invitado 118",
+          "tol": "±1 tick",
+          "note": ""
+        },
+        {
+          "id": "C10_suelta_a_tiempo",
+          "ok": true,
+          "metric": "pedida 98, aplicada 99, late=false",
+          "tol": "requested+1",
+          "note": ""
+        },
+        {
+          "id": "C3_elevacion_posterior",
+          "ok": true,
+          "metric": "host com/low 0.010085/0.010085; invitado física 0.010085/0.010085; dibujo 0.010085/0.010085",
+          "tol": "invitado − host ≤ 2 mm",
+          "note": ""
+        },
+        {
+          "id": "C4_ascenso_artificial",
+          "ok": true,
+          "metric": "Σ 0 m, paso max 0 m; diagnóstico con host corrido 0 tick(s): Σ 0 m",
+          "tol": "2 mm",
+          "note": ""
+        },
+        {
+          "id": "C6_traspaso",
+          "ok": true,
+          "metric": "salto 0 m / 0°, instante 157→157",
+          "tol": "2 mm / 0,3°, sin retroceso",
+          "note": ""
+        },
+        {
+          "id": "C7_impulsos",
+          "ok": true,
+          "metric": "host +0, invitado +0",
+          "tol": "+0",
+          "note": ""
+        },
+        {
+          "id": "C8_revisiones",
+          "ok": true,
+          "metric": "0 retrocesos",
+          "tol": "0",
+          "note": ""
+        },
+        {
+          "id": "C9_pose_final",
+          "ok": true,
+          "metric": "0 m / 0°",
+          "tol": "2 mm / 0,3°",
+          "note": ""
+        },
+        {
+          "id": "C11_energia",
+          "ok": true,
+          "metric": "invitado 0.0773 J, host 0.0773 J",
+          "tol": "invitado − host ≤ 0,04 J",
+          "note": ""
+        },
+        {
+          "id": "F2_agarre_alineado",
+          "ok": true,
+          "metric": "pedido 35, invitado 36, host 36, late=false",
+          "tol": "host = invitado = pedido + 1, late=false",
+          "note": ""
+        },
+        {
+          "id": "F2_marca_tarde_coherente",
+          "ok": true,
+          "metric": "0/2 incoherentes",
+          "tol": "late = (aplicado > pedido + 1)",
+          "note": ""
+        },
+        {
+          "id": "H1_agarre_mismo_tick",
+          "ok": true,
+          "metric": "0 m (tick 37) / 0° en 63 ticks",
+          "tol": "2 mm / 0,3°",
+          "note": ""
+        },
+        {
+          "id": "F6_estado_solo_autorizado",
+          "ok": true,
+          "metric": "130/130 coinciden; revisión sin muestra del host 0; pose distinta 0; tick sin registro del host 0",
+          "tol": "muestras del host",
+          "note": ""
+        },
+        {
+          "id": "F10_etiqueta_dibujo_predicho",
+          "ok": true,
+          "metric": "299/299",
+          "tol": "shown_tick = tick de la captura dibujada",
+          "note": ""
+        },
+        {
+          "id": "D4_respuestas_identificadas",
+          "ok": true,
+          "metric": "2 resultados; sin objeto/acción válidos 0; discarded_result 0",
+          "tol": "uid ∈ {1,2}, acción ≥ 1; 0 descartados",
+          "note": ""
+        },
+        {
+          "id": "N2a_entrada_desde_el_primer_tick",
+          "ok": true,
+          "metric": "primer controller del host en 36 (agarre aplicado en 36), input_tick 36",
+          "tol": "mismo tick; input_tick = step_tick",
+          "note": ""
+        },
+        {
+          "id": "N2b_mismo_objetivo_mismo_tick",
+          "ok": false,
+          "metric": "63 pasos comunes; con respaldo 1; objetivo distinto 0; diferencia máx 0 m",
+          "tol": "0 respaldo; ≤ 1e-6 m",
+          "note": ""
+        },
+        {
+          "id": "M1_agarre_con_red",
+          "ok": null,
+          "metric": "0 m (tick 37) / 0° en 63 ticks",
+          "tol": "2 mm / 0,3°",
+          "note": "informativo"
+        },
+        {
+          "id": "M2_sin_respaldo_con_red",
+          "ok": null,
+          "metric": "1 pasos del host con respaldo de 63 comunes; pasos del host sin el invitado 0",
+          "tol": "0",
+          "note": "informativo"
+        },
+        {
+          "id": "M3_entradas_tardias",
+          "ok": null,
+          "metric": "0 de 63 ticks llegaron después de su paso (máx 0); nunca llegaron 1; margen {\"min\":2,\"max\":4,\"mean\":2.758065,\"n\":62}",
+          "tol": "se registra",
+          "note": "no amplía tolerancias"
+        },
+        {
+          "id": "HI2_estados_y_cola",
+          "ok": null,
+          "metric": "sesión 1: {\"buffered\":62,\"duplicate\":319,\"retired\":18}; después de la salida (99): {\"duplicate\":6,\"retired\":18}",
+          "tol": "se registra",
+          "note": ""
+        },
+        {
+          "id": "HI1_entradas_validas",
+          "ok": true,
+          "metric": "399 entradas; paquetes descartados 0; estados {\"buffered\":62,\"duplicate\":319,\"retired\":18}",
+          "tol": "sin invalid/conflicting_tick/capacity ni paquetes descartados",
+          "note": ""
+        },
+        {
+          "id": "P8_sin_rechazos_locales",
+          "ok": true,
+          "metric": "invitado 0; host 0",
+          "tol": "0 invalid_local_* (el driver usa la API con objetivos válidos)",
+          "note": ""
+        },
+        {
+          "id": "D1_aviso_en_el_tick_forzado",
+          "ok": true,
+          "metric": "forzado 67 (válido false); avisos en [67]",
+          "tol": "primer hand_input_encode_failed en el tick forzado",
+          "note": ""
+        },
+        {
+          "id": "D2_el_host_no_lo_recibe",
+          "ok": true,
+          "metric": "0 entradas del tick 67",
+          "tol": "0",
+          "note": ""
+        },
+        {
+          "id": "D3_corte_acotado",
+          "ok": true,
+          "metric": "1 avisos; entradas posteriores a la ventana 177; set_goal posterior true",
+          "tol": "≤ 6 avisos dentro de la ventana de 6 ticks; el host vuelve a recibir",
+          "note": ""
+        },
+        {
+          "id": "D4_costo_en_la_ventana",
+          "ok": null,
+          "metric": "{\"window_frames\":[{\"input_tick\":68,\"first_receipt_host_tick\":65,\"late\":false},{\"input_tick\":69,\"first_receipt_host_tick\":66,\"late\":false},{\"input_tick\":70,\"first_receipt_host_tick\":67,\"late\":false},{\"input_tick\":71,\"first_receipt_host_tick\":68,\"late\":false},{\"input_tick\":72,\"first_receipt_host_tick\":70,\"late\":false}],\"host_fallback_total\":1,\"host_fallback_steps\":[{\"step\":67,\"used\":66}]}",
+          "tol": "se registra",
+          "note": ""
+        }
+      ],
+      "e4": {
+        "bad_target": {
+          "forced_tick": 67,
+          "forced_valid_target": false,
+          "forced_det": 1.5,
+          "goal_keep": {
+            "k": "drv_goal_keep",
+            "usec": 637758,
+            "f": 43,
+            "pf": 93,
+            "tick": 67,
+            "accepted": true,
+            "valid_target": true
+          },
+          "encode_failed_ticks": [
+            67
+          ],
+          "host_inputs_of_forced_tick": 0,
+          "host_inputs_after_window": 177,
+          "window_frames": [
+            {
+              "input_tick": 68,
+              "first_receipt_host_tick": 65,
+              "late": false
+            },
+            {
+              "input_tick": 69,
+              "first_receipt_host_tick": 66,
+              "late": false
+            },
+            {
+              "input_tick": 70,
+              "first_receipt_host_tick": 67,
+              "late": false
+            },
+            {
+              "input_tick": 71,
+              "first_receipt_host_tick": 68,
+              "late": false
+            },
+            {
+              "input_tick": 72,
+              "first_receipt_host_tick": 70,
+              "late": false
+            }
+          ],
+          "host_fallback_steps": [
+            {
+              "step": 67,
+              "used": 66
+            }
+          ],
+          "host_fallback_total": 1
+        }
+      },
+      "analyzer_invoked_separately_after_CIM_denied": true
+    },
+    {
+      "case": "grab_rotate_real",
+      "directory": "tmp/revision_entrega_6/red/20261116_191527_grab_rotate_real_clean",
+      "process": {
+        "case": "grab_rotate_real",
+        "net": "clean",
+        "slow": 1.0,
+        "port": 43211,
+        "limit_s": 12,
+        "engine": "C:\\Users\\ElCaido97\\Desktop\\Godot_v4.7.2.exe",
+        "run_dir": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_6\\red\\20261116_191527_grab_rotate_real_clean",
+        "host_cmd": "\"C:\\Users\\ElCaido97\\Desktop\\Godot_v4.7.2.exe\" --headless --path C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\prototypes\\objetos_red --log-file C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/red/20261116_191527_grab_rotate_real_clean/host.godot.log --scene res://validation/driver.tscn -- --host --port=43211 --case=grab_rotate_real --trace=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/red/20261116_191527_grab_rotate_real_clean/host.jsonl --dlog=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/red/20261116_191527_grab_rotate_real_clean/host.driver.jsonl --duration-ms=11000 --slow=1",
+        "client_cmd": "\"C:\\Users\\ElCaido97\\Desktop\\Godot_v4.7.2.exe\" --headless --path C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\prototypes\\objetos_red --log-file C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/red/20261116_191527_grab_rotate_real_clean/client.godot.log --scene res://validation/driver.tscn -- --join=127.0.0.1 --port=43211 --case=grab_rotate_real --trace=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/red/20261116_191527_grab_rotate_real_clean/client.jsonl --dlog=C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_6/red/20261116_191527_grab_rotate_real_clean/client.driver.jsonl --duration-ms=10000 --slow=1",
+        "host_boot_s": 0.315,
+        "client_start_s": 0.321,
+        "total_s": 4.855,
+        "killed": [],
+        "host_exit": 0,
+        "host_errors": [],
+        "client_exit": 0,
+        "client_errors": [],
+        "failures": []
+      },
+      "checks": [
+        {
+          "id": "E0_procesos",
+          "ok": true,
+          "metric": "host=0 client=0 killed=0",
+          "tol": "código esperado, sin errores ni procesos matados",
+          "note": ""
+        },
+        {
+          "id": "P1_host_callback_en_el_mismo_cuadro",
+          "ok": true,
+          "metric": "0/254",
+          "tol": "0",
+          "note": ""
+        },
+        {
+          "id": "P2_host_un_callback_por_tick",
+          "ok": true,
+          "metric": "0/254",
+          "tol": "0",
+          "note": ""
+        },
+        {
+          "id": "P3_host_dt",
+          "ok": true,
+          "metric": "0/254",
+          "tol": "slow/60 ±1e-6 rel",
+          "note": ""
+        },
+        {
+          "id": "P4_host_un_paso_por_tick",
+          "ok": true,
+          "metric": "engine_frame-tick=[1]",
+          "tol": "un solo valor",
+          "note": ""
+        },
+        {
+          "id": "P5_host_cinematica_un_paso",
+          "ok": true,
+          "metric": "pares=18 pos_mal=0 (max 0 m) vel_mal=0 (exceso max 0)",
+          "tol": "1e-5 m; g·dt ± amortiguación",
+          "note": ""
+        },
+        {
+          "id": "P1_client_callback_en_el_mismo_cuadro",
+          "ok": true,
+          "metric": "0/198",
+          "tol": "0",
+          "note": ""
+        },
+        {
+          "id": "P2_client_un_callback_por_tick",
+          "ok": true,
+          "metric": "0/198",
+          "tol": "0",
+          "note": ""
+        },
+        {
+          "id": "P3_client_dt",
+          "ok": true,
+          "metric": "0/198",
+          "tol": "slow/60 ±1e-6 rel",
+          "note": ""
+        },
+        {
+          "id": "P4_client_un_paso_por_tick",
+          "ok": true,
+          "metric": "engine_frame-tick=[-20]",
+          "tol": "un solo valor",
+          "note": ""
+        },
+        {
+          "id": "P5_client_cinematica_un_paso",
+          "ok": true,
+          "metric": "pares=18 pos_mal=0 (max 0 m) vel_mal=0 (exceso max 0)",
+          "tol": "1e-5 m; g·dt ± amortiguación",
+          "note": ""
+        },
+        {
+          "id": "C5_correcciones_<=2mm",
+          "ok": true,
+          "metric": "0 > 2 mm (agarre 0, suelta 0); max 0 m, subida max 0 m",
+          "tol": "2 mm / 0,3°",
+          "note": ""
+        },
+        {
+          "id": "C1_divergencia_antes_del_contacto",
+          "ok": true,
+          "metric": "0 m / 0° (57 ticks)",
+          "tol": "2 mm / 0,3°",
+          "note": ""
+        },
+        {
+          "id": "C2_primer_contacto",
+          "ok": true,
+          "metric": "host 201 / invitado 201",
+          "tol": "±1 tick",
+          "note": ""
+        },
+        {
+          "id": "C10_suelta_a_tiempo",
+          "ok": true,
+          "metric": "pedida 181, aplicada 182, late=false",
+          "tol": "requested+1",
+          "note": ""
+        },
+        {
+          "id": "C3_elevacion_posterior",
+          "ok": true,
+          "metric": "host com/low 0.010086/0.010908; invitado física 0.010086/0.010908; dibujo 0.010086/0.010908",
+          "tol": "invitado − host ≤ 2 mm",
+          "note": ""
+        },
+        {
+          "id": "C4_ascenso_artificial",
+          "ok": true,
+          "metric": "Σ 0 m, paso max 0 m; diagnóstico con host corrido 0 tick(s): Σ 0 m",
+          "tol": "2 mm",
+          "note": ""
+        },
+        {
+          "id": "C6_traspaso",
+          "ok": true,
+          "metric": "salto 0 m / 0°, instante 238→238",
+          "tol": "2 mm / 0,3°, sin retroceso",
+          "note": ""
+        },
+        {
+          "id": "C7_impulsos",
+          "ok": true,
+          "metric": "host +0, invitado +0",
+          "tol": "+0",
+          "note": ""
+        },
+        {
+          "id": "C8_revisiones",
+          "ok": true,
+          "metric": "0 retrocesos",
+          "tol": "0",
+          "note": ""
+        },
+        {
+          "id": "C9_pose_final",
+          "ok": true,
+          "metric": "0 m / 0°",
+          "tol": "2 mm / 0,3°",
+          "note": ""
+        },
+        {
+          "id": "C11_energia",
+          "ok": true,
+          "metric": "invitado 0.077311 J, host 0.07731 J",
+          "tol": "invitado − host ≤ 0,04 J",
+          "note": ""
+        },
+        {
+          "id": "F2_agarre_alineado",
+          "ok": true,
+          "metric": "pedido 30, invitado 31, host 31, late=false",
+          "tol": "host = invitado = pedido + 1, late=false",
+          "note": ""
+        },
+        {
+          "id": "F2_marca_tarde_coherente",
+          "ok": true,
+          "metric": "0/2 incoherentes",
+          "tol": "late = (aplicado > pedido + 1)",
+          "note": ""
+        },
+        {
+          "id": "H1_agarre_mismo_tick",
+          "ok": true,
+          "metric": "0 m (tick 32) / 0° en 151 ticks",
+          "tol": "2 mm / 0,3°",
+          "note": ""
+        },
+        {
+          "id": "F6_estado_solo_autorizado",
+          "ok": true,
+          "metric": "217/217 coinciden; revisión sin muestra del host 0; pose distinta 0; tick sin registro del host 0",
+          "tol": "muestras del host",
+          "note": ""
+        },
+        {
+          "id": "F10_etiqueta_dibujo_predicho",
+          "ok": true,
+          "metric": "505/505",
+          "tol": "shown_tick = tick de la captura dibujada",
+          "note": ""
+        },
+        {
+          "id": "D4_respuestas_identificadas",
+          "ok": true,
+          "metric": "2 resultados; sin objeto/acción válidos 0; discarded_result 0",
+          "tol": "uid ∈ {1,2}, acción ≥ 1; 0 descartados",
+          "note": ""
+        },
+        {
+          "id": "N2a_entrada_desde_el_primer_tick",
+          "ok": true,
+          "metric": "primer controller del host en 31 (agarre aplicado en 31), input_tick 31",
+          "tol": "mismo tick; input_tick = step_tick",
+          "note": ""
+        },
+        {
+          "id": "N2b_mismo_objetivo_mismo_tick",
+          "ok": true,
+          "metric": "151 pasos comunes; con respaldo 0; objetivo distinto 0; diferencia máx 0 m",
+          "tol": "0 respaldo; ≤ 1e-6 m",
+          "note": ""
+        },
+        {
+          "id": "M1_agarre_con_red",
+          "ok": null,
+          "metric": "0 m (tick 32) / 0° en 151 ticks",
+          "tol": "2 mm / 0,3°",
+          "note": "informativo"
+        },
+        {
+          "id": "M2_sin_respaldo_con_red",
+          "ok": null,
+          "metric": "0 pasos del host con respaldo de 151 comunes; pasos del host sin el invitado 0",
+          "tol": "0",
+          "note": "informativo"
+        },
+        {
+          "id": "M3_entradas_tardias",
+          "ok": null,
+          "metric": "0 de 151 ticks llegaron después de su paso (máx 0); nunca llegaron 0; margen {\"min\":1,\"max\":3,\"mean\":1.960265,\"n\":151}",
+          "tol": "se registra",
+          "note": "no amplía tolerancias"
+        },
+        {
+          "id": "HI2_estados_y_cola",
+          "ok": null,
+          "metric": "sesión 1: {\"buffered\":151,\"duplicate\":758,\"retired\":18}; después de la salida (182): {\"duplicate\":6,\"retired\":18}",
+          "tol": "se registra",
+          "note": ""
+        },
+        {
+          "id": "HI1_entradas_validas",
+          "ok": true,
+          "metric": "927 entradas; paquetes descartados 0; estados {\"buffered\":151,\"duplicate\":758,\"retired\":18}",
+          "tol": "sin invalid/conflicting_tick/capacity ni paquetes descartados",
+          "note": ""
+        },
+        {
+          "id": "P8_sin_rechazos_locales",
+          "ok": true,
+          "metric": "invitado 0; host 0",
+          "tol": "0 invalid_local_* (el driver usa la API con objetivos válidos)",
+          "note": ""
+        },
+        {
+          "id": "P5_productor_real_en_red",
+          "ok": true,
+          "metric": "20400 eventos en 120 ticks; ticks con objetivo rechazado, inválido o no codificable: 0",
+          "tol": "≥ 20.001 eventos; todos aceptados, válidos y codificables",
+          "note": ""
+        },
+        {
+          "id": "P6_sin_fallo_de_codificacion",
+          "ok": true,
+          "metric": "hand_input_encode_failed 0",
+          "tol": "0",
+          "note": ""
+        },
+        {
+          "id": "P7_host_sigue_la_mano",
+          "ok": true,
+          "metric": "{\"host_held_steps\":151,\"fallback\":0,\"fallback_first\":null,\"last_input\":181,\"pose\":{\"ticks\":151,\"max_m\":0,\"at\":32,\"max_deg\":0}}",
+          "tol": "0 respaldo; pose host/invitado ≤ 2 mm / 0,3°",
+          "note": ""
+        }
+      ],
+      "e4": {
+        "rotate_real": {
+          "events_total": 20400,
+          "ticks": 120,
+          "bad_ticks": 0,
+          "first_bad": null,
+          "det_range": [
+            0.9999998807907104,
+            1.0000001192092896
+          ]
+        },
+        "rotate_real_host": {
+          "host_held_steps": 151,
+          "fallback": 0,
+          "fallback_first": null,
+          "last_input": 181,
+          "pose": {
+            "ticks": 151,
+            "max_m": 0,
+            "at": 32,
+            "max_deg": 0
+          }
+        }
+      },
+      "analyzer_invoked_separately_after_CIM_denied": true
+    }
+  ],
+  "rotation_unit": {
+    "schema": 1,
+    "results": [
+      {
+        "id": "P00_modo_solo_listo",
+        "ok": true,
+        "detail": "ready true, local_uid 0"
+      },
+      {
+        "id": "P01_productor_real_20001",
+        "ok": true,
+        "detail": "20.001 eventos válidos; ida y vuelta máx 4.1651263146484225e-09 rad; |B·Bᵀ−I| máx 1.1922385567686433e-07"
+      },
+      {
+        "id": "P02_hand_rotation_200000",
+        "ok": true,
+        "detail": "primer evento inválido: -1"
+      },
+      {
+        "id": "P03_deriva_contra_doble_precision",
+        "ok": null,
+        "detail": "a 20.001 eventos 1.0763757793253935e-06 rad; a 200.000 1.9797149759447074e-06 rad"
+      },
+      {
+        "id": "P04_control_negativo_formula_vieja",
+        "ok": true,
+        "detail": "la fórmula vieja deja de ser codificable en el evento 1263"
+      },
+      {
+        "id": "C01_rotacion_pura",
+        "ok": true,
+        "detail": "aceptado true; válido true; origen igual true; ángulo a la rotación esperada 1.483122455938544e-08 rad"
+      },
+      {
+        "id": "C02_escala_uniforme_2",
+        "ok": true,
+        "detail": "aceptado true; válido true; origen igual true; ángulo a la rotación esperada 1.483122455938544e-08 rad"
+      },
+      {
+        "id": "C03_escala_por_eje_1_2_3",
+        "ok": true,
+        "detail": "aceptado true; válido true; origen igual true; ángulo a la rotación esperada 1.483122455938544e-08 rad"
+      },
+      {
+        "id": "C04_cizalla",
+        "ok": true,
+        "detail": "aceptado true; válido true; origen igual true"
+      },
+      {
+        "id": "C05_reflejo",
+        "ok": true,
+        "detail": "rechazado true; objetivo anterior conservado true"
+      },
+      {
+        "id": "C06_singular",
+        "ok": true,
+        "detail": "rechazado true; objetivo anterior conservado true"
+      },
+      {
+        "id": "C07a_origen_nan",
+        "ok": true,
+        "detail": "rechazado true; objetivo anterior conservado true"
+      },
+      {
+        "id": "C07b_base_inf",
+        "ok": true,
+        "detail": "rechazado true; objetivo anterior conservado true"
+      },
+      {
+        "id": "C07c_base_nan",
+        "ok": true,
+        "detail": "rechazado true; objetivo anterior conservado true"
+      },
+      {
+        "id": "C08a_escala_1e13_desborda",
+        "ok": true,
+        "detail": "rechazado true; objetivo anterior conservado true"
+      },
+      {
+        "id": "C08b_escala_1e12",
+        "ok": true,
+        "detail": "aceptado true; válido true; origen igual true; ángulo a la rotación esperada 2.0935929682847777e-08 rad"
+      },
+      {
+        "id": "C09a_escala_0_02",
+        "ok": true,
+        "detail": "aceptado true; válido true; origen igual true; ángulo a la rotación esperada 5.7858114306810035e-08 rad"
+      },
+      {
+        "id": "C09b_escala_0_005",
+        "ok": null,
+        "detail": "aceptado false; objetivo conservado true (umbral de determinante 1e-6)"
+      },
+      {
+        "id": "C10_casi_singular_det_2e-3",
+        "ok": true,
+        "detail": "aceptado true; válido true; origen igual true"
+      },
+      {
+        "id": "C11_rotate_goal_rechaza",
+        "ok": true,
+        "detail": "nan false, inf false, eje cero false; objetivo conservado true"
+      },
+      {
+        "id": "C12_rotate_goal_delta_enorme",
+        "ok": true,
+        "detail": "aceptado true; válido true"
+      },
+      {
+        "id": "C13_setter_rechaza",
+        "ok": true,
+        "detail": "orientación conservada true"
+      },
+      {
+        "id": "V01_validadores_coinciden",
+        "ok": true,
+        "detail": "448 objetivos; distintos: []"
+      },
+      {
+        "id": "V02_lo_producido_pasa_los_tres",
+        "ok": true,
+        "detail": "malos: []"
+      },
+      {
+        "id": "V03_receptor_estricto_con_la_formula_vieja",
+        "ok": null,
+        "detail": "vieja_1=true, vieja_501=true, vieja_1263=false, vieja_1264=false, vieja_1301=false, vieja_5001=false, vieja_20000=false"
+      },
+      {
+        "id": "G01_agarre_con_reflejo_rechazado",
+        "ok": true,
+        "detail": "next_action 1→1; pendiente 0; cola 0→0"
+      },
+      {
+        "id": "G02_agarre_con_punto_nan",
+        "ok": null,
+        "detail": "rechazado true (sin aviso en el código: return directo)"
+      },
+      {
+        "id": "G03_agarre_con_escala_canonizado",
+        "ok": true,
+        "detail": "pendiente 1; válido true; ángulo 2.9208259866297933e-08 rad"
+      },
+      {
+        "id": "C14_un_aviso_por_rechazo",
+        "ok": true,
+        "detail": "esperados { \"invalid_local_target\": 49, \"invalid_local_rotation\": 4 }; registrados { \"invalid_local_target\": 49, \"invalid_local_rotation\": 4, \"hand_input_encode_failed\": 0 }"
+      }
+    ],
+    "fails": 0,
+    "ms": 1228
+  },
+  "invalid_anchor_warnings": 1,
+  "preserved_invalid_invocation": "tmp/revision_entrega_6/rapier/20261116_191131",
+  "remaining_godot_processes": 0
+}

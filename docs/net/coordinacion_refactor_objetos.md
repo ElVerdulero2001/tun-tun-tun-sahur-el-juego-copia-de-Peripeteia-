@@ -45,6 +45,8 @@ La inspección de `SimClock.apply_tick_rate` corrigió un punto del plan: el rel
 
 ## Entregas e integración
 
+**Entrega 6:** [revisión de Claude 5 y decisión del núcleo](entregas/revision_codex_entrega_5.md). N3/L19 aceptados. D4 descarta únicamente la entrada inválida y G02 informa el rechazo. Se reproducen R3/R4: `StateManager3D` publicado no se aprueba como predictor aislado. El siguiente candidato tiene [estado nativo propio](contrato_nucleo_fisico_objetos.md) y espera el entorno de compilación; no se pide repetir los ensayos del mismo backend. No se migró el laboratorio.
+
 **Entrega 5:** [capacidad nativa con Rapier](entregas/ensayo_rollback_rapier_entrega_5.md). Pasaron restauración local y exportación/importación entre procesos con IDs distintos en la fixture de topología fija. El modelo de red sigue sin aprobar; falta verificación independiente y aislamiento respecto de otros espacios vivos. El laboratorio conserva su motor y recorrido actuales.
 
 **Entrega 4:** [revisión de N3 y ensayo siguiente](entregas/revision_codex_entrega_3.md). Giro corregido, L19 aprobado; el ensayo nativo está preparado y espera su paquete oficial. No se migró el laboratorio.

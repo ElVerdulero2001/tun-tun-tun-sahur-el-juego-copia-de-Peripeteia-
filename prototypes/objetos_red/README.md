@@ -1,4 +1,6 @@
-# Prototipo de objetos en red: entrega 4
+# Prototipo de objetos en red: entrega 6
+
+N3/L19 aceptados por Claude. La entrega 6 descarta un tick inválido antes de simularlo o conservarlo y añade aviso para puntos de agarre inválidos. El modelo general sigue bloqueado; ver `docs/net/entregas/revision_codex_entrega_5.md`. No se migró el laboratorio.
 
 La entrega 4 conserva la rotación como cuaternión normalizado, registra fallos de codificación y distingue los duplicados ya consumidos. Ver `docs/net/entregas/revision_codex_entrega_3.md`.
 

@@ -1,5 +1,7 @@
 # Ensayo aislado de capacidad de rollback
 
+**Revisión independiente 5: bloqueado para integrarlo como predictor aislado.** Se confirmaron las capacidades básicas y se reprodujeron corrupción de IDs e interferencias de restauración. [Revisión y próximo candidato](../../docs/net/entregas/revision_codex_entrega_5.md). Los resultados positivos siguientes conservan el alcance limitado de sus fixtures.
+
 **Ejecutado con Rapier el 2026-11-16: restauración local e intercambio entre dos procesos aprobados en la fixture.** [Resultados y límites](../../docs/net/entregas/ensayo_rollback_rapier_entrega_5.md). Este ensayo no forma parte del juego ni del prototipo de red en Jolt.
 
 Versión fijada: Godot Rapier **v0.36.0**, Windows x64, Godot 4.7. Paquete oficial:

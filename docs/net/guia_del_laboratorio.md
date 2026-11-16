@@ -1,5 +1,7 @@
 # Guía del laboratorio de red
 
+**Estado experimental actual, entrega 6:** [revisión de Claude y decisión del núcleo físico](entregas/revision_codex_entrega_5.md). Giro y duplicados aceptados; la restauración publicada de Rapier queda bloqueada para el predictor aislado. [Siguiente contrato nativo](contrato_nucleo_fisico_objetos.md), pendiente de compilación. El laboratorio todavía no está migrado.
+
 **Última entrega experimental de objetos:** [ensayo nativo con Rapier, entrega 5](entregas/ensayo_rollback_rapier_entrega_5.md). Restauración local y entre procesos comprobada en una fixture; modelo de red e integración al laboratorio todavía pendientes.
 
 Esta guía es para retomar el laboratorio después de un tiempo sin tener que leer todo el historial. Está armada por tareas: dónde está cada cosa, cómo probar, cómo agregar cables y escaleras, cómo se cuelga uno de un compañero, cómo funciona el mantle, qué reglas acordamos y en qué sección del historial está el detalle.

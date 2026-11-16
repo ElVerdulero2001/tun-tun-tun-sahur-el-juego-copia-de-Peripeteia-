@@ -162,7 +162,7 @@ func _finish(status: String, fields: Dictionary, code: int) -> void:
 	var result := {"schema": 1, "status": status, "dependency": VERSION,
 		"engine": Engine.get_version_info().string, "backend_class": PhysicsServer3D.get_class(),
 		"seconds": float(Time.get_ticks_usec() - _started) / 1_000_000.0,
-		"scope": "single_process_fixed_topology_capability_only"}
+		"scope": fields.get("scope", "single_process_fixed_topology_capability_only")}
 	result.merge(fields)
 	if not _result_path.is_empty():
 		var file := FileAccess.open(_result_path, FileAccess.WRITE)

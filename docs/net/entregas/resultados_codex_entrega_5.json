@@ -6,7 +6,7 @@
     "version": "v0.36.0",
     "source": "https://github.com/appsinacup/godot-rapier-physics/releases/download/v0.36.0/godot-rapier-3d-single.zip",
     "archive_sha256": "9700717C8EF83ACD219E62EDAEB3AF503556273BC5AFA2BE4E363EBC8F243C7A",
-    "runtime_project": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\rapier_probe_20261116_211813_d34699",
+    "runtime_project": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\rapier_probe_20261116_212405_a4af53",
     "files": [
       {
         "path": "addons/godot-rapier3d/logo_square_3d.png",
@@ -203,7 +203,7 @@
     ]
   },
   "engine_sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
-  "evidence_directory": "implementacion/tmp/rapier_probe_20261116_211813_d34699",
+  "evidence_directory": "implementacion/tmp/rapier_probe_20261116_212405_a4af53",
   "process_exit_codes": {
     "import": 0,
     "probe": 0,
@@ -243,7 +243,7 @@
     },
     "schema": 1,
     "scope": "single_process_fixed_topology_capability_only",
-    "seconds": 0.024057,
+    "seconds": 0.014469,
     "snapshot_bytes": 10255,
     "status": "PASSED",
     "steps_per_branch": 90
@@ -266,8 +266,8 @@
     "exchange_role": "export",
     "node_error": 0.0,
     "schema": 1,
-    "scope": "single_process_fixed_topology_capability_only",
-    "seconds": 0.00743,
+    "scope": "two_processes_fixed_topology_trusted_file_only",
+    "seconds": 0.01259,
     "snapshot_bytes": 10217,
     "status": "PASSED"
   },
@@ -305,8 +305,8 @@
       "velocity": 0.0
     },
     "schema": 1,
-    "scope": "single_process_fixed_topology_capability_only",
-    "seconds": 0.016386,
+    "scope": "two_processes_fixed_topology_trusted_file_only",
+    "seconds": 0.021367,
     "source_body_ids": [
       {
         "instance": 27430749664,
@@ -328,23 +328,23 @@
   "evidence_hashes": [
     {
       "path": "dependency.json",
-      "sha256": "b84044599ecaff2ba22a45bf68dab9c1cb8d45040c2201899a55fbcdbc8054b0"
+      "sha256": "850a74d6c4869d5b87fa6e64fbd42784ca1b2da00e1721576df07bcc13b5ba9b"
     },
     {
       "path": "probe_result.json",
-      "sha256": "4dc576b332fc1f33851b0e24064d6fee7651f1b34e87cf326e0f337051706b68"
+      "sha256": "6a1e58d80eec45c8dc8bf9861c3a4a5f1089705a6c004ac5b6a290792bab02d1"
     },
     {
       "path": "export_result.json",
-      "sha256": "bec730f0e66a599758d0605222d9148c24a7f8836a5700c587da1b0fa4d4198c"
+      "sha256": "d4cd7fe89c243914bd18fbd620495fde97740818b4c48913a56d44f49afe0940"
     },
     {
       "path": "import_result.json",
-      "sha256": "3409a2dbb11b2bd107f43c4cca3c11c5c53694b1872584ffc8d9f4c112aa6c31"
+      "sha256": "2009400756782f2b4a2dfe961349b8e1f5f997a24d711e482d8e661d1d4d76ee"
     },
     {
       "path": "probe.stdout.log",
-      "sha256": "9948e95df817e7c37998ffd8459c763506372a99441b27abab9f32d9ab404e19"
+      "sha256": "4a63cf311511b1fac8cb88398cf2751012569092fecd006d520c129b2e671d3b"
     },
     {
       "path": "probe.stderr.log",
@@ -352,7 +352,7 @@
     },
     {
       "path": "export.stdout.log",
-      "sha256": "1e16cdeb3be7dffed7919d4cb87a0d55403a619667a1138ef2bb3621190a9b56"
+      "sha256": "746874d3b0c4abef1290c2a8ee4656d0a36363998dd75c664609f35f0e4ecf6e"
     },
     {
       "path": "export.stderr.log",
@@ -360,7 +360,7 @@
     },
     {
       "path": "import.stdout.log",
-      "sha256": "061b3fea3695df21926eaf6e5d96ed058f998caa4c088c50b2f52df56f3f9dba"
+      "sha256": "add38fd5c460517c423ae8948dda52a30c31c09fbd2dbf78c97aa3cbe10f21c9"
     },
     {
       "path": "import.stderr.log",

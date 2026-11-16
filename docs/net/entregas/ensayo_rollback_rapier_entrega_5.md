@@ -22,7 +22,7 @@ El criterio EPS=0,00001 se conservó; los errores observados fueron cero. La pru
 
 Desde `implementacion`: `& .\tools\testing\prepare_rapier_probe.ps1`. Tres procesos independientes, cada uno limitado externamente a 8 segundos. El runner falla ante código de salida ausente/no cero, errores de carga/script o resultado incompatible; solo excluye el aviso conocido de certificados raíz de Windows.
 
-Corrida final: `implementacion/tmp/rapier_probe_20261116_211813_d34699/`. Conserva `dependency.json`, `probe_result.json`, `export_result.json`, `import_result.json`, stdout/stderr y el checkpoint local. El resumen versionado está en `resultados_codex_entrega_5.json`. No se committean DLL, cachés ni perfiles de Godot.
+Corrida final: `implementacion/tmp/rapier_probe_20261116_212405_a4af53/`. Conserva `dependency.json`, `probe_result.json`, `export_result.json`, `import_result.json`, stdout/stderr y el checkpoint local. El resumen versionado está en `resultados_codex_entrega_5.json`. No se committean DLL, cachés ni perfiles de Godot.
 
 Se preservaron los intentos anteriores. El primero no pudo guardar ajustes en AppData; el preparador ahora pasa directorios de perfil locales a los hijos. Se corrigió además la captura del handle para conservar el código real de salida de procesos rápidos. Con ello apareció un acceso inválido nativo al cerrar el editor de importación Jolt con Rapier cargado (`-1073741819`): **no se contó como aprobado**. El proceso de juego Rapier sí cerró con código 0. La preparación final, sin editor ni recursos por importar, registra directamente la extensión fijada y completa los tres procesos sin ese fallo. No se ha validado abrir una escena Rapier en el editor ni convivir con Jolt en el mismo proceso.
 

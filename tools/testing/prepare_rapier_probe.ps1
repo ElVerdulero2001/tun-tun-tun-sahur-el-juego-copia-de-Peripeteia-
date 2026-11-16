@@ -20,7 +20,7 @@ $ignorePath = Join-Path $tempRoot '.gdignore'
 if (-not (Test-Path -LiteralPath $ignorePath)) { [IO.File]::WriteAllText($ignorePath, '') }
 $runtime = Join-Path $tempRoot ('rapier_probe_' + [DateTime]::UtcNow.ToString('yyyyMMdd_HHmmss') + '_' + [Guid]::NewGuid().ToString('N').Substring(0, 6))
 New-Item -ItemType Directory -Path $runtime | Out-Null
-foreach ($relative in @('project.godot', 'main.tscn', 'probe.gd')) {
+foreach ($relative in @('project.godot', 'main.tscn', 'probe.gd', 'exchange_probe.gd', 'exchange.tscn')) {
     Copy-Item -LiteralPath (Join-Path $source $relative) -Destination (Join-Path $runtime $relative)
 }
 $settingsPath = Join-Path $runtime 'project.godot'
@@ -58,30 +58,59 @@ try {
 function Invoke-ProbeEngine([string]$Stage, [string[]]$Arguments, [int]$LimitSeconds) {
     $stdout = Join-Path $runtime ($Stage + '.stdout.log')
     $stderr = Join-Path $runtime ($Stage + '.stderr.log')
-    $p = Start-Process -FilePath $engine -ArgumentList $Arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    # Godot reads these at startup. Keep editor settings and user:// inside
+    # this run too, without changing the user's environment persistently.
+    $savedAppData = $env:APPDATA
+    $savedLocalAppData = $env:LOCALAPPDATA
+    try {
+        $env:APPDATA = Join-Path $runtime 'profile/roaming'
+        $env:LOCALAPPDATA = Join-Path $runtime 'profile/local'
+        New-Item -ItemType Directory -Path $env:APPDATA, $env:LOCALAPPDATA -Force | Out-Null
+        $p = Start-Process -FilePath $engine -ArgumentList $Arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        # Retain the handle before a fast process exits (PowerShell otherwise
+        # may lose ExitCode when Start-Process is used without -Wait).
+        $processHandle = $p.Handle
+    } finally {
+        $env:APPDATA = $savedAppData
+        $env:LOCALAPPDATA = $savedLocalAppData
+    }
     try {
         if (-not $p.WaitForExit($LimitSeconds * 1000)) { throw ("Venció el límite de " + $Stage) }
         $errors = @(Get-Content -LiteralPath $stderr -Encoding UTF8 | Where-Object {
             $_ -match '^(ERROR:|SCRIPT ERROR:)' -and $_ -notmatch '^ERROR: Failed to read the root certificate store\.$'
         })
-        if ($p.ExitCode -ne 0 -or $errors.Count) { throw ("Falló " + $Stage + ": " + ($errors -join ' ') + '. Logs: ' + $runtime) }
+        if ($null -eq $p.ExitCode -or $p.ExitCode -ne 0 -or $errors.Count) { throw ("Falló " + $Stage + " (exit=" + $p.ExitCode + "): " + ($errors -join ' ') + '. Logs: ' + $runtime) }
     } finally {
         if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force; [void]$p.WaitForExit(1000) }
     }
 }
 
 $utf8 = New-Object Text.UTF8Encoding $false
-try {
-    # Registrar la extensión con Jolt durante el import; el reinicio posterior
-    # selecciona Rapier. Solo se escribe el proyecto temporal recién creado.
-    [IO.File]::WriteAllText($settingsPath, $settings.Replace('3d/physics_engine="Rapier3D"', '3d/physics_engine="Jolt Physics"'), $utf8)
-    Invoke-ProbeEngine 'import' @('--headless','--editor','--import','--quit','--path',('"'+$runtime+'"'),'--log-file',('"'+(Join-Path $runtime 'import.godot.log')+'"')) 12
-} finally { [IO.File]::WriteAllText($settingsPath, $settings, $utf8) }
+# This fixture has no imported assets. Register the pinned extension before
+# the first game startup, keeping Rapier selected throughout. Loading Rapier
+# in a Jolt editor process caused a native access violation at editor exit.
+$cache = Join-Path $runtime '.godot'
+New-Item -ItemType Directory -Path $cache -Force | Out-Null
+[IO.File]::WriteAllText((Join-Path $cache 'extension_list.cfg'), "res://addons/godot-rapier3d/godot-rapier3d.gdextension`n", $utf8)
 
 $manifest = [pscustomobject]@{ version='v0.36.0'; source=$downloadUrl; archive_sha256=$actualHash; runtime_project=$runtime; files=$extracted }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $runtime 'dependency.json') -Encoding UTF8
 $resultPath = Join-Path $runtime 'probe_result.json'
 Invoke-ProbeEngine 'probe' @('--headless','--path',('"'+$runtime+'"'),'--log-file',('"'+(Join-Path $runtime 'probe.godot.log')+'"'),'--',('--result="'+$resultPath+'"')) 8
 if (-not (Test-Path -LiteralPath $resultPath)) { throw ('No se produjo el resultado: ' + $runtime) }
+$probeResult = Get-Content -LiteralPath $resultPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($probeResult.status -ne 'PASSED' -or $probeResult.backend_class -ne 'RapierPhysicsServer3D' -or $probeResult.dependency -ne 'v0.36.0') { throw 'El resultado no acredita el ensayo fijado.' }
 Get-Content -LiteralPath $resultPath -Encoding UTF8
+$checkpointPath = Join-Path $runtime 'trusted_checkpoint.bin'
+foreach ($role in @('export', 'import')) {
+    $exchangeResult = Join-Path $runtime ($role + '_result.json')
+    $exchangeArgs = @('--headless','--path',('"'+$runtime+'"'),'--scene','res://exchange.tscn','--log-file',('"'+(Join-Path $runtime ($role + '.godot.log'))+'"'),'--',('--result="'+$exchangeResult+'"'))
+    if ($role -eq 'export') { $exchangeArgs += '--export-checkpoint="'+$checkpointPath+'"' }
+    else { $exchangeArgs += @('--import-checkpoint="'+$checkpointPath+'"', '--identity-noise') }
+    Invoke-ProbeEngine $role $exchangeArgs 8
+    if (-not (Test-Path -LiteralPath $exchangeResult)) { throw ('Falta el resultado de ' + $role) }
+    $exchangeData = Get-Content -LiteralPath $exchangeResult -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($exchangeData.status -ne 'PASSED' -or $exchangeData.exchange_role -ne $role -or $exchangeData.backend_class -ne 'RapierPhysicsServer3D') { throw ('No se aprobó ' + $role) }
+    Get-Content -LiteralPath $exchangeResult -Encoding UTF8
+}
 Write-Output ('RUNTIME_PROJECT=' + $runtime)

@@ -1,5 +1,7 @@
 # Plan de refactorización y reconstrucción de la sincronización de objetos
 
+**Actualización de capacidad (entrega 5, 2026-11-16):** Rapier v0.36.0 restauró y repitió contactos en una fixture de tres cuerpos, localmente y mediante checkpoint entre dos procesos con IDs distintos. [Evidencia y límites](entregas/ensayo_rollback_rapier_entrega_5.md). No se aprobó el modelo de red ni se migró el laboratorio; falta comprobar aislamiento de espacios, topología y el controlador real. Las decisiones y limitaciones históricas de Jolt que siguen se conservan como antecedentes.
+
 ## Estado y decisión
 
 **Plan de trabajo; implementación pendiente.** Este documento no cambia la lógica del juego ni certifica una solución. Se apoya en el [diagnóstico de suelta y lanzamiento](diagnostico_suelta_y_lanzamiento_objetos.md), el `kavi.txt`, el video de la prueba y el código actual. La referencia funcional sigue siendo [objetos_fisicos.md](objetos_fisicos.md).

@@ -1,0 +1,392 @@
+{
+  "delivery": 5,
+  "constructed_by": "Codex",
+  "independent_validation_pending": true,
+  "dependency": {
+    "version": "v0.36.0",
+    "source": "https://github.com/appsinacup/godot-rapier-physics/releases/download/v0.36.0/godot-rapier-3d-single.zip",
+    "archive_sha256": "9700717C8EF83ACD219E62EDAEB3AF503556273BC5AFA2BE4E363EBC8F243C7A",
+    "runtime_project": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\rapier_probe_20261116_211813_d34699",
+    "files": [
+      {
+        "path": "addons/godot-rapier3d/logo_square_3d.png",
+        "sha256": "55924380AD6C5D6BC62913833B53F71C1EFECB909E6B94A959D1CE003F6EE830"
+      },
+      {
+        "path": "addons/godot-rapier3d/LICENSE",
+        "sha256": "B876A61B43CC648B56428D56A484784A88D4231809E4D7F4FD8DBDB6772400E8"
+      },
+      {
+        "path": "addons/godot-rapier3d/fluid_3d_box.gd",
+        "sha256": "5C3FF3A1A011BB69538DA6F330121B2D67B4D443CF54823BF35EC8B45501162D"
+      },
+      {
+        "path": "addons/godot-rapier3d/fluid_3d_renderer.gd.uid",
+        "sha256": "E5E65081F032268866E966E8AC4787F40A055FE85261F3A35CEA3973CD23DD93"
+      },
+      {
+        "path": "addons/godot-rapier3d/fluid_3d_sphere.gd",
+        "sha256": "B0D64E0C06F327D4D7123EE4E343AC0F87D928356BE319A01FC2DD9E620FFF0D"
+      },
+      {
+        "path": "addons/godot-rapier3d/fluid_3d_box.gd.uid",
+        "sha256": "A325D48FF7361CB3ACB77BBF6890ED171BFF77FA6A92DBAB322DB143195ABE2C"
+      },
+      {
+        "path": "addons/godot-rapier3d/plugin.info.cfg",
+        "sha256": "3F3C3116AC56F1F0B9957ED1DF2C2298EAF62D8B9EE473ACD588F4ECA6B62305"
+      },
+      {
+        "path": "addons/godot-rapier3d/faucet_3d.gd",
+        "sha256": "5991AF620292360BE053A3522700CE2622B1F09163270CE8BA45D09679B469B1"
+      },
+      {
+        "path": "addons/godot-rapier3d/bin/libgodot_rapier.windows.x86_64-pc-windows-msvc.dll",
+        "sha256": "EF7B355C344B4D2E0FDE98BF2BC5B90E47ECF9F82FC5A91E8BBDE1E14E6BA7E5"
+      },
+      {
+        "path": "addons/godot-rapier3d/icons/StateManager3D.svg",
+        "sha256": "556BEB8FE516803D408FDDA9FC8E4F7785C474ED65284AD36A9E79955ECA9B49"
+      },
+      {
+        "path": "addons/godot-rapier3d/icons/StateManager3D.svg.import",
+        "sha256": "A7BB62D10838735AE12B6A9186EC071BCEC6076A3DAC8440DA8C810B3721B9D9"
+      },
+      {
+        "path": "addons/godot-rapier3d/icons/Fluid3D.svg.import",
+        "sha256": "C7C5259A3B74F72A920C2DAF18C37EDE2E9643FC21126A3E30D5ED49BE852D15"
+      },
+      {
+        "path": "addons/godot-rapier3d/icons/Fluid3D.svg",
+        "sha256": "A0A3AEF0ABDADC649D066F8152274801B4E9A610E1E5716922110C4EB78AA71D"
+      },
+      {
+        "path": "addons/godot-rapier3d/godot-rapier3d.gdextension.uid",
+        "sha256": "547D3F4842CA6C2D001179C1EC573957783D583F5EB82B6D40D93B34939397F3"
+      },
+      {
+        "path": "addons/godot-rapier3d/THIRDPARTY.txt",
+        "sha256": "63405A03AF6A0A85DACE7CC08001B34F28E8792DD2B7FB4DE09137A6B58392DF"
+      },
+      {
+        "path": "addons/godot-rapier3d/fluid_3d_renderer.gd",
+        "sha256": "A0BB527A0E4971845825C95B46D6391F97A13697000497D00F675FA98E711138"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_hinge_joint_3d.gd.uid",
+        "sha256": "5237559EB712610F0BECC75FEA215A0FA2962FE02FB2447E826E3096598D7DCF"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_pin_joint_3d.gd.uid",
+        "sha256": "680D86C805769C61BB4EB5A076240A585D72E108AAF34FF63ACF3FBE3D260260"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_rigid_body_3d.gd.uid",
+        "sha256": "584079E8AD633375D29B630EFBB7442B954CBC56EC185A970D0905C9CF307CDA"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_physical_bone_3d.gd.uid",
+        "sha256": "8B4254A01E808B97AAC6557A4C97FADF4870A7E7E4DA791CDD391A879E9C0A42"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_vehicle_body_3d.gd.uid",
+        "sha256": "F567D51CE89477E88A4C08458A3A2CF66FC79D506433FD212162AB29A542DCF8"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_rope_joint_3d.gd.uid",
+        "sha256": "6ED3FD0D18F1B4301DD231E785A794DFEB540D2BF7ABA19C9EF55884F6323E5B"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_fixed_joint_3d.gd.uid",
+        "sha256": "30AAAB007E9E67592289E65B638AF0B6B750FFC48134F3A0A39ACC2B65D21C1F"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_generic_6dof_joint_3d.gd.uid",
+        "sha256": "BFAF36EADDF4CF1774E5CC0A525B63D8D99F4451D5427287FEA8BC7CA539643A"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_static_body_3d.gd.uid",
+        "sha256": "2D8A35A6A8AECE6A9BE704DDEB063E37861553F157906341334A44CF43BC470C"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_fixed_joint_3d.gd",
+        "sha256": "D76CB4B26474CFDC89E474C24A3FDABD90C48F887BEE7039AF02BE8EC7C96C75"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_character_body_3d.gd.uid",
+        "sha256": "62ED400F90241AC56D1D3DC06059B6456BD830C28CC4A24C965FA61EAF54CC65"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_area_3d.gd",
+        "sha256": "7C099DC64FF761401340E40856AB296EA7CFE30EEF93F623EC78362D7D3E4D32"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_animatable_body_3d.gd.uid",
+        "sha256": "A7850823F2B6A1D958B5007217BAD027D316A24E25EAE267F8D11D112A723E8E"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_rigid_body_3d.gd",
+        "sha256": "510F6C9268EEFDEFDFB2A493306EFC22CA3E4D41651B85538EA5A18C3C67D675"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_hinge_joint_3d.gd",
+        "sha256": "AD5B4A683202542B268471EE56ACBC5D931EE675823473750B6339BDF076E56F"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_generic_6dof_joint_3d.gd",
+        "sha256": "AC306ED5AD2695694B6D0AFD18F82BC7D7E5C3CD75C4ABD1299CAE392B634CB5"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_slider_joint_3d.gd",
+        "sha256": "BE976DDFD5D08B61DC4683E8A99002DD5F8D7CB5083B61C5ECF30C4A8568BF85"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_vehicle_body_3d.gd",
+        "sha256": "EC43F547C4CAC96DDB3904F38C7F7081B244A94C4C9FA71381AA04721373F6DF"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_rope_joint_3d.gd",
+        "sha256": "B6CD10AEB4872F56556DD92CAD26E4A1498C6364A9ADAA2E4F9468B9B39018EE"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_static_body_3d.gd",
+        "sha256": "BD79A53C8DA10914F3E3E84674A00C544E8023FFBBFBB562D0A7D0A16F4B93C6"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_character_body_3d.gd",
+        "sha256": "FB2BEF1259F41B53566440A9F9D583BEDF8414BB843556C8241D09269D0AE066"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_pin_joint_3d.gd",
+        "sha256": "843AF7E8D10A40C234FD3F4642DB1754649DCB28344744546EA5D1E6D3E8FCC6"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_area_3d.gd.uid",
+        "sha256": "490E7A4443E30F447DDEB253DD38529147E65523C980BCE922A778CD20FB6409"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_cone_twist_joint_3d.gd",
+        "sha256": "8C5B317430C77ECB7172191CD17F3FD73E558C62A1661B30D9E256C86FF70B7A"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_animatable_body_3d.gd",
+        "sha256": "ED2995AE03D6E42B0C91B83EF8F325EF8C106B4FD95FF80D16A139499E4F3BCB"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_slider_joint_3d.gd.uid",
+        "sha256": "7175CDC99451E257A13D4376F7559CA19BE97A29EA187BEBA8D62B99190A75B2"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_physical_bone_3d.gd",
+        "sha256": "477A1EFD0B46E2326D0A2BBA9E5D13648D8C8FC0E6A86AD91FE619F902CC2277"
+      },
+      {
+        "path": "addons/godot-rapier3d/custom_nodes/rapier_cone_twist_joint_3d.gd.uid",
+        "sha256": "1F0ECB4ADBCA12244E8EA444633D90A53691664EB9987427ED4783F6D046C8E5"
+      },
+      {
+        "path": "addons/godot-rapier3d/fluid_3d_sphere.gd.uid",
+        "sha256": "C77A4CB6DD17EBADF18CD5BD08D13E618DEA0F41698AB53C41FE959BC1AC376C"
+      },
+      {
+        "path": "addons/godot-rapier3d/faucet_3d.gd.uid",
+        "sha256": "3576747E3C2B797AC514BAF4BD39F1CB07A7BBE8B42713C63CFED3730AB53D3F"
+      },
+      {
+        "path": "addons/godot-rapier3d/logo_square_3d.png.import",
+        "sha256": "C59966FB066CEB0842FE5802E7DA628C81D1D8708CDE969DA6D59DCD86B5F4E1"
+      },
+      {
+        "path": "addons/godot-rapier3d/godot-rapier3d.gdextension",
+        "sha256": "BECCD45E80D52071DFC843E9CD0A188B303C7414B4F1DFBCD07234496805712D"
+      }
+    ]
+  },
+  "engine_sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+  "evidence_directory": "implementacion/tmp/rapier_probe_20261116_211813_d34699",
+  "process_exit_codes": {
+    "import": 0,
+    "probe": 0,
+    "export": 0
+  },
+  "local": {
+    "actual_motion": {
+      "basis": 0.0013762372545898,
+      "position": 0.799540579319,
+      "sleep_mismatches": 2,
+      "velocity": 0.163061574101448
+    },
+    "backend_class": "RapierPhysicsServer3D",
+    "change_without_command": {
+      "basis": 0.00816547498106956,
+      "position": 0.0457423403859138,
+      "sleep_mismatches": 2,
+      "velocity": 0.499168068170547
+    },
+    "dependency": "v0.36.0",
+    "dynamic_contact": true,
+    "engine": "4.7.2-stable (official)",
+    "external_effects": 1,
+    "late_replay": {
+      "basis": 0.0,
+      "position": 0.0,
+      "sleep_mismatches": 0,
+      "velocity": 0.0
+    },
+    "native_impulse_applications": 3,
+    "node_error": 0.0,
+    "same_replay": {
+      "basis": 0.0,
+      "position": 0.0,
+      "sleep_mismatches": 0,
+      "velocity": 0.0
+    },
+    "schema": 1,
+    "scope": "single_process_fixed_topology_capability_only",
+    "seconds": 0.024057,
+    "snapshot_bytes": 10255,
+    "status": "PASSED",
+    "steps_per_branch": 90
+  },
+  "cross_process_export": {
+    "backend_class": "RapierPhysicsServer3D",
+    "body_ids": [
+      {
+        "instance": 27430749664,
+        "rid": 24
+      },
+      {
+        "instance": 27497858532,
+        "rid": 26
+      }
+    ],
+    "dependency": "v0.36.0",
+    "dynamic_contact": true,
+    "engine": "4.7.2-stable (official)",
+    "exchange_role": "export",
+    "node_error": 0.0,
+    "schema": 1,
+    "scope": "single_process_fixed_topology_capability_only",
+    "seconds": 0.00743,
+    "snapshot_bytes": 10217,
+    "status": "PASSED"
+  },
+  "cross_process_import": {
+    "backend_class": "RapierPhysicsServer3D",
+    "cross_process_replay": {
+      "basis": 0.0,
+      "position": 0.0,
+      "sleep_mismatches": 0,
+      "velocity": 0.0
+    },
+    "dependency": "v0.36.0",
+    "destination_body_ids": [
+      {
+        "instance": 27783071200,
+        "rid": 38
+      },
+      {
+        "instance": 27850180068,
+        "rid": 40
+      }
+    ],
+    "distinct_ids": true,
+    "dynamic_contact": true,
+    "engine": "4.7.2-stable (official)",
+    "exchange_role": "import",
+    "external_effects": 1,
+    "identity_noise": true,
+    "native_impulses": 1,
+    "node_error": 0.0,
+    "restored": {
+      "basis": 0.0,
+      "position": 0.0,
+      "sleep_mismatches": 0,
+      "velocity": 0.0
+    },
+    "schema": 1,
+    "scope": "single_process_fixed_topology_capability_only",
+    "seconds": 0.016386,
+    "source_body_ids": [
+      {
+        "instance": 27430749664,
+        "rid": 24
+      },
+      {
+        "instance": 27497858532,
+        "rid": 26
+      }
+    ],
+    "status": "PASSED",
+    "wrong_branch": {
+      "basis": 0.00816547498106956,
+      "position": 0.0457423403859138,
+      "sleep_mismatches": 2,
+      "velocity": 0.499168068170547
+    }
+  },
+  "evidence_hashes": [
+    {
+      "path": "dependency.json",
+      "sha256": "b84044599ecaff2ba22a45bf68dab9c1cb8d45040c2201899a55fbcdbc8054b0"
+    },
+    {
+      "path": "probe_result.json",
+      "sha256": "4dc576b332fc1f33851b0e24064d6fee7651f1b34e87cf326e0f337051706b68"
+    },
+    {
+      "path": "export_result.json",
+      "sha256": "bec730f0e66a599758d0605222d9148c24a7f8836a5700c587da1b0fa4d4198c"
+    },
+    {
+      "path": "import_result.json",
+      "sha256": "3409a2dbb11b2bd107f43c4cca3c11c5c53694b1872584ffc8d9f4c112aa6c31"
+    },
+    {
+      "path": "probe.stdout.log",
+      "sha256": "9948e95df817e7c37998ffd8459c763506372a99441b27abab9f32d9ab404e19"
+    },
+    {
+      "path": "probe.stderr.log",
+      "sha256": "354f6b41afac0af85c870c4ddfdbe208e44ad5223ae6d89aba867d4090718998"
+    },
+    {
+      "path": "export.stdout.log",
+      "sha256": "1e16cdeb3be7dffed7919d4cb87a0d55403a619667a1138ef2bb3621190a9b56"
+    },
+    {
+      "path": "export.stderr.log",
+      "sha256": "354f6b41afac0af85c870c4ddfdbe208e44ad5223ae6d89aba867d4090718998"
+    },
+    {
+      "path": "import.stdout.log",
+      "sha256": "061b3fea3695df21926eaf6e5d96ed058f998caa4c088c50b2f52df56f3f9dba"
+    },
+    {
+      "path": "import.stderr.log",
+      "sha256": "354f6b41afac0af85c870c4ddfdbe208e44ad5223ae6d89aba867d4090718998"
+    },
+    {
+      "path": "trusted_checkpoint.bin",
+      "sha256": "f5fc1235bd9363375e2a81ba7b657d62f1c95800e861bab09760eb0319436e01"
+    }
+  ],
+  "model_approved": false,
+  "laboratory_migrated": false,
+  "prior_attempts": [
+    {
+      "outcome": "import_profile_paths_not_writable",
+      "directory": "tmp/rapier_probe_20261116_211255_757568"
+    },
+    {
+      "outcome": "missing_exit_code_after_fast_process",
+      "directory": "tmp/rapier_probe_20261116_211421_5b7178"
+    },
+    {
+      "separate_Rapier_game_probe_exit": 0,
+      "outcome": "Jolt_editor_with_Rapier_extension_exit_access_violation",
+      "exit_code": -1073741819,
+      "directory": "tmp/rapier_probe_20261116_211453_d3fe8d"
+    }
+  ]
+}

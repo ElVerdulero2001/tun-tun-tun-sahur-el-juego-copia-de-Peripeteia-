@@ -45,6 +45,8 @@ La inspección de `SimClock.apply_tick_rate` corrigió un punto del plan: el rel
 
 ## Entregas e integración
 
+**Entrega 5:** [capacidad nativa con Rapier](entregas/ensayo_rollback_rapier_entrega_5.md). Pasaron restauración local y exportación/importación entre procesos con IDs distintos en la fixture de topología fija. El modelo de red sigue sin aprobar; falta verificación independiente y aislamiento respecto de otros espacios vivos. El laboratorio conserva su motor y recorrido actuales.
+
 **Entrega 4:** [revisión de N3 y ensayo siguiente](entregas/revision_codex_entrega_3.md). Giro corregido, L19 aprobado; el ensayo nativo está preparado y espera su paquete oficial. No se migró el laboratorio.
 
 **Entrega 3 (2026-11-16):** [revisión de la entrega 2 y contrato de entradas](entregas/revision_codex_entrega_2.md). La validación de Claude confirmó las correcciones anteriores. Se corrigieron N1/N2 con respuestas identificadas y una bandeja de entradas tempranas, más redundancia de seis ticks. El modelo físico continúa sin aprobar; el nuevo formato todavía requiere su verificación independiente.

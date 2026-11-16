@@ -1,0 +1,106 @@
+{
+  "date": "2026-11-16",
+  "author": "Codex",
+  "validation_commit": "8a81339",
+  "contract_original": {
+    "passed": 74,
+    "failed": 0
+  },
+  "contract_e2": {
+    "passed": 13,
+    "failed": 0
+  },
+  "original_tests_modified": false,
+  "model_approved": false,
+  "cases": [
+    {
+      "name": "20261116_141026_grab_move_left_clean",
+      "case": "grab_move_left",
+      "net": "clean",
+      "seconds": 4.715,
+      "directory": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_3\\cases\\20261116_141026_grab_move_left_clean",
+      "host_exit": 0,
+      "client_exit": 0,
+      "killed": [],
+      "runtime_error_count": 264,
+      "runtime_errors_unique": [
+        "SCRIPT ERROR: Invalid access to property or key 'goals' on a base object of type 'Dictionary'."
+      ],
+      "passed": 27,
+      "failed": [
+        {
+          "id": "E0_procesos",
+          "metric": "host=0 client=0 killed=0",
+          "tol": "código esperado, sin errores ni procesos matados"
+        }
+      ],
+      "runner_environment": "Final CIM query denied; original analyzer invoked separately."
+    },
+    {
+      "name": "20261116_141259_grab_move_left_clean",
+      "case": "grab_move_left",
+      "net": "clean",
+      "seconds": 4.736,
+      "directory": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_3\\cases\\20261116_141259_grab_move_left_clean",
+      "host_exit": 0,
+      "client_exit": 0,
+      "killed": [],
+      "runtime_error_count": 0,
+      "runtime_errors_unique": [],
+      "passed": 28,
+      "failed": [],
+      "runner_environment": "Final CIM query denied; original analyzer invoked separately."
+    },
+    {
+      "name": "20261116_141413_dup_throw_clean",
+      "case": "dup_throw",
+      "net": "clean",
+      "seconds": 5.956,
+      "directory": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_3\\cases\\20261116_141413_dup_throw_clean",
+      "host_exit": 0,
+      "client_exit": 0,
+      "killed": [],
+      "runtime_error_count": 0,
+      "runtime_errors_unique": [],
+      "passed": 33,
+      "failed": [],
+      "runner_environment": "Final CIM query denied; original analyzer invoked separately."
+    },
+    {
+      "name": "20261116_143139_grab_move_left_degraded",
+      "case": "grab_move_left",
+      "net": "degraded",
+      "seconds": 5.188,
+      "directory": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_3\\cases\\20261116_143139_grab_move_left_degraded",
+      "host_exit": 0,
+      "client_exit": 0,
+      "killed": [],
+      "runtime_error_count": 0,
+      "runtime_errors_unique": [],
+      "passed": 22,
+      "failed": [
+        {
+          "id": "C4_ascenso_artificial",
+          "metric": "Σ 0.00495 m, paso max 0.00495 m; diagnóstico con host corrido 1 tick(s): Σ 0 m",
+          "tol": "2 mm"
+        }
+      ],
+      "runner_environment": "Final CIM query denied; original analyzer invoked separately."
+    },
+    {
+      "name": "20261116_143602_grab_rejected_clean",
+      "case": "grab_rejected",
+      "net": "clean",
+      "seconds": 7.167,
+      "directory": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_3\\cases\\20261116_143602_grab_rejected_clean",
+      "host_exit": 0,
+      "client_exit": 0,
+      "killed": [],
+      "runtime_error_count": 0,
+      "runtime_errors_unique": [],
+      "passed": 15,
+      "failed": [],
+      "runner_environment": "Final CIM query denied; original analyzer invoked separately."
+    }
+  ]
+}

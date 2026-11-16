@@ -7,6 +7,8 @@ const Authority := preload("res://runtime/authority.gd")
 const PhysicalBody := preload("res://runtime/body.gd")
 const Presentation := preload("res://runtime/presentation.gd")
 const Prediction := preload("res://runtime/prediction.gd")
+const HandInput := preload("res://runtime/hand_input.gd")
+const HandTimeline := preload("res://runtime/hand_timeline.gd")
 const RATE := 60
 const DT := 1.0 / RATE
 const BUFFER_TICKS := 6
@@ -56,6 +58,8 @@ var _initialized_world := false
 var _configuration_signature := ""
 var _local_peer_id := 1
 var _session_lost := false
+var _hand_timeline := HandTimeline.new()
+var _hand_history: Array = []
 
 func _ready() -> void:
 	_started_usec = Time.get_ticks_usec()
@@ -134,7 +138,7 @@ func _build_world() -> void:
 		objects[uid] = {"body": body, "authority": auth, "view": Presentation.new(),
 			"prediction": Prediction.new(), "state": auth.state.copy(),
 			"predicted_state": auth.state.copy(),
-			"goals": {}, "last_goal": -1, "last_snapshot": -1, "pending": 0}
+			"goals": {}, "last_goal": -1, "hand_since_tick": 0, "last_snapshot": -1, "pending": 0}
 		body.set_simulated(role != "client")
 		_place_model(uid, body.global_transform)
 	camera = Camera3D.new()
@@ -222,23 +226,39 @@ func _physics_process(delta: float) -> void:
 		var o: Dictionary = objects[uid]
 		if role != "client":
 			_commit(uid)
-			var keys: Array = o.goals.keys()
-			keys.sort()
-			for input_tick: int in keys:
-				if input_tick > tick: break
-				if input_tick > o.last_goal:
-					o.body.goal = o.goals[input_tick]
-					o.last_goal = input_tick
-				o.goals.erase(input_tick)
+			if o.authority.state.phase == State.Phase.HELD:
+				var frame: Dictionary = _hand_timeline.consume(o.authority.state.owner, uid,
+					o.authority.state.epoch, o.authority.state.session, tick,
+					maxi(o.last_goal, int(o.hand_since_tick) - 1))
+				if not frame.is_empty():
+					o.body.goal = frame.target
+					o.last_goal = frame.tick
+				o.goals = _hand_timeline.pending_for(o.authority.state.owner, uid,
+					o.authority.state.epoch, o.authority.state.session)
+			else:
+				o.goals = {}
 		if uid == local_uid:
 			o.body.goal = target
+			o.last_goal = tick
 			if role == "client":
-				_send(1, "_goal", [uid, local_session, tick, target], false)
+				_hand_history.push_front({"uid": uid, "epoch": o.state.epoch,
+					"session": local_session, "tick": tick, "target": target})
+				while _hand_history.size() > HandInput.REDUNDANCY: _hand_history.pop_back()
 		if not o.body.freeze:
 			o.body.prepare(tick, DT * slow)
 			if o.body.held:
 				_log("controller", {"uid": uid, "input_tick": o.last_goal,
-					"step_tick": tick, "owner": o.authority.state.owner if role != "client" else _local_peer_id})
+					"step_tick": tick, "fallback": o.last_goal != tick,
+					"source": "hand_or_local" if o.last_goal >= 0 else "grab_command",
+					"owner": o.authority.state.owner if role != "client" else _local_peer_id,
+					"target": [o.body.goal.origin.x, o.body.goal.origin.y, o.body.goal.origin.z]})
+	if role == "client" and not _hand_history.is_empty() \
+		and tick - int(_hand_history.front().tick) <= HandInput.REDUNDANCY:
+		# Repetir la cola durante seis pasos después de soltar evita que el
+		# último input dependa de un único datagrama. Cada registro sigue
+		# nombrando el tick y la sesión originales.
+		var packet := HandInput.encode(_hand_history)
+		if not packet.is_empty(): _send(1, "_hand_inputs", [packet], false)
 
 func _capture(uid: int, physics_delta: float) -> void:
 	var o: Dictionary = objects[uid]
@@ -285,12 +305,13 @@ func _drain_inbound() -> void:
 			"command": _receive_command(event.peer, event.command)
 			"snapshot": _receive_snapshot(event.packet)
 			"result": _receive_result(event.result)
-			"goal":
-				var o: Dictionary = objects.get(event.uid, {})
-				if not o.is_empty() and o.authority.state.owner == event.peer \
-					and o.authority.state.session == event.session and event.tick > o.last_goal \
-					and event.tick <= tick + 60:
-					o.goals[event.tick] = event.target
+			"hand_inputs":
+				for frame: Dictionary in event.frames:
+					if not objects.has(frame.uid) or frame.target.origin.length() > 20.0: continue
+					var status: String = _hand_timeline.accept(event.peer, frame, tick + 1)
+					_log("hand_input", {"peer": event.peer, "uid": frame.uid,
+						"epoch": frame.epoch, "session": frame.session,
+						"input_tick": frame.tick, "status": status})
 			"pong":
 				if event.sent != _last_ping_usec: continue
 				rtt_ms = float(Time.get_ticks_usec() - int(event.sent)) / 1000.0
@@ -301,10 +322,10 @@ func _drain_inbound() -> void:
 					ready_for_input = true
 					_log("clock_ready", {"local_tick": tick})
 			"disconnect":
+				_hand_timeline.drop_peer(event.peer)
 				for uid: int in objects:
 					var o: Dictionary = objects[uid]
 					if o.authority.release_peer(event.peer, tick + 1):
-						o.goals.clear()
 						o.last_goal = -1
 						o.body.release()
 						_log("auto_release", {"uid": uid, "cause": "disconnect"})
@@ -316,6 +337,7 @@ func estimated_server_tick() -> float:
 func request_grab(uid: int, point: Vector3, desired: Transform3D) -> void:
 	if not ready_for_input or local_uid != 0 or _pending_grab != 0 or not objects.has(uid): return
 	local_session = next_action
+	_hand_history.clear()
 	camera_drives_goal = false
 	target = desired
 	_goal_rotation = desired.basis
@@ -386,12 +408,12 @@ func _local_command(command: Dictionary) -> void:
 		# Se transmite inmediatamente. La autoridad la mantiene dependiente del
 		# grab de esa sesión; no depende del viaje de regreso de la concesión.
 		if role == "client": _send(1, "_command", [command], true)
-		else: _receive_command(1, command)
+		else: _receive_command(1, command, tick)
 		return
 	if role == "client": _send(1, "_command", [command], true)
-	else: _receive_command(1, command)
+	else: _receive_command(1, command, tick)
 
-func _receive_command(peer: int, command: Dictionary) -> void:
+func _receive_command(peer: int, command: Dictionary, boundary_tick := -1) -> void:
 	if not Authority.valid_command(command) or not objects.has(command.uid): return
 	var o: Dictionary = objects[command.uid]
 	# Adaptador mínimo: zona acotada y punto dentro de la caja. La validación
@@ -404,11 +426,27 @@ func _receive_command(peer: int, command: Dictionary) -> void:
 					and objects[other].authority.pending.peer == peer \
 					and objects[other].authority.pending.command.op == "grab")):
 				_reply(peer, {"status": "rejected", "reason": "already_holding", "action": command.action, "uid": command.uid})
+				_retire_unbound_grab(peer, command, tick + 1)
 				return
-	var result: Dictionary = o.authority.request(peer, command, tick + 1)
+	# La bandeja se procesa antes de tick += 1; el input local, después.
+	# Ambos nombran el mismo límite físico, sin añadir un tick al host.
+	var now := tick + 1 if boundary_tick < 0 else boundary_tick
+	var result: Dictionary = o.authority.request(peer, command, now)
 	if result.status not in ["pending", "invalid"]:
+		if result.status in ["rejected", "stale"] and command.op == "grab":
+			_retire_unbound_grab(peer, command, now)
 		result["uid"] = command.uid
 		_reply(peer, result)
+
+func _retire_unbound_grab(peer: int, command: Dictionary, now: int) -> void:
+	var auth = objects[command.uid].authority
+	var active: bool = auth.state.owner == peer and auth.state.session == command.session \
+		and auth.state.epoch == command.epoch and auth.state.phase == State.Phase.HELD
+	var waiting: bool = not auth.pending.is_empty() and auth.pending.peer == peer \
+		and auth.pending.command.op == "grab" and auth.pending.command.session == command.session \
+		and auth.pending.command.epoch == command.epoch
+	if not active and not waiting:
+		_hand_timeline.retire(peer, command.uid, command.epoch, command.session, now)
 
 func _commit(uid: int) -> void:
 	var o: Dictionary = objects[uid]
@@ -424,9 +462,16 @@ func _apply_commit(uid: int, job: Dictionary) -> void:
 	var command: Dictionary = job.command
 	if command.op == "grab":
 		o.body.begin_hold(command.anchor, command.target)
+		o.hand_since_tick = int(command.tick) + 1
+		# El objetivo del GRAB es el respaldo inicial. No marcar como
+		# consumido su tick: un input de ese mismo paso puede traer un
+		# objetivo más reciente y debe poder reemplazarlo antes de Jolt.
+		o.last_goal = -1
 		if job.peer == 1:
 			local_uid = uid
 	else:
+		_hand_timeline.retire(job.peer, uid, command.epoch, command.session, tick)
+		o.last_goal = -1
 		o.body.release(command.direction * THROW_IMPULSE if command.op == "throw" else Vector3.ZERO)
 		if job.peer == 1: local_uid = 0
 	var initial = o.body.capture(o.authority.state)
@@ -445,8 +490,18 @@ func _reply(peer: int, result: Dictionary) -> void:
 	else: _send(peer, "_result", [result], true)
 
 func _receive_result(result: Dictionary) -> void:
-	_log("result", {"action": result.get("action", 0), "status": result.get("status", ""), "reason": result.get("reason", "")})
-	var uid: int = result.get("uid", 0)
+	if not Authority.valid_response(result):
+		_log("discarded_result", {"cause": "invalid_response"})
+		return
+	var initial = null
+	if result.status == "accepted":
+		initial = State.decode(result.state)
+		if initial == null or initial.uid != result.uid or initial.action != result.action:
+			_log("discarded_result", {"cause": "invalid_initial_state", "action": result.action})
+			return
+	_log("result", {"uid": result.uid, "action": result.action, "status": result.status,
+		"reason": result.get("reason", ""), "initial": initial.trace() if initial != null else {}})
+	var uid: int = result.uid
 	if not objects.has(uid): return
 	var o: Dictionary = objects[uid]
 	if result.status != "accepted":
@@ -463,8 +518,7 @@ func _receive_result(result: Dictionary) -> void:
 			o.predicted_state = o.state.copy()
 			o.pending = 0
 		return
-	var sample = State.decode(result.get("state", PackedByteArray()))
-	if sample == null: return
+	var sample = initial
 	_accept_authorized(o, sample)
 	if result.action == _pending_grab:
 		_pending_grab = 0
@@ -642,7 +696,8 @@ func _build_fingerprint() -> String:
 		settings[key] = ProjectSettings.get_setting(key)
 	var scripts := {}
 	for path in ["res://main.gd", "res://runtime/body.gd", "res://runtime/authority.gd",
-		"res://runtime/state.gd", "res://runtime/prediction.gd", "res://runtime/presentation.gd"]:
+		"res://runtime/state.gd", "res://runtime/prediction.gd", "res://runtime/presentation.gd",
+		"res://runtime/hand_input.gd", "res://runtime/hand_timeline.gd"]:
 		scripts[path] = FileAccess.get_file_as_string(path).sha256_text()
 	return JSON.stringify({"version": State.VERSION, "slow": slow, "rate": RATE,
 		"engine": Engine.get_version_info().string, "bodies": bodies,
@@ -661,6 +716,7 @@ func _stop_local_session(cause: String) -> void:
 	_dependent = ""
 	_dependent_command.clear()
 	_local_commands.clear()
+	_hand_history.clear()
 	_wire.clear()
 	for uid: int in objects:
 		objects[uid].prediction.stop()
@@ -686,11 +742,13 @@ func _snapshot(packet: PackedByteArray) -> void:
 		_inbound.append({"kind": "snapshot", "packet": packet})
 
 @rpc("any_peer", "call_remote", "unreliable", 1)
-func _goal(uid: int, session: int, input_tick: int, desired: Transform3D) -> void:
-	if role == "host" and desired.origin.is_finite() and desired.origin.length() <= 20.0 \
-		and desired.basis.is_finite() and absf(desired.basis.determinant() - 1.0) < 0.01:
-		_inbound.append({"kind": "goal", "peer": multiplayer.get_remote_sender_id(),
-			"uid": uid, "session": session, "tick": input_tick, "target": desired})
+func _hand_inputs(packet: PackedByteArray) -> void:
+	if role != "host": return
+	var frames: Array = HandInput.decode(packet)
+	if frames.is_empty():
+		_log("discarded", {"cause": "invalid_hand_inputs"})
+		return
+	_inbound.append({"kind": "hand_inputs", "peer": multiplayer.get_remote_sender_id(), "frames": frames})
 
 @rpc("any_peer", "call_remote", "unreliable", 1)
 func _ping(sent_usec: int) -> void:

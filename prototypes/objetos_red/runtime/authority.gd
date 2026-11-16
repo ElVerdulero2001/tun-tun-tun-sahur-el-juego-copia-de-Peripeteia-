@@ -20,11 +20,11 @@ func request(peer: int, command: Dictionary, now: int) -> Dictionary:
 	if _results.has(key):
 		return _results[key].duplicate(true)
 	if pending.get("key", "") == key:
-		return {"status": "pending"}
+		return {"status": "pending", "action": action, "uid": command.uid}
 	if pending_exit.get("key", "") == key:
-		return {"status": "pending"}
+		return {"status": "pending", "action": action, "uid": command.uid}
 	if action <= int(_latest.get(peer, 0)):
-		return {"status": "stale"}
+		return {"status": "stale", "action": action, "uid": command.uid}
 	_latest[peer] = action
 	var reason := ""
 	if command.uid != state.uid or command.epoch != state.epoch:
@@ -43,7 +43,7 @@ func request(peer: int, command: Dictionary, now: int) -> Dictionary:
 		elif not pending_exit.is_empty() or (not pending.is_empty() and not owns_pending):
 			reason = "pending"
 	if not reason.is_empty():
-		return _remember(key, {"status": "rejected", "reason": reason, "action": action})
+		return _remember(key, {"status": "rejected", "reason": reason, "action": action, "uid": command.uid})
 	# RELEASE/THROW van después del último tick sostenido, nunca antes.
 	var due := maxi(now, int(command.tick) + 1)
 	var job := {"key": key, "peer": peer, "command": command.duplicate(true), "due": due}
@@ -51,7 +51,7 @@ func request(peer: int, command: Dictionary, now: int) -> Dictionary:
 		pending_exit = job
 	else:
 		pending = job
-	return {"status": "pending"}
+	return {"status": "pending", "action": action, "uid": command.uid}
 
 func commit(now: int) -> Dictionary:
 	if pending.is_empty() or now < int(pending.due):
@@ -76,7 +76,7 @@ func commit(now: int) -> Dictionary:
 		"late": now > int(command.tick) + 1}
 
 func remember_commit(job: Dictionary, packet: PackedByteArray) -> Dictionary:
-	return _remember(job.key, {"status": "accepted", "action": job.command.action,
+	return _remember(job.key, {"status": "accepted", "action": job.command.action, "uid": job.command.uid,
 		"late": job.late, "state": packet})
 
 func release_peer(peer: int, now: int) -> bool:
@@ -113,3 +113,11 @@ static func valid_command(c: Dictionary) -> bool:
 		and typeof(c.get("anchor")) == TYPE_VECTOR3 and c.anchor.is_finite() \
 		and typeof(c.get("direction")) == TYPE_VECTOR3 and c.direction.is_finite() \
 		and (c.op != "throw" or absf(c.direction.length_squared() - 1.0) < 0.01)
+
+static func valid_response(result: Dictionary) -> bool:
+	for key in ["action", "uid"]:
+		if typeof(result.get(key)) != TYPE_INT or result[key] <= 0 or result[key] > State.MAX_ID: return false
+	if typeof(result.get("status")) != TYPE_STRING or result.status not in ["accepted", "rejected", "stale"]: return false
+	if result.has("reason") and typeof(result.reason) != TYPE_STRING: return false
+	if result.has("late") and typeof(result.late) != TYPE_BOOL: return false
+	return result.status != "accepted" or (typeof(result.get("state")) == TYPE_PACKED_BYTE_ARRAY and result.state.size() == State.BYTES)

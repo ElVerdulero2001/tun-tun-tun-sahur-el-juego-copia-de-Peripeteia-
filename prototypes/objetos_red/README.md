@@ -1,8 +1,10 @@
-# Prototipo de objetos en red: entrega 2
+# Prototipo de objetos en red: entrega 3
 
 **Experimental, pendiente de validación independiente. No está integrado al laboratorio.** Abrir este `project.godot`, no el del proyecto principal. Requiere el Godot 4.7.2 con Jolt que usa actualmente el laboratorio.
 
 La entrega 1 fue rechazada por la validación independiente. Esta revisión corrige el orden de acciones, la separación entre estado autorizado y especulación y la conservación de intenciones anteriores al ACK. **No sustituye la política de reconciliación ni resuelve los contactos dinámicos.** Ver `docs/net/entregas/revision_codex_entrega_1.md` en la raíz del repositorio.
+
+La validación de la entrega 2 confirmó esas correcciones y encontró N1 (respuesta antigua sin acción) y N2 (movimientos de mano descartados antes de conceder el agarre). La entrega 3 uniforma las respuestas y agrega una bandeja por peer/objeto/aparición/sesión que conserva entradas anteriores a la concesión. También agrupa seis ticks redundantes en un payload de hasta 268 bytes. Ver `docs/net/entregas/revision_codex_entrega_2.md` para los resultados y límites.
 
 ## Qué contiene
 
@@ -72,6 +74,7 @@ La traza tiene `schema: 1`, `kind`, rol, modo, tiempo real en microsegundos, tic
 | `visual` | Pose dibujada `p/q`, instante seleccionado y tick físico completado que la originó cuando es predicha |
 | `proxy` | Actividad, pose, tick de muestra y reloj de interpolación usado por el proxy |
 | `controller` | Tick del objetivo que usa el host y paso físico que prepara |
+| `hand_input` | Entrada recibida, identidad completa, tick y decisión de la bandeja; recibirla no concede propiedad |
 | `dependent`, `dependent_confirmed`, `dependent_cancelled` | Intención original con acción, padre, dirección y tick, sin crear otro número o repetir el impulso |
 | `discarded` | Muestra inválida o anterior al estado autorizado conocido |
 | `handoff`, `handoff_wait`, `handoff_blocked` | Resultado o causa de espera; no se hace un reseed para esconder la distancia entre reposos |
@@ -84,7 +87,7 @@ La traza tiene `schema: 1`, `kind`, rol, modo, tiempo real en microsegundos, tic
 4. El traspaso exige reposo de ambos lados, muestras compatibles y coincidencia dentro de 2 mm/0,3°, criterios fijados por Claude antes de las pruebas. No hace reseed ni retrocede el reloj mostrado. Si el reposo difiere, se bloquea y registra la causa; puede no terminar. Eso es un fallo pendiente del modelo, no una solución al problema de convergencia.
 5. Las poses remotas se interpolan entre muestras. Todavía no se incorporó una protección común del recorrido visual para rotaciones y todas las geometrías. Esa garantía del plan queda pendiente, no se presume por tener física Jolt.
 6. Una suelta/lanzamiento anterior al ACK se predice y transmite inmediatamente, con sus parámetros e ID originales. La autoridad la conserva como salida dependiente del agarre y no la ejecuta antes de concederlo. Cuando llega la concesión no se repite el impulso. Un retraso real del envío todavía puede hacerla llegar tarde: esa divergencia temporal sigue sin reconciliación aprobada.
-7. Los objetivos de mano del prototipo no llevan todavía los seis inputs redundantes del laboratorio. Esa garantía y el presupuesto de payload deberán conservarse al integrar; medir pérdida aquí no certifica el transporte final.
+7. Los objetivos de mano llevan hasta seis ticks redundantes, incluso una cola de seis envíos tras soltar. Cada registro nombra objeto, aparición, sesión y tick. Eso reduce pérdida y conserva entradas tempranas, pero no reconstruye inputs que llegan después del paso que los necesitaba: el caso con jitter todavía puede divergir y no certifica el transporte final del laboratorio.
 8. La primera revisión compara un solo objeto propio y un vecino. No demuestra comportamiento con pilas, varias islas dinámicas, carga del catálogo ni el rendimiento objetivo.
 
 La validación de Claude debe conservar los casos reproducibles y los criterios de la entrega 1. No marcar el prototipo como apto mientras el contacto, la corrección o el traspaso requieran cambios de modelo. La huella ahora se calcula desde la configuración real de arranque y el contenido de los scripts; no permite cambios de configuración física en caliente sin renegociar.

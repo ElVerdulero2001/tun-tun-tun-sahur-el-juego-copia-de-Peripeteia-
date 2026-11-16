@@ -1,5 +1,7 @@
 # Encargo para Claude: validación independiente de objetos
 
+**Encargo vigente: entrega 3.** Leer [revisión de la entrega 2 y lista acotada de verificaciones](entregas/revision_codex_entrega_2.md). No repetir toda la matriz histórica.
+
 **La entrega 1 ya fue evaluada.** Para la revisión siguiente, leer [correcciones y encargo de la entrega 2](entregas/revision_codex_entrega_1.md), que indica cómo actualizar la copia preservando las pruebas. Lo que sigue documenta el encargo original.
 
 ## Objetivo y carpeta de trabajo

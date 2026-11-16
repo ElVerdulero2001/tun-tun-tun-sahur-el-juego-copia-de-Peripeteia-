@@ -97,6 +97,10 @@ C9 es necesaria pero no suficiente: una convergencia final no compensa fallar C3
 
 Clasificación de cada fallo: **bloquea el modelo** (requiere cambiar el modelo de predicción/corrección/traspaso), **bloquea la migración** (defecto de implementación corregible sin cambiar el modelo) o **prestación fuera de esta fixture** (límite declarado que el laboratorio ya cubre o que todavía no corresponde). Ninguno de estos casos cubre inventario, pilas, varias islas ni el catálogo.
 
+### Agregado antes de ejecutar `late_release_hitch` (2026-11-16 11:45)
+
+`late_release` con `asym` (invitado 150 ms, host 0) se aplicó a tiempo. No es un ajuste del criterio: el reloj del invitado fija `desired = est + ⌈RTT/2⌉ + 2`, con `est = tick_del_pong + RTT/2`; con demora invitado→host `c` y host→invitado `h`, el adelanto resulta `c + 2` ticks para cualquier `c`/`h`, así que una demora fija siempre llega 2 ticks antes. El caso dirigido pasa a `late_release_hitch`: sin degradación, el invitado se bloquea 200 ms en el nodo `Post` del mismo tick de la suelta, después de que el adaptador la ejecutó localmente y antes de su `_process`, que es donde envía. Mismos criterios que `late_release` (C3–C9 y C11 deciden; se mide el atraso aplicado).
+
 ## 6. Ejecución
 
 - Un caso por corrida, host e invitado como procesos separados con `validation/run_case.ps1`. Límite externo de **20 s** desde el arranque del host; preparación ≤ 6 s (invitado listo) y ≤ 4 s (host arrancado). Al vencer: se terminan solo los PID propios, se informa y se corrige el driver o se reporta el runtime.

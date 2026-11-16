@@ -8,6 +8,7 @@ const MAX_FUTURE := 60
 
 var state = State.new()
 var pending := {}
+var pending_exit := {} # Depende de la concesión del grab pendiente de la misma sesión.
 var _results := {}
 var _latest := {} # Conexión -> ID mayor recibido. No se reutiliza al reconectar.
 
@@ -20,34 +21,44 @@ func request(peer: int, command: Dictionary, now: int) -> Dictionary:
 		return _results[key].duplicate(true)
 	if pending.get("key", "") == key:
 		return {"status": "pending"}
+	if pending_exit.get("key", "") == key:
+		return {"status": "pending"}
 	if action <= int(_latest.get(peer, 0)):
 		return {"status": "stale"}
 	_latest[peer] = action
 	var reason := ""
 	if command.uid != state.uid or command.epoch != state.epoch:
 		reason = "identity"
+	elif command.tick > now + MAX_FUTURE:
+		reason = "future"
 	elif command.op == "grab":
 		if state.phase != State.Phase.FREE or not pending.is_empty():
 			reason = "occupied"
 	else:
-		if state.phase != State.Phase.HELD or state.owner != peer or state.session != command.session:
+		var owns_now: bool = state.phase == State.Phase.HELD and state.owner == peer and state.session == command.session
+		var owns_pending: bool = not pending.is_empty() and pending.peer == peer \
+			and pending.command.op == "grab" and pending.command.session == command.session
+		if not owns_now and not owns_pending:
 			reason = "ownership"
-		elif not pending.is_empty():
+		elif not pending_exit.is_empty() or (not pending.is_empty() and not owns_pending):
 			reason = "pending"
-		elif command.tick > now + MAX_FUTURE:
-			reason = "future"
 	if not reason.is_empty():
 		return _remember(key, {"status": "rejected", "reason": reason, "action": action})
 	# RELEASE/THROW van después del último tick sostenido, nunca antes.
-	var due := now if command.op == "grab" else maxi(now, int(command.tick) + 1)
-	pending = {"key": key, "peer": peer, "command": command.duplicate(true), "due": due}
+	var due := maxi(now, int(command.tick) + 1)
+	var job := {"key": key, "peer": peer, "command": command.duplicate(true), "due": due}
+	if command.op != "grab" and not pending.is_empty():
+		pending_exit = job
+	else:
+		pending = job
 	return {"status": "pending"}
 
 func commit(now: int) -> Dictionary:
 	if pending.is_empty() or now < int(pending.due):
 		return {}
 	var job := pending
-	pending = {}
+	pending = pending_exit
+	pending_exit = {}
 	var command: Dictionary = job.command
 	state.revision += 1
 	state.action = command.action
@@ -62,7 +73,7 @@ func commit(now: int) -> Dictionary:
 		state.owner = 0
 		state.session = 0
 	return {"peer": job.peer, "command": command, "key": job.key,
-		"late": command.op != "grab" and now > int(command.tick) + 1}
+		"late": now > int(command.tick) + 1}
 
 func remember_commit(job: Dictionary, packet: PackedByteArray) -> Dictionary:
 	return _remember(job.key, {"status": "accepted", "action": job.command.action,
@@ -71,6 +82,8 @@ func remember_commit(job: Dictionary, packet: PackedByteArray) -> Dictionary:
 func release_peer(peer: int, now: int) -> bool:
 	if not pending.is_empty() and pending.peer == peer:
 		pending = {}
+	if not pending_exit.is_empty() and pending_exit.peer == peer:
+		pending_exit = {}
 	if state.owner != peer:
 		return false
 	state.phase = State.Phase.FREE

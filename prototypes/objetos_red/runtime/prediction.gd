@@ -1,17 +1,16 @@
 extends RefCounted
 
-## Reconciliación experimental sin replay. La historia guarda resultados
-## físicos observados, sin reescribirlos para aparentar concordancia.
+## Observación de divergencias. La corrección por traslado de un error viejo
+## fue refutada en F1/F3 y se retiró. No esconder la falta de reconciliación
+## trasladando el cuerpo ni modificando la historia física.
 const HISTORY_LIMIT := 180
 var active := false
 var start_tick := 0
-var correction_barrier := -1
 var history := {}
 
 func begin(tick: int) -> void:
 	active = true
 	start_tick = tick
-	correction_barrier = -1
 	history.clear()
 
 func observe(sample, contacts: int) -> void:
@@ -22,7 +21,7 @@ func observe(sample, contacts: int) -> void:
 		history.erase(history.keys()[0])
 
 func reconcile(sample, body, now: int) -> Dictionary:
-	if not active or sample.tick < start_tick or sample.tick < correction_barrier:
+	if not active or sample.tick < start_tick:
 		return {"status": "outside_history"}
 	if not history.has(sample.tick):
 		return {"status": "missing_history"}
@@ -31,20 +30,21 @@ func reconcile(sample, body, now: int) -> Dictionary:
 		return {"status": "different_transition"}
 	var distance: float = previous.pose.origin.distance_to(sample.pose.origin)
 	var angle: float = previous.pose.basis.get_rotation_quaternion().angle_to(sample.pose.basis.get_rotation_quaternion())
-	if distance < 0.005 and angle < deg_to_rad(0.5) and previous.lv.distance_to(sample.lv) < 0.02:
+	if distance <= 0.002 and angle <= deg_to_rad(0.3) and previous.lv.distance_to(sample.lv) < 0.02:
 		return {"status": "same", "distance": distance, "angle": angle}
-	# Un contacto posterior impide transportar el error como si el intervalo
-	# siguiera siendo vuelo libre. Esperar recuperación autoritativa explícita.
+	# Medir contactos también cuando no se aplica ninguna corrección.
+	var contacted := false
 	for tick: int in history:
 		if tick >= sample.tick and history[tick].contacts > 0:
-			return {"status": "contact_recovery_required", "distance": distance, "angle": angle}
-	var delta: Transform3D = sample.pose * previous.pose.affine_inverse()
-	if not body.safe_correction(delta, sample.lv - previous.lv, sample.av - previous.av):
-		return {"status": "blocked_recovery_required", "distance": distance, "angle": angle}
-	# Las muestras anteriores a la aplicación todavía no contienen el efecto
-	# de esta corrección. No volver a aplicar el mismo error sobre ellas.
-	correction_barrier = now
-	return {"status": "corrected", "distance": distance, "angle": angle}
+			contacted = true
+			break
+	var position_error: Vector3 = sample.pose.origin - previous.pose.origin
+	var velocity_error: Vector3 = sample.lv - previous.lv
+	return {"status": "model_blocked", "distance": distance, "angle": angle,
+		"position_error": [position_error.x, position_error.y, position_error.z],
+		"velocity_error": [velocity_error.x, velocity_error.y, velocity_error.z],
+		"contact_since_source": contacted, "application_tick": now,
+		"physical_correction": false, "current_tick": body.prepared_tick}
 
 func stop() -> void:
 	active = false

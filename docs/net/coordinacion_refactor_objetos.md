@@ -35,7 +35,7 @@ La carpeta `tmp` está excluida de exploración por Godot. Las fuentes nuevas re
 
 ## Entrega 1
 
-**Estado: prototipo construido, pendiente de validación independiente; migración al laboratorio bloqueada por la puerta de viabilidad del plan.**
+**Estado histórico: validado por Claude y rechazado por problemas de modelo.** Ver el informe en `docs/net/validacion_objetos/entrega_1.md`. La migración continúa bloqueada.
 
 Incluye cuerpo Jolt compartido, estado con identidad y revisión, acciones idempotentes, confirmaciones, transporte ENet, reloj de demostración, proxies cercanos, presentación separada y trazas. La [lectura de la entrega](../../prototypes/objetos_red/README.md) contiene API, comandos y límites conocidos. El [encargo de Claude](encargo_claude_validacion_objetos.md) define las pruebas.
 
@@ -44,6 +44,8 @@ Comprobaciones de construcción realizadas por Codex: análisis sintáctico de `
 La inspección de `SimClock.apply_tick_rate` corrigió un punto del plan: el reloj ya modifica frecuencia física y escala conjuntamente y ejecuta un tick lógico por callback de física. El prototipo registra el orden de pasos para que Claude compruebe la correspondencia, en lugar de asumir una incompatibilidad del reloj.
 
 ## Entregas e integración
+
+**Entrega 2 (2026-11-16):** [revisión de Codex, correcciones y próximo encargo](entregas/revision_codex_entrega_1.md). El trabajo está en `implementacion`; no se sobrescribió la copia de Claude. La caída y las acciones tempranas mejoraron en verificaciones enfocadas, pero el caso tardío sigue fallando y los proxies dinámicos no están aprobados. Falta evaluar una capacidad real de rollback de isla física; no se ha construido ni aprobado esa alternativa.
 
 1. Claude trabaja únicamente en `validacion_claude` y registra el hash de base de `entrega_1.json` antes de empezar. No abre esa copia en Godot a la vez que un proceso de importación sobre la misma copia.
 2. El primer informe distingue pruebas ejecutadas, fallos, casos todavía no construidos y decisiones abiertas. Adjunta comando, semilla, parámetros, trazas y criterio fijado previamente.

@@ -1,0 +1,142 @@
+{
+  "date": "2026-11-16",
+  "author": "Codex",
+  "contract_passed": 74,
+  "contract_failed": 0,
+  "independent_validation_commit": "5a5d92f",
+  "full_model_approved": false,
+  "original_tests_modified": false,
+  "cases": [
+    {
+      "case": "drop050",
+      "net": "clean",
+      "directory": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_2\\cases\\20261116_122542_drop050_clean",
+      "seconds": 4.358,
+      "host_exit": 0,
+      "client_exit": 0,
+      "killed": [],
+      "runtime_errors": [],
+      "passed": 22,
+      "failed": [],
+      "runner_environment": "Final Get-CimInstance denied; original analyzer invoked separately."
+    },
+    {
+      "case": "throw_before_ack",
+      "net": "clean",
+      "directory": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_2\\cases\\20261116_122640_throw_before_ack_clean",
+      "seconds": 4.158,
+      "host_exit": 0,
+      "client_exit": 0,
+      "killed": [],
+      "runtime_errors": [],
+      "passed": 25,
+      "failed": [],
+      "runner_environment": "Final Get-CimInstance denied; original analyzer invoked separately."
+    },
+    {
+      "case": "release_before_ack",
+      "net": "degraded",
+      "directory": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_2\\cases\\20261116_122752_release_before_ack_degraded",
+      "seconds": 3.519,
+      "host_exit": 0,
+      "client_exit": 0,
+      "killed": [],
+      "runtime_errors": [],
+      "passed": 19,
+      "failed": [
+        {
+          "id": "P5_host_cinematica_un_paso",
+          "metric": "pares=15 pos_mal=0 (max 0 m) vel_mal=7 (exceso max 0.000175)",
+          "tol": "1e-5 m; g·dt ± amortiguación"
+        },
+        {
+          "id": "P5_client_cinematica_un_paso",
+          "metric": "pares=15 pos_mal=0 (max 0 m) vel_mal=7 (exceso max 0.000175)",
+          "tol": "1e-5 m; g·dt ± amortiguación"
+        }
+      ],
+      "runner_environment": "Final Get-CimInstance denied; original analyzer invoked separately."
+    },
+    {
+      "case": "grab_rejected",
+      "net": "clean",
+      "directory": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_2\\cases\\20261116_122944_grab_rejected_clean",
+      "seconds": 7.059,
+      "host_exit": 0,
+      "client_exit": 0,
+      "killed": [],
+      "runtime_errors": [],
+      "passed": 8,
+      "failed": [],
+      "runner_environment": "Final Get-CimInstance denied; original analyzer invoked separately."
+    },
+    {
+      "case": "late_release_hitch",
+      "net": "clean",
+      "directory": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_2\\cases\\20261116_123046_late_release_hitch_clean",
+      "seconds": 4.458,
+      "host_exit": 0,
+      "client_exit": 0,
+      "killed": [],
+      "runtime_errors": [],
+      "passed": 18,
+      "failed": [
+        {
+          "id": "C1_divergencia_antes_del_contacto",
+          "metric": "0.363107 m / 0.0005° (67 ticks)",
+          "tol": "2 mm / 0,3°"
+        },
+        {
+          "id": "C2_primer_contacto",
+          "metric": "host 118 / invitado 109",
+          "tol": "±1 tick"
+        },
+        {
+          "id": "C10_suelta_a_tiempo",
+          "metric": "pedida 89, aplicada 99, late=true",
+          "tol": "requested+1"
+        },
+        {
+          "id": "C4_ascenso_artificial",
+          "metric": "Σ 0.009846 m, paso max 0.004949 m; diagnóstico con host corrido 9 tick(s): Σ 0 m",
+          "tol": "2 mm"
+        }
+      ],
+      "runner_environment": "Final Get-CimInstance denied; original analyzer invoked separately."
+    },
+    {
+      "case": "disconnect_holding",
+      "net": "clean",
+      "directory": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_2\\cases\\20261116_123211_disconnect_holding_clean",
+      "seconds": 5.027,
+      "host_exit": 0,
+      "client_exit": 2,
+      "killed": [],
+      "runtime_errors": [
+        "ERROR: The multiplayer instance isn't currently active."
+      ],
+      "passed": 11,
+      "failed": [
+        {
+          "id": "E0_procesos",
+          "metric": "host=0 client=2 killed=0",
+          "tol": "código esperado, sin errores ni procesos matados"
+        }
+      ],
+      "runner_environment": "Final Get-CimInstance denied; original analyzer invoked separately."
+    },
+    {
+      "case": "disconnect_holding",
+      "net": "clean",
+      "directory": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_2\\cases\\20261116_123617_disconnect_holding_clean",
+      "seconds": 5.015,
+      "host_exit": 0,
+      "client_exit": 0,
+      "killed": [],
+      "runtime_errors": [],
+      "passed": 12,
+      "failed": [],
+      "runner_environment": "Final Get-CimInstance denied; original analyzer invoked separately."
+    }
+  ]
+}

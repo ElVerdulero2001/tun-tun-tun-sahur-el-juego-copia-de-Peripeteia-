@@ -99,7 +99,10 @@ func release(impulse := Vector3.ZERO) -> void:
 	can_sleep = true
 	sleeping = false
 	if impulse.length_squared() > 0.0:
-		apply_central_impulse(impulse)
+		# Impulso CENTRAL: Δv = J/m. Hacerlo explícito en este límite físico
+		# permite confirmar la velocidad inicial posterior al impulso sin
+		# depender de cuándo Godot vacía su cola de apply_central_impulse.
+		linear_velocity += impulse / mass
 		impulse_count += 1
 
 func prepare(tick: int, dt: float) -> void:
@@ -130,22 +133,11 @@ func reseed(sample) -> void:
 	sleeping = sample.sleeping
 	reset_physics_interpolation()
 
-func safe_correction(delta: Transform3D, velocity_delta: Vector3, spin_delta: Vector3) -> bool:
-	var target := delta * global_transform
-	var motion := PhysicsTestMotionParameters3D.new()
-	motion.from = global_transform
-	motion.motion = target.origin - global_position
-	motion.margin = 0.001
-	if PhysicsServer3D.body_test_motion(get_rid(), motion):
-		return false
-	var query := PhysicsShapeQueryParameters3D.new()
-	query.shape = collider.shape
-	query.transform = target * collider.transform
-	query.collision_mask = collision_mask
-	query.exclude = [get_rid()]
-	if not get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty():
-		return false
-	global_transform = target
-	linear_velocity += velocity_delta
-	angular_velocity += spin_delta
-	return true
+func configuration() -> Dictionary:
+	return {"shape": collider.shape.get_class(), "size": collider.shape.size,
+		"shape_transform": collider.transform, "mass": mass,
+		"com": center_of_mass, "com_mode": center_of_mass_mode,
+		"friction": physics_material_override.friction, "bounce": physics_material_override.bounce,
+		"linear_damp": linear_damp, "linear_mode": linear_damp_mode,
+		"angular_damp": angular_damp, "angular_mode": angular_damp_mode,
+		"ccd": continuous_cd}

@@ -6,6 +6,8 @@
 
 **Avance del 2026-11-16:** se construyó una primera entrega experimental en `prototypes/objetos_red/`, sin migrar el laboratorio. [Coordinación, base preservada y estado](coordinacion_refactor_objetos.md). Codex construye e integra; Claude realiza las pruebas independientes. La puerta de viabilidad de la etapa 1 sigue pendiente.
 
+**Resultado de esa puerta:** Claude refutó el traslado de errores históricos y los proxies cinemáticos retrasados. Se retiró el primer mecanismo y se corrigieron contratos en una entrega 2; **la etapa 1 no está aprobada**. El caso tardío y los contactos dinámicos siguen bloqueados. La siguiente alternativa requiere demostrar restauración y repetición física de una isla mediante una integración real; todavía no existe en este prototipo. Ver [revisión y evidencia](entregas/revision_codex_entrega_1.md).
+
 La decisión propuesta es **reconstruir el recorrido de simulación, sincronización y presentación de los objetos**, conservando los sistemas que lo rodean. El host conserva la autoridad; el jugador local debe poder agarrar, mover, soltar y lanzar con respuesta inmediata. La predicción local con Jolt es el modelo que se debe comprobar antes de migrar el laboratorio.
 
 La primera entrega será un prototipo pequeño con resultados comparables entre host e invitado. Si no supera las condiciones físicas, temporales y de rendimiento, se revisa el modelo antes de trasladarlo al resto del sistema. No se prolonga la caída manual mediante excepciones por altura, objeto o superficie.

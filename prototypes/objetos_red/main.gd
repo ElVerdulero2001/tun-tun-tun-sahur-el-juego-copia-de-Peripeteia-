@@ -34,6 +34,8 @@ var network: ENetMultiplayerPeer
 var _inbound: Array[Dictionary] = []
 var _local_commands: Array[Dictionary] = []
 var _dependent := ""
+var _dependent_command := {}
+var _pending_grab_uid := 0
 var _pending_grab := 0
 var _server_tick := 0
 var _server_at_usec := 0
@@ -51,6 +53,9 @@ var _wire: Array[Dictionary] = []
 var _reliable_due := {}
 var _random := RandomNumberGenerator.new()
 var _initialized_world := false
+var _configuration_signature := ""
+var _local_peer_id := 1
+var _session_lost := false
 
 func _ready() -> void:
 	_started_usec = Time.get_ticks_usec()
@@ -80,6 +85,7 @@ func _ready() -> void:
 			get_tree().quit(2)
 			return
 	_build_world()
+	_configuration_signature = _build_fingerprint()
 	if role != "solo":
 		network = ENetMultiplayerPeer.new()
 		var error := network.create_server(port, 2, 3) if role == "host" else network.create_client(join_address, port, 3)
@@ -94,9 +100,7 @@ func _ready() -> void:
 			push_error("No se pudo conectar al host")
 			get_tree().quit(2))
 		multiplayer.server_disconnected.connect(func():
-			ready_for_input = false
-			_log("server_disconnected", {})
-			get_tree().quit(2))
+			_stop_local_session("server_disconnected"))
 	ready_for_input = role != "client"
 	_initialized_world = ready_for_input
 	_log("boot", {"mode": mode, "slow": slow, "engine": Engine.get_version_info().string,
@@ -129,6 +133,7 @@ func _build_world() -> void:
 		auth.state.pose = body.global_transform
 		objects[uid] = {"body": body, "authority": auth, "view": Presentation.new(),
 			"prediction": Prediction.new(), "state": auth.state.copy(),
+			"predicted_state": auth.state.copy(),
 			"goals": {}, "last_goal": -1, "last_snapshot": -1, "pending": 0}
 		body.set_simulated(role != "client")
 		_place_model(uid, body.global_transform)
@@ -176,8 +181,8 @@ func _process(delta: float) -> void:
 		_log("duration_end", {})
 		get_tree().quit()
 		return
-	_flush_wire(now)
-	if role == "client" and multiplayer.get_peers().has(1) and now >= _next_ping_usec:
+	if not _session_lost: _flush_wire(now)
+	if role == "client" and not _session_lost and multiplayer.get_peers().has(1) and now >= _next_ping_usec:
 		_last_ping_usec = now
 		_next_ping_usec = now + 500_000
 		_send(1, "_ping", [now], true)
@@ -194,6 +199,10 @@ func _process(delta: float) -> void:
 		_present(uid)
 
 func _physics_process(delta: float) -> void:
+	if role == "client" and network != null \
+		and network.get_connection_status() == MultiplayerPeer.CONNECTION_DISCONNECTED:
+		if ready_for_input: _stop_local_session("connection_closed")
+		return
 	# Leer el resultado ANTES de consumir eventos y preparar el paso siguiente.
 	for uid: int in objects:
 		_capture(uid, delta)
@@ -227,12 +236,15 @@ func _physics_process(delta: float) -> void:
 				_send(1, "_goal", [uid, local_session, tick, target], false)
 		if not o.body.freeze:
 			o.body.prepare(tick, DT * slow)
+			if o.body.held:
+				_log("controller", {"uid": uid, "input_tick": o.last_goal,
+					"step_tick": tick, "owner": o.authority.state.owner if role != "client" else _local_peer_id})
 
 func _capture(uid: int, physics_delta: float) -> void:
 	var o: Dictionary = objects[uid]
 	if o.body.freeze or o.body.prepared_tick < 0 or o.last_snapshot == o.body.prepared_tick:
 		return
-	var sample = o.body.capture(o.authority.state if role != "client" else o.state)
+	var sample = o.body.capture(o.authority.state if role != "client" else o.predicted_state)
 	o.last_snapshot = sample.tick
 	var contacts: int = o.body.get_contact_count()
 	o.prediction.observe(sample, contacts)
@@ -292,6 +304,8 @@ func _drain_inbound() -> void:
 				for uid: int in objects:
 					var o: Dictionary = objects[uid]
 					if o.authority.release_peer(event.peer, tick + 1):
+						o.goals.clear()
+						o.last_goal = -1
 						o.body.release()
 						_log("auto_release", {"uid": uid, "cause": "disconnect"})
 
@@ -306,19 +320,24 @@ func request_grab(uid: int, point: Vector3, desired: Transform3D) -> void:
 	target = desired
 	_goal_rotation = desired.basis
 	_pending_grab = next_action
+	_pending_grab_uid = uid
 	_queue_action("grab", uid, point, Vector3.ZERO)
 
 func request_release() -> void:
-	if _pending_grab != 0 and local_uid == 0:
-		_dependent = "release"
-	elif local_uid != 0:
-		_queue_action("release", local_uid, Vector3.ZERO, Vector3.ZERO)
+	_request_exit("release", Vector3.ZERO)
 
 func request_throw(direction: Vector3) -> void:
-	if _pending_grab != 0 and local_uid == 0:
-		_dependent = "throw"
-	elif local_uid != 0:
-		_queue_action("throw", local_uid, Vector3.ZERO, direction.normalized())
+	if direction.is_finite() and direction.length_squared() > 0.000001:
+		_request_exit("throw", direction.normalized())
+
+func _request_exit(op: String, direction: Vector3) -> void:
+	if not ready_for_input or not _dependent_command.is_empty(): return
+	var uid := local_uid if local_uid != 0 else _pending_grab_uid
+	if uid == 0: return
+	# Una sola intención de salida puede estar encolada por sesión.
+	for command: Dictionary in _local_commands:
+		if command.uid == uid and command.op != "grab": return
+	_queue_action(op, uid, Vector3.ZERO, direction)
 
 func set_goal(desired: Transform3D) -> void:
 	camera_drives_goal = false
@@ -336,9 +355,6 @@ func _queue_action(op: String, uid: int, point: Vector3, direction: Vector3) -> 
 func _local_command(command: Dictionary) -> void:
 	var o: Dictionary = objects[command.uid]
 	command.tick = maxi(tick - 1, 0)
-	if command.op != "grab" and _pending_grab != 0:
-		_dependent = command.op
-		return
 	if role == "client" and mode == "prediction":
 		if command.op == "grab":
 			local_uid = command.uid
@@ -351,14 +367,27 @@ func _local_command(command: Dictionary) -> void:
 		else:
 			o.body.release(command.direction * THROW_IMPULSE if command.op == "throw" else Vector3.ZERO)
 			local_uid = 0
-		o.state.revision += 1
-		o.state.phase = State.Phase.HELD if command.op == "grab" else State.Phase.FREE
-		o.state.owner = multiplayer.get_unique_id() if command.op == "grab" else 0
-		o.state.session = command.session if command.op == "grab" else 0
-		o.state.action = command.action
-		o.state.applied_tick = tick
+		if command.op == "grab": o.predicted_state = o.state.copy()
+		o.predicted_state.revision += 1
+		o.predicted_state.phase = State.Phase.HELD if command.op == "grab" else State.Phase.FREE
+		o.predicted_state.owner = _local_peer_id if command.op == "grab" else 0
+		o.predicted_state.session = command.session if command.op == "grab" else 0
+		o.predicted_state.action = command.action
+		o.predicted_state.applied_tick = tick
 		o.pending = command.action
-	_log("request", {"uid": command.uid, "action": command.action, "op": command.op, "requested_tick": command.tick})
+	_log("request", {"uid": command.uid, "action": command.action, "op": command.op,
+		"requested_tick": command.tick, "direction": [command.direction.x, command.direction.y, command.direction.z]})
+	if command.op != "grab" and _pending_grab != 0:
+		_dependent = command.op
+		_dependent_command = command.duplicate(true)
+		_log("dependent", {"uid": command.uid, "action": command.action,
+			"parent_action": _pending_grab, "local_applied_tick": tick,
+			"direction": [command.direction.x, command.direction.y, command.direction.z]})
+		# Se transmite inmediatamente. La autoridad la mantiene dependiente del
+		# grab de esa sesión; no depende del viaje de regreso de la concesión.
+		if role == "client": _send(1, "_command", [command], true)
+		else: _receive_command(1, command)
+		return
 	if role == "client": _send(1, "_command", [command], true)
 	else: _receive_command(1, command)
 
@@ -370,18 +399,28 @@ func _receive_command(peer: int, command: Dictionary) -> void:
 	if command.target.origin.length() > 20.0 or command.anchor.length() > 1.0: return
 	if command.op == "grab":
 		for other: int in objects:
-			if objects[other].authority.state.owner == peer:
+			if other != command.uid and (objects[other].authority.state.owner == peer \
+				or (not objects[other].authority.pending.is_empty() \
+					and objects[other].authority.pending.peer == peer \
+					and objects[other].authority.pending.command.op == "grab")):
 				_reply(peer, {"status": "rejected", "reason": "already_holding", "action": command.action, "uid": command.uid})
 				return
 	var result: Dictionary = o.authority.request(peer, command, tick + 1)
-	if result.status not in ["pending", "invalid", "stale"]:
+	if result.status not in ["pending", "invalid"]:
 		result["uid"] = command.uid
 		_reply(peer, result)
 
 func _commit(uid: int) -> void:
 	var o: Dictionary = objects[uid]
-	var job: Dictionary = o.authority.commit(tick)
-	if job.is_empty(): return
+	# GRAB y su salida pueden pertenecer al mismo límite físico. Mantener el
+	# orden de acciones sin inventar entre ellas un paso que el cliente no dio.
+	for _attempt in 2:
+		var job: Dictionary = o.authority.commit(tick)
+		if job.is_empty(): return
+		_apply_commit(uid, job)
+
+func _apply_commit(uid: int, job: Dictionary) -> void:
+	var o: Dictionary = objects[uid]
 	var command: Dictionary = job.command
 	if command.op == "grab":
 		o.body.begin_hold(command.anchor, command.target)
@@ -412,28 +451,53 @@ func _receive_result(result: Dictionary) -> void:
 	var o: Dictionary = objects[uid]
 	if result.status != "accepted":
 		if result.action == _pending_grab:
+			if not _dependent_command.is_empty():
+				_log("dependent_cancelled", {"action": _dependent_command.action, "parent_action": _pending_grab})
 			_pending_grab = 0
+			_pending_grab_uid = 0
 			_dependent = ""
+			_dependent_command = {}
 			local_uid = 0
 			o.prediction.stop()
 			o.body.set_simulated(role != "client")
+			o.predicted_state = o.state.copy()
+			o.pending = 0
 		return
 	var sample = State.decode(result.get("state", PackedByteArray()))
 	if sample == null: return
-	if sample.epoch < o.state.epoch or (sample.epoch == o.state.epoch and sample.revision < o.state.revision): return
-	o.state = sample.copy()
-	o.view.accept(sample)
+	_accept_authorized(o, sample)
 	if result.action == _pending_grab:
 		_pending_grab = 0
-		local_uid = uid
-		if not _dependent.is_empty():
-			var op := _dependent
+		_pending_grab_uid = 0
+		if _dependent_command.is_empty():
+			local_uid = uid
+			if o.prediction.active:
+				o.predicted_state.revision = sample.revision
+		else:
+			var deferred := _dependent_command
+			_dependent_command = {}
 			_dependent = ""
-			_queue_action(op, uid, Vector3.ZERO, -camera.global_basis.z if op == "throw" else Vector3.ZERO)
+			local_uid = 0
+			if o.prediction.active: o.predicted_state.revision = sample.revision + 1
+			_log("dependent_confirmed", {"uid": uid, "action": deferred.action, "parent_action": result.action,
+				"requested_tick": deferred.tick, "direction": [deferred.direction.x, deferred.direction.y, deferred.direction.z]})
+			# Ya fue transmitida: no renumerar ni volver a lanzar al confirmar.
+	elif o.prediction.active and result.action == o.predicted_state.action:
+		o.predicted_state.revision = sample.revision
 	if o.pending == result.action: o.pending = 0
 	if sample.phase == State.Phase.FREE and uid == local_uid:
 		local_uid = 0
 	# No volver a ejecutar aquí el impulso predicho.
+
+func _accept_authorized(o: Dictionary, sample) -> bool:
+	var previous = o.state
+	if sample.epoch < previous.epoch or (sample.epoch == previous.epoch and sample.revision < previous.revision):
+		return false
+	if sample.epoch == previous.epoch and sample.revision == previous.revision and sample.tick < previous.tick:
+		return false
+	o.state = sample.copy()
+	o.view.accept(sample)
+	return true
 
 func _sync_proxies() -> void:
 	for uid: int in objects:
@@ -448,14 +512,21 @@ func _sync_proxies() -> void:
 					active = true
 					break
 		o.body.set_proxy(active, sample.pose if sample != null else o.body.global_transform)
+		_log("proxy", {"uid": uid, "active": active,
+			"source_tick": sample.tick if sample != null else -1,
+			"render_tick": estimated_server_tick() - BUFFER_TICKS,
+			"p": [o.body.global_position.x, o.body.global_position.y, o.body.global_position.z]})
 
 func _receive_snapshot(packet: PackedByteArray) -> void:
 	var sample = State.decode(packet)
-	if sample == null or not objects.has(sample.uid): return
+	if sample == null or not objects.has(sample.uid):
+		_log("discarded", {"cause": "invalid"})
+		return
 	var o: Dictionary = objects[sample.uid]
-	if sample.epoch < o.state.epoch or (sample.epoch == o.state.epoch and sample.revision < o.state.revision): return
-	if not o.view.accept(sample): return
-	if o.pending == 0: o.state = sample.copy()
+	if not _accept_authorized(o, sample):
+		_log("discarded", {"uid": sample.uid, "source_tick": sample.tick,
+			"revision": sample.revision, "cause": "old_tick_or_transition"})
+		return
 	_log("received", sample.trace())
 	if o.prediction.active:
 		var correction: Dictionary = o.prediction.reconcile(sample, o.body, tick + 1)
@@ -466,27 +537,37 @@ func _receive_snapshot(packet: PackedByteArray) -> void:
 		var buffered = o.view.at(remote_tick)
 		if o.pending == 0 and sample.phase == State.Phase.FREE and sample.sleeping \
 			and o.view.can_handoff(buffered, o.body.sleeping, remote_tick):
-			# Recuperación autorizada en reposo. Sigue siendo una corrección
-			# medible: se registra el salto, no se lo esconde con un blend.
 			var moved: float = o.body.global_position.distance_to(buffered.pose.origin)
-			o.body.reseed(buffered)
+			var angle: float = o.body.global_basis.get_rotation_quaternion().angle_to(buffered.pose.basis.get_rotation_quaternion())
+			if moved > 0.002 or angle > deg_to_rad(0.3):
+				_log("handoff_blocked", {"uid": sample.uid, "source_tick": buffered.tick,
+					"distance": moved, "angle": angle, "cause": "divergent_rest"})
+				return
+			# No reseed ni blend para esconder divergencias. Devolver únicamente
+			# estados que ya coinciden dentro del criterio registrado por Claude.
 			o.body.set_simulated(false)
 			o.prediction.stop()
-			o.view.shown_tick = buffered.tick
 			_log("handoff", {"uid": sample.uid, "source_tick": buffered.tick, "distance": moved})
+		else:
+			_log("handoff_wait", {"uid": sample.uid, "pending_action": o.pending,
+				"local_sleep": o.body.sleeping, "remote_sleep": sample.sleeping,
+				"source_tick": buffered.tick if buffered != null else -1, "render_tick": remote_tick})
 
 func _present(uid: int) -> void:
 	var o: Dictionary = objects[uid]
 	var pose: Transform3D
 	if role != "client" or o.prediction.active:
-		pose = o.view.predicted(o.body.global_transform, o.body.prepared_tick)
+		pose = o.view.predicted(o.body.global_transform, o.last_snapshot)
 	else:
 		var sample = o.view.remote(estimated_server_tick() - BUFFER_TICKS)
 		if sample == null: return
 		pose = sample.pose
 	_place_model(uid, pose)
+	var q := pose.basis.get_rotation_quaternion()
 	_log("visual", {"uid": uid, "shown_tick": o.view.shown_tick,
-		"p": [pose.origin.x, pose.origin.y, pose.origin.z], "predicted": o.prediction.active})
+		"p": [pose.origin.x, pose.origin.y, pose.origin.z], "q": [q.x, q.y, q.z, q.w],
+		"physical_source_tick": o.last_snapshot if o.prediction.active else -1,
+		"predicted": o.prediction.active})
 
 func _place_model(uid: int, pose: Transform3D) -> void:
 	var body = objects[uid].body
@@ -538,6 +619,7 @@ func _pick() -> void:
 		camera_drives_goal = true
 
 func _connected(peer: int) -> void:
+	if role == "client": _local_peer_id = multiplayer.get_unique_id()
 	_log("connected", {"peer": peer})
 	if role == "host":
 		var states: Array[PackedByteArray] = []
@@ -547,10 +629,43 @@ func _connected(peer: int) -> void:
 		_send(peer, "_hello", [fingerprint(), states], true)
 
 func fingerprint() -> String:
-	return "object-prototype:%d:box=0.6,0.4,0.4:mass=2:friction=0.8:bounce=0.05:angular=2:slop=0.002:slow=%.6f" % [State.VERSION, slow]
+	return _configuration_signature
+
+func _build_fingerprint() -> String:
+	var bodies: Array = []
+	for uid: int in objects:
+		bodies.append(objects[uid].body.configuration())
+	var settings := {}
+	for key in ["physics/3d/physics_engine", "physics/3d/default_gravity",
+		"physics/3d/default_gravity_vector", "physics/3d/default_linear_damp",
+		"physics/3d/default_angular_damp", "physics/jolt_physics_3d/simulation/penetration_slop"]:
+		settings[key] = ProjectSettings.get_setting(key)
+	var scripts := {}
+	for path in ["res://main.gd", "res://runtime/body.gd", "res://runtime/authority.gd",
+		"res://runtime/state.gd", "res://runtime/prediction.gd", "res://runtime/presentation.gd"]:
+		scripts[path] = FileAccess.get_file_as_string(path).sha256_text()
+	return JSON.stringify({"version": State.VERSION, "slow": slow, "rate": RATE,
+		"engine": Engine.get_version_info().string, "bodies": bodies,
+		"settings": settings, "scripts": scripts}).sha256_text()
 
 func _disconnected(peer: int) -> void:
 	if role == "host": _inbound.append({"kind": "disconnect", "peer": peer})
+
+func _stop_local_session(cause: String) -> void:
+	if _session_lost: return
+	_session_lost = true
+	ready_for_input = false
+	local_uid = 0
+	_pending_grab = 0
+	_pending_grab_uid = 0
+	_dependent = ""
+	_dependent_command.clear()
+	_local_commands.clear()
+	_wire.clear()
+	for uid: int in objects:
+		objects[uid].prediction.stop()
+		objects[uid].body.set_simulated(false)
+	_log("session_closed", {"cause": cause})
 
 @rpc("any_peer", "call_remote", "reliable", 0)
 func _command(command: Dictionary) -> void:

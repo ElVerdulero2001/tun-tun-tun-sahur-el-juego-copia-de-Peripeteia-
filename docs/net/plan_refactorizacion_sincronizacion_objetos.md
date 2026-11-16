@@ -4,6 +4,8 @@
 
 **Plan de trabajo; implementación pendiente.** Este documento no cambia la lógica del juego ni certifica una solución. Se apoya en el [diagnóstico de suelta y lanzamiento](diagnostico_suelta_y_lanzamiento_objetos.md), el `kavi.txt`, el video de la prueba y el código actual. La referencia funcional sigue siendo [objetos_fisicos.md](objetos_fisicos.md).
 
+**Avance del 2026-11-16:** se construyó una primera entrega experimental en `prototypes/objetos_red/`, sin migrar el laboratorio. [Coordinación, base preservada y estado](coordinacion_refactor_objetos.md). Codex construye e integra; Claude realiza las pruebas independientes. La puerta de viabilidad de la etapa 1 sigue pendiente.
+
 La decisión propuesta es **reconstruir el recorrido de simulación, sincronización y presentación de los objetos**, conservando los sistemas que lo rodean. El host conserva la autoridad; el jugador local debe poder agarrar, mover, soltar y lanzar con respuesta inmediata. La predicción local con Jolt es el modelo que se debe comprobar antes de migrar el laboratorio.
 
 La primera entrega será un prototipo pequeño con resultados comparables entre host e invitado. Si no supera las condiciones físicas, temporales y de rendimiento, se revisa el modelo antes de trasladarlo al resto del sistema. No se prolonga la caída manual mediante excepciones por altura, objeto o superficie.
@@ -90,7 +92,7 @@ Debe existir una tabla de transiciones con evento, precondición, efecto físico
 
 ### 3.3 Tiempo físico: condición previa, no detalle posterior
 
-El `SimClock` actual cambia el ritmo del cliente entre 57 y 72 ticks por segundo y puede ejecutar varios ticks lógicos por cuadro; Jolt tiene su propio paso físico. Además, la lectura actual de los cuerpos se etiqueta como `tick - 1`. **No se puede asumir que cada llamada lógica ya avanzó Jolt ni prometer replay de cuerpos llamando otra vez a la mano.**
+El `SimClock` actual cambia el ritmo del cliente entre 57 y 72 ticks por segundo mediante `Engine.physics_ticks_per_second` y compensa con `Engine.time_scale`: ejecuta un tick lógico por `_physics_process`, con duración física objetivo constante, o escalada durante cámara lenta. Varios pasos por cuadro de dibujo no significan varios ticks lógicos sin sus pasos físicos. La lectura actual de los cuerpos se etiqueta como `tick - 1`. **Se debe comprobar el orden real entre callback, lectura, preparación y paso terminado; repetir manualmente ticks del personaje no implica replay de cuerpos Jolt.**
 
 El prototipo debe definir y registrar:
 

@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://validation/driver.gd" id="1"]
+
+[node name="Driver" type="Node"]
+script = ExtResource("1")
+; Escena de validación (Claude). Instancia res://main.tscn sin modificarlo.

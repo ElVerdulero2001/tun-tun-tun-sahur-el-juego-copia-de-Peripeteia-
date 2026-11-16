@@ -826,6 +826,75 @@ if (CASE === 'wall' || CASE === 'throw_wall') {
   info.e3 = e3;
 }
 
+// ================================================================ entrega 4
+// Agregado ANTES de correr (criterios_entrega_5.md, parte A). No cambia nada de lo anterior.
+{
+  const e4 = {};
+  const encFail = byKind(C, 'hand_input_encode_failed');
+  const invLocal = [...byKind(C, 'invalid_local_target'), ...byKind(C, 'invalid_local_rotation')];
+  const invLocalH = [...byKind(H, 'invalid_local_target'), ...byKind(H, 'invalid_local_rotation')];
+  const g = requests.find((r) => r.op === 'grab');
+  const U = g?.uid;
+  const hiG = byKind(H, 'hand_input').filter((r) => g && r.uid === U && r.peer !== 1);
+  const hcG = byKind(H, 'controller').filter((r) => g && r.uid === U && r.owner !== 1);
+  const poseDiff = () => {
+    if (!U || !CP[U] || !HP[U]) return null;
+    const ticks = sortedTicks(CP[U]).filter((t) => CP[U].get(t).phase === 1 && HP[U].get(t)?.phase === 1 && HP[U].get(t).owner !== 1);
+    let maxD = 0, maxA = 0, at = null;
+    for (const t of ticks) {
+      const c = CP[U].get(t), h = HP[U].get(t);
+      const d = len(sub(comPhys(c.p, c.q), comPhys(h.p, h.q)));
+      if (d > maxD) { maxD = d; at = t; }
+      maxA = Math.max(maxA, qang(c.q, h.q));
+    }
+    return { ticks: ticks.length, max_m: r6(maxD), at, max_deg: r6(maxA * 180 / Math.PI) };
+  };
+  if (['grab_rotate_real', 'grab_bad_target', 'grab_rotate'].includes(CASE)) {
+    check('P8_sin_rechazos_locales', invLocal.length === 0 && invLocalH.length === 0,
+      `invitado ${invLocal.length}; host ${invLocalH.length}`, '0 invalid_local_* (el driver usa la API con objetivos válidos)');
+  }
+  if (CASE === 'grab_rotate_real') {
+    const rots = ev(CD, 'drv_rot_real');
+    const bad = rots.filter((r) => !r.accepted || !r.valid_target || !r.encodable);
+    const total = rots.at(-1)?.events ?? 0;
+    e4.rotate_real = { events_total: total, ticks: rots.length, bad_ticks: bad.length, first_bad: bad[0] ?? null,
+      det_range: rots.length ? [Math.min(...rots.map((r) => r.det)), Math.max(...rots.map((r) => r.det))] : null };
+    check('P5_productor_real_en_red', total >= 20001 && bad.length === 0,
+      `${total} eventos en ${rots.length} ticks; ticks con objetivo rechazado, inválido o no codificable: ${bad.length}`, '≥ 20.001 eventos; todos aceptados, válidos y codificables');
+    check('P6_sin_fallo_de_codificacion', encFail.length === 0, `hand_input_encode_failed ${encFail.length}`, '0');
+    const fb = hcG.filter((r) => r.input_tick !== r.step_tick);
+    const pd = poseDiff();
+    e4.rotate_real_host = { host_held_steps: hcG.length, fallback: fb.length, fallback_first: fb[0] ?? null,
+      last_input: hiG.length ? Math.max(...hiG.map((r) => r.input_tick)) : null, pose: pd };
+    check('P7_host_sigue_la_mano', STRICT ? (hcG.length > 0 && fb.length === 0 && pd !== null && pd.ticks > 0 && pd.max_m <= TOL.pos && pd.max_deg <= 0.3) : null,
+      JSON.stringify(e4.rotate_real_host), '0 respaldo; pose host/invitado ≤ 2 mm / 0,3°', STRICT ? '' : 'informativo');
+  }
+  if (CASE === 'grab_bad_target') {
+    const f = ev(CD, 'drv_force_raw')[0];
+    const keep = ev(CD, 'drv_goal_keep')[0];
+    const forced = f ? f.tick + 1 : null;
+    const hiS = hiG.filter((r) => r.session === g.action);
+    const failTicks = encFail.map((r) => r.step_tick);
+    const after = hiS.filter((r) => forced !== null && r.input_tick > forced + 5);
+    const first = new Map();
+    for (const r of hiS) if (!first.has(r.input_tick)) first.set(r.input_tick, r);
+    const win = [1, 2, 3, 4, 5].map((k) => forced + k).map((t) => ({ input_tick: t, first_receipt_host_tick: first.has(t) ? first.get(t).local_tick + 1 : null,
+      late: first.has(t) ? t <= first.get(t).local_tick : null }));
+    const fb = hcG.filter((r) => r.input_tick !== r.step_tick).map((r) => ({ step: r.step_tick, used: r.input_tick }));
+    e4.bad_target = { forced_tick: forced, forced_valid_target: f?.valid_target ?? null, forced_det: f?.det ?? null, goal_keep: keep ?? null,
+      encode_failed_ticks: failTicks, host_inputs_of_forced_tick: hiS.filter((r) => r.input_tick === forced).length,
+      host_inputs_after_window: after.length, window_frames: win, host_fallback_steps: fb.slice(0, 12), host_fallback_total: fb.length };
+    check('D1_aviso_en_el_tick_forzado', !!f && f.valid_target === false && failTicks.length > 0 && failTicks[0] === forced,
+      `forzado ${forced} (válido ${f?.valid_target}); avisos en ${JSON.stringify(failTicks)}`, 'primer hand_input_encode_failed en el tick forzado');
+    check('D2_el_host_no_lo_recibe', e4.bad_target.host_inputs_of_forced_tick === 0, `${e4.bad_target.host_inputs_of_forced_tick} entradas del tick ${forced}`, '0');
+    check('D3_corte_acotado', failTicks.length > 0 && failTicks.length <= 6 && failTicks.every((t) => t >= forced && t <= forced + 5)
+      && after.length > 0 && keep?.accepted === true,
+      `${failTicks.length} avisos; entradas posteriores a la ventana ${after.length}; set_goal posterior ${keep?.accepted}`, '≤ 6 avisos dentro de la ventana de 6 ticks; el host vuelve a recibir');
+    check('D4_costo_en_la_ventana', null, JSON.stringify({ window_frames: win, host_fallback_total: fb.length, host_fallback_steps: fb.slice(0, 12) }), 'se registra');
+  }
+  info.e4 = e4;
+}
+
 // ---------------------------------------------------------------- salida
 const out = { case: CASE, net: NET, slow: SLOW, run_dir: dir, checks, info };
 fs.writeFileSync(outPath, JSON.stringify(out, null, 1));
@@ -835,5 +904,5 @@ for (const c of checks) console.log('  ' + fmt(c));
 const brief = { net: info.net, actions: info.actions, reconcile: info.reconcile, handoffs: info.handoffs, draw_label: info.draw_label,
   corrections: info.corrections && { count: info.corrections.count, over_tol: info.corrections.over_tol, by_phase: info.corrections.by_phase, top: info.corrections.largest?.slice(0, 3) },
   release: info.release && { ...info.release, rise: info.release.rise, a1: info.release.a1 && { ...info.release.a1, top: undefined } },
-  remote_draw: info.remote_draw, proxies: info.proxies, e2: info.e2, e3: info.e3 };
+  remote_draw: info.remote_draw, proxies: info.proxies, e2: info.e2, e3: info.e3, e4: info.e4 };
 console.log(JSON.stringify(brief, null, 1).split('\n').map((l) => '  ' + l).join('\n'));

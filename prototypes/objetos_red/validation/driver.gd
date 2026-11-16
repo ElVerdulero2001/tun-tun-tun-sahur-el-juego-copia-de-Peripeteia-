@@ -223,6 +223,16 @@ func _build_case() -> Array:
 			return [s("ready"), s("grab", {"uid": 1, "at": Vector3(-0.5, 0.7, 0.0)}),
 				s("rotate_main", {"per_tick": 16, "n": 120}), s("wait", {"n": 30}), s("release"),
 				s("wait", {"n": 60}), s("end")]
+		# Entrega 4 (criterios_entrega_5.md, parte A): productor real de main.gd.
+		"grab_rotate_real":
+			return [s("ready"), s("grab", {"uid": 1, "at": Vector3(-0.5, 0.7, 0.0)}),
+				s("rotate_real", {"per_tick": 170, "n": 120}), s("wait", {"n": 30}), s("release"),
+				s("wait", {"n": 60}), s("end")]
+		# Entrega 4: un objetivo imposible de codificar durante un tick (salteando la API local).
+		"grab_bad_target":
+			return [s("ready"), s("grab", {"uid": 1, "at": Vector3(-0.5, 0.7, 0.0)}), s("wait", {"n": 30}),
+				s("force_raw_target"), s("goal_keep"), s("wait", {"n": 30}), s("release"),
+				s("wait", {"n": 60}), s("end")]
 	return []
 
 # ------------------------------------------------------------------ ejecución
@@ -314,6 +324,31 @@ func _exec(st: Dictionary) -> bool:
 			main.set_goal(goal)
 			dl("drv_rot", {"events": rot_events, "encodable": HandInput.valid({"uid": 1, "epoch": 1, "session": 1, "tick": 0, "target": goal})})
 			return step_ticks + 1 >= st.n
+		"rotate_real":
+			# Mismos deltas que I16, pero por main.rotate_goal (HandRotation), como _unhandled_input.
+			var accepted_all := true
+			for _e in int(st.per_tick):
+				var dx := float(((rot_events * 7) % 11) - 5)
+				var dy := float(((rot_events * 5) % 7) - 3)
+				if not main.rotate_goal(Vector2(dx, dy), main.camera.global_basis.x): accepted_all = false
+				rot_events += 1
+			var produced: Transform3D = main.target
+			goal = produced
+			dl("drv_rot_real", {"events": rot_events, "accepted": accepted_all,
+				"valid_target": HandInput.valid_target(produced),
+				"encodable": HandInput.encode([{"uid": 1, "epoch": 1, "session": 1, "tick": 0, "target": produced}]).size() == 48,
+				"det": produced.basis.determinant()})
+			return step_ticks + 1 >= st.n
+		"force_raw_target":
+			# Asignación directa a main.target, sin set_goal: determinante 1,5 (no codificable).
+			var raw := Transform3D(goal.basis.scaled_local(Vector3(1, 1, 1.5)), goal.origin)
+			main.target = raw
+			dl("drv_force_raw", {"valid_target": HandInput.valid_target(raw), "det": raw.basis.determinant()})
+			return true
+		"goal_keep":
+			var kept: bool = main.set_goal(goal)
+			dl("drv_goal_keep", {"accepted": kept, "valid_target": HandInput.valid_target(main.target)})
+			return true
 		"release":
 			var before: int = main.next_action
 			main.request_release()

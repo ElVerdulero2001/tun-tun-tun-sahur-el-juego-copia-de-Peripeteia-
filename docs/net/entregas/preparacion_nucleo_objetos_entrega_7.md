@@ -1,5 +1,7 @@
 # Preparación del núcleo nativo, entrega 7
 
+**Corrección del lanzador:** se encontró una copia del `.cmd` en Descargas sin su `.ps1` compañero. El enlace del chat descarga solo el archivo enlazado, por lo que la primera versión no podía encontrar el preparador desde allí. El `.cmd` ahora utiliza el preparador del proyecto cuando falta el archivo adyacente, conserva el código de salida y permite `-CheckOnly`. Se comprobó esa ruta desde una carpeta temporal que contiene únicamente el `.cmd`: terminó en 0 y seleccionó la implementación y caché correctas. Este chequeo no descarga bibliotecas ni se registra como descarga completa. Es necesario ejecutar la versión corregida; la copia anterior de Descargas conserva su contenido viejo.
+
 2026-11-16. Continúa `682a386` (entrega 6). El usuario instaló las herramientas. **La compilación Rust/MSVC funciona; la descarga de dependencias está bloqueada en la red de esta sesión. El núcleo de objetos todavía no está implementado ni compilado.**
 
 ## Comprobaciones

@@ -1,0 +1,36 @@
+{
+  "delivery": 7,
+  "scope": "native_toolchain_and_dependency_preparation",
+  "previous_delivery": "682a38606b5bb6e855e9ffbf2eb93c97615cc5de",
+  "compiler_probe": {
+    "status": "PASSED",
+    "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+    "target": "x86_64-pc-windows-msvc",
+    "exit_code": 0,
+    "dll_bytes": 118272,
+    "scope": "compiler_and_linker_only_not_object_core"
+  },
+  "compiler_probe_dll_sha256": "5ab25727d136366ab76995e53784098017a4a92ff8a6642bf878e543498f2b76",
+  "cargo": "cargo 1.100.0 (3acc79c0c 2026-11-05)",
+  "msvc": "14.44.35207",
+  "windows_sdk": "10.0.26100.0",
+  "dependency_download": {
+    "status": "FAILED",
+    "scope": "dependency_download_only",
+    "manifest": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\native\\objetos_core\\Cargo.toml",
+    "manifest_sha256": "1b41f07de292f205ff82a31c8e74c77540133343b0ff230e764a52be0a04062c",
+    "lock_sha256": null,
+    "cache": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\native_toolchain\\cargo",
+    "exit_code": 101,
+    "timed_out": false,
+    "seconds": 6.4196723,
+    "native_core_compiled": false
+  },
+  "dependency_network_blocked": true,
+  "manifest_metadata_valid": true,
+  "preparer_parse_errors": 0,
+  "native_core_implemented": false,
+  "native_core_compiled": false,
+  "model_approved": false,
+  "laboratory_migrated": false
+}

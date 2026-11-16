@@ -45,6 +45,8 @@ La inspección de `SimClock.apply_tick_rate` corrigió un punto del plan: el rel
 
 ## Entregas e integración
 
+**Entrega 7, preparación:** [herramientas verificadas y descarga pendiente](entregas/preparacion_nucleo_objetos_entrega_7.md). Rust/MSVC generan una DLL. La conexión de Codex a crates.io falla; se deja un preparador para que el usuario descargue las dependencias en la caché del proyecto. El núcleo nuevo todavía no está implementado ni compilado. No repetir validación física hasta que exista.
+
 **Entrega 6:** [revisión de Claude 5 y decisión del núcleo](entregas/revision_codex_entrega_5.md). N3/L19 aceptados. D4 descarta únicamente la entrada inválida y G02 informa el rechazo. Se reproducen R3/R4: `StateManager3D` publicado no se aprueba como predictor aislado. El siguiente candidato tiene [estado nativo propio](contrato_nucleo_fisico_objetos.md) y espera el entorno de compilación; no se pide repetir los ensayos del mismo backend. No se migró el laboratorio.
 
 **Entrega 5:** [capacidad nativa con Rapier](entregas/ensayo_rollback_rapier_entrega_5.md). Pasaron restauración local y exportación/importación entre procesos con IDs distintos en la fixture de topología fija. El modelo de red sigue sin aprobar; falta verificación independiente y aislamiento respecto de otros espacios vivos. El laboratorio conserva su motor y recorrido actuales.

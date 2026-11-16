@@ -1,5 +1,7 @@
 # Preparar la compilación nativa de objetos
 
+**Actualización, entrega 7:** Rust/MSVC/SDK ya están disponibles y generaron una DLL de prueba correctamente. El paso pendiente es descargar las bibliotecas: ejecutar `tools/testing/descargar_dependencias_objetos.cmd` desde Windows y avisar cuando termine. [Resultado y limitación de red de esta sesión](entregas/preparacion_nucleo_objetos_entrega_7.md). Los pasos de instalación siguientes quedan como referencia.
+
 El siguiente candidato necesita compilar una GDExtension pequeña en Rust que encapsule mundos de objetos. [Contrato y límites](contrato_nucleo_fisico_objetos.md). El ZIP de Rapier descargado permite probar la integración publicada; no incluye un compilador para modificarla o construir esta extensión.
 
 La comprobación del 2026-11-16 no encontró `cargo` ni `rustc` en PATH ni en `%USERPROFILE%/.cargo/bin`, ni el localizador habitual de Visual Studio. Todavía no se compiló un núcleo propio.

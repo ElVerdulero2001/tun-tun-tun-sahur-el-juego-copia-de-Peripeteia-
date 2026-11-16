@@ -1,4 +1,6 @@
-# Prototipo de objetos en red: entrega 3
+# Prototipo de objetos en red: entrega 4
+
+La entrega 4 conserva la rotación como cuaternión normalizado, registra fallos de codificación y distingue los duplicados ya consumidos. Ver `docs/net/entregas/revision_codex_entrega_3.md`.
 
 **Experimental, pendiente de validación independiente. No está integrado al laboratorio.** Abrir este `project.godot`, no el del proyecto principal. Requiere el Godot 4.7.2 con Jolt que usa actualmente el laboratorio.
 

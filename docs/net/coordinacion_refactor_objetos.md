@@ -45,6 +45,8 @@ La inspección de `SimClock.apply_tick_rate` corrigió un punto del plan: el rel
 
 ## Entregas e integración
 
+**Entrega 4:** [revisión de N3 y ensayo siguiente](entregas/revision_codex_entrega_3.md). Giro corregido, L19 aprobado; el ensayo nativo está preparado y espera su paquete oficial. No se migró el laboratorio.
+
 **Entrega 3 (2026-11-16):** [revisión de la entrega 2 y contrato de entradas](entregas/revision_codex_entrega_2.md). La validación de Claude confirmó las correcciones anteriores. Se corrigieron N1/N2 con respuestas identificadas y una bandeja de entradas tempranas, más redundancia de seis ticks. El modelo físico continúa sin aprobar; el nuevo formato todavía requiere su verificación independiente.
 
 **Entrega 2 (2026-11-16):** [revisión de Codex, correcciones y próximo encargo](entregas/revision_codex_entrega_1.md). El trabajo está en `implementacion`; no se sobrescribió la copia de Claude. La caída y las acciones tempranas mejoraron en verificaciones enfocadas, pero el caso tardío sigue fallando y los proxies dinámicos no están aprobados. Falta evaluar una capacidad real de rollback de isla física; no se ha construido ni aprobado esa alternativa.

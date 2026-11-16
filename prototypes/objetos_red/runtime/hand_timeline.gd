@@ -26,11 +26,13 @@ func accept(peer: int, frame: Dictionary, now: int) -> String:
 			peers[slot.peer] = true
 			if slot.peer == peer: sessions += 1
 		if sessions >= MAX_SESSIONS_PER_PEER or (not peers.has(peer) and peers.size() >= MAX_PEERS): return "capacity"
-		_slots[key] = {"peer": peer, "frames": {}}
+		_slots[key] = {"peer": peer, "frames": {}, "seen": {}}
 	var frames: Dictionary = _slots[key].frames
-	if frames.has(frame.tick):
-		return "duplicate" if frames[frame.tick].target.is_equal_approx(frame.target) else "conflicting_tick"
+	var seen: Dictionary = _slots[key].seen
+	if seen.has(frame.tick):
+		return "duplicate" if seen[frame.tick].is_equal_approx(frame.target) else "conflicting_tick"
 	frames[frame.tick] = frame.duplicate(true)
+	seen[frame.tick] = frame.target
 	return "buffered"
 
 func consume(peer: int, uid: int, epoch: int, session: int, now: int, last_used: int) -> Dictionary:
@@ -71,9 +73,12 @@ func prune(now: int) -> void:
 		if _retired[key] < now: _retired.erase(key)
 	for key: String in _slots.keys():
 		var frames: Dictionary = _slots[key].frames
+		var seen: Dictionary = _slots[key].seen
 		for input_tick: int in frames.keys():
 			if input_tick < now - PAST_TICKS: frames.erase(input_tick)
-		if frames.is_empty(): _slots.erase(key)
+		for input_tick: int in seen.keys():
+			if input_tick < now - PAST_TICKS: seen.erase(input_tick)
+		if frames.is_empty() and seen.is_empty(): _slots.erase(key)
 
 static func _key(peer: int, uid: int, epoch: int, session: int) -> String:
 	return "%d:%d:%d:%d" % [peer, uid, epoch, session]

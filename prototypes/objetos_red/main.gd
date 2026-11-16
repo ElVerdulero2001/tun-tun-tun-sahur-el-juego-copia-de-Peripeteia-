@@ -9,6 +9,7 @@ const Presentation := preload("res://runtime/presentation.gd")
 const Prediction := preload("res://runtime/prediction.gd")
 const HandInput := preload("res://runtime/hand_input.gd")
 const HandTimeline := preload("res://runtime/hand_timeline.gd")
+const HandRotation := preload("res://runtime/hand_rotation.gd")
 const RATE := 60
 const DT := 1.0 / RATE
 const BUFFER_TICKS := 6
@@ -46,7 +47,11 @@ var _next_ping_usec := 0
 var _started_usec := 0
 var _duration_ms := 0
 var _trace_path := ""
-var _goal_rotation := Basis.IDENTITY
+var _rotation := HandRotation.new()
+var _goal_rotation: Basis:
+	get: return _rotation.basis()
+	set(value):
+		if not _rotation.reset_basis(value): _log("invalid_local_rotation", {})
 var _hold_distance := 2.0
 var _one_way_ms := 0
 var _jitter_ms := 0
@@ -259,6 +264,8 @@ func _physics_process(delta: float) -> void:
 		# nombrando el tick y la sesión originales.
 		var packet := HandInput.encode(_hand_history)
 		if not packet.is_empty(): _send(1, "_hand_inputs", [packet], false)
+		else: _log("hand_input_encode_failed", {"step_tick": tick, "uid": local_uid,
+			"session": local_session, "frames": _hand_history.size()})
 
 func _capture(uid: int, physics_delta: float) -> void:
 	var o: Dictionary = objects[uid]
@@ -335,12 +342,16 @@ func estimated_server_tick() -> float:
 	return _server_tick + rtt_ms * RATE / 2000.0 + float(Time.get_ticks_usec() - _server_at_usec) * RATE / 1_000_000.0
 
 func request_grab(uid: int, point: Vector3, desired: Transform3D) -> void:
-	if not ready_for_input or local_uid != 0 or _pending_grab != 0 or not objects.has(uid): return
+	if not ready_for_input or local_uid != 0 or _pending_grab != 0 or not objects.has(uid) or not point.is_finite(): return
+	var canonical = HandRotation.rotation_only_target(desired)
+	if canonical == null:
+		_log("invalid_local_target", {"operation": "grab"})
+		return
 	local_session = next_action
 	_hand_history.clear()
 	camera_drives_goal = false
-	target = desired
-	_goal_rotation = desired.basis
+	target = canonical
+	_goal_rotation = canonical.basis
 	_pending_grab = next_action
 	_pending_grab_uid = uid
 	_queue_action("grab", uid, point, Vector3.ZERO)
@@ -361,10 +372,22 @@ func _request_exit(op: String, direction: Vector3) -> void:
 		if command.uid == uid and command.op != "grab": return
 	_queue_action(op, uid, Vector3.ZERO, direction)
 
-func set_goal(desired: Transform3D) -> void:
+func set_goal(desired: Transform3D) -> bool:
+	var canonical = HandRotation.rotation_only_target(desired)
+	if canonical == null:
+		_log("invalid_local_target", {"operation": "set_goal"})
+		return false
 	camera_drives_goal = false
-	target = desired
-	_goal_rotation = desired.basis
+	target = canonical
+	_goal_rotation = canonical.basis
+	return true
+
+func rotate_goal(delta: Vector2, camera_right: Vector3) -> bool:
+	if not _rotation.rotate_mouse(delta, camera_right):
+		_log("invalid_local_rotation", {})
+		return false
+	target.basis = _rotation.basis()
+	return true
 
 func _queue_action(op: String, uid: int, point: Vector3, direction: Vector3) -> void:
 	var o: Dictionary = objects[uid]
@@ -634,8 +657,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE) and local_uid != 0:
-			_goal_rotation = Basis(Vector3.UP, -event.relative.x * 0.004) * _goal_rotation
-			_goal_rotation = Basis(camera.global_basis.x, -event.relative.y * 0.004) * _goal_rotation
+			rotate_goal(event.relative, camera.global_basis.x)
 		else:
 			camera.rotate_y(-event.relative.x * 0.003)
 			camera.rotation.x = clampf(camera.rotation.x - event.relative.y * 0.003, -1.4, 1.4)
@@ -697,7 +719,7 @@ func _build_fingerprint() -> String:
 	var scripts := {}
 	for path in ["res://main.gd", "res://runtime/body.gd", "res://runtime/authority.gd",
 		"res://runtime/state.gd", "res://runtime/prediction.gd", "res://runtime/presentation.gd",
-		"res://runtime/hand_input.gd", "res://runtime/hand_timeline.gd"]:
+		"res://runtime/hand_input.gd", "res://runtime/hand_timeline.gd", "res://runtime/hand_rotation.gd"]:
 		scripts[path] = FileAccess.get_file_as_string(path).sha256_text()
 	return JSON.stringify({"version": State.VERSION, "slow": slow, "rate": RATE,
 		"engine": Engine.get_version_info().string, "bodies": bodies,

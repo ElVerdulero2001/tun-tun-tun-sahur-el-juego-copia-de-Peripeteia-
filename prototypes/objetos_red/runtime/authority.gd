@@ -3,6 +3,7 @@ extends RefCounted
 ## Una instancia por objeto y sesión del servidor. El adaptador conserva las
 ## validaciones geométricas y del personaje; este componente ordena acciones.
 const State := preload("res://runtime/state.gd")
+const HandInput := preload("res://runtime/hand_input.gd")
 const RESULT_LIMIT := 256
 const MAX_FUTURE := 60
 
@@ -108,8 +109,7 @@ static func valid_command(c: Dictionary) -> bool:
 			return false
 	return c.uid > 0 and c.epoch > 0 and c.action > 0 and c.session > 0 \
 		and typeof(c.get("op")) == TYPE_STRING and c.op in ["grab", "release", "throw"] \
-		and typeof(c.get("target")) == TYPE_TRANSFORM3D and c.target.origin.is_finite() \
-		and c.target.basis.is_finite() and absf(c.target.basis.determinant() - 1.0) < 0.01 \
+		and typeof(c.get("target")) == TYPE_TRANSFORM3D and HandInput.valid_target(c.target) \
 		and typeof(c.get("anchor")) == TYPE_VECTOR3 and c.anchor.is_finite() \
 		and typeof(c.get("direction")) == TYPE_VECTOR3 and c.direction.is_finite() \
 		and (c.op != "throw" or absf(c.direction.length_squared() - 1.0) < 0.01)

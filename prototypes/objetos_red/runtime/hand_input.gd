@@ -17,10 +17,12 @@ static func valid(frame: Dictionary) -> bool:
 		if typeof(frame.get(key)) != TYPE_INT or frame[key] < 0 or frame[key] > MAX_ID:
 			return false
 	return frame.uid > 0 and frame.epoch > 0 and frame.session > 0 \
-		and typeof(frame.get("target")) == TYPE_TRANSFORM3D \
-		and frame.target.origin.is_finite() and frame.target.basis.is_finite() \
-		and absf(frame.target.basis.determinant() - 1.0) < 0.01 \
-		and frame.target.basis.is_equal_approx(frame.target.basis.orthonormalized())
+		and typeof(frame.get("target")) == TYPE_TRANSFORM3D and valid_target(frame.target)
+
+static func valid_target(target: Transform3D) -> bool:
+	return target.origin.is_finite() and target.basis.is_finite() \
+		and absf(target.basis.determinant() - 1.0) < 0.01 \
+		and target.basis.is_equal_approx(target.basis.orthonormalized())
 
 static func encode(frames: Array) -> PackedByteArray:
 	if frames.is_empty() or frames.size() > REDUNDANCY: return PackedByteArray()

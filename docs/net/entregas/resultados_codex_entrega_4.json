@@ -1,0 +1,66 @@
+{
+  "date": "2026-11-16",
+  "author": "Codex",
+  "validation_commit": "ed8968c",
+  "tests_modified": false,
+  "model_approved": false,
+  "native_backend_installed": false,
+  "checks": [
+    {
+      "kind": "network",
+      "name": "20261116_153224_grab_rotate_clean",
+      "path": "C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_4/cases/20261116_153224_grab_rotate_clean",
+      "seconds": 4.933,
+      "host_exit": 0,
+      "client_exit": 0,
+      "failed": [],
+      "runner_note": "Final CIM query restricted; original analyzer invoked separately."
+    },
+    {
+      "kind": "unit",
+      "name": "hand_timeline_test",
+      "path": "C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_4/hand_timeline_test.json",
+      "passed": 23,
+      "failed": []
+    },
+    {
+      "kind": "unit",
+      "name": "response_receiver_test",
+      "path": "C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_4/response_receiver_test.with_trace.json",
+      "passed": 27,
+      "failed": []
+    },
+    {
+      "kind": "unit",
+      "name": "hand_adapter_test",
+      "path": "C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_4/hand_adapter_test.with_trace.json",
+      "passed": 15,
+      "failed": []
+    }
+  ],
+  "rotation_producer": {
+    "events": 20001,
+    "failed": false,
+    "log": "C:/Users/ElCaido97/Documents/tun-tun-tun-sahur/tmp/colaboracion_objetos_20261116/implementacion/tmp/revision_entrega_4/rotation_producer.stdout.log"
+  },
+  "invalid_invocations": [
+    {
+      "name": "response_receiver_test",
+      "reason": "First invocation omitted required --trace; preserved."
+    },
+    {
+      "name": "hand_adapter_test",
+      "reason": "First invocation omitted required --trace; preserved."
+    }
+  ],
+  "backend_negative": {
+    "backend_class": "PhysicsServer3D",
+    "dependency": "v0.36.0",
+    "engine": "4.7.2-stable (official)",
+    "reason": "backend_not_prepared",
+    "schema": 1,
+    "scope": "single_process_fixed_topology_capability_only",
+    "seconds": 0.000037,
+    "status": "BLOCKED"
+  }
+}

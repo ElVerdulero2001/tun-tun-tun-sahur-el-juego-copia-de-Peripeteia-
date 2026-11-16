@@ -159,3 +159,12 @@ En este orden, sin repetir las anteriores:
 6. `throw_before_ack / clean` y `throw_before_ack / degraded`: F6/F7 sin regresión.
 
 `grab_move` hacia la caja 2 no se usa para el movimiento libre. Una corrida que falle por error del instrumento se conserva, se explica y se repite una vez. Una que falle por el modelo no se repite.
+
+## 7. Agregado antes de correrlo: `grab_rotate` (la hora real es la del commit que lo agrega)
+
+`I16` falló sin red: con la fórmula de giro de `main.gd`, el objetivo deja de ser codificable al evento 1263. Por código, `main.gd` saltea el envío cuando `encode` devuelve vacío. Esa consecuencia no se probó: este caso la prueba de punta a punta antes de afirmarla.
+
+- **Driver:** operación nueva `rotate_main`. Cada tick aplica `per_tick` eventos con la misma fórmula y los mismos deltas que `I16`. El eje es `main.camera.global_basis.x`. Después llama a `main.set_goal` con el objetivo nuevo, que es lo que haría `_unhandled_input`. Registra `drv_rot` con los eventos acumulados y si el objetivo es codificable (`HandInput.valid`).
+- **Caso `grab_rotate` (invitado):** listo; agarre de la caja 1 en (−0,5; 0,7; 0); `rotate_main` con 16 eventos por tick (mouse de 1000 Hz a 60 Hz) durante 120 ticks, unos 1920 eventos; espera de 30; suelta; espera de 60; fin. El host corre el caso por defecto.
+- **Criterios, sin cambios:** deciden `N2b_mismo_objetivo_mismo_tick` y `H1_agarre_mismo_tick` (2 mm / 0,3°) en `clean`. Se informan el primer tick del invitado con objetivo no codificable, el último tick de la sesión recibido por el host y los pasos del host con respaldo.
+- **Corrida:** `grab_rotate / clean`, una vez.

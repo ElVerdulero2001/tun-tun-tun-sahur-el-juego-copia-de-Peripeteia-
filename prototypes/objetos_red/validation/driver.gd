@@ -15,6 +15,7 @@ extends Node
 
 const MainScene := preload("res://main.tscn")
 const State := preload("res://runtime/state.gd")
+const HandInput := preload("res://runtime/hand_input.gd")
 const DRIVER_PRIORITY := -10
 const POST_PRIORITY := 10
 const ANCHOR := Vector3(0, 0.2, 0) # centro de masa: el objetivo es el centro de masa
@@ -51,6 +52,7 @@ var held_bytes := {} # host: uid -> último estado HELD codificado
 var last_free_rev := {}
 var _frame_physics := 0
 var post_stall_ms := 0
+var rot_events := 0
 
 func _ready() -> void:
 	t0 = Time.get_ticks_usec()
@@ -216,6 +218,11 @@ func _build_case() -> Array:
 		"throw_rejected":
 			return [s("ready"), s("wait_remote_held", {"uid": 2}), s("wait", {"n": 30}), s("grab_shown", {"uid": 2}),
 				s("throw", {"dir": THROW_DIR}), s("wait_reject"), s("wait", {"n": 150}), s("end")]
+		# Entrega 3 (criterios_entrega_3.md §7): giro con la fórmula de main.gd.
+		"grab_rotate":
+			return [s("ready"), s("grab", {"uid": 1, "at": Vector3(-0.5, 0.7, 0.0)}),
+				s("rotate_main", {"per_tick": 16, "n": 120}), s("wait", {"n": 30}), s("release"),
+				s("wait", {"n": 60}), s("end")]
 	return []
 
 # ------------------------------------------------------------------ ejecución
@@ -295,6 +302,17 @@ func _exec(st: Dictionary) -> bool:
 		"rotate":
 			goal.basis = Basis(st.axis, deg_to_rad(st.deg) / st.n) * goal.basis
 			main.set_goal(goal)
+			return step_ticks + 1 >= st.n
+		"rotate_main":
+			# Misma fórmula y deltas que hand_input_test.gd I16 (main.gd _unhandled_input, rueda central).
+			for _e in int(st.per_tick):
+				var dx := float(((rot_events * 7) % 11) - 5)
+				var dy := float(((rot_events * 5) % 7) - 3)
+				goal.basis = Basis(Vector3.UP, -dx * 0.004) * goal.basis
+				goal.basis = Basis(main.camera.global_basis.x, -dy * 0.004) * goal.basis
+				rot_events += 1
+			main.set_goal(goal)
+			dl("drv_rot", {"events": rot_events, "encodable": HandInput.valid({"uid": 1, "epoch": 1, "session": 1, "tick": 0, "target": goal})})
 			return step_ticks + 1 >= st.n
 		"release":
 			var before: int = main.next_action

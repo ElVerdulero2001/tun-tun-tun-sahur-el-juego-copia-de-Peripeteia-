@@ -807,6 +807,22 @@ if (CASE === 'wall' || CASE === 'throw_wall') {
         'aplicado = pedido + 1, en el paso del pedido, late=false');
     }
   }
+  // §7 (agregado antes de correrlo): giro con la fórmula de main.gd.
+  if (CASE === 'grab_rotate') {
+    const rots = ev(CD, 'drv_rot');
+    const firstBad = rots.find((r) => r.encodable === false);
+    const g = requests.find((r) => r.op === 'grab');
+    const hiG = byKind(H, 'hand_input').filter((r) => g && r.uid === g.uid && r.peer !== 1);
+    const hcG = byKind(H, 'controller').filter((r) => g && r.uid === g.uid && r.owner !== 1);
+    const fbSteps = hcG.filter((r) => r.input_tick !== r.step_tick);
+    // dl() registra main.tick antes del paso: el objetivo se usa en el paso siguiente.
+    e3.rotate = { events_total: rots.at(-1)?.events ?? null,
+      first_step_not_encodable: firstBad ? firstBad.tick + 1 : null, events_at_first_not_encodable: firstBad?.events ?? null,
+      last_input_tick_received_by_host: hiG.length ? Math.max(...hiG.map((r) => r.input_tick)) : null,
+      host_held_steps: hcG.length, host_fallback_steps: fbSteps.length, host_fallback_first_step: fbSteps[0]?.step_tick ?? null,
+      host_last_used_input: fbSteps.at(-1)?.input_tick ?? null };
+    check('ROT_informe', null, JSON.stringify(e3.rotate), 'se registra');
+  }
   info.e3 = e3;
 }
 

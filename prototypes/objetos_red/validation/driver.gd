@@ -148,7 +148,7 @@ func _build_case() -> Array:
 					s("rotate", {"axis": Vector3(1, 0, 0), "deg": 90.0, "n": 60}), s("wait", {"n": 30}),
 					s("move", {"vel": Vector3(0, -1, 0), "n": 30}), s("wait", {"n": 30}),
 					s("release"), s("host_end")]
-			"grab_rejected":
+			"grab_rejected", "throw_rejected":
 				return [s("ready"), s("grab", {"uid": 2, "at": Vector3(0.5, 0.6, 0.0)}), s("stable", {"uid": 2}),
 					s("move", {"vel": Vector3(0, 0, 0.5), "n": 300}), s("host_end")]
 			"stale_snapshot":
@@ -202,6 +202,20 @@ func _build_case() -> Array:
 		"grab_rejected":
 			return [s("ready"), s("wait_remote_held", {"uid": 2}), s("wait", {"n": 30}), s("grab_shown", {"uid": 2}),
 				s("wait_reject"), s("wait", {"n": 150}), s("end")]
+		# Casos nuevos de la entrega 2 (criterios_entrega_2.md §4).
+		"grab_move":
+			return [s("ready"), s("grab", {"uid": 1, "at": Vector3(-0.5, 0.7, 0.0)}),
+				s("move", {"vel": Vector3(1, 0, 0), "n": 30}), s("stable", {"uid": 1}), s("release")] + _after_release()
+		"grab_move_left":
+			# Agregado 13:40: grab_move termina sobre la arista de la caja 2 (x = 0,5).
+			return [s("ready"), s("grab", {"uid": 1, "at": Vector3(-0.5, 0.7, 0.0)}),
+				s("move", {"vel": Vector3(-1, 0, 0), "n": 30}), s("stable", {"uid": 1}), s("release")] + _after_release()
+		"late_grab_hitch":
+			return [s("ready"), s("grab", {"uid": 1, "at": Vector3(-0.5, 0.7, 0.0), "stall_post_ms": 200}),
+				s("stable", {"uid": 1}), s("release")] + _after_release()
+		"throw_rejected":
+			return [s("ready"), s("wait_remote_held", {"uid": 2}), s("wait", {"n": 30}), s("grab_shown", {"uid": 2}),
+				s("throw", {"dir": THROW_DIR}), s("wait_reject"), s("wait", {"n": 150}), s("end")]
 	return []
 
 # ------------------------------------------------------------------ ejecución
@@ -255,6 +269,9 @@ func _exec(st: Dictionary) -> bool:
 			dl("drv_grab", {"uid": st.uid, "action": main._pending_grab, "queued": accepted, "goal": _v(st.at)})
 			if not accepted:
 				finish("grab_ignored", 4)
+			# Entrega 2 (late_grab_hitch): tirón después de que main ejecutó el agarre
+			# local y antes de su _process, igual que en la suelta.
+			post_stall_ms = int(st.get("stall_post_ms", 0))
 			return true
 		"grab_shown":
 			# Agarra la réplica en la pose que el jugador ve, como _pick().
@@ -456,6 +473,13 @@ func post_physics() -> void:
 			"pend": o.pending, "imp": b.impulse_count, "held": b.held,
 			"srev": o.state.revision if o.state != null else -1, "sph": o.state.phase if o.state != null else -1,
 			"vrev": o.view.latest_revision, "vn": o.view.samples.size()}
+		# Entrega 2: estado autorizado que guarda el adaptador (F6) y revisión del predicho.
+		if o.state != null:
+			rec["stk"] = o.state.tick
+			rec["sp"] = _v(o.state.pose.origin)
+			rec["slv"] = _v(o.state.lv)
+		var ps = o.get("predicted_state")
+		if ps != null: rec["psrev"] = ps.revision
 		if role == "host":
 			var a = o.authority.state
 			rec["arev"] = a.revision

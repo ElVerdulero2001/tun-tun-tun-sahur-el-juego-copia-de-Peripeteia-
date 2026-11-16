@@ -508,6 +508,182 @@ if (CASE === 'wall' || CASE === 'throw_wall') {
     `pared ${res[k].wall_pen_m} m, piso ${res[k].floor_pen_m} m`, '2 mm');
 }
 
+// ================================================================ entrega 2
+// Agregado ANTES de correr la entrega 2 (criterios_entrega_2.md §3). No cambia nada de lo anterior.
+{
+  const e2 = {};
+  const HELD = 1;
+  const appliedOf = (r) => (r ? applied.find((a) => a.action === r.action && a.uid === r.uid && a.op === r.op) : null);
+  const guestGrab = requests.find((r) => r.op === 'grab');
+  const U = guestGrab?.uid;
+  // Corrección del verificador (13:37, grab_rejected/throw_rejected): el host numera sus propias
+  // acciones y su agarre de la caja 2 tiene el mismo número que el del invitado. Solo cuenta un
+  // `applied` si el invitado recibió `accepted` para esa acción, y se toma el último anterior a ese resultado.
+  const guestGrabAccepted = guestGrab ? results.find((r) => r.action === guestGrab.action && r.status === 'accepted') : null;
+  const guestGrabApplied = guestGrabAccepted ? (applied.filter((a) => a.action === guestGrab.action && a.uid === guestGrab.uid
+    && a.op === 'grab' && a.applied_tick <= guestGrabAccepted.local_tick).at(-1) ?? null) : null;
+  // F2: agarre en el tick pedido y marca de tardanza coherente.
+  if (guestGrab && guestGrabApplied) {
+    const g = guestGrab, ga = guestGrabApplied;
+    e2.grab = { requested_tick: g.requested_tick, client_exec_tick: g.local_tick, host_applied_tick: ga.applied_tick, late: ga.late };
+    const decide = STRICT && CASE !== 'late_grab_hitch';
+    check('F2_agarre_alineado', decide ? (ga.applied_tick === g.local_tick && g.local_tick === g.requested_tick + 1 && ga.late === false) : null,
+      `pedido ${g.requested_tick}, invitado ${g.local_tick}, host ${ga.applied_tick}, late=${ga.late}`, 'host = invitado = pedido + 1, late=false', decide ? '' : 'informativo');
+    if (CASE === 'late_grab_hitch') check('F2_agarre_tardio_marcado', ga.late === true && ga.applied_tick > g.requested_tick + 1,
+      `aplicado ${ga.applied_tick - (g.requested_tick + 1)} tick(s) después de pedido + 1, late=${ga.late}`, 'late=true');
+  }
+  if (applied.length) {
+    const bad = applied.filter((a) => a.late !== (a.applied_tick > a.requested_tick + 1));
+    check('F2_marca_tarde_coherente', bad.length === 0, `${bad.length}/${applied.length} incoherentes`, 'late = (aplicado > pedido + 1)');
+  }
+  // H1/H2: agarre del invitado comparado en el mismo tick (ya no hay corrección que lo mueva).
+  if (U != null && guestGrabApplied) {
+    const t0 = Math.min(guestGrab.local_tick, guestGrabApplied.applied_tick);
+    const holdTicks = sortedTicks(CP[U]).filter((t) => t >= t0 && CP[U].get(t).phase === HELD
+      && HP[U].get(t)?.phase === HELD && HP[U].get(t).owner !== 1);
+    let maxD = 0, maxA = 0, at = null;
+    for (const t of holdTicks) {
+      const c = CP[U].get(t), h = HP[U].get(t);
+      const d = len(sub(comPhys(c.p, c.q), comPhys(h.p, h.q))), a = qang(c.q, h.q);
+      if (d > maxD) { maxD = d; at = t; }
+      maxA = Math.max(maxA, a);
+    }
+    const last = holdTicks.at(-1);
+    const lc = last != null ? CP[U].get(last) : null, lh = last != null ? HP[U].get(last) : null;
+    const endD = lc ? len(sub(comPhys(lc.p, lc.q), comPhys(lh.p, lh.q))) : null, endA = lc ? qang(lc.q, lh.q) : null;
+    const ctrl = byKind(H, 'controller').filter((r) => r.uid === U && r.owner !== 1);
+    const mb = byKind(C, 'reconcile').filter((r) => r.status === 'model_blocked');
+    e2.hold = { ticks: holdTicks.length, first: holdTicks[0] ?? null, last: last ?? null, max_m: r6(maxD), max_at: at,
+      max_deg: r6(maxA * 180 / Math.PI), end_m: r6(endD), end_deg: endA != null ? r6(endA * 180 / Math.PI) : null,
+      host_controller_steps: ctrl.length, host_input_equals_step: ctrl.filter((r) => r.input_tick === r.step_tick).length,
+      host_input_lag_max_ticks: ctrl.length ? Math.max(...ctrl.map((r) => r.step_tick - r.input_tick)) : null,
+      model_blocked: mb.length, model_blocked_max_m: r6(Math.max(0, ...mb.map((r) => r.distance ?? 0))),
+      model_blocked_first: mb[0] ? { local_tick: mb[0].local_tick, distance: r6(mb[0].distance), contact_since_source: mb[0].contact_since_source } : null };
+    const decideH1 = STRICT && CASE !== 'late_grab_hitch';
+    check('H1_agarre_mismo_tick', decideH1 ? (holdTicks.length > 0 && maxD <= TOL.pos && maxA <= TOL.ang) : null,
+      `${r6(maxD)} m (tick ${at}) / ${r6(maxA * 180 / Math.PI)}° en ${holdTicks.length} ticks`, '2 mm / 0,3°', decideH1 ? '' : 'informativo');
+    const exitReq = requests.find((r) => r.uid === U && (r.op === 'release' || r.op === 'throw'));
+    if (exitReq && ev(CD, 'drv_stable').some((s) => s.tick <= exitReq.local_tick))
+      check('H2_inicio_de_la_salida', lc != null && endD <= TOL.pos && endA <= TOL.ang,
+        `tick ${last}: ${r6(endD)} m / ${endA != null ? r6(endA * 180 / Math.PI) : null}°`, '2 mm / 0,3°');
+  }
+  // F6: el invitado guarda en `state` solo muestras del host.
+  {
+    const auth = new Map(), hostTicks = new Set();
+    for (const r of byKind(H, 'physics')) { auth.set(`${r.uid}:${r.tick}:${r.revision}`, r.p); hostTicks.add(`${r.uid}:${r.tick}`); }
+    for (const a of applied) { const i = a.initial; if (i) { auth.set(`${i.uid}:${i.tick}:${i.revision}`, i.p); hostTicks.add(`${i.uid}:${i.tick}`); } }
+    const seen = new Map();
+    for (const r of CD) {
+      if (r.k !== 'pp' || !r.ready) continue;
+      for (const o of r.objs) { if (o.stk == null) continue; const key = `${o.uid}:${o.stk}:${o.srev}`; if (!seen.has(key)) seen.set(key, { o, tick: r.tick }); }
+    }
+    let matched = 0, unmatchable = 0;
+    const unmatched = [], poseBad = [];
+    for (const [key, { o, tick }] of seen) {
+      const p = auth.get(key);
+      if (p) { const d = len(sub(p, o.sp)); if (d <= 1e-6) matched++; else poseBad.push({ key, client_tick: tick, d: r6(d) }); }
+      else if (hostTicks.has(`${o.uid}:${o.stk}`)) unmatched.push({ key, client_tick: tick });
+      else unmatchable++;
+    }
+    e2.authorized_state = { distinct: seen.size, matched, unmatched: unmatched.length, pose_mismatch: poseBad.length, unmatchable, examples: [...unmatched, ...poseBad].slice(0, 5) };
+    if (seen.size) check('F6_estado_solo_autorizado', unmatched.length === 0 && poseBad.length === 0,
+      `${matched}/${seen.size} coinciden; revisión sin muestra del host ${unmatched.length}; pose distinta ${poseBad.length}; tick sin registro del host ${unmatchable}`, 'muestras del host');
+  }
+  // F7: salida antes del ACK con su acción y dirección originales.
+  if (CASE === 'release_before_ack' || CASE === 'throw_before_ack') {
+    const op = CASE === 'release_before_ack' ? 'release' : 'throw';
+    const call = ev(CD, 'drv_' + op)[0];
+    const exec = requests.find((r) => r.op === op);
+    const ea = appliedOf(exec);
+    check('F7_misma_accion', !!(call && exec && ea && guestGrab) && call.action === exec.action && ea.action === exec.action && exec.action === guestGrab.action + 1,
+      `driver ${call?.action}, local ${exec?.action}, host ${ea?.action}, agarre ${guestGrab?.action}`, 'misma acción = agarre + 1');
+    const deps = byKind(C, 'dependent'), conf = byKind(C, 'dependent_confirmed'), canc = byKind(C, 'dependent_cancelled');
+    const want = op === 'throw' && call?.dir ? scale(call.dir, 1 / len(call.dir)) : [0, 0, 0];
+    const dep = deps[0];
+    const dirErr = dep?.direction ? len(sub(dep.direction, want)) : null;
+    const confOk = conf.length === 1 && dep != null && conf[0].action === dep.action && conf[0].usec >= dep.usec;
+    check('F7_dependencia_registrada', deps.length === 1 && dep.action === exec?.action && dirErr != null && dirErr <= 1e-6 && confOk && canc.length === 0,
+      `dependent ${deps.length} (acción ${dep?.action}, error de dirección ${r6(dirErr)}); confirmed ${conf.length}; cancelled ${canc.length}`, '1 dependent con la dirección pedida, 1 confirmed, 0 cancelled');
+    e2.dependent = { dependent: dep ?? null, confirmed: conf[0] ?? null, cancelled: canc.length };
+  }
+  // F10: ACK con la velocidad posterior al impulso.
+  {
+    const reqDir = ev(CD, 'drv_throw')[0]?.dir;
+    const want = reqDir ? scale(reqDir, 1 / len(reqDir)) : null;
+    const ex = [];
+    for (const a of applied.filter((x) => x.op === 'throw')) {
+      const pre = HP[a.uid].get(a.applied_tick - 1), lv = a.initial?.lv;
+      const exp = pre && want ? add(pre.lv, scale(want, 16 / M)) : null;
+      let cl = null;
+      for (const r of CD) { if (r.k !== 'pp') continue; const o = objOf(r, a.uid); if (o && o.srev === a.initial?.revision && o.stk === a.initial?.tick && o.slv) { cl = o.slv; break; } }
+      ex.push({ action: a.action, applied_tick: a.applied_tick, host_lv_before: pre?.lv ?? null, ack_tick: a.initial?.tick, ack_revision: a.initial?.revision,
+        ack_initial_lv: lv ?? null, expected_lv: exp?.map(r6) ?? null, err_m_s: exp && lv ? r6(len(sub(lv, exp))) : null,
+        client_state_lv: cl, client_err_m_s: cl && lv ? r6(len(sub(cl, lv))) : null });
+    }
+    e2.ack = ex;
+    if (ex.length) check('F10_ack_velocidad_de_salida', ex.every((x) => x.err_m_s != null && x.err_m_s <= 1e-4 && (x.client_err_m_s == null || x.client_err_m_s <= 1e-6)),
+      ex.map((x) => `acción ${x.action}: error ${x.err_m_s} m/s; invitado ${x.client_err_m_s == null ? 'no observado' : x.client_err_m_s + ' m/s'}`).join('; '), '≤ 1e-4 m/s; invitado ≤ 1e-6 m/s');
+  }
+  // F10: instante declarado del dibujo predicho.
+  {
+    let n = 0, okc = 0;
+    const bad = [];
+    for (const d of draws) for (const o of d.objs) {
+      if (!o.pred) continue;
+      const matches = [o.pt, o.pt - 1, o.pt - 2].filter((t) => { const r = CP[o.uid].get(t); return r && len(sub(o.bp, r.p)) < 1e-7; });
+      if (!matches.length) continue;
+      n++;
+      if (matches.includes(o.st)) okc++; else if (bad.length < 5) bad.push({ frame_tick: d.tick, uid: o.uid, shown_tick: o.st, matching: matches });
+    }
+    e2.draw_label = { matched_draws: n, label_ok: okc, examples: bad };
+    if (n) check('F10_etiqueta_dibujo_predicho', okc === n, `${okc}/${n}`, 'shown_tick = tick de la captura dibujada');
+  }
+  // F10: respuesta explícita al duplicado viejo.
+  if (CASE === 'dup_throw') {
+    const thr = requests.find((r) => r.op === 'throw');
+    const lastDup = ev(CD, 'drv_dup').at(-1);
+    const after = results.filter((r) => thr && lastDup && r.action === thr.action && r.local_tick >= lastDup.tick);
+    const stale = after.filter((r) => r.status === 'stale').length, acc = after.filter((r) => r.status === 'accepted').length;
+    check('D3_respuesta_al_duplicado_viejo', stale >= 1 && acc === 0,
+      `${after.map((r) => r.status + '@' + r.local_tick).join(', ') || 'sin respuesta'} (último duplicado en ${lastDup?.tick})`, 'stale, sin accepted');
+  }
+  // J1–J3: agarre disputado con lanzamiento dependiente.
+  if (CASE === 'throw_rejected') {
+    const g = requests.find((r) => r.op === 'grab' && r.uid === 2), t = requests.find((r) => r.op === 'throw' && r.uid === 2);
+    const rg = g ? results.find((r) => r.action === g.action) : null, rt = t ? results.find((r) => r.action === t.action) : null;
+    const canc = byKind(C, 'dependent_cancelled');
+    const lastRej = Math.max(rg?.local_tick ?? -1, rt?.local_tick ?? -1);
+    const physAfter = byKind(C, 'physics').filter((r) => r.uid === 2 && r.local_tick > lastRej).length;
+    check('J1_rechazos', rg?.status === 'rejected' && rt?.status === 'rejected' && canc.length === 1 && physAfter === 0,
+      `agarre ${rg?.status}:${rg?.reason}, lanzamiento ${rt?.status}:${rt?.reason}; cancelled ${canc.length}; capturas predichas posteriores ${physAfter}`, 'dos rechazos, 1 cancelled, 0 capturas');
+    const hostGrab = applied.find((a) => a.uid === 2 && a.op === 'grab');
+    const throwsHost = applied.filter((a) => a.uid === 2 && a.op === 'throw').length;
+    const grabsHost = applied.filter((a) => a.uid === 2 && a.op === 'grab').length;
+    const hk = sortedTicks(HP[2]);
+    const imp0 = hk.length ? HP[2].get(hk[0]).impulses : null, imp1 = hk.length ? HP[2].get(hk.at(-1)).impulses : null;
+    const owners = new Set([...HPP.values()].filter((r) => hostGrab && r.tick > hostGrab.applied_tick).map((r) => objOf(r, 2)?.aown));
+    check('J2_host_sin_efecto', throwsHost === 0 && grabsHost === 1 && imp0 === imp1 && owners.size === 1 && owners.has(1),
+      `lanzamientos aplicados ${throwsHost}, agarres ${grabsHost}; impulsos ${imp0}→${imp1}; dueños ${[...owners].join(',')}`, 'sin efecto en el host');
+    let maxErr = 0, maxBehind = 0, nd = 0, maxPred = 0;
+    for (const d of draws) {
+      const o = d.objs.find((x) => x.uid === 2);
+      if (!o) continue;
+      if (o.pred) { const h = hostAt(2, Math.min(o.pt - 1, hk.at(-1))); if (h) maxPred = Math.max(maxPred, len(sub(o.m, h.com))); continue; }
+      if (d.tick <= lastRej + 10 || d.est == null) continue;
+      const h = hostAt(2, Math.min(d.est - 6, hk.at(-1)));
+      if (h) { maxErr = Math.max(maxErr, len(sub(o.m, h.com))); nd++; }
+      maxBehind = Math.max(maxBehind, d.est - 6 - o.st);
+    }
+    check('J3_replica_sigue_al_host', nd > 0 && maxErr <= TOL.pos && maxBehind <= 2,
+      `error max ${r6(maxErr)} m; atraso max sobre el buffer ${r6(maxBehind)} ticks (${nd} dibujos)`, '2 mm; ≤ 2 ticks detrás del buffer');
+    e2.rejected = { grab: rg ?? null, throw: rt ?? null, cancelled: canc[0] ?? null, predicted_draw_max_vs_host_m: r6(maxPred) };
+  }
+  e2.events = Object.fromEntries(['handoff', 'handoff_wait', 'handoff_blocked', 'discarded', 'session_closed', 'dependent',
+    'dependent_confirmed', 'dependent_cancelled'].map((k) => [k, byKind(C, k).length]));
+  e2.handoff_blocked_first = byKind(C, 'handoff_blocked')[0] ?? null;
+  info.e2 = e2;
+}
+
 // ---------------------------------------------------------------- salida
 const out = { case: CASE, net: NET, slow: SLOW, run_dir: dir, checks, info };
 fs.writeFileSync(path.join(dir, 'analysis.json'), JSON.stringify(out, null, 1));
@@ -517,5 +693,5 @@ for (const c of checks) console.log('  ' + fmt(c));
 const brief = { net: info.net, actions: info.actions, reconcile: info.reconcile, handoffs: info.handoffs, draw_label: info.draw_label,
   corrections: info.corrections && { count: info.corrections.count, over_tol: info.corrections.over_tol, by_phase: info.corrections.by_phase, top: info.corrections.largest?.slice(0, 3) },
   release: info.release && { ...info.release, rise: info.release.rise, a1: info.release.a1 && { ...info.release.a1, top: undefined } },
-  remote_draw: info.remote_draw, proxies: info.proxies };
+  remote_draw: info.remote_draw, proxies: info.proxies, e2: info.e2 };
 console.log(JSON.stringify(brief, null, 1).split('\n').map((l) => '  ' + l).join('\n'));

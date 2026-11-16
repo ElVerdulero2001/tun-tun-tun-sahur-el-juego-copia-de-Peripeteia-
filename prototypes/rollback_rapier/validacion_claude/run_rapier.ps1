@@ -136,7 +136,10 @@ if ($CheckOnly) {
         $results += Wait-Stage $s
     }
 } else {
-    $names = if ($Stages.Count) { $Stages } else { @($plan.Keys) }
+    # Con powershell -File la lista llega como un solo texto: separarla y rechazar nombres desconocidos.
+    $names = @($Stages | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if ($names.Count -eq 0) { $names = @($plan.Keys) }
+    foreach ($n in $names) { if (-not $plan.Contains($n)) { throw ('Etapa desconocida: ' + $n) } }
     $i = 0
     while ($i -lt $names.Count) {
         $n = $names[$i]

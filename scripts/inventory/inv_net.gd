@@ -148,6 +148,8 @@ var _use_tick := -1
 ## El tick del último input propio que armó esta máquina (fill_input): va en
 ## los pedidos de recoger y abrir (aim_tick).
 var _input_tick := -1
+## El yaw de la cámara de ese input (drop_yaw), o NAN si todavía no hubo uno.
+var _input_yaw := NAN
 ## Host: peer -> {tick: [ojos de su personaje al terminar ese tick, si el host
 ## tuvo que repetir un input anterior porque el de ese tick no había llegado]},
 ## los últimos AIM_HISTORY_TICKS (record_aim_pose).
@@ -327,6 +329,7 @@ func queue_use(uid: int, def: InvItemDef, part := -1) -> bool:
 ## armar ese input.
 func fill_input(input: ActorInput) -> void:
 	_input_tick = input.tick
+	_input_yaw = input.look_yaw
 	if input.tick != _use_tick:
 		var counter := replica.send_next_use(ActorInput.MAX_USES)
 		if counter >= 0:
@@ -346,10 +349,23 @@ func sync_use_counter(seen: int) -> void:
 	_use_counter = seen & 0xFF
 
 
+## Hacia dónde se suelta lo del inventario: hacia donde mira la cámara, con el
+## yaw del último input propio, el mismo que tiene el host (InvBodies.look_yaw_of).
+## Sin input todavía, hacia donde mira el cuerpo. Hasta la segunda prueba del
+## usuario (2026-11-15) era siempre hacia donde mira el cuerpo, que gira hacia
+## donde camina (decidido por el usuario el 2026-10-10): caminando para atrás,
+## salía para el lado de la cámara.
+func drop_yaw(actor: ActorBody) -> float:
+	if not is_nan(_input_yaw):
+		return _input_yaw
+	return actor.state.facing_yaw if actor != null else 0.0
+
+
 ## Dónde aparecería lo que suelta este personaje (un objeto de tipo `def`),
-## como lo va a buscar el host (InvAuthority.find_drop_spot), con lo que esta
-## máquina ve suelto, también lo que ya soltó y el host todavía no confirmó. El
-## lugar y el giro (Transform3D), o null si no cabe en ningún lado.
+## como lo va a buscar el host (InvAuthority.find_drop_spot), hacia la cámara
+## (drop_yaw), con lo que esta máquina ve suelto, también lo que ya soltó y el
+## host todavía no confirmó. El lugar y el giro (Transform3D), o null si no
+## cabe en ningún lado.
 func predict_drop_spot(actor: ActorBody, def: InvItemDef = null) -> Variant:
 	if actor == null or not actor.is_inside_tree():
 		return null
@@ -360,7 +376,7 @@ func predict_drop_spot(actor: ActorBody, def: InvItemDef = null) -> Variant:
 	var items := bodies.selector_space()
 	items.catalog = catalog
 	return InvAuthority.find_drop_spot(get_world_3d().direct_space_state, BaseRegistry.world_position(actor.state),
-			actor.state.facing_yaw, drop_distance, def, InvAuthority.crowded_in.bind(items, taken))
+			drop_yaw(actor), drop_distance, def, InvAuthority.crowded_in.bind(items, taken))
 
 
 ## Antes de mover a un actor en un tick (SimClock.before_step, y al repetir
@@ -501,9 +517,11 @@ func containers() -> Array[InvContainer]:
 ##    `look`, de largo aim_length. Lo primero que toca (un objeto, una caja o
 ##    el nivel) es adonde apunta el jugador (InvReach.aim_direction).
 ## 2. Desde los ojos del personaje sale un rayo hacia ese punto, de largo
-##    interaction_range (InvReach.first_hit). Lo primero que toca decide: el
-##    modelo de un objeto suelto (sus triángulos tal como se ven, no su hitbox
-##    de agarre), la colisión de una caja, o el nivel, que tapa. Si desde los
+##    interaction_range (InvReach.first_hit). Lo primero que toca decide: la
+##    forma de selección de un objeto suelto (desde el 2026-11-15, su hitbox de
+##    agarre si tiene una que sirve, con el acceso comprobado por el modelo; si
+##    no, los triángulos de su modelo tal como se ven), la colisión de una caja,
+##    o el nivel, que tapa. Si desde los
 ##    ojos lo primero es otra cosa que lo que vio la cámara, gana eso: lo que
 ##    marca el indicador es lo que pasa al apretar E.
 ## 3. En tercera persona, además, tiene que estar adelante del cuerpo: a no más

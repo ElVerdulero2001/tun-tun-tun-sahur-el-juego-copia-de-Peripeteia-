@@ -1,14 +1,25 @@
 [gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://boq6y8uqoklho"]
 
-[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
-[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
-[ext_resource type="Script" uid="uid://dvft74npx23ia" path="res://scripts/inventory/inv_equippable.gd" id="3_equip"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_body_shape.gd" id="3_1io7p"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_equippable.gd" id="3_equip"]
 
 [sub_resource type="Resource" id="Resource_equip"]
 script = ExtResource("3_equip")
 hold_offset = Vector3(0.38, 1, -0.3)
 hold_rotation = Vector3(90, 0, 0)
 hold_size = 0.3
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_6tk06"]
+margin = 0.004
+points = PackedVector3Array(-0.053571425, 0.29999998, 0, -0.04950218, 0.29999998, 0.020461604, -0.04950218, 0.29999998, -0.020472087, -0.043608062, 0.17998238, -0.018007465, -0.050362173, 0.2399765, 0, -0.043608062, 0.17998238, 0.017996982, -0.03793419, 0.29999998, 0.03792371, -0.03793419, 0.29999998, -0.03793419, -0.04715292, 0.17998238, 0, -0.040608566, 0.11998825, -0.01682235, -0.037504192, 0, 0, -0.04072393, 0.059994124, 0, -0.040608566, 0.11998825, 0.016811863, -0.018007465, 0.17998238, 0.04359758, -0.020472087, 0.29999998, 0.049491696, -0.028830823, 0.059994124, 0.028820336, -0.01682235, 0.11998825, 0.04059808, -0.020472087, 0.29999998, -0.04950218, -0.018007465, 0.17998238, -0.043608062, -0.01682235, 0.11998825, -0.040608566, -0.028830823, 0.059994124, -0.028830823, -0.03460957, 0, -0.014357727, -0.03460957, 0, 0.01434724, 0, 0.17998238, 0.04714244, 0, 0.29999998, 0.053571425, 0, 0, 0.037493706, 0, 0.059994124, 0.040713444, -0.02647108, 0, 0.026460595, -0.014357727, 0, 0.034599088, 0, 0.29999998, -0.053571425, 0, 0.2399765, -0.050362173, 0, 0.17998238, -0.04715292, 0, 0.059994124, -0.04072393, 0, 0, -0.037504192, -0.014357727, 0, -0.03460957, -0.02647108, 0, -0.02647108, 0.017996982, 0.17998238, 0.04359758, 0.020461604, 0.29999998, 0.049491696, 0.01434724, 0, 0.034599088, 0.016811863, 0.11998825, 0.04059808, 0.020461604, 0.29999998, -0.04950218, 0.017996982, 0.17998238, -0.043608062, 0.016811863, 0.11998825, -0.040608566, 0.01434724, 0, -0.03460957, 0.03792371, 0.29999998, 0.03792371, 0.026460595, 0, 0.026460595, 0.028820336, 0.059994124, 0.028820336, 0.03792371, 0.29999998, -0.03793419, 0.028820336, 0.059994124, -0.028830823, 0.026460595, 0, -0.02647108, 0.04359758, 0.17998238, 0.017996982, 0.049491696, 0.29999998, 0.020461604, 0.04059808, 0.11998825, 0.016811863, 0.034599088, 0, 0.01434724, 0.049491696, 0.29999998, -0.020472087, 0.04359758, 0.17998238, -0.018007465, 0.04059808, 0.11998825, -0.01682235, 0.034599088, 0, -0.014357727, 0.04714244, 0.17998238, 0, 0.053571425, 0.29999998, 0, 0.037493706, 0, 0, 0.040713444, 0.059994124, 0)
+
+[sub_resource type="Resource" id="Resource_ahnxy"]
+script = ExtResource("3_1io7p")
+shapes = Array[ConvexPolygonShape3D]([SubResource("ConvexPolygonShape3D_6tk06")])
+source = "rayo 192 248c51414e69f6ff | convexa"
+kind = 0
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_torch"]
 top_radius = 0.05
@@ -26,3 +37,4 @@ abilities = Array[ExtResource("2_ability")]([SubResource("Resource_equip")])
 mesh = SubResource("CylinderMesh_torch")
 color = Color(0.95, 0.8, 0.2, 1)
 world_size = 0.3
+body_shape = SubResource("Resource_ahnxy")

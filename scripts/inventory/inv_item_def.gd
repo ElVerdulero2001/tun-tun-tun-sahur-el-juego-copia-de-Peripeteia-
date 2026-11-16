@@ -51,18 +51,18 @@ extends Resource
 @export_group("Hitbox de agarre")
 ## Un volumen fácil de apuntar para cuando está suelto en el mundo (desde el
 ## 2026-11-07): una caja, una esfera, un cilindro o una forma convexa propia, en
-## el espacio del objeto suelto. Desde el 2026-11-11 a la noche el juego no la
-## usa para recoger (se recoge apuntando al modelo, InvReach); se guarda, se
-## edita y se ve en el panel Objetos, y entra en la huella. Ver InvPickupHitbox.
+## el espacio del objeto suelto. Desde el 2026-11-15 es con lo que se apunta, se
+## elige y se agarra, si sirve (sin ella, el modelo); el acceso se comprueba con
+## el modelo (InvReach). No cambia el cuerpo físico. Ver InvPickupHitbox.
 @export var pickup_hitbox: InvPickupHitbox
 
 @export_group("Cuerpo físico")
-## Con qué forma choca suelto en el mundo, cae y reposa (desde el 2026-11-14):
-## una caja, una esfera, un cilindro o una forma convexa propia, en el espacio
-## del objeto suelto, o la forma automática partida a mano. Vacío, la forma
-## automática con lo que elige sola (InvItemPhysics): los objetos de antes no
-## necesitan nada. No cambia lo que se ve ni con qué se agarra (los triángulos
-## del modelo). Ver InvBodyShape.
+## Con qué formas choca suelto en el mundo, cae y reposa (desde el
+## 2026-11-14): una caja, una esfera, un cilindro, una forma convexa propia o
+## las formas del modelo preparadas en el editor (desde el 2026-11-15, con la
+## herramienta de Godot: una convexa o varias). Vacío o sin preparar, una sola
+## forma convexa del modelo, y la consola lo avisa. No cambia lo que se ve ni
+## con qué se agarra (la hitbox de agarre). Ver InvBodyShape.
 @export var body_shape: InvBodyShape
 
 @export_group("Miniatura")
@@ -120,8 +120,8 @@ func appearance_key(custom_hotbar := false) -> String:
 
 ## Lo que tiene que ser igual en el host y en los clientes (SimFingerprint).
 ## Desde el 2026-11-07 también la hitbox de agarre (lo que cuenta de verdad,
-## con números redondeados: InvPickupHitbox.fingerprint_of), aunque desde el
-## 2026-11-11 a la noche no interviene al recoger. Desde ese día, también los
+## con números redondeados: InvPickupHitbox.fingerprint_of; desde el 2026-11-15
+## es con lo que se apunta y se agarra). Desde el 2026-11-11, también los
 ## triángulos del modelo tal como se ve en el mundo (InvReach.fingerprint_of):
 ## son los que toca el rayo de la mano, y el host los arma con su copia del
 ## modelo. Un modelo o un tamaño distinto en las dos PC ya no es solo dibujo.

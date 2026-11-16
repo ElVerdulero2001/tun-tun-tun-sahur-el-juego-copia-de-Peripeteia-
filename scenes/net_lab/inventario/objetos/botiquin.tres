@@ -1,13 +1,19 @@
 [gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://ba6m182d8m3pp"]
 
-[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
-[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
-[ext_resource type="Script" uid="uid://mdwue4ncgyw7" path="res://scripts/inventory/inv_consumable.gd" id="3_use"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_body_shape.gd" id="3_8wltt"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_consumable.gd" id="3_use"]
 
 [sub_resource type="Resource" id="Resource_use"]
 script = ExtResource("3_use")
 health = 50
 part_repair = 100.0
+
+[sub_resource type="Resource" id="Resource_7sg6j"]
+script = ExtResource("3_8wltt")
+box_size = Vector3(0.3, 0.12, 0.2)
+offset = Vector3(0, 0.060000002, 0)
 
 [sub_resource type="BoxMesh" id="BoxMesh_kit"]
 size = Vector3(0.3, 0.12, 0.2)
@@ -24,3 +30,4 @@ abilities = Array[ExtResource("2_ability")]([SubResource("Resource_use")])
 mesh = SubResource("BoxMesh_kit")
 color = Color(0.85, 0.15, 0.15, 1)
 world_size = 0.3
+body_shape = SubResource("Resource_7sg6j")

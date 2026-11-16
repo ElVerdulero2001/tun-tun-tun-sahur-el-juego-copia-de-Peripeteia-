@@ -34,9 +34,17 @@ const HITBOX_DIMS := {
 }
 ## Lo que agrandan o achican los botones de la hitbox, por cada lado, en metros.
 const HITBOX_STEP := 0.01
-## Las formas del cuerpo físico, en el orden de InvPickupHitbox.Kind (desde el
-## 2026-11-14). La propia se pone en el Inspector: acá solo se muestra.
-const BODY_KINDS := ["Automática (del modelo)", "Caja", "Esfera", "Cilindro", "Forma propia (en el Inspector)"]
+## Las formas del cuerpo físico que ofrece el menú (desde el 2026-11-15):
+## [texto, InvPickupHitbox.Kind, InvBodyShape.Generation (solo del modelo)]. La
+## propia se pone en el Inspector: acá solo se muestra.
+const BODY_CHOICES := [
+	["Del modelo: una forma convexa", InvPickupHitbox.Kind.MODEL, InvBodyShape.Generation.CONVEX],
+	["Del modelo: varias formas (con huecos)", InvPickupHitbox.Kind.MODEL, InvBodyShape.Generation.PARTS],
+	["Caja", InvPickupHitbox.Kind.BOX, 0],
+	["Esfera", InvPickupHitbox.Kind.SPHERE, 0],
+	["Cilindro", InvPickupHitbox.Kind.CYLINDER, 0],
+	["Forma propia (en el Inspector)", InvPickupHitbox.Kind.CUSTOM, 0],
+]
 
 var draft: Resource
 var is_new := true
@@ -81,9 +89,13 @@ var _hitbox_fit: Button
 var _hitbox_sizes: HBoxContainer
 var _hitbox_notes: Label
 var _body_kind: OptionButton
-var _body_auto: VBoxContainer
+var _body_model: VBoxContainer
+var _body_parts_box: VBoxContainer
 var _body_parts: EditorSpinSlider
-var _body_axis: OptionButton
+var _body_concavity: EditorSpinSlider
+var _body_resolution: EditorSpinSlider
+## Lo que dio el último «Generar» (o el de al guardar), para la nota: {} nada.
+var _body_generated := {}
 var _body_dims: VBoxContainer
 var _body_place: VBoxContainer
 var _body_offset: Array[EditorSpinSlider] = []
@@ -231,16 +243,18 @@ func _build_look() -> void:
 
 
 ## La hitbox de agarre (desde el 2026-11-07, pedido del usuario). Desde el
-## 2026-11-11 a la noche el juego no la usa para recoger: se recoge apuntando
-## al modelo (InvReach). Se sigue guardando, editando y viendo acá, y entra en
-## la huella. Se escribe en la InvPickupHitbox del borrador, que es una copia:
-## la del original no cambia hasta guardar.
+## 2026-11-15 es con lo que se apunta, se elige y se agarra (InvReach), con la
+## comprobación de acceso por el modelo; del 2026-11-11 a ese día no se usaba.
+## Es aparte del cuerpo físico (la sección de abajo): cambiar una no cambia la
+## otra. Se escribe en la InvPickupHitbox del borrador, que es una copia: la del
+## original no cambia hasta guardar.
 func _build_hitbox() -> void:
 	var box := _section("Hitbox de agarre", _help("\n\n".join([
-		"Hoy no interviene al recoger (desde el 2026-11-11): para agarrar un objeto suelto, un rayo desde los ojos del jugador, hacia donde apunta la mira, tiene que tocar su modelo antes que otra cosa, a no más de Interaction Range (nodo Tuning, grupo Recoger y abrir). Una hitbox más grande no lo hace más fácil de apuntar, ni deja agarrarlo desde más lejos o a través de una pared.",
-		"Se guarda con el ítem y se ve en celeste en la vista previa, para cuando vuelva a servir. Sirve para darle a algo chico un volumen fácil de apuntar, o para tapar los huecos de su silueta con una forma sencilla: caja, esfera, cilindro o una forma convexa propia.",
-		"Forma del modelo: sin hitbox, como cualquier ítem.",
-		"No choca con nada, ni cambia la física, la mano o la miniatura. Entra en la huella: si las dos PC no la tienen igual, la otra no entra.",
+		"Con qué se apunta, se elige y se agarra el objeto suelto (desde el 2026-11-15): el rayo desde los ojos, hacia donde apunta la mira, tiene que tocar esta forma antes que otra cosa, a no más de Interaction Range (nodo Tuning, grupo Recoger y abrir), aunque pase por un hueco del modelo. Se agarra por el punto tocado.",
+		"Para que no deje agarrar lo que está detrás de una pared: el punto del modelo más cercano al tocado tiene que verse desde los ojos, y estar a no más de 25 cm más lejos.",
+		"Sirve para darle a algo chico un volumen fácil de apuntar, o para tapar los huecos de su silueta con una forma sencilla: caja, esfera, cilindro o una forma convexa propia. Se ve en celeste en la vista previa.",
+		"Forma del modelo: sin hitbox; se apunta a los triángulos del modelo.",
+		"No choca con nada, ni cambia el cuerpo físico, la mano o la miniatura. Entra en la huella: si las dos PC no la tienen igual, la otra no entra.",
 	])))
 	var grid := _grid(box)
 	_hitbox_kind = OptionButton.new()
@@ -293,39 +307,46 @@ func _build_hitbox() -> void:
 	_hitbox_notes = _note(fields, "")
 
 
-## El cuerpo físico (desde el 2026-11-14): con qué choca el objeto suelto en el
-## mundo. Se escribe en la InvBodyShape del borrador (una copia). Sin una, o en
-## «Automática» con las partes y el eje en automático, el ítem no lleva nada y
-## el juego arma la forma automática (InvItemPhysics), como con los ítems de
-## antes. Se ve en naranja en la vista previa general.
+## El cuerpo físico (desde el 2026-11-14; desde el 2026-11-15 con las formas que
+## arma Godot): con qué choca el objeto suelto en el mundo. Se escribe en la
+## InvBodyShape del borrador (una copia), aparte de la hitbox de agarre: son
+## dos apartados y dos recursos, y cambiar uno no cambia el otro. Se ve en
+## naranja en la vista previa general.
 func _build_body() -> void:
 	var box := _section("Cuerpo físico", _help("\n\n".join([
-		"Con qué choca suelto en el mundo: cae, rebota y reposa con estas formas, contra el nivel, las cajas, las escaleras y los demás objetos (no con los personajes). Se ven en naranja en la vista previa.",
-		"No es con lo que se agarra: eso es el modelo, tal como se ve (un hueco del modelo no se vuelve agarrable aunque el cuerpo lo tape). Tampoco cambia la mano ni la miniatura.",
-		"Automática: sale sola del modelo, en tajadas a lo largo de un eje; cada pedazo que no se toca con otro es una forma convexa. Así las patas de un banquito o los lados de un marco no se tapan. «Partes» en 0 y «Eje» en automático: las elige sola. Con 1, una sola forma convexa, que tapa los huecos.",
-		"Caja, esfera o cilindro: una sola forma, que arranca ajustada al modelo. Una forma convexa propia se pone en el Inspector (Body Shape → Kind: Custom).",
+		"Con qué choca suelto en el mundo: cae, rebota, se apoya y pasa por una abertura si de verdad cabe, contra el nivel, las cajas, las escaleras y los demás objetos (no con los personajes). Se ve en naranja en la vista previa.",
+		"No es con lo que se apunta ni se agarra: eso es la hitbox de agarre (la sección de arriba). Agrandar la hitbox no agranda el cuerpo, ni al revés.",
+		"Del modelo, una forma convexa: Godot envuelve el modelo con una sola forma. Para lo compacto (tapa los huecos).",
+		"Del modelo, varias formas: Godot parte el modelo en formas convexas que conservan sus huecos y entrantes (un aro, las patas de un banquito, un marco). Con menos concavidad salen más formas, más fieles.",
+		"Las formas del modelo se arman con «Generar» y quedan guardadas en el ítem: el juego no las vuelve a armar. Si cambiás el modelo, su tamaño o los valores, quedan desactualizadas hasta generarlas de nuevo (al guardar se generan solas si hace falta).",
+		"Caja, esfera o cilindro: una sola forma, que arranca ajustada al modelo. Una caja ajustada es lo mejor para una tabla. Una forma convexa propia se pone en el Inspector (Body Shape → Kind: Custom).",
 		"Entra en la huella: si las dos PC no la tienen igual, la otra no entra.",
 	])))
 	var grid := _grid(box)
 	_body_kind = OptionButton.new()
-	for kind_name in BODY_KINDS:
-		_body_kind.add_item(kind_name)
+	for choice: Array in BODY_CHOICES:
+		_body_kind.add_item(choice[0])
 	_body_kind.fit_to_longest_item = false
 	_body_kind.clip_text = true
 	_body_kind.item_selected.connect(_on_body_kind)
 	_row(grid, "Forma", _body_kind)
-	_body_auto = VBoxContainer.new()
-	box.add_child(_body_auto)
-	var auto := _grid(_body_auto)
-	_body_parts = _int_spin(0, InvBodyShape.MAX_PARTS)
-	_body_parts.value_changed.connect(func(value: float) -> void: _put_body(&"auto_parts", int(value)))
-	_row(auto, "Partes (0: las elige)", _body_parts, _help("En cuántas tajadas se parte el modelo. 0: las elige sola (una para lo compacto, varias para lo largo o con huecos). 1: una sola forma convexa."))
-	_body_axis = OptionButton.new()
-	for axis_name in ["Automático", "x (a lo ancho)", "y (para arriba)", "z (a lo largo)"]:
-		_body_axis.add_item(axis_name)
-	_body_axis.clip_text = true
-	_body_axis.item_selected.connect(func(index: int) -> void: _put_body(&"auto_axis", index))
-	_row(auto, "Eje de las tajadas", _body_axis, _help("A lo largo de qué eje del objeto van las tajadas. Automático: el que encuentra más huecos, o el más largo."))
+	_body_model = VBoxContainer.new()
+	_body_model.add_theme_constant_override("separation", 4)
+	box.add_child(_body_model)
+	_body_parts_box = VBoxContainer.new()
+	_body_model.add_child(_body_parts_box)
+	var parts := _grid(_body_parts_box)
+	_body_parts = _int_spin(1, InvBodyShape.MAX_PARTS)
+	_body_parts.value_changed.connect(func(value: float) -> void: _put_body(&"max_parts", int(value)))
+	_row(parts, "Formas, como mucho", _body_parts, _help("Cuántas formas convexas puede armar, como mucho."))
+	_body_concavity = _float_spin(InvBodyShape.MIN_CONCAVITY, InvBodyShape.MAX_CONCAVITY, 0.001, "")
+	_body_concavity.value_changed.connect(func(value: float) -> void: _put_body(&"concavity", value))
+	_row(parts, "Concavidad", _body_concavity, _help("Cuánto entrante deja pasar cada forma. Más chica, más formas y más fieles al modelo. Va en metros: con 1 (la de fábrica de Godot) un aro sale tapado; con 0,05 o menos queda abierto."))
+	_body_resolution = _int_spin(InvBodyShape.MIN_RESOLUTION, InvBodyShape.MAX_RESOLUTION)
+	_body_resolution.step = 10000
+	_body_resolution.value_changed.connect(func(value: float) -> void: _put_body(&"resolution", int(value)))
+	_row(parts, "Resolución", _body_resolution, _help("Con cuántos vóxeles mira el modelo. Más, más fiel y más lento (10000 tarda una décima de segundo y deja la llave el doble de gorda; 100000, de 0,3 a 1 segundo)."))
+	_body_model.add_child(_button("Generar del modelo", "Arma las formas del modelo con la herramienta de Godot y las deja en el ítem (se guardan con «Guardar»).", _generate_body))
 	_body_dims = VBoxContainer.new()
 	_body_dims.add_theme_constant_override("separation", 2)
 	box.add_child(_body_dims)
@@ -472,6 +493,7 @@ func load_draft(p_draft: Resource, p_is_new: bool, p_path: String) -> void:
 	_spare_hitbox = null
 	_hitbox_look = _look_key()
 	_show_hitbox()
+	_body_generated = {}
 	_show_body()
 	_state.set_state(draft.get(&"default_state"))
 	_rebuild_abilities()
@@ -934,27 +956,42 @@ func _body() -> InvBodyShape:
 	return draft.get(&"body_shape") as InvBodyShape if draft != null else null
 
 
-func _body_kind_of(body: Resource) -> int:
-	return int(body.get(&"kind")) if body != null else InvPickupHitbox.Kind.MODEL
+## Qué elección del menú corresponde al cuerpo (BODY_CHOICES), o -1. Sin
+## cuerpo, la primera (del modelo, una convexa: lo que usa el juego sin
+## preparar).
+func _body_choice_of(body: Resource) -> int:
+	if body == null:
+		return 0
+	var kind := int(body.get(&"kind"))
+	for i in BODY_CHOICES.size():
+		var choice: Array = BODY_CHOICES[i]
+		if choice[1] == kind and (kind != InvPickupHitbox.Kind.MODEL or choice[2] == int(body.get(&"generation"))):
+			return i
+	return -1
 
 
-## Muestra el cuerpo del borrador: la forma, las partes de la automática o las
-## medidas y el lugar de la simple.
+## Muestra el cuerpo del borrador: la forma, los valores de las formas del
+## modelo o las medidas y el lugar de la simple.
 func _show_body() -> void:
 	var body := _body()
-	var kind := _body_kind_of(body)
-	_body_kind.select(kind if kind >= 0 and kind < BODY_KINDS.size() else -1)
-	_body_kind.set_item_disabled(InvPickupHitbox.Kind.CUSTOM, kind != InvPickupHitbox.Kind.CUSTOM)
+	var choice := _body_choice_of(body)
+	_body_kind.select(choice)
+	var custom := BODY_CHOICES.size() - 1
+	_body_kind.set_item_disabled(custom, choice != custom)
 	for child in _body_dims.get_children():
 		_body_dims.remove_child(child)
 		child.queue_free()
-	var auto := kind == InvPickupHitbox.Kind.MODEL
+	var kind := int(body.get(&"kind")) if body != null else InvPickupHitbox.Kind.MODEL
+	var from_model := kind == InvPickupHitbox.Kind.MODEL
 	var simple := kind in HITBOX_DIMS
-	_body_auto.visible = auto
+	_body_model.visible = from_model
+	_body_parts_box.visible = from_model and body != null and body.generation == InvBodyShape.Generation.PARTS
 	_body_place.visible = simple
 	_body_dims.visible = simple
-	_body_parts.value = body.auto_parts if body != null else 0
-	_body_axis.select(body.auto_axis if body != null else 0)
+	if body != null:
+		_body_parts.value = body.max_parts
+		_body_concavity.value = body.concavity
+		_body_resolution.value = body.resolution
 	if not simple:
 		return
 	var grid := _grid(_body_dims)
@@ -971,46 +1008,44 @@ func _show_body() -> void:
 		_body_rotation[i].value = turn[i]
 
 
-## Otra forma. «Automática» con todo en automático deja el ítem sin cuerpo
-## propio; una simple nueva arranca ajustada al modelo.
-func _on_body_kind(index: int) -> void:
-	if _loading or draft == null:
-		return
+## El cuerpo del borrador, armando uno (del modelo, una convexa) si no tiene.
+func _own_body() -> InvBodyShape:
 	var body := _body()
-	if index == _body_kind_of(body):
-		return
-	if index == InvPickupHitbox.Kind.MODEL and body != null and body.auto_parts == 0 and body.auto_axis == InvBodyShape.Axis.AUTO:
-		draft.set(&"body_shape", null)
-	else:
-		if body == null:
-			body = InvBodyShape.new()
-			body.kind = InvPickupHitbox.Kind.MODEL
-		body.kind = index
-		if index in HITBOX_DIMS:
-			var box := _model_bounds()
-			if box.size.length() > 0.0:
-				body.fit(box)
+	if body == null:
+		body = InvBodyShape.new()
+		body.kind = InvPickupHitbox.Kind.MODEL
+		body.generation = InvBodyShape.Generation.CONVEX
 		draft.set(&"body_shape", body)
+	return body
+
+
+## Otra forma. Una simple nueva arranca ajustada al modelo; una del modelo
+## queda sin preparar hasta «Generar» (o hasta guardar).
+func _on_body_kind(index: int) -> void:
+	if _loading or draft == null or index < 0 or index >= BODY_CHOICES.size():
+		return
+	if index == _body_choice_of(_body()) and _body() != null:
+		return
+	var choice: Array = BODY_CHOICES[index]
+	var body := _own_body()
+	body.kind = choice[1]
+	if choice[1] == InvPickupHitbox.Kind.MODEL:
+		body.generation = choice[2]
+	elif choice[1] in HITBOX_DIMS:
+		var box := _model_bounds()
+		if box.size.length() > 0.0:
+			body.fit(box)
 	_loading = true
 	_show_body()
 	_loading = false
 	edited.emit()
 
 
-## Escribe un valor del cuerpo; las partes y el eje de la automática arman uno
-## si el ítem no tenía, y lo sacan si vuelven a todo automático.
+## Escribe un valor del cuerpo (arma uno si el ítem no tenía).
 func _put_body(field: StringName, value: Variant) -> void:
 	if _loading or draft == null:
 		return
-	var body := _body()
-	if body == null:
-		body = InvBodyShape.new()
-		body.kind = InvPickupHitbox.Kind.MODEL
-	body.set(field, value)
-	if body.kind == InvPickupHitbox.Kind.MODEL and body.auto_parts == 0 and body.auto_axis == InvBodyShape.Axis.AUTO:
-		draft.set(&"body_shape", null)
-	else:
-		draft.set(&"body_shape", body)
+	_own_body().set(field, value)
 	edited.emit()
 
 
@@ -1036,6 +1071,7 @@ func _fit_body() -> void:
 	_loading = true
 	_show_body()
 	_loading = false
+	edited.emit()
 
 
 func _grow_body(amount: float) -> void:
@@ -1046,23 +1082,68 @@ func _grow_body(amount: float) -> void:
 	_loading = true
 	_show_body()
 	_loading = false
+	edited.emit()
 
 
-## Lo que conviene saber del cuerpo: cuántas formas, cuánto ocupa al lado del
-## modelo y si no sirve. Lo llama el panel en cada cambio.
+## «Generar del modelo»: arma las formas del modelo con la herramienta de Godot
+## (InvItemPhysics.generate) y las deja en el borrador.
+func _generate_body() -> void:
+	if draft == null:
+		return
+	var result := InvItemPhysics.generate(draft as InvItemDef, _own_body())
+	_body_generated = result
+	edited.emit()
+
+
+## Antes de guardar (el panel): un ítem sin cuerpo recibe el que conviene
+## (InvItemPhysics.suggest), y uno con las formas del modelo sin preparar o
+## desactualizadas las genera. Devuelve "" o por qué no se pudo: entonces no
+## se guarda, para no dejar un cuerpo que no sirve como si estuviera bien.
+func prepare_body() -> String:
+	if draft == null:
+		return ""
+	var def := draft as InvItemDef
+	# Los triángulos del modelo, leídos de nuevo: una malla cambiada sin
+	# cambiarla de recurso (sus medidas en el Inspector) no cambia lo que se
+	# guardaba de ella.
+	InvReach.clear_cache()
+	if _body() == null:
+		draft.set(&"body_shape", InvItemPhysics.suggest(def))
+	var body := _body()
+	if body.kind != InvPickupHitbox.Kind.MODEL or InvItemPhysics.status_of(def) == "preparado":
+		return ""
+	var result := InvItemPhysics.generate(def, body)
+	_body_generated = result
+	if not result["ok"]:
+		return "no se pudieron generar las formas del modelo: %s." % result["problem"]
+	return ""
+
+
+## Lo que conviene saber del cuerpo: si está preparado, cuántas formas, cuánto
+## ocupa al lado del modelo y si no sirve. Lo llama el panel en cada cambio.
 func refresh_body() -> void:
 	if draft == null:
 		return
 	var lines := PackedStringArray()
 	var body := _body()
+	var def := draft as InvItemDef
 	if body != null and not body.problems().is_empty():
-		lines.append("No sirve: %s Se usa la automática." % " ".join(body.problems()))
+		lines.append("No sirve: %s Hasta arreglarlo, el juego usa una sola forma convexa del modelo." % " ".join(body.problems()))
 	else:
-		var parts := InvItemPhysics.parts(draft as InvItemDef)
-		var area := InvItemPhysics.body_bounds(draft as InvItemDef)
+		var status := InvItemPhysics.status_of(def)
+		if status != "preparado":
+			lines.append("Sin preparar (%s): el juego usaría una sola forma convexa del modelo. Apretá «Generar del modelo», o guardá: se genera solo." % status.trim_prefix("sin preparar: "))
+		var parts := InvItemPhysics.parts(def)
+		var area := InvItemPhysics.body_bounds(def)
 		var model_box := _model_bounds()
 		lines.append("%d %s; ocupa %s (el modelo, %s)." % [parts.size(), "forma" if parts.size() == 1 else "formas", _cm(area.size),
 				_cm(model_box.size) if model_box.size.length() > 0.0 else "nada"])
+	if not _body_generated.is_empty():
+		if _body_generated["ok"]:
+			lines.append("Generado.")
+			lines.append_array(_body_generated["notes"])
+		else:
+			lines.append("No se pudo generar: %s." % _body_generated["problem"])
 	_body_notes.text = "\n".join(lines)
 	_body_notes.visible = not lines.is_empty()
 

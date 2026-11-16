@@ -17,8 +17,9 @@ extends RefCounted
 ## los anota InvNet.record_aim_pose), en la dirección que manda el jugador
 ## (InvProtocol.direction_of, que la valida), y
 ## lo primero que toca, a no más de interaction_range del Tuning, tiene que ser
-## ese objeto (sus triángulos, con el tipo de su catálogo y su lugar) o esa caja
-## (su colisión en la escena del host). Del cliente se usa solo la dirección:
+## ese objeto (desde el 2026-11-15, su hitbox de agarre si tiene una, con el acceso
+## comprobado por el modelo; si no, sus triángulos, con el tipo de su catálogo y
+## su lugar) o esa caja (su colisión en la escena del host). Del cliente se usa solo la dirección:
 ## ni dónde está su cámara, ni distancias, ni lo que tocó, ni si lo ve. Con la
 ## caja abierta, la distancia de los ojos del actor a su volumen.
 ##
@@ -130,7 +131,7 @@ var _dirty_players := {}
 var _dirty_boxes := {}
 var _box_snapshot_for := {}  # peer -> caja: se le manda entera (la acaba de abrir)
 var _world_set := {}
-var _world_gone := {}
+var _world_gone := {}  # número -> tick del host en que salió del mundo (va en "wrt")
 var _closed := {}  # peer -> [caja, motivo]
 var _equip_all := false
 var _use_answers := {}  # peer -> [hasta qué uso llegó, [[número, motivo], ...] de los que no se pudieron]
@@ -184,14 +185,15 @@ func _put_in_world(stack: InvStack, place: Variant, label := true, asleep := tru
 
 
 ## Lo saca del mundo (entra a un inventario): su cuerpo se va, y con él la
-## sujeción, si la tenía.
+## sujeción, si la tenía. Desde el 2026-11-15, antes de sacarlo del índice,
+## InvBodies despierta a los que se apoyaban en él (despawn).
 func _take_from_world(uid: int) -> void:
+	if bodies != null:
+		bodies.despawn(uid, true)
 	world.erase(uid)
 	space.remove(uid)
-	_world_gone[uid] = true
+	_world_gone[uid] = _now_tick()
 	_world_set.erase(uid)
-	if bodies != null:
-		bodies.despawn(uid)
 
 
 ## Cómo viaja un objeto suelto: [pila, x, y, z, cartel, el giro (cuatro), la
@@ -374,7 +376,7 @@ func _run(peer: int, op: int, a: Array) -> String:
 		InvProtocol.Op.DROP:
 			return _drop(peer, a[0], a[1], a[2], a[3])
 		InvProtocol.Op.DROP_AT:
-			return _drop(peer, a[0], a[1], a[2], a[3], InvProtocol.drop_spot_of(a))
+			return _drop(peer, a[0], a[1], a[2], a[3], InvProtocol.drop_place_of(a))
 		InvProtocol.Op.PICKUP:
 			return _pickup(peer, inventory, a)
 		InvProtocol.Op.USE:
@@ -396,12 +398,12 @@ func _run(peer: int, op: int, a: Array) -> String:
 		InvProtocol.Op.GRAB:
 			return _grab(peer, a)
 		InvProtocol.Op.RELEASE:
-			return _release(peer, a[0], a[1], Vector3.ZERO)
+			return _release(peer, a[0], a[1], Vector3.ZERO, a[2])
 		InvProtocol.Op.THROW:
 			var direction: Variant = InvProtocol.direction_at(a, 2)
 			if direction == null:
 				return "pedido inválido: la dirección del lanzamiento no sirve"
-			return _release(peer, a[0], a[1], direction)
+			return _release(peer, a[0], a[1], direction, a[5])
 	return "pedido desconocido"
 
 
@@ -566,34 +568,56 @@ func _grab(peer: int, a: Array) -> String:
 	item["session"] = session
 	_world_set[uid] = true
 	if bodies != null:
-		bodies.begin_hold(uid, peer, session, anchor, distance, rotation, pitch)
+		bodies.begin_hold(uid, peer, session, anchor, distance, rotation, pitch, a[4])
 	_grabbed[peer] = [uid, session, anchor.x, anchor.y, anchor.z, distance, rotation.x, rotation.y, rotation.z, rotation.w]
 	return ""
 
 
-## Soltar o lanzar: [número, sesión] (y la dirección, al lanzar). Solo si lo
-## sostiene ese jugador con esa sesión: una sesión vieja (un pedido que llegó
-## después de otro agarre) no hace nada. Lanzar suma un solo impulso, el común
-## del Tuning (InvItemPhysics.throw_impulse_of), hacia `direction`.
-func _release(peer: int, uid: int, session: int, direction: Variant) -> String:
+## Soltar o lanzar: [número, sesión] (y la dirección, al lanzar), y el último
+## tick en que el jugador lo sostuvo (`last_tick`). Solo si lo sostiene ese
+## jugador con esa sesión: una sesión vieja (un pedido que llegó después de
+## otro agarre) no hace nada. Lanzar suma un solo impulso, el común del Tuning
+## (InvItemPhysics.throw_impulse_of), hacia `direction`.
+##
+## Desde el 2026-11-15, si ese tick todavía no se simuló (la máquina del
+## jugador va adelantada), el host lo sigue llevando hasta simularlo y recién
+## ahí lo suelta (InvBodies.schedule_release, finish_release): así queda con
+## la pose y las velocidades que el jugador tenía en la mano al soltarlo, y no
+## unos ticks antes. Un tick ya simulado, o uno que no es creíble, lo suelta ya.
+func _release(peer: int, uid: int, session: int, direction: Variant, last_tick := -1) -> String:
 	var item: Dictionary = world.get(uid, {})
 	if item.is_empty():
 		return "ya no está"
 	if item.get("holder", 0) != peer or item.get("session", 0) != session:
 		return "ya no lo tenías en la mano"
-	item["holder"] = 0
-	_world_set[uid] = true
 	var impulse := Vector3.ZERO
 	if direction is Vector3:
 		var def := catalog.find((item["stack"] as InvStack).def_id)
 		impulse = (direction as Vector3) * InvItemPhysics.throw_impulse_of(def, tuning)
-	if bodies != null:
-		bodies.end_hold(uid, impulse)
+	if bodies != null and bodies.schedule_release(uid, last_tick, impulse):
+		return ""
+	finish_release(uid, impulse)
 	return ""
 
 
-## El host lo suelta solo (InvBodies: se trabó, quedó lejos, el jugador murió
-## o ya no está; o el jugador se fue): sin impulso, y se le avisa por qué.
+## Lo suelta ya, sin avisar nada (lo pidió su jugador), con `impulse` si lo
+## lanzó. Lo llama InvBodies al llegar el tick de un soltar que esperaba
+## (`waited`): entonces manda el cambio a todos.
+func finish_release(uid: int, impulse := Vector3.ZERO, waited := false) -> void:
+	var item: Dictionary = world.get(uid, {})
+	if item.is_empty():
+		return
+	item["holder"] = 0
+	_world_set[uid] = true
+	if bodies != null:
+		bodies.end_hold(uid, impulse)
+	if waited:
+		flush({})
+
+
+## El host lo suelta solo (InvBodies: se trabó, quedó lejos, no se ve, el
+## jugador murió o ya no está; o el jugador se fue): sin impulso, y se le avisa
+## por qué.
 func auto_release(uid: int, reason: String) -> void:
 	var item: Dictionary = world.get(uid, {})
 	if item.is_empty() or item.get("holder", 0) == 0:
@@ -835,8 +859,10 @@ func _reach_reason(actor: ActorBody, a: Array, kind: String, id: int, center: Ve
 	if view_tick >= 0.0 and (now < 0 or view_tick > now or view_tick < now - InvNet.AIM_HISTORY_TICKS):
 		view_tick = -1.0
 	space.catalog = catalog
+	# El acceso de una hitbox se mide con el alcance, no con lo largo de esta
+	# línea (que sigue más allá solo para decir por qué no).
 	var hit := InvReach.first_hit(_space, at, direction, length, space, catalog, InvReach.own_shapes(actor), Callable(),
-			view_tick)
+			view_tick, interaction_range)
 	last_view_tick = view_tick
 	_last_reach = {}
 	if hit.is_empty():
@@ -868,11 +894,18 @@ static func eyes(actor: ActorBody, feet: Vector3) -> Vector3:
 	return feet + Vector3.UP * maxf(actor.stance_height(actor.state.stance) - EYES_BELOW_TOP, 0.3)
 
 
+## Dónde suelta el host lo de ese jugador cuando no le sirve el lugar que
+## propuso (o no propuso ninguno): hacia donde mira su cámara, con el yaw de su
+## input más nuevo (desde la segunda prueba del usuario, 2026-11-15; antes,
+## hacia donde mira el cuerpo, como InvNet.drop_yaw).
 func _drop_spot(peer: int, def: InvItemDef) -> Variant:
 	var actor := actor_of(peer)
 	if actor == null or _space == null:
 		return null
-	return find_drop_spot(_space, BaseRegistry.world_position(actor.state), actor.state.facing_yaw, drop_distance, def,
+	var yaw: float = bodies.look_yaw_of(peer) if bodies != null else NAN
+	if is_nan(yaw):
+		yaw = actor.state.facing_yaw
+	return find_drop_spot(_space, BaseRegistry.world_position(actor.state), yaw, drop_distance, def,
 			crowded_in.bind(space, []))
 
 
@@ -1049,6 +1082,10 @@ func flush(results: Dictionary) -> void:
 			payload["wa"] = world_set
 		if not world_gone.is_empty():
 			payload["wr"] = world_gone
+			# En qué tick salió cada uno (desde la segunda prueba del usuario,
+			# 2026-11-15): el cliente lo deja de dibujar cuando lo que muestra llega
+			# a ese tick, junto con la caída de lo que se apoyaba en él.
+			payload["wrt"] = _world_gone.values()
 		if not equipment.is_empty():
 			payload["eq"] = equipment
 		if not payload.is_empty():

@@ -159,7 +159,7 @@ Pedido tuyo, para seguir el punto 1 del roadmap. **Pendiente de tu prueba manual
 
 ### La hitbox de agarre (2026-11-07)
 
-> **Desde el 2026-11-11 a la noche no interviene al recoger** (abajo, "El rayo de la mano"): se guarda en el `.tres`, se edita y se ve en el panel y entra en la huella, pero el juego no la arma en el mundo. Lo que sigue es cómo funcionaba hasta ese día.
+> **Desde el 2026-11-15 es la selección principal** (abajo, «La revisión de los objetos con física»): el rayo de la mano toca la hitbox, con una regla de acceso por el modelo. Del 2026-11-11 a la noche a ese día no intervenía (abajo, «El rayo de la mano»). Lo que sigue es cómo funcionaba hasta el 2026-11-11, con otra regla.
 
 Pedido tuyo. Cada tipo de objeto puede tener una **hitbox de agarre**: una caja, una esfera, un cilindro o una forma convexa propia, que la mira tiene que tocar para elegirlo suelto, con E y con el indicador. Sirve para que una llave chica sea fácil de apuntar, o para tapar los huecos de la silueta de un arma. El visor del panel ya fue probado a mano. Cómo se ajusta, cómo se ve y la lista para comprobar la recogida jugando están en la sección 16 de [`guia_del_laboratorio.md`](guia_del_laboratorio.md). Para el inventario:
 
@@ -201,16 +201,34 @@ Pedido en [`prompt_claude_objetos_dinamicos.md`](prompt_claude_objetos_dinamicos
 - **Los objetos sueltos tienen física:** caen, chocan con el nivel, las cajas, las escaleras y entre sí (no con los personajes, decidido por vos), reposan y se duermen. Los simula solo el host (Jolt); los clientes los ven con la demora de la red.
 - **Sostener no es guardar:** con el clic derecho (de fábrica) agarrás un objeto suelto por el punto que mirás y lo llevás con la vista; la rueda lo aleja y lo acerca, el botón central lo gira, otro clic derecho lo suelta y el izquierdo lo lanza. Sigue en el mundo: no entra al inventario. **E** sobre lo que sostenés lo guarda, como siempre. Sostener tampoco es llevar algo con el cursor en la grilla (eso es de `InvUI`).
 - **Tres lugares por objeto, nunca dos:** suelto, sostenido por un jugador o en un inventario, con pedidos nuevos (GRAB, RELEASE y THROW) en la misma fila que los demás. Uno que sostiene otro jugador no se recoge ni se le quita. Si E guarda solo una parte de lo que sostenés, el resto sigue en tu mano.
-- **Soltar desde el inventario** ya no busca piso: aparece adelante, a la altura del pecho, y cae. Se puede soltar saltando o colgado de un cable.
+- **Soltar desde el inventario** ya no busca piso: aparece adelante, a la altura del pecho, y cae. Se puede soltar saltando o colgado de un cable. Desde tu segunda prueba (2026-11-15), «adelante» es hacia donde mira la cámara, no el cuerpo.
 - **Lo que viaja del mundo** ya no es solo un lugar: cada objeto lleva su giro, sus velocidades, si duerme, quién lo sostiene, su sesión de agarre y el tick de esa pose. Lo que se mueve va además en paquetes de poses, 30 por segundo, sin confiable.
 - **El rayo de la mano** ya no revisa todos los objetos del mapa: busca en una grilla de celdas de 1 m (`InvSpatialIndex`), con la pose de cada objeto que se ve en ese momento. El host valida con las poses del tick que tu PC mostraba (hasta un segundo atrás).
 - **Los marcadores** (InvPickupSpawn) dejan el objeto con su giro; los de antes, sin girar, quedan igual. Lo colocado arranca dormido en su lugar.
-- **Cada tipo tiene un cuerpo físico:** automático, sacado del modelo, o propio, en el panel **Objetos**, sección **Cuerpo físico** (en naranja en la vista previa). Los `.tres` de antes no necesitan nada.
+- **Cada tipo tiene un cuerpo físico** (desde el 2026-11-15, preparado por Godot y guardado en el `.tres`; abajo): en el panel **Objetos**, sección **Cuerpo físico** (en naranja en la vista previa). Hasta ese día era «automático», armado en cada PC con tajadas que dejaban rendijas.
 - **La pista de física,** al lado de la zona (sección 3, "Qué hay en la zona").
 - **Panel Opciones (F3):** botones principales o laterales, alternar o mantener, guardado en cada PC.
 - **La huella:** la versión del protocolo (2), el cuerpo de cada tipo, el grupo **Objetos sueltos** del Tuning y el giro de los marcadores. En la notebook, `actualizar_lab.bat`.
 
 **Reglas que quedaron en la historia** (siguen escritas abajo, marcadas): los objetos sin física, el mundo con solo el lugar de cada objeto, soltar solo con piso cerca y el rayo que revisaba todos los objetos del mapa.
+
+### La revisión de los objetos con física (2026-11-15)
+
+Pedida en [`prompt_claude_revision_objetos_fisicos.md`](prompt_claude_revision_objetos_fisicos.md), después de tu prueba en las dos notebooks; el análisis, en [`problemas_objetos_fisicos_2026-11-14.md`](problemas_objetos_fisicos_2026-11-14.md), y todo el detalle, en [`objetos_fisicos.md`](objetos_fisicos.md). Para el inventario:
+
+- **Dos apartados en el panel Objetos:** **Hitbox de agarre** (con qué se apunta y se agarra) y, debajo, **Cuerpo físico** (con qué choca). Son dos recursos del `.tres` (`pickup_hitbox` y `body_shape`): cambiar uno no cambia el otro, y **Duplicar** copia los dos.
+- **El cuerpo físico** lo arma Godot: **Del modelo: una forma convexa**, **Del modelo: varias formas (con huecos)** (la descomposición, con sus valores), **Caja**, **Esfera**, **Cilindro** o una forma propia. **Generar del modelo** lo arma; **Guardar** lo guarda, y si faltaba lo genera solo. Todos los del catálogo quedaron preparados con `addons/inventario_objetos/preparar_cuerpos.gd` (sección 7 de `objetos_fisicos.md`).
+- **Recoger y agarrar:** con hitbox, el rayo de la mano la toca aunque pase por un hueco del modelo; sin hitbox, el modelo, como desde el 2026-11-11. El punto del modelo más cercano tiene que verse desde los ojos y estar a no más del alcance más 25 cm: una hitbox que asoma de una pared no deja recoger lo de atrás (sección 8 de `objetos_fisicos.md`). La valida el host con la misma regla.
+- **Recoger con E lo de abajo de una pila** despierta lo de arriba, que cae. Recoger una parte de una pila que sigue en el mundo no despierta a nadie.
+- **La huella:** la versión del protocolo pasó a 3, y el cuerpo de cada tipo entra con sus formas. En la notebook, `actualizar_lab.bat`.
+- **Después de tu prueba en las notebooks** (la tarde del 2026-11-15, sección 17 de `objetos_fisicos.md`), para el inventario:
+  - lo que Jolt dejaba metido en el piso (hasta 2 cm) ya no queda así: la tolerancia de Jolt es de 2 mm, en `project.godot`;
+  - lo sostenido que una pared tapa se suelta solo («no se ve»), con la misma mirada que el acceso de la hitbox;
+  - se arreglaron los 7 avisos de `inv_bodies.gd` e `inv_reach.gd`.
+- **Después de tu segunda prueba** (2026-11-15, sección 18 de `objetos_fisicos.md`), para el inventario:
+  - **soltar** sale hacia donde mira la cámara (el yaw de tu último input), no hacia donde mira el cuerpo; el host usa el mismo y deja lo soltado con el giro con que lo mostró tu máquina (antes lo ponía derecho);
+  - **recoger con E** algo que tiene otra cosa encima o pegada: en la notebook desaparece junto con la caída de lo de arriba (lo elegiste vos); el inventario se pone al día en el acto. Lo que no tiene nada encima, en el acto, como antes;
+  - el cono de la tercera persona sigue midiendo hacia donde mira el cuerpo.
 
 ---
 
@@ -223,7 +241,7 @@ Pedido en [`prompt_claude_objetos_dinamicos.md`](prompt_claude_objetos_dinamicos
 | La zona de prueba | `scenes/net_lab/inventario/zona_de_inventario.tscn`, nodo **ZonaDeInventario** de `net_lab.tscn` (en x 37, z 13, pegada al borde este del piso) |
 | Los objetos de prueba y su catálogo | `scenes/net_lab/inventario/objetos/*.tres` y `scenes/net_lab/inventario/catalogo_de_prueba.tres` |
 | El panel **Objetos** del editor, para crear ítems y contenedores (sección 4) | `addons/inventario_objetos/`; sus pruebas, en `addons/inventario_objetos/pruebas/` |
-| La hitbox de agarre de cada tipo (desde el 2026-11-07; desde el 2026-11-11 a la noche no interviene al recoger) | `scripts/inventory/inv_pickup_hitbox.gd`, guardada en el `.tres` de cada ítem; la edita el panel Objetos; su prueba, `scenes/net_lab/inventario/pruebas/inv_hitbox_test.tscn` |
+| La hitbox de agarre de cada tipo (desde el 2026-11-07; del 2026-11-11 a la noche al 2026-11-15 no intervenía; desde el 2026-11-15, la selección principal) | `scripts/inventory/inv_pickup_hitbox.gd`, guardada en el `.tres` de cada ítem; la edita el panel Objetos; su prueba, `scenes/net_lab/inventario/pruebas/inv_hitbox_test.tscn` |
 | El rayo de la mano para recoger y abrir (desde el 2026-11-11 a la noche) | `scripts/inventory/inv_reach.gd` (`InvReach`), que usan `inv_net.gd` (el selector) e `inv_authority.gd` (el host); el pedido, en `inv_protocol.gd`; el valor, **Interaction Range** en el nodo **Tuning**; su prueba, `scenes/net_lab/inventario/pruebas/inv_alcance_test.tscn` |
 | Los visores y la edición de miniaturas (sección 4) | En `addons/inventario_objetos/`, `vista_previa.gd` controla los visores 3D y `acomodador.gd` y `gizmo_rotacion.gd` editan los dos encuadres. En `scripts/inventory/`, `inv_thumbnails.gd` renderiza las imágenes e `inv_ui.gd` las dibuja en la interfaz. |
 | Los contenedores creados con el panel | `scenes/net_lab/inventario/contenedores/` (se crea con el primero) |

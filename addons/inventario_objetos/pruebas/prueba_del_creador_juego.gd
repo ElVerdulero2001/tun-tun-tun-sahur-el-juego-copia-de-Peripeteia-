@@ -252,8 +252,11 @@ func _rod_hitbox() -> void:
 	var line := func(x: float) -> int:
 		var seen := net.interaction_target(actor, Vector3(x, y, model.get_center().z - 0.6), Vector3.BACK, false)
 		return seen.get("id", 0) if seen.get("kind", "") == "item" else 0
-	_check(line.call((model.end.x + box.end.x) / 2.0) != uid, "una línea entre el modelo y el borde de la hitbox no la elige: la hitbox no cuenta")
-	_check(line.call(model.get_center().x) == uid, "una línea por el modelo, sí")
+	# Desde el 2026-11-15 la hitbox es la selección principal (decisión del usuario):
+	# entre el modelo y su borde, la elige; afuera de la hitbox, no.
+	_check(line.call((model.end.x + box.end.x) / 2.0) == uid, "una línea entre el modelo y el borde de la hitbox la elige: la hitbox cuenta")
+	_check(line.call(box.end.x + 0.02) != uid, "una línea 2 cm afuera de la hitbox, no")
+	_check(line.call(model.get_center().x) == uid, "una línea por el modelo, también")
 
 
 func _check(ok: bool, what: String) -> void:

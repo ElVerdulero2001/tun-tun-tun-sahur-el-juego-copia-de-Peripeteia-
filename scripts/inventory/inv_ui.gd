@@ -895,7 +895,7 @@ func _send_placing(entry: Dictionary) -> void:
 				return
 			op = InvProtocol.Op.DROP_AT
 			args = InvProtocol.drop_args(entry["src"], uid, stack.ver, quantity, (spot as Transform3D).origin,
-					actor.state.facing_yaw)
+					net.drop_yaw(actor))
 	var seq := _r().request(op, args, uids, slots)
 	if seq == 0:
 		_say("Eso está esperando al host: no se movió")
@@ -1168,7 +1168,7 @@ func drop_item(ref: int, uid: int, ver: int, quantity: int) -> int:
 		_say("No hay lugar cerca para soltarlo")
 		return 0
 	var seq := _r().request(InvProtocol.Op.DROP_AT, InvProtocol.drop_args(ref, uid, ver, quantity,
-			(spot as Transform3D).origin, actor.state.facing_yaw), [uid])
+			(spot as Transform3D).origin, net.drop_yaw(actor)), [uid])
 	queue_redraw()
 	return seq
 

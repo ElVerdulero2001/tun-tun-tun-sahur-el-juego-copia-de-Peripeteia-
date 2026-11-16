@@ -2,19 +2,25 @@
 
 [ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
 [ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
+[ext_resource type="Script" uid="uid://00u6eywwhysx" path="res://scripts/inventory/inv_body_shape.gd" id="3_3r2op"]
 [ext_resource type="Script" uid="uid://dvft74npx23ia" path="res://scripts/inventory/inv_equippable.gd" id="3_equip"]
 [ext_resource type="PackedScene" uid="uid://bhr8u0r0meas0" path="res://assets/models/collectibles/machetedesanmartin4.glb" id="4_model"]
 [ext_resource type="Script" uid="uid://cx0cn61f6sc6j" path="res://scripts/inventory/inv_pickup_hitbox.gd" id="4_uuvul"]
 
-[sub_resource type="Resource" id="Resource_uuvul"]
+[sub_resource type="Resource" id="Resource_3r2op"]
 script = ExtResource("3_equip")
 hold_offset = Vector3(0.45, 1.05, -0.15)
 hold_rotation = Vector3(0, 0, 90)
 hold_size = 0.6
 
-[sub_resource type="Resource" id="Resource_3r2op"]
+[sub_resource type="Resource" id="Resource_lwikm"]
+script = ExtResource("3_3r2op")
+box_size = Vector3(1.201, 0.024, 0.169)
+offset = Vector3(0, 0.011000001, 0)
+
+[sub_resource type="Resource" id="Resource_25qxa"]
 script = ExtResource("4_uuvul")
-box_size = Vector3(1.24, 0.063999996, 0.20899999)
+box_size = Vector3(1.3399999, 0.16399997, 0.30900002)
 offset = Vector3(0, 0.011000001, 0)
 
 [resource]
@@ -23,11 +29,12 @@ id = &"machete"
 display_name = "Machete"
 description = "Equipable de prueba: se lleva en la mano sin sacarlo de la grilla."
 size = Vector2i(1, 6)
-abilities = Array[ExtResource("2_ability")]([SubResource("Resource_uuvul")])
+abilities = Array[ExtResource("2_ability")]([SubResource("Resource_3r2op")])
 model = ExtResource("4_model")
 color = Color(0.6, 0.6, 0.62, 1)
 world_size = 1.2
-pickup_hitbox = SubResource("Resource_3r2op")
+pickup_hitbox = SubResource("Resource_25qxa")
+body_shape = SubResource("Resource_lwikm")
 thumbnail_rotation = Vector3(-0.4, 89.9, 75.1)
 thumbnail_auto_align = false
 custom_hotbar_thumbnail = true

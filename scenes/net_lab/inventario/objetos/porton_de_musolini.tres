@@ -1,8 +1,14 @@
 [gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://cij7xgrxu03k0"]
 
-[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="1_lk0rf"]
-[ext_resource type="PackedScene" uid="uid://bfbjsgji3vcwb" path="res://assets/models/no_collectibles/door_oxide3.glb" id="2_v45hw"]
-[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="3_3xb5d"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_ability.gd" id="1_lk0rf"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_body_shape.gd" id="2_3xb5d"]
+[ext_resource type="PackedScene" path="res://assets/models/no_collectibles/door_oxide3.glb" id="2_v45hw"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="3_3xb5d"]
+
+[sub_resource type="Resource" id="Resource_8fm1y"]
+script = ExtResource("2_3xb5d")
+box_size = Vector3(0.267, 0.45, 0.03)
+offset = Vector3(0, 0.22500001, 0)
 
 [resource]
 script = ExtResource("3_3xb5d")
@@ -13,6 +19,7 @@ size = Vector2i(3, 4)
 stackable = true
 max_stack = 4
 model = ExtResource("2_v45hw")
+body_shape = SubResource("Resource_8fm1y")
 thumbnail_rotation = Vector3(0, 0, 0)
 thumbnail_zoom = 1.03
 thumbnail_auto_align = false

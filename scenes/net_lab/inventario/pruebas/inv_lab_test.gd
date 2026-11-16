@@ -414,7 +414,7 @@ func _drop_near_wall_and_cage() -> void:
 	_check(r[0] and net.replica.world.has(key) and _world_box(key).end.x < wall_x + 0.005,
 			"contra la pared cae de este lado: %s" % (_world_box(key) if net.replica.world.has(key) else r[1]))
 	r = await _req(Op.PICKUP, [key], [key])
-	_check(r[0], "la llave se vuelve a recoger")
+	_check(r[0], "la llave se vuelve a recoger: %s" % r[1])
 	# Encerrado entre paredes: no hay lugar y no se suelta nada.
 	await _teleport(ZONE + Vector3(-4, 0, -6))
 	var cage := Node3D.new()

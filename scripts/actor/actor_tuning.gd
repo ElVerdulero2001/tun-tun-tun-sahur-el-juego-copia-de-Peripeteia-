@@ -434,6 +434,13 @@ var _boosted_from: Array = []
 ## esto.
 @export_range(0.1, 3.0, 0.05) var hold_break_distance := 0.8
 @export_range(0.05, 3.0, 0.05) var hold_break_time := 0.5
+## Si el punto agarrado queda tapado por el nivel o una caja (no se ve desde
+## los ojos) más que esto, en segundos, se suelta solo, sin impulso («no se
+## ve»). En 0, en el primer tick tapado. Lo decide la máquina del que lo
+## sostiene, sin esperar al host; si esa máquina no lo hizo, el host lo suelta
+## igual a los Hold Break Time. Hasta la segunda prueba del usuario
+## (2026-11-15) lo decidía el host a los Hold Break Time, y tardaba.
+@export_range(0.0, 3.0, 0.05) var hold_hidden_time := 0.0
 ## Cuánto aleja o acerca cada paso de la rueda, en metros. De fábrica la rueda
 ## para arriba aleja y para abajo acerca (elegido en el pedido); con Hold Wheel
 ## Inverted, al revés.

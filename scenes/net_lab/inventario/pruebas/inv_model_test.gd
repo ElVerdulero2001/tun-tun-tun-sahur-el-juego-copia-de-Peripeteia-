@@ -437,8 +437,9 @@ func _input_round_trip() -> void:
 	_check(ActorInput.read_from(cut) == null, "uno cortado se descarta")
 	var bytes := b.data_array.duplicate()
 	# Cuántos usos van: el último byte de los 14 fijos (desde el 2026-11-14 hay
-	# uno más al final, si sostiene algo).
-	bytes[ActorInput.BYTE_SIZE - 2] = ActorInput.MAX_USES + 1
+	# uno más al final, si sostiene algo, y desde el 2026-11-15 otro, el largo de
+	# lo que afirma de lo sostenido).
+	bytes[ActorInput.BYTE_SIZE - 3] = ActorInput.MAX_USES + 1
 	var many := StreamPeerBuffer.new()
 	many.data_array = bytes
 	_check(ActorInput.read_from(many) == null, "uno con más usos de los que pueden ir se descarta")
@@ -457,10 +458,31 @@ func _input_round_trip() -> void:
 	bad_hold.hold = [0, 0, 1000, 0, 0, 0, 32767]
 	_check(not bad_hold.is_possible(), "una mano con sesión 0 no es de este juego")
 	var flag := hb.data_array.duplicate()
-	flag[ActorInput.BYTE_SIZE - 1] = 2
+	flag[ActorInput.BYTE_SIZE - 2] = 2
 	var odd_flag := StreamPeerBuffer.new()
 	odd_flag.data_array = flag
 	_check(ActorInput.read_from(odd_flag) == null, "uno con la marca de la mano en 2 se descarta")
+	# Lo que afirma de lo sostenido (desde el 2026-11-15): viaja igual, y un largo
+	# que no es el suyo se descarta.
+	var claiming := ActorInput.make(80, Vector2.ZERO, 0.4, 0, 0)
+	claiming.hold = ActorInput.pack_hold(12, -0.3, 1.234, Quaternion(Vector3.UP, 0.7))
+	var claimed := InvHoldMotion.quantize(Transform3D(Basis(Vector3.UP, 0.3), Vector3(1, 2, 3)), Vector3(0.5, 0, -1), Vector3(0, 2, 0))
+	claiming.held_claim = InvHoldMotion.pack_claim(7, 12, 3, claimed[0], claimed[1], claimed[2])
+	var cb := StreamPeerBuffer.new()
+	claiming.write_to(cb)
+	_check(cb.data_array.size() == ActorInput.BYTE_SIZE + ActorInput.HOLD_BYTES + InvHoldMotion.CLAIM_BYTES,
+			"con lo que afirma de lo sostenido: el fijo, la mano y la afirmación")
+	cb.seek(0)
+	var read_claim := ActorInput.read_from(cb)
+	var parsed := InvHoldMotion.unpack_claim(read_claim.held_claim if read_claim != null else PackedByteArray())
+	_check(read_claim != null and read_claim.held_claim == claiming.held_claim and read_claim.is_possible() and parsed.get("uid", 0) == 7
+			and parsed.get("session", 0) == 12 and parsed.get("version", 0) == 3 and (parsed.get("xf", Transform3D()) as Transform3D).is_equal_approx(claimed[0])
+			and (parsed.get("lv", Vector3.ZERO) as Vector3).is_equal_approx(claimed[1]), "la afirmación se lee igual del otro lado, ya cuantizada")
+	var long_claim := cb.data_array.duplicate()
+	long_claim[ActorInput.BYTE_SIZE + ActorInput.HOLD_BYTES - 1] = 40
+	var odd_claim := StreamPeerBuffer.new()
+	odd_claim.data_array = long_claim
+	_check(ActorInput.read_from(odd_claim) == null, "una afirmación de otro largo se descarta")
 
 
 ## EDT-01: un modelo con scripts no se instancia ni se usa como apariencia.

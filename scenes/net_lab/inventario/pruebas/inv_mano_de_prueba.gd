@@ -88,12 +88,18 @@ static func _find(net: InvNet, actor: ActorBody, place: Transform3D, box: AABB, 
 	var space := net.get_world_3d().direct_space_state
 	var eyes := InvAuthority.eyes(actor, actor.global_position)
 	var inner := box.grow(-minf(box.size.x, minf(box.size.y, box.size.z)) * 0.02)
-	var points: Array = [place * box.get_center()]
+	var points: Array = []
 	for i in STEPS:
 		for j in STEPS:
 			for k in STEPS:
 				points.append(place * (inner.position + inner.size * Vector3(i, j, k) / (STEPS - 1.0)))
 	points.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.distance_squared_to(eyes) < b.distance_squared_to(eyes))
+	# Primero el centro, como apunta un jugador (desde el 2026-11-15): un punto de
+	# una esquina roza el borde, y con los ojos del host unos milímetros corridos
+	# (un input que llegó tarde) el rayo pasaba por arriba y tocaba el piso de
+	# atrás («hay algo en el medio», 2 de 8 veces en inv_partes_test). Los puntos
+	# del borde quedan para lo que tiene el centro tapado.
+	points.push_front(place * box.get_center())
 	var world := _world(net)
 	for point: Vector3 in points:
 		var direction := (point - eyes).normalized()

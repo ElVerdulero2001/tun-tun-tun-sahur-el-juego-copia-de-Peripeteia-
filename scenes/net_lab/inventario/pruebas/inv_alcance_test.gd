@@ -29,8 +29,9 @@ extends Node
 ##   filo, por abajo; con la cámara de verdad, en primera y tercera persona;
 ## - lo que tapa: el nivel, una pared fina pegada al objeto, otro objeto suelto
 ##   y una caja (se elige lo primero, y el host rechaza lo de atrás);
-## - la hitbox de agarre no ayuda: asomando de una pared con el modelo atrás, o
-##   pasando 1 cm al lado del modelo, no; un marco con hitbox, por su hueco, no;
+## - la hitbox de agarre (desde el 2026-11-15, la selección principal): asomando
+##   de una pared con el modelo atrás, no (el acceso); pasando 1 cm al lado del
+##   modelo, sí; un marco con hitbox, por su hueco, sí;
 ## - en tercera persona, una cámara que ve por encima de un murito que tapa los
 ##   ojos no deja agarrar;
 ## - el indicador, E y el host coinciden;
@@ -942,10 +943,11 @@ func _blockers() -> void:
 	_check(not r[0] and String(r[1]).begins_with("no lo ves desde ahí"), "y el host no deja agarrar la granada a través de ella: %s" % r[1])
 
 
-## La llave con una hitbox 60 cm más grande que su modelo por cada lado: la
-## hitbox no ayuda. Con una pared delante del modelo y la hitbox asomando de
-## este lado, apuntando a la hitbox no se elige nada; sin la pared, pasando 1 cm
-## al lado del modelo (adentro de la hitbox), tampoco; apuntando al modelo, sí.
+## La llave con una hitbox 60 cm más grande que su modelo por cada lado. Con una
+## pared delante del modelo y la hitbox asomando de este lado, apuntando a la
+## hitbox no se elige nada (el modelo no se ve: InvReach.access_point); sin la
+## pared, pasando 1 cm al lado del modelo (adentro de la hitbox), sí (desde el
+## 2026-11-15; hasta ese día, no); apuntando al modelo, también.
 func _hitbox_does_not_help() -> void:
 	var uid := _uid_at(BIG_KEY_AT)
 	_check(uid != 0 and big_key_def.pickup_hitbox != null and InvPickupHitbox.active(big_key_def) != null,
@@ -977,15 +979,16 @@ func _hitbox_does_not_help() -> void:
 	await _remove(wall)
 	var beside := Vector3(model.position.x - 0.01, model.position.y + 0.01, BIG_KEY_AT.z)
 	var to_beside := (beside - eyes).normalized()
-	_check(not _picks(uid, eyes, to_beside), "sin la pared, pasando 1 cm al lado del modelo (adentro de la hitbox), no")
+	_check(_picks(uid, eyes, to_beside), "sin la pared, pasando 1 cm al lado del modelo (adentro de la hitbox), sí: la hitbox cuenta (desde el 2026-11-15)")
 	to_model = (model.get_center() + Vector3.UP * model.size.y * 0.4 - eyes).normalized()
 	_check(_picks(uid, eyes, to_model), "apuntando al modelo, sí")
 	r = await _pick(uid, to_model)
 	_check(r[0], "y el host la deja recoger: %s" % r[1])
 
 
-## El marco hueco: el rayo pasa por su hueco y toca el piso; apuntando a una
-## barra, se agarra. Su hitbox, que tapa el hueco, no cambia nada.
+## El marco hueco, con una hitbox que tapa el hueco: desde el 2026-11-15 (la
+## hitbox es la selección principal) se elige también por el hueco, y el host
+## lo deja recoger así; apuntando a una barra, también.
 func _hole() -> void:
 	var uid := _uid_at(FRAME_AT)
 	_check(uid != 0, "el marco está en el piso")
@@ -993,17 +996,15 @@ func _hole() -> void:
 		return
 	await _teleport(FRAME_AT + Vector3(-1.0, 0, 0), FRAME_AT)
 	var eyes := _eyes()
-	var hole := FRAME_AT
-	var through := (hole - eyes).normalized()
-	_check(_ref_hit(eyes, through, 10.0)[0] == 0 and not _picks(uid, eyes, through),
-			"por el hueco, el rayo toca el piso: no se elige")
-	var r := await _pick(uid, through)
-	_check(not r[0], "ni lo deja el host: %s" % r[1])
 	var bar := FRAME_AT + Vector3(-(FRAME_SIZE - FRAME_BAR) / 2.0, FRAME_HEIGHT, 0)
 	var to_bar := (bar - eyes).normalized()
 	_check(_ref_hit(eyes, to_bar, 10.0)[0] == uid and _picks(uid, eyes, to_bar), "apuntando a una barra, se elige")
-	r = await _pick(uid, to_bar)
-	_check(r[0], "y el host lo deja recoger: %s" % r[1])
+	var hole := FRAME_AT
+	var through := (hole - eyes).normalized()
+	_check(_ref_hit(eyes, through, 10.0)[0] == 0 and _picks(uid, eyes, through),
+			"por el hueco el rayo no toca el modelo (la referencia llega al piso), pero la hitbox lo tapa: se elige")
+	var r := await _pick(uid, through)
+	_check(r[0], "y el host lo deja recoger así: %s" % r[1])
 
 
 ## En tercera persona: una cámara que ve la granada por encima de un murito

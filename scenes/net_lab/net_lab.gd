@@ -518,6 +518,9 @@ func _ready() -> void:
 	# Los objetos sueltos de los clientes se ven en el mismo tick del host que
 	# los demás jugadores (desde el 2026-11-14).
 	_inventory.bodies.render_tick = _interpolation.shown_tick
+	# Lo que afirma cada jugador de lo que sostiene (desde el 2026-11-15): viaja en
+	# su input, y el host lo considera al empezar el tick siguiente.
+	_inventory.bodies.claim_source = _net_sync.held_claim_for
 	_session.actor_replaced.connect(_inventory.actor_replaced)
 	# La mano y Opciones (desde el 2026-11-14): se arman acá, sin tocar la escena.
 	_hands = InvHands.new()
@@ -652,6 +655,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif role == Role.HOST and event.keycode == KEY_F2:
 			# Hasta el 2026-11-08 era la Q, que pasó al selector de habilidades.
 			_adoption.enabled = not _adoption.enabled
+			_inventory.bodies.adoption_enabled = _adoption.enabled
 			print("[net_lab] adopción %s" % ("prendida" if _adoption.enabled else "apagada"))
 
 
@@ -1932,8 +1936,18 @@ func _on_tick_finished(tick: int) -> void:
 			and _current_input != null and _current_input.tick == tick:
 		if test_perturb_mm > 0.0:
 			_perturb(_local_actor)
+		# Lo sostenido se predice antes de mandar el input, y lo predicho viaja con
+		# él (desde el 2026-11-15). Si una corrección cambió lo de un tick que ya
+		# salió, lo nuevo va en los que se vuelven a mandar.
+		_hands.predict(tick, _current_input)
+		_current_input.held_claim = _hands.claim_for(tick)
 		_prediction.record(tick, _current_input, _local_actor.state)
-		_net_sync.send_ticks(_prediction.recent(NetSync.INPUT_REDUNDANCY), _clock.rtt_ms)
+		var records := _prediction.recent(NetSync.INPUT_REDUNDANCY)
+		for record: Array in records:
+			var claim := _hands.claim_for((record[0] as ActorInput).tick)
+			if not claim.is_empty():
+				(record[0] as ActorInput).held_claim = claim
+		_net_sync.send_ticks(records, _clock.rtt_ms)
 	elif role == Role.CLIENT and _clock.client_sync and tick % HEARTBEAT_TICKS == 0:
 		# Sin predicción no sale ningún input: el host no tiene que creer que se cortó.
 		_net_sync.send_ticks([], _clock.rtt_ms)
@@ -2486,6 +2500,7 @@ func _read_launch_args() -> void:
 			trace = true
 		elif arg == "--no-adoption":
 			_adoption.enabled = false
+			_inventory.bodies.adoption_enabled = false
 		elif arg.begins_with("--test-push-at="):
 			for seconds in arg.trim_prefix("--test-push-at=").split(","):
 				test_push_seconds.append(seconds.to_float())
@@ -2597,6 +2612,11 @@ func _update_hud() -> void:
 					_adoption.count(peer, ClaimAdoption.Result.WRONG_EPOCH), _adoption.count(peer, ClaimAdoption.Result.TOO_FAR),
 					_adoption.count(peer, ClaimAdoption.Result.BAD_POSE), _adoption.count(peer, ClaimAdoption.Result.BAD_VALUES),
 				])
+				var held_text := _inventory.bodies.adoption_text(peer)
+				if held_text != "":
+					lines.append("      lo que sostiene: %s" % held_text)
+	if role == Role.CLIENT and _hands.held_matches + _hands.held_waits + _hands.held_version_resets > 0:
+		lines.append("lo que sostenés: %s" % _hands.prediction_text())
 	var world_slow := _world_slow_text()
 	if world_slow != "":
 		lines.append(world_slow)
@@ -2837,6 +2857,9 @@ func _print_summary_and_quit() -> void:
 		print("[net_lab] el que cuelga de este jugador se dibujó a %.3f m como máximo de la pose que le da el cuerpo de este jugador" % hooked_gap_max)
 	if role == Role.CLIENT:
 		print("[net_lab] correcciones: la más grande de %.3f m" % _prediction.max_correction_meters)
+		print("[net_lab] lo sostenido: %s" % _hands.prediction_text())
+	for peer: int in _inventory.bodies.adoption:
+		print("[net_lab] lo que sostuvo el jugador %d: %s; despertados por perder el apoyo %d" % [peer, _inventory.bodies.adoption_text(peer), _inventory.bodies.wakes])
 	for peer in _adoption.peers():
 		print("[net_lab] adopción del jugador %d: prendida=%s empujones=%d iguales=%d adoptadas=%d (máx %.3f m) rechazadas: época=%d distancia=%d pose=%d datos_imposibles=%d apagada=%d sin_afirmación=%d" % [
 			peer, _adoption.enabled, pushes,

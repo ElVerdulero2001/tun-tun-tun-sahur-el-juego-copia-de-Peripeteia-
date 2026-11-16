@@ -1,12 +1,23 @@
 [gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://bwi24ksycw8ut"]
 
-[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
-[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
-[ext_resource type="Script" uid="uid://mdwue4ncgyw7" path="res://scripts/inventory/inv_consumable.gd" id="3_use"]
-[ext_resource type="PackedScene" uid="uid://b6bccki5m1ngx" path="res://assets/models/collectibles/botella_horrible4.glb" id="4_model"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_ability.gd" id="2_ability"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_body_shape.gd" id="3_os4t0"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_consumable.gd" id="3_use"]
+[ext_resource type="PackedScene" path="res://assets/models/collectibles/botella_horrible4.glb" id="4_model"]
 
 [sub_resource type="Resource" id="Resource_use"]
 script = ExtResource("3_use")
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_hpu38"]
+margin = 0.004
+points = PackedVector3Array(-0.04042822, 0, -7.450581e-09, -0.035014577, 0, -0.020214118, -0.035014577, 0, 0.0202141, -0.04042822, 0.18171124, -7.450581e-09, -0.035014577, 0.18171124, -0.020214118, -0.02021411, 0, -0.035014585, -0.02021411, 0, 0.03500665, -0.035014577, 0.18171124, 0.0202141, -0.014032742, 0.29999387, 0.008112546, -0.016201366, 0.29999387, -7.450581e-09, -0.014032742, 0.29999387, -0.008120477, -0.02021411, 0.18171124, -0.035014585, 0, 0, -0.04042823, 0, 0, 0.040428214, -0.02021411, 0.18171124, 0.03500665, -0.00812047, 0.29999387, 0.014024816, -0.00812047, 0.29999387, -0.014032749, 0, 0.18171124, -0.04042823, 0.020214107, 0, -0.035014585, 0.020214107, 0, 0.03500665, 0, 0.18171124, 0.040428214, 0, 0.29999387, 0.016193438, 0, 0.29999387, -0.016201373, 0.020214107, 0.18171124, -0.035014585, 0.0081125535, 0.29999387, -0.014032749, 0.035006657, 0, -0.020214118, 0.035006657, 0, 0.0202141, 0.020214107, 0.18171124, 0.03500665, 0.0081125535, 0.29999387, 0.014024816, 0.035006657, 0.18171124, -0.020214118, 0.014024824, 0.29999387, -0.008120477, 0.04042822, 0, -7.450581e-09, 0.035006657, 0.18171124, 0.0202141, 0.014024824, 0.29999387, 0.008112546, 0.04042822, 0.18171124, -7.450581e-09, 0.016193446, 0.29999387, -7.450581e-09)
+
+[sub_resource type="Resource" id="Resource_ik02b"]
+script = ExtResource("3_os4t0")
+shapes = Array[ConvexPolygonShape3D]([SubResource("ConvexPolygonShape3D_hpu38")])
+source = "rayo 140 f9c4c1a4804249a1 | convexa"
+kind = 0
 
 [resource]
 script = ExtResource("1_def")
@@ -20,3 +31,4 @@ abilities = Array[ExtResource("2_ability")]([SubResource("Resource_use")])
 model = ExtResource("4_model")
 color = Color(0.35, 0.6, 0.85, 1)
 world_size = 0.3
+body_shape = SubResource("Resource_ik02b")

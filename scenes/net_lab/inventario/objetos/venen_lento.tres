@@ -1,14 +1,25 @@
 [gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://c8jj7h8vq1ccq"]
 
-[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="1_udtfr"]
-[ext_resource type="Script" uid="uid://mdwue4ncgyw7" path="res://scripts/inventory/inv_consumable.gd" id="2_aebsg"]
-[ext_resource type="PackedScene" uid="uid://c3mnxj2ogypfb" path="res://assets/models/no_collectibles/monitorcrt4.glb" id="3_xh8ik"]
-[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="4_vul83"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_ability.gd" id="1_udtfr"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_consumable.gd" id="2_aebsg"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_body_shape.gd" id="3_aebsg"]
+[ext_resource type="PackedScene" path="res://assets/models/no_collectibles/monitorcrt4.glb" id="3_xh8ik"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="4_vul83"]
 
 [sub_resource type="Resource" id="Resource_udtfr"]
 script = ExtResource("2_aebsg")
 health = 0
 damage_over_time = 80
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_xh8ik"]
+margin = 0.004
+points = PackedVector3Array(0.35000998, 0.68941104, 0.32790682, 0.35000998, 0.14725679, 0.32790682, 0.35000998, 0.68941104, -0.32790676, 0.16541451, 0.68941104, 0.32790682, 0.20426589, 1.001982e-05, 0.22249898, 0.30896592, 0.10562011, 0.26140103, 0.35000998, 0.14725679, -0.32790676, 0.16541451, 0.14725679, 0.32790682, 0.16541451, 0.68941104, -0.32790676, -0.35000008, 0.5628814, 0.26140103, 0.20426589, 1.001982e-05, -0.22256318, -0.24084622, 1.001982e-05, 0.22249898, 0.30896592, 0.10562011, -0.2614652, 0.16541451, 0.14725679, -0.32790676, -0.35000008, 0.13753931, 0.26140103, -0.35000008, 0.5628814, -0.2614652, -0.24084622, 1.001982e-05, -0.22256318, -0.35000008, 0.13753931, -0.2614652)
+
+[sub_resource type="Resource" id="Resource_vul83"]
+script = ExtResource("3_aebsg")
+shapes = Array[ConvexPolygonShape3D]([SubResource("ConvexPolygonShape3D_xh8ik")])
+source = "rayo 158 52c14a84f9f285cd | convexa"
+kind = 0
 
 [resource]
 script = ExtResource("4_vul83")
@@ -20,5 +31,6 @@ max_stack = 8
 abilities = Array[ExtResource("1_udtfr")]([SubResource("Resource_udtfr")])
 model = ExtResource("3_xh8ik")
 world_size = 0.7000000000000001
+body_shape = SubResource("Resource_vul83")
 thumbnail_rotation = Vector3(0, -90, 0)
 thumbnail_auto_align = false

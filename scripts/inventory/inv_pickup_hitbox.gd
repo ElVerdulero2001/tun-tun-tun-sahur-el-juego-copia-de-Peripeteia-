@@ -7,16 +7,20 @@ extends Resource
 ## tipo. Sirve para que algo chico sea fácil de apuntar, o para tapar los
 ## huecos de una silueta con una forma sencilla.
 ##
-## Desde el 2026-11-11 a la noche el juego no la usa para recoger: un rayo
-## desde los ojos tiene que tocar el modelo (InvReach), y una hitbox agrandada
-## que asoma de una pared no deja agarrar lo que está detrás. Se conserva tal
-## cual: va en InvItemDef.pickup_hitbox, guardada con el resto del tipo, el
-## panel Objetos la edita y la muestra, y entra en la huella. Del 2026-11-07 a
-## ese día, la mira tenía que tocar esta forma (InvWorldItem la ponía en su
-## forma para apuntar), sin el margen del Tuning; sin hitbox (null) o con
-## Kind.MODEL, los triángulos del modelo, con ese margen.
+## Desde el 2026-11-15 (decisión del usuario,
+## docs/net/prompt_claude_revision_objetos_fisicos.md) es la selección
+## principal: si el tipo tiene una que sirve (active), el rayo de la mano
+## (InvReach) toca esta forma, aunque pase por un hueco del modelo, y el punto
+## tocado es por donde se agarra. Para que una hitbox que asoma de una pared no
+## deje agarrar lo de atrás, además el punto del modelo más cercano tiene que
+## verse desde los ojos (InvReach.access_point). Sin hitbox (null), con
+## Kind.MODEL o con una que no sirve, el rayo toca los triángulos del modelo.
+## Del 2026-11-11 a la noche a ese día no se usaba; del 2026-11-07 al
+## 2026-11-11 se elegía con una Area3D y el margen del Tuning.
 ##
-## No choca con nada, y no cambia la física, lo equipado ni la miniatura.
+## No choca con nada, y no cambia la física, lo equipado ni la miniatura. El
+## cuerpo físico es otra cosa (InvItemDef.body_shape, InvBodyShape): agrandar
+## esta no agranda el cuerpo, y ninguna se usa en lugar de la otra.
 ##
 ## Todo se mide en el espacio del objeto suelto, en metros: el origen está en
 ## el piso, en el centro de la base del modelo ya escalado
@@ -72,7 +76,7 @@ func is_configured() -> bool:
 
 ## La hitbox con la que se elige un objeto de ese tipo: la suya, si tiene una
 ## forma y sirve. Si no (no tiene, es la del modelo o tiene un problema), null:
-## se usa la forma del modelo, con el margen del Tuning.
+## se usan los triángulos del modelo (InvReach).
 static func active(def: InvItemDef) -> InvPickupHitbox:
 	var hitbox := def.pickup_hitbox if def != null else null
 	if hitbox == null or not hitbox.is_configured() or not hitbox.problems().is_empty():

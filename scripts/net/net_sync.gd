@@ -8,9 +8,13 @@ extends Node
 ## junto a cada input viaja la afirmación: el estado que el cliente predijo
 ## para ese tick.
 
-## Ticks que viajan en cada paquete: si se pierde uno, el siguiente trae los
-## mismos ticks otra vez.
+## Ticks redundantes que se reenvían en cada envío, repartidos en uno o varios
+## datagramas: si se pierde uno, los siguientes vuelven a traer esos ticks.
 const INPUT_REDUNDANCY := 6
+## Presupuesto del payload de inputs, con margen para RPC/ENet/UDP. Con la
+## afirmación de lo sostenido, seis ticks ya ocupaban 1437 bytes antes del RPC
+## (ENet avisaba MTU 1392). Se conservan TODOS los ticks, en varios datagramas.
+const MAX_INPUT_PACKET_BYTES := 1200
 ## Cada cuántos ticks manda el host un snapshot: con 2 son 30 por segundo. Los
 ## demás jugadores se ven parejos igual porque se interpolan (paso 8).
 const SNAPSHOT_INTERVAL_TICKS := 2
@@ -77,16 +81,44 @@ func _ready() -> void:
 ## con cuánta anticipación programar un evento para él. Sin ticks, es solo un
 ## aviso de que el cliente sigue ahí, aunque no esté prediciendo.
 func send_ticks(records: Array, rtt_ms: float) -> void:
+	for data: PackedByteArray in input_packets(records, rtt_ms):
+		_send(func() -> void: _submit_inputs.rpc_id(1, data))
+
+
+## El mismo formato que lee _accept_inputs, sin cortar registros ni reducir
+## la redundancia. Primero agrupa los ticks más recientes: no separa el tick
+## nuevo en un datagrama chico de sus predecesores inmediatos. Con jitter,
+## aquel podía llegar antes y dar al reloj un margen optimista mientras los
+## inputs que se iban a simular todavía viajaban en el datagrama grande.
+## El tamaño incluye usos pendientes y ambas afirmaciones.
+static func input_packets(records: Array, rtt_ms: float) -> Array[PackedByteArray]:
+	var packets: Array[PackedByteArray] = []
+	var rtt := clampi(roundi(rtt_ms), 0, 65535)
 	var b := StreamPeerBuffer.new()
-	b.put_u16(clampi(roundi(rtt_ms), 0, 65535))
-	b.put_u8(records.size())
-	for record in records:
+	b.put_u16(rtt)
+	b.put_u8(0)
+	var count := 0
+	for i in range(records.size() - 1, -1, -1):
+		var record: Array = records[i]
+		var entry := StreamPeerBuffer.new()
 		var claim: PackedByteArray = record[1]
-		record[0].write_to(b)
-		b.put_u8(claim.size())
-		b.put_data(claim)
-	var data := b.data_array
-	_send(func() -> void: _submit_inputs.rpc_id(1, data))
+		record[0].write_to(entry)
+		entry.put_u8(claim.size())
+		entry.put_data(claim)
+		if count > 0 and (b.get_size() + entry.get_size() > MAX_INPUT_PACKET_BYTES or count == INPUT_REDUNDANCY):
+			b.seek(2)
+			b.put_u8(count)
+			packets.append(b.data_array)
+			b = StreamPeerBuffer.new()
+			b.put_u16(rtt)
+			b.put_u8(0)
+			count = 0
+		b.put_data(entry.data_array)
+		count += 1
+	b.seek(2)
+	b.put_u8(count)
+	packets.append(b.data_array)
+	return packets
 
 
 ## Aplica el snapshot más nuevo que llegó desde el tick anterior. Se llama
@@ -195,12 +227,30 @@ func _accept_inputs(peer_id: int, data: PackedByteArray) -> void:
 		var claim: PackedByteArray = b.get_data(claim_size)[1]
 		if not input.is_possible() or not _tick_in_range(input.tick):
 			continue
+		# Una corrección vuelve a enviar este mismo tick con otra versión de la
+		# sujeción. Un duplicado viejo que llega después no debe reemplazar ese
+		# registro ni su afirmación del personaje por los de antes de corregirse.
+		if is_older_hold_claim(input, by_tick.get(input.tick)):
+			continue
 		by_tick[input.tick] = input
 		if claim.size() == ActorState.BYTE_SIZE:
 			claims[input.tick] = claim
 		var latest: ActorInput = _latest_input.get(peer_id)
 		if latest == null or input.tick > latest.tick:
 			_latest_input[peer_id] = input
+
+
+## Orden modular de las revisiones de UNA sujeción para UN tick. No ordena
+## sesiones distintas ni reemplaza las validaciones físicas de InvBodies.
+static func is_older_hold_claim(incoming: ActorInput, previous: ActorInput) -> bool:
+	if previous == null:
+		return false
+	var next := InvHoldMotion.unpack_claim(incoming.held_claim)
+	var old := InvHoldMotion.unpack_claim(previous.held_claim)
+	if next.is_empty() or old.is_empty() or next["uid"] != old["uid"] or next["session"] != old["session"]:
+		return false
+	var behind := (int(old["version"]) - int(next["version"])) & 0xFF
+	return behind > 0 and behind < 128
 
 
 ## Host: si un tick de input es creíble: ni más viejo que la historia que se
@@ -242,6 +292,14 @@ func input_for(peer_id: int, tick: int) -> ActorInput:
 	# estaba; no agarra ni suelta nada por sí solo (eso son pedidos).
 	input.hold = chosen.hold.duplicate()
 	return input
+
+
+## Host: lo que afirmó un jugador de lo que sostiene después del tick `tick`
+## (ActorInput.held_claim, desde el 2026-11-15), solo si llegó el input de ese
+## tick exacto; si no, vacío (un input repetido no afirma nada).
+func held_claim_for(peer_id: int, tick: int) -> PackedByteArray:
+	var input: ActorInput = _inputs.get(peer_id, {}).get(tick)
+	return input.held_claim if input != null else PackedByteArray()
 
 
 ## Host: el tick del input recibido que usó input_for() la última vez para

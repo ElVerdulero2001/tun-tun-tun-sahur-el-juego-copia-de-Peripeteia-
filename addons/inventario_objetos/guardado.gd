@@ -136,7 +136,7 @@ static func check_item(draft: Resource, path: String, original: Resource, catalo
 	elif hitbox != null:
 		for problem in (hitbox as InvPickupHitbox).problems():
 			errors.append("Hitbox de agarre: " + problem)
-	# El cuerpo físico (desde el 2026-11-14): vacío es la forma automática.
+	# El cuerpo físico (desde el 2026-11-14): vacío, el panel lo prepara al guardar.
 	var body: Variant = draft.get(&"body_shape")
 	if body != null and not body is InvBodyShape:
 		errors.append("El cuerpo físico no es un InvBodyShape.")

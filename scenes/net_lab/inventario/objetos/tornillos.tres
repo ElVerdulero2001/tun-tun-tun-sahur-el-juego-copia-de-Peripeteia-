@@ -1,7 +1,18 @@
 [gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://bipwhmm35qe"]
 
-[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
-[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="1_uo6xj"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_ability.gd" id="1_uo6xj"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_body_shape.gd" id="2_bk5rf"]
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_1hsiy"]
+margin = 0.004
+points = PackedVector3Array(-0.04666667, 0, -9.134412e-06, -0.04037197, 0, -0.02334247, -0.04037197, 0, 0.023324203, -0.04666667, 0.14, -9.134412e-06, -0.02334247, 0, -0.04037197, -0.04037197, 0.14, -0.02334247, -0.02334247, 0, 0.04036284, -0.04037197, 0.14, 0.023324203, -9.134412e-06, 0, -0.04666667, -0.02334247, 0.14, -0.04037197, -9.134412e-06, 0, 0.046657536, -0.02334247, 0.14, 0.04036284, 0.023324203, 0, -0.04037197, -9.134412e-06, 0.14, -0.04666667, 0.023324203, 0, 0.04036284, -9.134412e-06, 0.14, 0.046657536, 0.04036284, 0, -0.02334247, 0.023324203, 0.14, -0.04037197, 0.04036284, 0, 0.023324203, 0.023324203, 0.14, 0.04036284, 0.046657536, 0, -9.134412e-06, 0.04036284, 0.14, -0.02334247, 0.04036284, 0.14, 0.023324203, 0.046657536, 0.14, -9.134412e-06)
+
+[sub_resource type="Resource" id="Resource_lpxis"]
+script = ExtResource("2_bk5rf")
+shapes = Array[ConvexPolygonShape3D]([SubResource("ConvexPolygonShape3D_1hsiy")])
+source = "rayo 144 e8780614e3aee3d8 | convexa"
+kind = 0
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_screw"]
 top_radius = 0.04
@@ -19,3 +30,4 @@ max_stack = 30
 mesh = SubResource("CylinderMesh_screw")
 color = Color(0.7, 0.72, 0.75, 1)
 world_size = 0.14
+body_shape = SubResource("Resource_lpxis")

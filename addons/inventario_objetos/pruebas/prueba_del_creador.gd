@@ -768,46 +768,73 @@ func _check_preview_pan(preview: Node) -> void:
 	preview._on_view_input(button)
 
 
-## El cuerpo físico (desde el 2026-11-14): la sección debajo de la hitbox, la
-## forma automática (sin nada en el ítem) en naranja en la vista previa, una
-## caja ajustada al modelo, una medida que no sirve, guardar y releer, que el
-## juego use esa caja, duplicar con un cuerpo propio, y volver a la automática.
+## El cuerpo físico (desde el 2026-11-14; revisado el 2026-11-15): la sección
+## debajo de la hitbox, las formas del modelo armadas con la herramienta de
+## Godot («Generar», y solas al guardar), desactualizadas al cambiar los
+## valores, una caja ajustada al modelo, una medida que no sirve, guardar y
+## releer, que el juego use lo guardado sin generar nada, duplicar con un
+## cuerpo propio, y que la hitbox y el cuerpo no se toquen entre sí.
 func _body_section() -> void:
 	var form = panel._item_form
 	panel.new_item()
 	await _frames(2)
 	var titles: Array = form.find_children("*", "FoldableContainer", true, false).map(func(fold: FoldableContainer) -> String: return fold.title)
 	_check(titles.find("Cuerpo físico") == titles.find("Hitbox de agarre") + 1, "la sección Cuerpo físico va debajo de la hitbox: %s" % [titles])
-	_check(form._body_kind.selected == KIND.MODEL and form._body_auto.visible and not form._body_place.visible
-			and panel._item_draft.get(&"body_shape") == null, "un ítem nuevo usa la forma automática, sin nada en el ítem")
+	_check(form._body_kind.selected == 0 and form._body_model.visible and not form._body_parts_box.visible and not form._body_place.visible
+			and panel._item_draft.get(&"body_shape") == null, "un ítem nuevo muestra «Del modelo: una forma convexa», sin cuerpo todavía")
 	_type(form._name, "Caja de cuerpo de prueba")
 	var model: PackedScene = load(SHIFTED_MODEL)  # la varilla que escribió _pickup_hitbox
 	form._model.edited_resource = model
 	form._model.resource_changed.emit(model)
 	form._world_size.value = 0.4
 	await _frames(3)
-	_check(panel._preview.shown_body() != null and panel._preview._body_toggle.visible, "la vista previa muestra el cuerpo automático, en naranja")
-	_check(String(form._body_notes.text).contains("ocupa"), "y la sección dice cuántas formas tiene: %s" % form._body_notes.text)
-	form._body_kind.select(KIND.BOX)
-	form._body_kind.item_selected.emit(KIND.BOX)
+	_check(panel._preview.shown_body() != null and panel._preview._body_toggle.visible, "la vista previa muestra el cuerpo, en naranja")
+	_check(String(form._body_notes.text).contains("Sin preparar"), "y la sección avisa que está sin preparar: %s" % form._body_notes.text)
+	# Varias formas: «Generar» las arma y las deja en el borrador.
+	form._body_kind.select(1)
+	form._body_kind.item_selected.emit(1)
 	var body: InvBodyShape = panel._item_draft.get(&"body_shape")
+	_check(body != null and body.kind == KIND.MODEL and body.generation == InvBodyShape.Generation.PARTS and form._body_parts_box.visible,
+			"«Del modelo: varias formas» muestra sus valores")
+	form._generate_body()
+	await _frames(2)
+	_check(body.shapes.size() >= 1 and InvItemPhysics.status_of(panel._item_draft) == "preparado"
+			and String(form._body_notes.text).contains("Generado"), "«Generar del modelo» arma %d formas y queda preparado: %s" % [
+			body.shapes.size(), form._body_notes.text])
+	form._body_concavity.value = 0.02
+	await _frames(2)
+	_check(InvItemPhysics.status_of(panel._item_draft).contains("desactualizadas") and String(form._body_notes.text).contains("Sin preparar"),
+			"cambiar la concavidad las deja desactualizadas, y lo dice")
+	# Una caja ajustada.
+	form._body_kind.select(2)
+	form._body_kind.item_selected.emit(2)
 	var model_box := InvPickupHitbox.model_bounds(panel._item_draft)
-	_check(body != null and body.kind == KIND.BOX and body.bounds().grow(0.0005).encloses(model_box), "Caja arranca ajustada al modelo: %s" % [
-			body.bounds() if body != null else "sin cuerpo"])
-	_check(form._body_place.visible and form._body_dims.find_children("*", "EditorSpinSlider", true, false).size() == 3,
+	_check(body.kind == KIND.BOX and body.bounds().grow(0.0005).encloses(model_box), "Caja arranca ajustada al modelo: %s" % [body.bounds()])
+	_check(form._body_place.visible and not form._body_model.visible and form._body_dims.find_children("*", "EditorSpinSlider", true, false).size() == 3,
 			"con ancho, alto y largo, el lugar y el giro")
-	if body == null:
-		return
 	var good := body.box_size
 	body.box_size = Vector3(0.0, good.y, good.z)
 	var result: Dictionary = panel.save_current(false)
 	_check(not result["ok"] and String(result["message"]).contains("Cuerpo físico"), "una caja de ancho 0 no se guarda: %s" % result["message"])
 	body.box_size = good
+	# La hitbox y el cuerpo son dos cosas: agrandar la hitbox no cambia el cuerpo.
+	_pick_hitbox(form, KIND.BOX)
+	var hitbox: InvPickupHitbox = panel._item_draft.get(&"pickup_hitbox")
+	var body_before := InvItemPhysics.body_bounds(panel._item_draft)
+	hitbox.grow(0.05)
+	_check(hitbox != body and InvItemPhysics.body_bounds(panel._item_draft).is_equal_approx(body_before)
+			and not hitbox.bounds().is_equal_approx(body.bounds()), "agrandar la hitbox 5 cm no agranda el cuerpo")
+	var hitbox_before := hitbox.bounds()
+	body.grow(0.01)
+	_check(hitbox.bounds().is_equal_approx(hitbox_before),
+			"y agrandar el cuerpo no toca la hitbox")
+	body.grow(-0.01)
 	result = panel.save_current(false)
 	_check(result["ok"], "con sus medidas, se guarda: %s" % result["message"])
 	var path: String = form.path
 	var text := FileAccess.get_file_as_string(path)
-	_check(text.contains("inv_body_shape.gd") and text.contains("body_shape = SubResource("), "el cuerpo va adentro del .tres")
+	_check(text.contains("inv_body_shape.gd") and text.contains("body_shape = SubResource(") and text.contains("pickup_hitbox = SubResource("),
+			"el cuerpo y la hitbox van adentro del .tres, cada uno en lo suyo")
 	var fresh: InvItemDef = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
 	var fresh_body := fresh.body_shape if fresh != null else null
 	_check(fresh_body != null and fresh_body.kind == KIND.BOX and fresh_body.box_size.is_equal_approx(good), "leído de nuevo, tiene lo mismo")
@@ -820,21 +847,35 @@ func _body_section() -> void:
 	var copy: Resource = panel._item_draft
 	var stored: InvItemDef = load(path)
 	_check(copy.get(&"body_shape") != null and copy.get(&"body_shape") != stored.body_shape
-			and (copy.get(&"body_shape") as InvBodyShape).box_size.is_equal_approx(good), "duplicado, trae un cuerpo igual, pero suyo")
+			and (copy.get(&"body_shape") as InvBodyShape).box_size.is_equal_approx(good)
+			and copy.get(&"pickup_hitbox") != stored.pickup_hitbox, "duplicado, trae un cuerpo y una hitbox iguales, pero suyos")
+	(copy.get(&"body_shape") as InvBodyShape).grow(0.02)
+	_check(stored.body_shape.box_size.is_equal_approx(good), "cambiar el cuerpo de la copia no cambia el del original")
 	panel.discard()
+	# Del modelo, una convexa, sin apretar «Generar»: al guardar se genera.
 	panel.open_item(path)
 	await _frames(2)
-	form._body_kind.select(KIND.MODEL)
-	form._body_kind.item_selected.emit(KIND.MODEL)
-	_check(panel._item_draft.get(&"body_shape") == null and form._body_auto.visible and not form._body_place.visible,
-			"de Caja a Automática (sin elegir partes ni eje): el ítem queda sin cuerpo propio")
-	form._body_parts.value = 1
-	var auto: InvBodyShape = panel._item_draft.get(&"body_shape")
-	_check(auto != null and auto.auto_parts == 1 and InvItemPhysics.parts(panel._item_draft).size() == 1, "con 1 parte, una sola forma convexa")
-	form._body_parts.value = 0
-	_check(panel._item_draft.get(&"body_shape") == null, "y otra vez 0 partes: sin cuerpo propio, como los ítems de antes")
+	form._body_kind.select(0)
+	form._body_kind.item_selected.emit(0)
+	_check(InvItemPhysics.status_of(panel._item_draft) != "preparado", "volver a «Del modelo» lo deja sin preparar hasta generar")
+	result = panel.save_current(true)
+	_check(result["ok"], "al guardar lo genera solo: %s" % result["message"])
+	fresh = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	fresh_body = fresh.body_shape if fresh != null else null
+	_check(fresh_body != null and fresh_body.kind == KIND.MODEL and fresh_body.shapes.size() == 1 and fresh_body.source != ""
+			and InvItemPhysics.status_of(fresh) == "preparado", "guardado con su forma y de qué modelo salió, preparado al leerlo")
+	parts = InvItemPhysics.parts(fresh)
+	_check(parts.size() == 1 and parts[0][0] == fresh_body.shapes[0], "el juego usa la forma guardada, sin generar nada")
+	# Huella: la misma con una copia leída aparte, otra si cambia un punto.
+	var again: InvItemDef = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	_check(InvItemPhysics.fingerprint_of(again) == InvItemPhysics.fingerprint_of(fresh), "dos copias leídas dan la misma huella del cuerpo")
+	var moved := again.body_shape.shapes[0].points
+	moved[0] += Vector3(0.001, 0, 0)
+	again.body_shape.shapes[0].points = moved
+	InvItemPhysics.clear_cache()
+	_check(InvItemPhysics.fingerprint_of(again) != InvItemPhysics.fingerprint_of(fresh), "1 mm en un punto cambia la huella")
 	panel.discard()
-	_check(not panel.is_dirty() and (load(path) as InvItemDef).body_shape != null, "descartado, el guardado sigue con su caja")
+	_check(not panel.is_dirty() and (load(path) as InvItemDef).body_shape != null, "descartado, el guardado sigue con su cuerpo")
 
 
 func _pick_hitbox(form: Node, kind: int) -> void:

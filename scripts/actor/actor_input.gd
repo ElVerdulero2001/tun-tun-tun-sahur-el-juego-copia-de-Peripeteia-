@@ -18,8 +18,9 @@ const AXIS_STEPS := 127.0
 ## Largo de write_to() sin usos de consumibles: 12 hasta el 2026-11-04, cuando
 ## se sumó el uso (17, con un solo objeto); 14 desde la auditoría de ese mismo
 ## día (el contador y cuántos usos van), más USE_BYTES por cada uso que va; 15
-## desde el 2026-11-14 (si sostiene algo), más HOLD_BYTES si sostiene.
-const BYTE_SIZE := 15
+## desde el 2026-11-14 (si sostiene algo), más HOLD_BYTES si sostiene; 16 desde
+## el 2026-11-15 (el largo de held_claim), más lo que mide held_claim.
+const BYTE_SIZE := 16
 ## Lo que sostiene: la sesión (4), hacia dónde mira la cámara para arriba o
 ## para abajo (2), la distancia (2) y el giro pedido (8).
 const HOLD_BYTES := 16
@@ -79,6 +80,12 @@ var uses: Array = []
 ## objeto hacia ahí con su física y sus límites (InvBodies). No lo usa el
 ## motor del personaje, y al repetir ticks en el cliente no hace nada.
 var hold: Array = []
+## Lo que esta máquina afirma de lo que sostiene después de este tick (desde
+## el 2026-11-15; InvHoldMotion.pack_claim, CLAIM_BYTES bytes), o vacío. No es
+## una intención: es el resultado de su predicción, que el host compara con el
+## suyo (InvBodies._judge_claim). Va solo en el input de su tick: uno repetido
+## por el host (NetSync.input_for) no lo lleva.
+var held_claim := PackedByteArray()
 
 
 static func make(p_tick: int, p_move: Vector2, p_look_yaw: float, p_buttons: int, p_jump_presses: int, p_ability_presses: int = 0, p_power_presses: int = 0) -> ActorInput:
@@ -154,7 +161,8 @@ func is_possible() -> bool:
 	return move.length_squared() <= 1.01 and (buttons & ~ALL_BUTTONS) == 0 and uses.size() <= MAX_USES \
 			and uses.all(func(use: Array) -> bool: return use.size() < 3 or (use[2] >= -1 and use[2] < ActorState.PARTS)) \
 			and (hold.is_empty() or (hold.size() == 7 and hold[0] >= 1 and absi(hold[1]) <= 32767 and hold[2] >= 0
-					and hold[2] <= 65535))
+					and hold[2] <= 65535)) \
+			and (held_claim.is_empty() or held_claim.size() == InvHoldMotion.CLAIM_BYTES)
 
 
 ## Escribe el input en BYTE_SIZE bytes, más USE_BYTES por cada uso. Como ya
@@ -182,6 +190,9 @@ func write_to(b: StreamPeerBuffer) -> void:
 		b.put_u16(hold[2])
 		for i in range(3, 7):
 			b.put_16(hold[i])
+	var claim := held_claim if held_claim.size() == InvHoldMotion.CLAIM_BYTES else PackedByteArray()
+	b.put_u8(claim.size())
+	b.put_data(claim)
 
 
 ## El input que escribió write_to(), o null si no tiene esa forma (más usos de
@@ -217,4 +228,11 @@ static func read_from(b: StreamPeerBuffer) -> ActorInput:
 		return null
 	if holding == 1:
 		input.hold = [b.get_u32(), b.get_16(), b.get_u16(), b.get_16(), b.get_16(), b.get_16(), b.get_16()]
+	if b.get_available_bytes() < 1:
+		return null
+	var claim_size := b.get_u8()
+	if claim_size != 0 and claim_size != InvHoldMotion.CLAIM_BYTES or b.get_available_bytes() < claim_size:
+		return null
+	if claim_size > 0:
+		input.held_claim = b.get_data(claim_size)[1]
 	return input

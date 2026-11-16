@@ -63,15 +63,17 @@ enum Op {
 	## nada. El seguimiento de la mano (distancia, giro) no es un pedido: va en
 	## el input de cada tick (ActorInput.hold).
 	GRAB,  ## [id del objeto, x, y, z, tick, tick de lo que se veía, sesión]
-	RELEASE,  ## [id del objeto, sesión]: lo suelta sin impulso
-	THROW,  ## [id del objeto, sesión, x, y, z]: lo suelta y lo lanza hacia ahí
+	RELEASE,  ## [id del objeto, sesión, tick]: lo suelta sin impulso después de ese tick
+	THROW,  ## [id del objeto, sesión, x, y, z, tick]: lo suelta y lo lanza hacia ahí después de ese tick
 }
 
 ## La versión de estos pedidos y de los paquetes del host. Entra en la huella
 ## del inventario (InvNet.fingerprint_text): una copia con otra no se conecta.
 ## 2: desde el 2026-11-14, los objetos con física (sostener, lanzar, el giro,
 ## las velocidades y lo que se veía). Antes no había número: era la 1.
-const VERSION := 2
+## 3: desde el 2026-11-15, soltar y lanzar llevan el último tick en que el
+## jugador lo sostuvo, y los paquetes de poses, la versión de lo sostenido.
+const VERSION := 3
 
 const OWN := 0
 ## Un pedido más largo que esto no es de este juego.
@@ -92,8 +94,8 @@ const ARGS := {
 	Op.CLOSE: [TYPE_INT],
 	Op.DROP_AT: [TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT, TYPE_INT],
 	Op.GRAB: [TYPE_INT, TYPE_FLOAT, TYPE_FLOAT, TYPE_FLOAT, TYPE_INT, TYPE_INT, TYPE_INT],
-	Op.RELEASE: [TYPE_INT, TYPE_INT],
-	Op.THROW: [TYPE_INT, TYPE_INT, TYPE_FLOAT, TYPE_FLOAT, TYPE_FLOAT],
+	Op.RELEASE: [TYPE_INT, TYPE_INT, TYPE_INT],
+	Op.THROW: [TYPE_INT, TYPE_INT, TYPE_FLOAT, TYPE_FLOAT, TYPE_FLOAT, TYPE_INT],
 }
 
 ## Los pedidos que llevan la dirección de la mano en los lugares 1 a 3, el tick
@@ -123,9 +125,16 @@ static func grab_args(id: int, direction: Vector3, tick: int, view_tick: float, 
 	return aimed_args(id, direction, tick, view_tick) + [session]
 
 
-## Los de THROW: el número, la sesión y hacia dónde.
-static func throw_args(id: int, session: int, direction: Vector3) -> Array:
-	return [id, session, direction.x, direction.y, direction.z]
+## Los de RELEASE: el número, la sesión y el último tick en que esta máquina
+## lo sostuvo (InvNet.aim_tick): el host lo suelta después de simular ese tick,
+## con lo que el jugador tenía en la mano en ese momento.
+static func release_args(id: int, session: int, tick: int) -> Array:
+	return [id, session, tick]
+
+
+## Los de THROW: el número, la sesión, hacia dónde y el tick, como RELEASE.
+static func throw_args(id: int, session: int, direction: Vector3, tick: int) -> Array:
+	return [id, session, direction.x, direction.y, direction.z, tick]
 
 
 ## La dirección de la mano de un PICKUP, OPEN o GRAB, de largo 1, o null si no

@@ -37,6 +37,27 @@ extends Node3D
 ## La cámara lenta frena a Jolt sola (Engine.time_scale): acá no se escala
 ## nada aparte. Al repetir ticks en un cliente no se simula nada: los objetos
 ## no tienen física ahí.
+##
+## **Desde el 2026-11-15** (docs/net/prompt_claude_revision_objetos_fisicos.md):
+##
+## - **La mano** pone las velocidades de lo sostenido al terminar el tick, con
+##   las cuentas de InvHoldMotion, antes del paso de Jolt de ese mismo tick.
+## - **El instante de cada pose:** lo que se lee al empezar el tick T es lo que
+##   quedó después del paso de física del tick T - 1, y así viaja: el paquete de
+##   poses que sale al terminar el tick T dice T - 1 (hasta ese día decía T).
+## - **Adopción de lo sostenido:** la máquina del jugador predice lo que
+##   sostiene y manda, con el input de cada tick, cómo le quedó (ActorInput.
+##   held_claim). Al empezar el tick T + 1, el host compara la afirmación del
+##   tick T con su propio resultado del tick T y la adopta solo si es creíble
+##   (_judge_claim: misma sesión y versión, velocidades posibles, cerca de lo
+##   del host, sin haber tocado otro objeto, y con todo el recorrido libre). Si
+##   no, se queda con lo suyo y sube la versión de esa sujeción: lo que la
+##   máquina del jugador afirmó con la versión vieja ya no se adopta, y al ver
+##   la versión nueva en las poses se corrige con lo del host.
+## - **Soltar y lanzar** esperan al último tick en que el jugador lo sostuvo
+##   (schedule_release).
+## - **Despertar:** al sacar un objeto del mundo, los que se apoyaban en él se
+##   despiertan (despawn con `wake_neighbors`, wake): Jolt no lo hace solo.
 
 ## Cada cuántos ticks sale un paquete de poses: como los snapshots de los
 ## personajes (NetSync.SNAPSHOT_INTERVAL_TICKS), 30 por segundo.
@@ -52,8 +73,53 @@ const JUMP_DISTANCE := 4.0
 ## Debajo de esto, un objeto se cayó del mapa: vuelve a donde reposó por última vez.
 const FALL_LIMIT := -30.0
 ## Pasos de la cuantización del giro y de las velocidades en los paquetes.
-const QUAT_STEPS := 32767.0
-const VELOCITY_STEP := 0.01
+const QUAT_STEPS := InvHoldMotion.QUAT_STEPS
+const VELOCITY_STEP := InvHoldMotion.VELOCITY_STEP
+## Bytes por objeto en un paquete de poses.
+const POSE_BYTES := 38
+
+## La adopción de lo sostenido (elegido por Claude el 2026-11-15, ver
+## _judge_claim). Menos que esto entre lo que afirma el cliente y lo del host
+## (en el centro de masa y en el punto agarrado, en metros; en el giro, en
+## grados; en las velocidades, en m/s y rad/s) es lo mismo: no se toca nada.
+const SAME_POS := 0.0005
+const SAME_ANGLE := 0.05
+const SAME_SPEED := 0.02
+## Lo más que puede diferir para adoptarlo: lo que cambia un input que llegó
+## tarde girando rápido (unos 2 a 4 cm con el Tuning de fábrica), con margen.
+const ADOPT_POS := 0.06
+const ADOPT_ANGLE := 8.0
+## La primera afirmación después de agarrar: la máquina del jugador empezó a
+## llevarlo antes de que el host lo agarrara, así que puede estar más lejos.
+const START_POS := 0.35
+## Margen sobre los límites de la mano del Tuning para las velocidades y el
+## movimiento de un tick: ×1,1 y esto (m/s o rad/s).
+const LIMIT_SLACK := 0.1
+## Cuántos ticks puede esperar un soltar (la máquina del jugador va adelantada).
+const MAX_RELEASE_WAIT := 60
+## Lo más largo que puede ser el camino por afirmaciones (_claim_path), en
+## ticks: los inputs viajan de a INPUT_REDUNDANCY (6), así que uno que llegó
+## tarde casi siempre llega en los siguientes.
+const MAX_CHAIN := 8
+## Cuánto se agranda la caja de un objeto que sale del mundo para buscar los
+## que se apoyaban en él, en metros: lo que Jolt deja entre dos formas que se
+## tocan, con margen.
+const WAKE_MARGIN := 0.05
+## Ticks sin acuerdo (sin afirmaciones que sirvan) después de los que el host
+## sube la versión igual, para que la máquina del jugador se corrija (elegido
+## por Claude el 2026-11-15: medio segundo, más que una ida y vuelta mala).
+const STALE_TICKS := 30
+## Los motivos de rechazo que suben la versión de la sujeción.
+const BUMPS := ["tocó otro objeto", "valores imposibles", "muy lejos", "movimiento imposible", "se mete"]
+## Cuántas veces se escribe en la consola cada motivo de rechazo, por jugador.
+const LOG_EACH := 3
+## El rescate de lo que Jolt duerme metido en el nivel (_unstick): hasta dónde
+## se lo busca sacar y cuántas veces por objeto (elegido por Claude el 2026-11-15).
+const UNSTICK_MAX := 0.1
+const UNSTICK_TRIES := 3
+## Lo que se acepta de más sobre la tolerancia de Jolt antes de rescatar, y lo
+## metido que puede quedar después de sacarlo, en metros.
+const UNSTICK_MARGIN := 0.005
 
 var net: InvNet
 ## Solo en el host.
@@ -69,13 +135,37 @@ var poses_sent := 0
 var poses_received := 0
 var packets_sent := 0
 var resets := 0
+## Host: lo que afirma el jugador de lo que sostiene en un tick
+## (func(peer, tick) -> PackedByteArray: NetSync.held_claim_for). Lo pone el
+## laboratorio; sin él, el host se queda siempre con lo suyo.
+var claim_source: Callable
+## Host: si adopta lo que afirman los clientes de lo que sostienen (F2 apaga la
+## adopción del personaje y esta a la vez).
+var adoption_enabled := true
+## Host: por jugador, cuántas afirmaciones de lo sostenido tuvieron cada
+## resultado (_judge_claim) y "max", la diferencia más grande adoptada (m).
+var adoption := {}
+## Host: cuántos objetos se despertaron por perder el apoyo.
+var wakes := 0
+## Cliente, para las pruebas: cuántos objetos que sacó el host se siguieron
+## dibujando hasta su tick, y cuántos que recogió esta máquina esperaron al
+## host porque algo se apoyaba en ellos (_waits_for_fall).
+var held_back := 0
+var pickups_waited := 0
+## Host: cuántos objetos dormidos metidos en el nivel se sacaron (_unstick).
+var unstuck := 0
 
 var _views := {}  # número -> InvWorldItem (los negativos: lo soltado sin confirmar)
 var _awake := {}  # host: número -> true
 var _changed := {}  # host: número -> true, desde el último paquete
 var _slept := {}  # host: número -> tick en que se durmió
 var _rest := {}  # host: número -> última pose en reposo
-var _holds := {}  # host: número -> {"peer", "session", "anchor", "distance", "rotation", "pitch", "deaths", "stuck"}
+var _holds := {}  # host: número -> {"peer", "session", "anchor", "distance", "rotation", "pitch", "deaths", "stuck", "hidden",
+		# "version", "fresh", "prev" (pose después del tick anterior), "goal" (el target de este tick), "since",
+		# "checkpoint" ([tick, pose] de la última coincidencia o corrección),
+		# "release_at" e "impulse" (un soltar que espera)}
+var _logged := {}  # host: "jugador motivo" -> veces escritas
+var _unstuck := {}  # host: número -> veces que se lo sacó del nivel
 var _hold_inputs := {}  # host: peer -> [ActorInput.hold, look_yaw]
 var _refresh := 0  # host: por dónde va la ronda de los dormidos
 var _last_tick := -1
@@ -83,6 +173,7 @@ var _paused := false
 var _frozen := {}  # host, en pausa: número -> [velocidad, giro]
 var _samples := {}  # cliente: número -> [[tick, Transform3D, velocidad, dormido, sostenido], ...]
 var _moving := {}  # cliente: número -> true, los que todavía hay que interpolar
+var _leaving := {}  # cliente: número -> tick del host en que se deja de dibujar (INF: esperando al host)
 var _sleep_next := {}  # host: número -> true, a dormir en el próximo cuadro de física
 var _born_asleep := {}  # host: número -> true, nació dormido y todavía no se despertó
 
@@ -148,9 +239,11 @@ func reset() -> void:
 	_hold_inputs.clear()
 	_samples.clear()
 	_moving.clear()
+	_leaving.clear()
 	_frozen.clear()
 	_sleep_next.clear()
 	_born_asleep.clear()
+	_unstuck.clear()
 	shown.clear()
 	shown.catalog = catalog
 	_last_tick = -1
@@ -197,9 +290,19 @@ func spawn(uid: int) -> void:
 		_freeze(uid, body)
 
 
-func despawn(uid: int) -> void:
+## Host: saca el cuerpo de un objeto. Con `wake_neighbors` (InvAuthority, al
+## sacarlo del mundo de verdad: recogido con E), antes despierta a los que
+## podían apoyarse en él (_wake_around), mientras todavía está en el índice. El
+## cuerpo sale del mundo físico en el acto (no al final del cuadro), así en el
+## próximo paso de Jolt ya no sostiene a nadie y lo de arriba empieza a caer.
+## Recoger una parte de una pila no llama a esto: el cuerpo sigue.
+func despawn(uid: int, wake_neighbors := false) -> void:
 	var body: InvWorldItem = _views.get(uid)
 	if body != null:
+		if wake_neighbors and authority != null and body.simulated:
+			_wake_around(uid, body)
+		if body.get_parent() == self:
+			remove_child(body)
 		body.queue_free()
 	_views.erase(uid)
 	_awake.erase(uid)
@@ -210,11 +313,111 @@ func despawn(uid: int) -> void:
 	_frozen.erase(uid)
 	_sleep_next.erase(uid)
 	_born_asleep.erase(uid)
+	_unstuck.erase(uid)
+
+
+## Host: despierta a los objetos cuyo cuerpo toca la caja del de `uid`
+## agrandada WAKE_MARGIN: los busca en el índice del rayo (la caja de cada uno
+## ya está anotada ahí) y mira su caja de verdad. Alguno de más se despierta y
+## se vuelve a dormir solo; no se despierta nada lejos.
+func _wake_around(uid: int, body: InvWorldItem) -> void:
+	var box := (body.global_transform * InvItemPhysics.body_bounds(body.def)).grow(WAKE_MARGIN)
+	for other: int in authority.space.index.near(box):
+		if other == uid:
+			continue
+		var near_body: InvWorldItem = _views.get(other)
+		if near_body == null or not near_body.simulated or near_body.hold_active:
+			continue
+		if (near_body.global_transform * InvItemPhysics.body_bounds(near_body.def)).intersects(box):
+			wake(other)
+
+
+## Host: despierta un objeto (el único lugar donde se despierta uno a mano).
+## Cambiar `sleeping` no hace que Godot avise (sleeping_state_changed), así que
+## acá se pone al día todo lo que dependía de eso: que se lea su pose en cada
+## tick y salga en los paquetes (_awake, _changed), que su entrada del mundo ya
+## no diga que duerme, y que no lo vuelva a dormir el arreglo de lo que nació
+## dormido (_sleep_next, _born_asleep). Cuando Jolt lo duerma de nuevo, Godot sí
+## avisa (_on_sleep_changed). En pausa queda congelado hasta seguir.
+func wake(uid: int) -> void:
+	var body: InvWorldItem = _views.get(uid)
+	if authority == null or body == null or not body.simulated:
+		return
+	_sleep_next.erase(uid)
+	_born_asleep.erase(uid)
+	_slept.erase(uid)
+	if not _frozen.has(uid):
+		body.sleeping = false
+	_awake[uid] = true
+	_changed[uid] = true
+	var item: Dictionary = authority.world.get(uid, {})
+	if not item.is_empty():
+		item["sleep"] = false
+	wakes += 1
+
+
+## Host: si Jolt durmió un objeto metido en el nivel más que su tolerancia de
+## penetración (2 mm en project.godot; 2 cm de fábrica) y UNSTICK_MARGIN (con
+## una forma convexa fina, como la llave, soltada contra una pared, quedaba 4 cm
+## adentro del piso; medido el 2026-11-15, con la caja del mismo tamaño no
+## pasa), lo saca por el camino más corto (de a 1 cm, hasta UNSTICK_MAX, para
+## arriba, a los costados o para abajo) y lo despierta, para que caiga y se
+## apoye bien. Como mucho UNSTICK_TRIES veces por objeto. Devuelve si lo sacó.
+func _unstick(uid: int, body: InvWorldItem) -> bool:
+	var space := body.get_world_3d().direct_space_state
+	var place := body.global_transform
+	# Lo que Jolt deja meterse a propósito (su tolerancia de penetración) no se
+	# toca: debajo de eso no lo corrige él tampoco, y sacarlo solo haría que
+	# vuelva a caer igual.
+	var allowed := float(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/penetration_slop", 0.02)) + UNSTICK_MARGIN
+	if _penetration(space, body, place) <= allowed:
+		return false
+	var tries: int = _unstuck.get(uid, 0)
+	if tries >= UNSTICK_TRIES:
+		return false
+	_unstuck[uid] = tries + 1
+	for step in range(1, roundi(UNSTICK_MAX / 0.01) + 1):
+		for direction: Vector3 in [Vector3.UP, Vector3.RIGHT, Vector3.LEFT, Vector3.FORWARD, Vector3.BACK, Vector3.DOWN]:
+			var moved := place.translated(direction * step * 0.01)
+			if _penetration(space, body, moved) <= UNSTICK_MARGIN:
+				body.global_transform = moved
+				body.linear_velocity = Vector3.ZERO
+				body.angular_velocity = Vector3.ZERO
+				body.reset_physics_interpolation()
+				wake(uid)
+				unstuck += 1
+				if unstuck <= LOG_EACH:
+					print("[inventario] el objeto %d (%s, en %s) quedó dormido metido en %s: el host lo sacó %d cm%s" % [uid,
+							str(body.def.id) if body.def != null else "?", place.origin.snapped(Vector3.ONE * 0.01), _touching_name(space, body, place), step,
+							" (no se vuelve a escribir)" if unstuck == LOG_EACH else ""])
+				return true
+	return false
+
+
+## Cuánto está metido un objeto en el nivel en `place`, en metros.
+func _penetration(space: PhysicsDirectSpaceState3D, body: InvWorldItem, place: Transform3D) -> float:
+	return InvItemPhysics.depth(space, body.def, place, InvAuthority.WORLD_MASK)
+
+
+## Con qué del nivel se mete un objeto en `place` (para la consola).
+func _touching_name(space: PhysicsDirectSpaceState3D, body: InvWorldItem, place: Transform3D) -> String:
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.collision_mask = InvAuthority.WORLD_MASK
+	query.margin = 0.0
+	for part: Array in InvItemPhysics.inset_parts(body.def):
+		query.shape = part[0]
+		query.transform = place * (part[1] as Transform3D)
+		for hit: Dictionary in space.intersect_shape(query, 1):
+			var node := hit.get("collider") as Node
+			return str(node.get_path()) if node != null else "el nivel"
+	return "el nivel"
 
 
 func _on_sleep_changed(uid: int) -> void:
 	var body: InvWorldItem = _views.get(uid)
 	if body == null:
+		return
+	if body.sleeping and not body.hold_active and _unstick(uid, body):
 		return
 	if body.sleeping and not body.hold_active:
 		# Godot no avisa cuando el sueño lo cambia uno (al crearlo, al agarrarlo):
@@ -267,12 +470,14 @@ func _freeze(uid: int, body: InvWorldItem) -> void:
 	body.freeze = true
 
 
-## Host, al empezar el tick `tick`: lee la pose de lo que se movió en el paso
-## de física del tick anterior.
+## Host, al empezar el tick `tick`: lo sostenido (lo que afirma su jugador del
+## tick anterior y los soltar que esperaban ese tick) y la pose de lo que se
+## movió en el paso de física del tick anterior.
 func on_tick_started(tick: int) -> void:
 	if authority == null:
 		return
 	_last_tick = tick - 1
+	_judge_holds(tick - 1)
 	for uid: int in _awake.keys():
 		var body: InvWorldItem = _views.get(uid)
 		if body == null:
@@ -351,9 +556,10 @@ func look_yaw_of(peer: int) -> float:
 
 ## Host: `peer` empieza a sostener el objeto por `anchor` (en su espacio), a
 ## `distance` de los ojos y con `rotation` (su giro relativo al yaw de la
-## cámara) hasta que su input diga otra cosa.
+## cámara) hasta que su input diga otra cosa. `since`: el tick en que lo agarró
+## en su máquina (para la consola).
 func begin_hold(uid: int, peer: int, session: int, anchor: Vector3, distance: float, turn: Quaternion,
-		pitch: float) -> void:
+		pitch: float, since := -1) -> void:
 	var body: InvWorldItem = _views.get(uid)
 	if body == null:
 		return
@@ -361,11 +567,29 @@ func begin_hold(uid: int, peer: int, session: int, anchor: Vector3, distance: fl
 		body.freeze = false
 		_frozen.erase(uid)
 	var actor := authority.actor_of(peer)
+	_sleep_next.erase(uid)
+	_born_asleep.erase(uid)
 	_holds[uid] = {"peer": peer, "session": session, "anchor": anchor, "distance": distance, "rotation": turn,
-			"pitch": pitch, "deaths": actor.state.deaths if actor != null else 0, "stuck": 0.0}
+			"pitch": pitch, "deaths": actor.state.deaths if actor != null else 0, "stuck": 0.0, "hidden": 0.0, "version": 0, "fresh": true,
+			"prev": body.global_transform, "since": since, "bumped": _last_tick,
+			"checkpoint": [_last_tick, body.global_transform]}
 	body.begin_hold(anchor)
 	_awake[uid] = true
 	_changed[uid] = true
+
+
+## Host: un soltar o lanzar que pidió el jugador después de sostenerlo en el
+## tick `last_tick` (InvProtocol.release_args). Si ese tick todavía no se
+## simuló, lo sigue llevando hasta entonces y lo suelta al empezar el tick
+## siguiente, después de considerar lo que afirmó el jugador de ese tick: true.
+## Si ya se simuló (o el tick no es creíble), false: se suelta ya.
+func schedule_release(uid: int, last_tick: int, impulse: Vector3) -> bool:
+	var hold: Dictionary = _holds.get(uid, {})
+	if hold.is_empty() or last_tick <= _last_tick or last_tick > _last_tick + MAX_RELEASE_WAIT:
+		return false
+	hold["release_at"] = last_tick
+	hold["impulse"] = impulse
+	return true
 
 
 ## Host: deja de sostenerlo. Con `impulse`, además, lo lanza (una vez).
@@ -383,6 +607,19 @@ func end_hold(uid: int, impulse := Vector3.ZERO) -> void:
 
 func holds() -> Dictionary:
 	return _holds
+
+
+## Host: en una línea, lo que pasó con lo que afirmó ese jugador de lo que
+## sostiene (para el panel y los resúmenes de las pruebas), o "" si nada.
+func adoption_text(peer: int) -> String:
+	var stats: Dictionary = adoption.get(peer, {})
+	if stats.is_empty():
+		return ""
+	var parts := PackedStringArray()
+	for key: String in ["adoptada", "igual", "sin afirmación", "otra sesión", "versión vieja", "apagada", "sin acuerdo"] + BUMPS:
+		if stats.get(key, 0) > 0:
+			parts.append("%s %d" % [key, stats[key]])
+	return "%s (la adoptada más lejana a %.3f m)" % [", ".join(parts), stats.get("max", 0.0)]
 
 
 ## Lo que se sostiene, con los personajes en este tick.
@@ -409,22 +646,205 @@ func _carry(tick: int) -> void:
 			hold["distance"] = input.hold_distance()
 			hold["rotation"] = input.hold_rotation()
 			hold["pitch"] = input.hold_pitch()
-		var low := tuning.hold_min_distance if tuning != null else 0.6
-		var high := tuning.hold_max_distance if tuning != null else 2.5
-		var distance := clampf(hold["distance"], low, maxf(high, low))
+		var high := maxf(tuning.hold_max_distance if tuning != null else 2.5, tuning.hold_min_distance if tuning != null else 0.6)
 		var eyes := InvAuthority.eyes(actor, BaseRegistry.world_position(actor.state))
-		var look := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, hold["pitch"]) * Vector3.FORWARD
-		body.hold_target = eyes + look * distance
-		body.hold_basis = Basis(Vector3.UP, yaw) * Basis(hold["rotation"] as Quaternion)
-		var limit := tuning.hold_break_distance if tuning != null else 0.8
+		var goal := InvHoldMotion.target(eyes, yaw, hold["pitch"], hold["distance"], hold["rotation"], tuning)
+		hold["goal"] = goal
+		body.hold_target = goal.origin
+		body.hold_basis = goal.basis
 		var dt := SimClock.world_dt(tick)
+		if not _frozen.has(uid):
+			# Las mismas cuentas que predice la máquina del jugador, antes del paso de
+			# Jolt de este tick (desde el 2026-11-15; ver InvHoldMotion).
+			var com := InvItemPhysics.center_of_mass(body.def)
+			var speeds := InvHoldMotion.velocities(body.global_transform, com, body.linear_velocity, body.angular_velocity,
+					hold["anchor"], goal, tuning, dt)
+			var step := InvHoldMotion.guard(body.get_world_3d().direct_space_state, body.def, body.global_transform, com, speeds[0],
+					speeds[1], dt, InvAuthority.WORLD_MASK, [body.get_rid()])
+			body.linear_velocity = step[0]
+			body.angular_velocity = step[1]
+		var limit := tuning.hold_break_distance if tuning != null else 0.8
+		var break_time := tuning.hold_break_time if tuning != null else 0.5
 		hold["stuck"] = hold["stuck"] + dt if body.hold_error > limit else 0.0
+		# Tapado por el nivel (desde el 2026-11-15, pedido por el usuario): el punto
+		# agarrado no se ve desde los ojos (InvReach.held_visible), con la pose de
+		# después del tick anterior, la misma que usa la mano. Lo del jugador del
+		# host se suelta a los Hold Hidden Time (de fábrica, en el primer tick).
+		# Lo de un cliente lo suelta su máquina (InvHands._check_hidden) con un
+		# soltar común; acá se espera además Hold Break Time, por si no lo hizo
+		# (su predicción no lo veía tapado, o se cortó).
+		var seen := InvReach.held_visible(body.get_world_3d().direct_space_state, eyes, body.def, body.global_transform,
+				hold["anchor"])
+		hold["hidden"] = 0.0 if seen else float(hold.get("hidden", 0.0)) + dt
+		var hidden_time := tuning.hold_hidden_time if tuning != null else 0.0
+		if hold["peer"] != multiplayer.get_unique_id():
+			hidden_time = maxf(hidden_time, break_time)
 		var anchor_world := body.global_transform * (hold["anchor"] as Vector3)
-		if hold["stuck"] > (tuning.hold_break_time if tuning != null else 0.5):
+		if hold["stuck"] > break_time:
 			authority.auto_release(uid, "se trabó")
 		elif eyes.distance_to(anchor_world) > high + limit:
 			authority.auto_release(uid, "quedó muy lejos")
+		elif hold["hidden"] > hidden_time:
+			authority.auto_release(uid, "no se ve")
 
+
+## Host, al empezar el tick siguiente a `stepped` (ya dado su paso de Jolt):
+## cuánto le faltó a cada sostenido para llegar a su target, lo que afirma su
+## jugador de ese tick (_judge_claim), la pose de partida para el tick que
+## viene y los soltar que esperaban ese tick.
+func _judge_holds(stepped: int) -> void:
+	for uid: int in _holds.keys():
+		var hold: Dictionary = _holds[uid]
+		var body: InvWorldItem = _views.get(uid)
+		if body == null:
+			continue
+		if hold.has("goal"):
+			body.hold_error = (body.global_transform * (hold["anchor"] as Vector3)).distance_to((hold["goal"] as Transform3D).origin)
+		if hold["peer"] == multiplayer.get_unique_id():
+			# El jugador del host no afirma nada: lo suyo es el cuerpo de verdad.
+			hold["prev"] = body.global_transform
+			if int(hold.get("release_at", -1)) >= 0 and stepped >= int(hold["release_at"]):
+				authority.finish_release(uid, hold.get("impulse", Vector3.ZERO), true)
+			continue
+		if body.contact_monitor and body.get_colliding_bodies().any(func(other: Node) -> bool: return other is RigidBody3D):
+			hold["touched"] = stepped
+		var result := _judge_claim(uid, hold, body, stepped)
+		var checkpoint: Array = hold["checkpoint"]
+		if result != "adoptada" and result != "igual" and not result in BUMPS \
+				and stepped - maxi(int(checkpoint[0]), int(hold.get("bumped", -1))) > STALE_TICKS:
+			# Sin acuerdo hace rato (las afirmaciones no llegan, o son de otra
+			# versión): con la misma versión la máquina del jugador no se corrige,
+			# así que se le avisa subiéndola.
+			result = "sin acuerdo"
+		var stats: Dictionary = adoption.get_or_add(hold["peer"], {"max": 0.0})
+		stats[result] = stats.get(result, 0) + 1
+		if result == "adoptada" or result == "igual":
+			hold["checkpoint"] = [stepped, body.global_transform]
+		if result in BUMPS or result == "sin acuerdo":
+			hold["version"] = (int(hold["version"]) + 1) & 0xFF
+			hold["bumped"] = stepped
+			# La nueva versión obliga al cliente a partir de esta respuesta física.
+			# Es también el comienzo de su nuevo camino: un contacto anterior ya
+			# está incorporado. Conservar el acuerdo de la versión vieja rechazaba
+			# indefinidamente por aquel choque, aun después de alejarse del objeto.
+			hold["checkpoint"] = [stepped, body.global_transform]
+			_changed[uid] = true
+			var key := "%d %s" % [hold["peer"], result]
+			var times: int = _logged.get(key, 0)
+			if times < LOG_EACH:
+				_logged[key] = times + 1
+				print("[inventario] no se adoptó lo que afirma el jugador %d del objeto %d en el tick %d: %s (versión %d)%s" % [
+						hold["peer"], uid, stepped, result, hold["version"], " (no se vuelve a escribir)" if times + 1 == LOG_EACH else ""])
+		hold["prev"] = body.global_transform
+		if int(hold.get("release_at", -1)) >= 0 and stepped >= int(hold["release_at"]):
+			authority.finish_release(uid, hold.get("impulse", Vector3.ZERO), true)
+
+
+## Si el host adopta lo que afirma el jugador que lo sostiene de cómo quedó el
+## objeto después del tick `stepped`, y si sí, lo adopta. Devuelve el resultado:
+##
+## - "sin afirmación": no llegó (o el jugador es el del host);
+## - "otra sesión" / "versión vieja": de otro agarre, o de antes de la última
+##   corrección del host (no cuenta: ya se corrigió);
+## - "igual": casi lo mismo que lo del host (SAME_*): no se toca nada;
+## - "apagada": la adopción está apagada (F2);
+## - "tocó otro objeto": desde la última coincidencia o corrección tocó otro cuerpo
+##   que se mueve (los objetos sueltos, otro sostenido): el host
+##   tiene la respuesta del choque, y adoptar la borraría en este y la dejaría
+##   en el otro;
+## - "valores imposibles": velocidades más altas que los límites de la mano;
+## - "muy lejos": más de ADOPT_POS o ADOPT_ANGLE de lo del host por cada tick del
+##   camino (START_POS en la primera, que puede ir adelantada);
+## - "movimiento imposible": en algún tick del camino (_claim_path: desde la
+##   última coincidencia o corrección, por lo afirmado de cada tick) hay más de lo que
+##   la mano mueve o gira en un tick;
+## - "se mete": en algún punto del recorrido (al moverse o al girar, en pasos de
+##   1 cm) se mete en el nivel, una caja, una escalera u otro objeto, con las
+##   formas achicadas INSET (InvHoldMotion.path_free: si ya arrancaba metido,
+##   que no se meta más);
+## - "sin acuerdo" (lo pone _judge_holds, no esta función): STALE_TICKS sin
+##   adoptar ni coincidir, sin un rechazo que haya subido la versión: la sube;
+## - "adoptada": queda en la pose y con las velocidades que afirmó. No se lo
+##   teletransporta a ciegas: el lugar está libre y el camino también, así Jolt
+##   no tiene nada que separar (no hay impulso), y es una diferencia acotada.
+func _judge_claim(uid: int, hold: Dictionary, body: InvWorldItem, stepped: int) -> String:
+	if not claim_source.is_valid():
+		return "sin afirmación"
+	var data: PackedByteArray = claim_source.call(hold["peer"], stepped)
+	if data.is_empty():
+		return "sin afirmación"
+	var claim := InvHoldMotion.unpack_claim(data)
+	if claim.is_empty():
+		return "valores imposibles"
+	if claim["uid"] != uid or claim["session"] != hold["session"]:
+		return "otra sesión"
+	if claim["version"] != hold["version"]:
+		return "versión vieja"
+	var fresh: bool = hold.get("fresh", false)
+	hold["fresh"] = false
+	var def := body.def
+	var com := InvItemPhysics.center_of_mass(def)
+	var here := body.global_transform
+	var claimed: Transform3D = claim["xf"]
+	var diff := InvHoldMotion.difference(claimed, here, com, hold["anchor"])
+	if diff[0] <= SAME_POS and diff[1] <= SAME_ANGLE and (claim["lv"] as Vector3).distance_to(body.linear_velocity) <= SAME_SPEED \
+			and (claim["av"] as Vector3).distance_to(body.angular_velocity) <= SAME_SPEED:
+		return "igual"
+	if not adoption_enabled:
+		return "apagada"
+	var checkpoint: Array = hold["checkpoint"]
+	if int(hold.get("touched", -1)) > int(checkpoint[0]):
+		return "tocó otro objeto"
+	var move_limit := (tuning.hold_move_limit if tuning != null else 12.0) * 1.1 + LIMIT_SLACK
+	var turn_limit := deg_to_rad(tuning.hold_turn_limit if tuning != null else 720.0) * 1.1 + LIMIT_SLACK
+	if (claim["lv"] as Vector3).length() > move_limit or (claim["av"] as Vector3).length() > turn_limit:
+		return "valores imposibles"
+	# El camino: desde la última coincidencia o corrección del host,
+	# por lo que afirmó el jugador de cada tick hasta este. Normalmente es un solo
+	# tick (desde lo del host en el anterior); si un input llegó tarde, el host
+	# simuló ese tick con el anterior y quedó corrido, y el camino va por las
+	# afirmaciones de esos ticks, que llegaron después (cada input viaja varias
+	# veces). Si falta alguna, desde lo del host en el tick anterior.
+	var path := _claim_path(hold, checkpoint, stepped, uid)
+	path.append(claimed)
+	var ticks := path.size() - 1
+	var far := START_POS if fresh else minf(ADOPT_POS * ticks, START_POS)
+	if diff[0] > far or (not fresh and diff[1] > minf(ADOPT_ANGLE * ticks, 30.0)):
+		return "muy lejos"
+	var space := body.get_world_3d().direct_space_state
+	for i in ticks:
+		if not fresh:
+			var dt := SimClock.world_dt(stepped - ticks + 1 + i)
+			var moved := InvHoldMotion.difference(path[i], path[i + 1], com, com)
+			if moved[0] > move_limit * dt + 0.002 or deg_to_rad(moved[1]) > turn_limit * dt + 0.002:
+				return "movimiento imposible"
+		if not InvHoldMotion.path_free(space, def, path[i], path[i + 1], InvItemPhysics.MASK, [body.get_rid()]):
+			return "se mete"
+	body.global_transform = claimed
+	body.linear_velocity = claim["lv"]
+	body.angular_velocity = claim["av"]
+	var stats: Dictionary = adoption.get_or_add(hold["peer"], {"max": 0.0})
+	stats["max"] = maxf(stats["max"], diff[0])
+	return "adoptada"
+
+
+
+## El comienzo del camino de una afirmación del tick `stepped` (_judge_claim):
+## [la pose de la última coincidencia o corrección, lo afirmado en cada tick de ahí hasta el
+## anterior a `stepped`], si están todas y son de esta sujeción y su versión, y
+## son a lo sumo MAX_CHAIN ticks; si no, [lo del host en el tick anterior].
+func _claim_path(hold: Dictionary, checkpoint: Array, stepped: int, uid: int) -> Array:
+	var prev: Transform3D = hold.get("prev", checkpoint[1])
+	var from_tick: int = checkpoint[0]
+	if from_tick >= stepped - 1 or stepped - from_tick > MAX_CHAIN:
+		return [prev]
+	var path: Array = [checkpoint[1]]
+	for t in range(from_tick + 1, stepped):
+		var claim := InvHoldMotion.unpack_claim(claim_source.call(hold["peer"], t))
+		if claim.is_empty() or claim["uid"] != uid or claim["session"] != hold["session"] or claim["version"] != hold["version"]:
+			return [prev]
+		path.append(claim["xf"])
+	return path
 
 # --- Host: lo que sale -----------------------------------------------------------
 
@@ -452,15 +872,19 @@ func _send_poses(tick: int) -> void:
 		return
 	list.sort()
 	for from in range(0, list.size(), PER_PACKET):
-		var data := encode_poses(tick, list.slice(from, from + PER_PACKET))
+		# Las poses son las que se leyeron al empezar este tick: las de después
+		# del paso de física del tick anterior (desde el 2026-11-15; hasta ese día
+		# salían con el número de este tick).
+		var data := encode_poses(tick - 1, list.slice(from, from + PER_PACKET))
 		poses_sent += mini(PER_PACKET, list.size() - from)
 		packets_sent += 1
 		net.send_poses(data)
 
 
-## Un paquete de poses: [tick del host (4), cuántos (2)] y por cada uno [número
-## (4), si duerme y si alguien lo sostiene (1), lugar (3 × 4), giro (4 × 2),
-## velocidad (3 × 2), velocidad de giro (3 × 2)]: 37 bytes por objeto.
+## Un paquete de poses: [tick del host de esas poses (4), cuántos (2)] y por
+## cada uno [número (4), si duerme y si alguien lo sostiene (1), la versión de
+## la sujeción (1; 0 si nadie lo sostiene), lugar (3 × 4), giro (4 × 2),
+## velocidad (3 × 2), velocidad de giro (3 × 2)]: POSE_BYTES por objeto.
 func encode_poses(tick: int, uids: Array) -> PackedByteArray:
 	var b := StreamPeerBuffer.new()
 	b.put_u32(tick)
@@ -475,6 +899,7 @@ func encode_poses(tick: int, uids: Array) -> PackedByteArray:
 		var angular: Vector3 = item.get("av", Vector3.ZERO)
 		b.put_u32(uid)
 		b.put_u8((1 if item.get("sleep", false) else 0) | (2 if item.get("holder", 0) != 0 else 0))
+		b.put_u8(int(_holds[uid]["version"]) & 0xFF if _holds.has(uid) else 0)
 		b.put_float(place.origin.x)
 		b.put_float(place.origin.y)
 		b.put_float(place.origin.z)
@@ -496,33 +921,46 @@ func accept_poses(data: PackedByteArray) -> void:
 	b.data_array = data
 	var tick := b.get_u32()
 	var count := b.get_u16()
-	if count > PER_PACKET or b.get_available_bytes() < count * 37:
+	if count > PER_PACKET or b.get_available_bytes() < count * POSE_BYTES:
 		return
 	for i in count:
 		var uid := b.get_u32()
 		var flags := b.get_u8()
+		var version := b.get_u8()
 		var origin := Vector3(b.get_float(), b.get_float(), b.get_float())
 		var q := Quaternion(b.get_16() / QUAT_STEPS, b.get_16() / QUAT_STEPS, b.get_16() / QUAT_STEPS, b.get_16() / QUAT_STEPS)
 		var linear := Vector3(b.get_16(), b.get_16(), b.get_16()) * VELOCITY_STEP
-		var _angular := Vector3(b.get_16(), b.get_16(), b.get_16()) * VELOCITY_STEP
+		var angular := Vector3(b.get_16(), b.get_16(), b.get_16()) * VELOCITY_STEP
 		if not origin.is_finite() or q.length_squared() < 0.25:
 			continue
 		poses_received += 1
-		add_sample(uid, tick, Transform3D(Basis(q.normalized()), origin), linear, flags & 1 != 0, flags & 2 != 0)
+		add_sample(uid, tick, Transform3D(Basis(q.normalized()), origin), linear, flags & 1 != 0, flags & 2 != 0, angular,
+				version)
 
 
 ## Cliente: una pose del host de ese objeto en ese tick (de un paquete de
 ## poses o de un paquete confiable del inventario). Va ordenada por tick; una
-## repetida o muy vieja no cambia nada. `held`: en ese tick alguien lo sostenía.
-func add_sample(uid: int, tick: int, place: Transform3D, linear: Vector3, asleep: bool, held := false) -> void:
+## repetida o muy vieja no cambia nada. `held`: en ese tick alguien lo sostenía,
+## con esa `version` de la sujeción (la de los paquetes de poses; -1 si no se sabe).
+func add_sample(uid: int, tick: int, place: Transform3D, linear: Vector3, asleep: bool, held := false,
+		angular := Vector3.ZERO, version := -1) -> void:
 	var list: Array = _samples.get_or_add(uid, [])
 	var at := list.size()
 	while at > 0 and list[at - 1][0] > tick:
 		at -= 1
+	var sample := [tick, place, linear, asleep, held, angular, version]
+	if at > 0 and at == list.size() and list[at - 1][3] and not asleep and tick - int(list[at - 1][0]) > 1:
+		# Se despertó: lo que dormía no recibe poses (salvo un repaso cada tanto),
+		# así que la última puede ser de hace mucho. Sigue quieto ahí hasta el tick
+		# anterior a esta; si no, se interpolaba desde esa pose vieja y empezaba a
+		# moverse antes de tiempo (desde la segunda prueba del usuario, 2026-11-15).
+		var rest: Array = list[at - 1]
+		list.insert(at, [tick - 1, rest[1], Vector3.ZERO, true, rest[4], Vector3.ZERO, rest[6]])
+		at += 1
 	if at > 0 and list[at - 1][0] == tick:
-		list[at - 1] = [tick, place, linear, asleep, held]
+		list[at - 1] = sample
 	else:
-		list.insert(at, [tick, place, linear, asleep, held])
+		list.insert(at, sample)
 	while list.size() > MAX_SAMPLES:
 		list.pop_front()
 	_moving[uid] = true
@@ -587,6 +1025,77 @@ func place_copies(skip := -1) -> void:
 		# Quieto del todo: ya llegó a la última muestra y esa dice que duerme.
 		if at >= list[-1][0] and list[-1][3]:
 			_moving.erase(uid)
+	# Lo que salió del mundo se deja de dibujar al llegar al tick en que salió
+	# (_waits_for_fall).
+	for uid: int in _leaving.keys():
+		if at >= float(_leaving[uid]):
+			_leaving.erase(uid)
+			if _views.has(uid) and (not net.replica.world.has(uid) or net.replica.is_taken(uid)):
+				_free_view(uid)
+
+
+## Cliente: deja de dibujar un objeto del mundo.
+func _free_view(uid: int) -> void:
+	_leaving.erase(uid)
+	var copy: InvWorldItem = _views.get(uid)
+	if copy != null:
+		copy.queue_free()
+	_views.erase(uid)
+	shown.remove(uid)
+
+
+## Cliente: si un objeto que ya no está en el mundo, o que esta máquina
+## recogió, se sigue dibujando un rato (true) o se deja de dibujar ya (false).
+## Los objetos sueltos se dibujan unos ticks en el pasado (render_tick, unos
+## 100 ms), y lo que el host sacaba se borraba apenas llegaba el aviso: lo que
+## se apoyaba en él quedaba en el aire hasta que llegaba su caída (segunda
+## prueba del usuario, 2026-11-15, con una torre). Desde ese día:
+##
+## - Lo sacó el host (lo recogió otro jugador, o esta máquina y el host ya
+##   contestó): se sigue dibujando, sin poder mirarlo, hasta que lo que se
+##   muestra llega al tick en que salió (InvReplica.gone_ticks), el mismo en
+##   que empieza la caída de lo de arriba. Sin ese tick, se va ya.
+## - Lo recogió esta máquina y el host todavía no contestó: si algo se apoya en
+##   él o lo toca (_has_neighbors: lo mismo que despierta el host al sacarlo),
+##   se espera la respuesta y después su tick, como arriba; si no, se va en el
+##   acto, como desde el 2026-11-04. Lo eligió el usuario ese día: lo de abajo
+##   de una torre se va junto con la caída (medido: 0,22 s después de apretar E
+##   sin red simulada, 0,44 s con internet mala); el inventario igual se pone
+##   al día en el acto.
+func _waits_for_fall(uid: int, gone: bool, gone_tick: int) -> bool:
+	var at: float = render_tick.call() if render_tick.is_valid() else -1.0
+	if at < 0.0:
+		return false
+	if gone:
+		if gone_tick < 0 or at >= float(gone_tick):
+			return false
+		_leaving[uid] = float(gone_tick)
+		shown.remove(uid)
+		held_back += 1
+		return true
+	if _leaving.has(uid):
+		return true
+	if not _has_neighbors(uid):
+		return false
+	_leaving[uid] = INF
+	pickups_waited += 1
+	return true
+
+
+## Cliente: si otro objeto suelto toca la caja de este, agrandada WAKE_MARGIN,
+## tal como se dibujan acá: los que el host despierta al sacarlo (_wake_around).
+func _has_neighbors(uid: int) -> bool:
+	var copy: InvWorldItem = _views.get(uid)
+	if copy == null or copy.def == null:
+		return false
+	var box := (copy.global_transform * InvItemPhysics.body_bounds(copy.def)).grow(WAKE_MARGIN)
+	for other: int in shown.index.near(box):
+		var near_copy: InvWorldItem = _views.get(other)
+		if other == uid or near_copy == null or near_copy.def == null:
+			continue
+		if (near_copy.global_transform * InvItemPhysics.body_bounds(near_copy.def)).intersects(box):
+			return true
+	return false
 
 
 # --- Lo que se ve ------------------------------------------------------------------
@@ -623,10 +1132,15 @@ func sync_views(replica: InvReplica) -> void:
 				_views[uid].visible = not replica.is_taken(uid)
 		return
 	for uid: int in _views.keys():
-		if uid > 0 and (not replica.world.has(uid) or replica.is_taken(uid)):
-			_views[uid].queue_free()
-			_views.erase(uid)
-			shown.remove(uid)
+		if uid <= 0:
+			continue
+		var gone := not replica.world.has(uid)
+		if not gone and not replica.is_taken(uid):
+			_leaving.erase(uid)
+			continue
+		if not _waits_for_fall(uid, gone, replica.gone_ticks.get(uid, -1)):
+			_free_view(uid)
+	replica.gone_ticks.clear()
 	for uid: int in replica.world:
 		if replica.is_taken(uid):
 			continue

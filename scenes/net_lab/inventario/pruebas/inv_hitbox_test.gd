@@ -2,9 +2,10 @@ extends Node
 
 ## Prueba de la hitbox de agarre (InvPickupHitbox, desde el 2026-11-07), dentro
 ## del laboratorio de verdad, con su cámara, su indicador y E. Desde el
-## 2026-11-11 a la noche (el rayo de la mano, InvReach) la hitbox se guarda, se
-## valida y entra en la huella, pero en el juego no elige ni deja agarrar: el
-## rayo desde los ojos tiene que tocar el modelo. Esta prueba lo comprueba.
+## 2026-11-15 (decisión del usuario) la hitbox es la selección principal: el
+## rayo desde los ojos la toca aunque pase por un hueco del modelo, y el acceso
+## se comprueba con el modelo (InvReach.access_point). Del 2026-11-11 a ese día
+## no elegía nada. Esta prueba lo comprueba.
 ##
 ## No cambia ningún archivo: al arrancar, en memoria, le pone a la llave
 ## (llave.tres) una caja apenas más grande que su modelo, suma al catálogo dos
@@ -20,14 +21,15 @@ extends Node
 ##   propia se arma bien (la usa la vista previa del panel Objetos);
 ## - lo que se arma en el mundo: ninguna forma para apuntar, y el indicador
 ##   enmarca el modelo;
-## - la línea de la mira: dentro de la hitbox y fuera del modelo, no se elige;
-##   por el modelo, sí; la granada, a 3 mm, tampoco (no hay margen);
+## - la línea de la mira: dentro de la hitbox y fuera del modelo, se elige;
+##   afuera de la hitbox, no; por el modelo, sí; la granada (sin hitbox), a
+##   3 mm, tampoco (no hay margen);
 ## - con dos objetos cerca, gana el primero que toca el rayo;
-## - el marco: por el hueco, la mira llega al piso y no se elige (tampoco el
-##   que no tiene hitbox); por una barra, sí; con una pared en el medio no, y
+## - el marco: por el hueco, con la hitbox se elige (el punto tocado queda en
+##   el hueco: anclaje virtual); el que no tiene hitbox, no; por una barra, sí; con una pared en el medio no, y
 ##   el host no deja recogerlo; con una pared que cruza el marco, la barra de
 ##   este lado sí y la de atrás no; E lo recoge, y soltado, igual;
-## - la llave con la cámara, en primera persona: al costado (en su hitbox) no;
+## - la llave con la cámara, en primera persona: al costado (en su hitbox) sí;
 ##   por el modelo, marcada con el marco del modelo; E la recoge, y la soltada
 ##   igual;
 ## - en tercera persona, lo mismo con la otra llave y el marco;
@@ -727,8 +729,10 @@ func _lateral_lines() -> void:
 	var along := func(x: float) -> int:
 		return _chosen(Vector3(x, y, model.get_center().z - 0.6), Vector3.BACK)
 	var inside := model.end.x + KEY_EXTRA * 0.5
-	_check(along.call(inside) != key,
-			"una línea que pasa a %.1f mm del modelo, adentro de la hitbox, no elige la llave: la hitbox no cuenta" % ((inside - model.end.x) * 1000.0))
+	# Desde el 2026-11-15 la hitbox es la selección principal (decisión del usuario).
+	_check(along.call(inside) == key,
+			"una línea que pasa a %.1f mm del modelo, adentro de la hitbox, elige la llave: la hitbox cuenta" % ((inside - model.end.x) * 1000.0))
+	_check(along.call(model.end.x + KEY_EXTRA + 0.004) != key, "una línea 4 mm afuera de la hitbox, no")
 	_check(along.call(model.get_center().x) == key, "una línea por el modelo, sí")
 	var grenade_box := _model_box(grenade)
 	var beside := Vector3(grenade_box.end.x + 0.003, grenade_box.get_center().y, grenade_box.get_center().z - 0.6)
@@ -771,7 +775,10 @@ func _hole() -> void:
 	var floor_at := _floor_point(aim[0], aim[1])
 	_check(floor_at.distance_to(FRAME_SPOT) < 0.02 and not _touches_model(frame, aim[0], floor_at),
 			"primera persona, la mira apunta al piso por el hueco del marco, sin tocar el modelo")
-	_check(_hidden() and ui.interaction_target().is_empty(), "y no se elige, aunque la hitbox tape el hueco: %s" % _describe())
+	var through := ui.interaction_target()
+	var local: Vector3 = (through.get("place", Transform3D()) as Transform3D).affine_inverse() * (through.get("point", Vector3.ONE * 9) as Vector3)
+	_check(_marks(frame) and absf(local.x - _model_box_local(frame_def).get_center().x) < (FRAME_WIDTH - 2.0 * FRAME_BAR) / 2.0,
+			"y se elige por el hueco, porque la hitbox lo tapa, con el punto tocado en el hueco (anclaje virtual): %s" % _describe())
 	var near_bar := _bar(frame, -1.0)
 	await _aim(near_bar)
 	_check(_marks(frame), "apuntando a la barra cercana, se elige: %s" % _describe())
@@ -820,9 +827,14 @@ func _hole() -> void:
 	var spot: Vector3 = net.replica.world[dropped]["pos"]
 	await _stand_by(spot, NEAR_FIRST)
 	await _aim(spot)
-	_check(not _marks(dropped), "el soltado, por el hueco, no se marca: %s" % _describe())
+	_check(_marks(dropped), "el soltado, por el hueco, también se marca (la hitbox): %s" % _describe())
 	await _aim(_bar(dropped, -1.0))
 	_check(_marks(dropped), "por una barra, sí: %s" % _describe())
+
+
+## La caja del modelo de un tipo, en el espacio del objeto suelto.
+func _model_box_local(def: InvItemDef) -> AABB:
+	return InvPickupHitbox.model_bounds(def)
 
 
 ## Un punto arriba de la barra de un marco que va a lo largo (z), la de este
@@ -849,7 +861,7 @@ func _key_with_camera() -> void:
 	await _aim(point)
 	var aim := camera.aim_ray()
 	_check(not _touches_model(key, aim[0], _floor_point(aim[0], aim[1])), "la mira pasa al lado de la llave, sin tocar el modelo")
-	_check(not _marks(key), "y no la marca, aunque pase por su hitbox: %s" % _describe())
+	_check(_marks(key), "y la marca, porque pasa por su hitbox: %s" % _describe())
 	var top := Vector3(model.get_center().x, model.end.y - 0.001, model.get_center().z)
 	await _aim(top)
 	_check(_marks(key), "apuntando al modelo, la marca: %s" % _describe())
@@ -863,8 +875,14 @@ func _key_with_camera() -> void:
 		return
 	var spot: Vector3 = net.replica.world[dropped]["pos"]
 	await _stand_by(spot, NEAR_FIRST)
-	await _aim(_beside(dropped, Vector3.LEFT))
-	_check(not _marks(dropped), "la soltada, al costado, no: %s" % _describe())
+	# Del lado del jugador (la caja del modelo en el mundo; la hitbox lo encierra
+	# con KEY_EXTRA de más por cada lado, también girada de a 90°): adentro de su
+	# hitbox y afuera del modelo, la marca; más allá de la hitbox, no.
+	var near_box := _model_box(dropped)
+	await _aim(Vector3(near_box.position.x - KEY_EXTRA * 0.5, near_box.position.y + 0.002, near_box.get_center().z))
+	_check(_marks(dropped), "la soltada, al costado adentro de su hitbox, sí: %s" % _describe())
+	await _aim(Vector3(near_box.position.x - KEY_EXTRA - 0.012, near_box.position.y + 0.002, near_box.get_center().z))
+	_check(not _marks(dropped), "la soltada, más allá de su hitbox, no: %s" % _describe())
 	var dropped_box := _model_box(dropped)
 	await _aim(Vector3(dropped_box.get_center().x, dropped_box.end.y - 0.001, dropped_box.get_center().z))
 	_check(_marks(dropped), "por su modelo, sí: %s" % _describe())
@@ -880,7 +898,7 @@ func _third_person() -> void:
 	await _set_first_person(false)
 	_check(camera.third_person(), "la cámara está en tercera persona")
 	await _aim(_beside(key, Vector3.FORWARD))
-	_check(not _marks(key), "tercera persona: al costado de la llave, adentro de su hitbox, no la marca: %s" % _describe())
+	_check(_marks(key), "tercera persona: al costado de la llave, adentro de su hitbox, la marca: %s" % _describe())
 	var model := _model_box(key)
 	await _aim(Vector3(model.get_center().x, model.end.y - 0.001, model.get_center().z))
 	_check(_marks(key), "tercera persona: apuntando al modelo, sí: %s" % _describe())
@@ -892,7 +910,7 @@ func _third_person() -> void:
 	var spot: Vector3 = net.replica.world[frame]["pos"]
 	await _stand_by(spot, Vector3(-0.65, 0, -1.45))
 	await _aim(spot)
-	_check(not _marks(frame), "tercera persona: el marco, por el hueco, no: %s" % _describe())
+	_check(_marks(frame), "tercera persona: el marco, por el hueco, también (la hitbox lo tapa): %s" % _describe())
 	await _aim(_bar(frame, -1.0))
 	_check(_marks(frame), "tercera persona: por una barra, sí: %s" % _describe())
 	_press_e()
@@ -962,7 +980,7 @@ func _pair_host() -> void:
 	await _stand_by(KEY2_SPOT, NEAR_THIRD)
 	await _set_first_person(false)
 	await _aim(_beside(key, Vector3.FORWARD))
-	_check(not _marks(key), "el host, en tercera persona, al costado de la llave no la marca: %s" % _describe())
+	_check(_marks(key), "el host, en tercera persona, al costado de la llave (adentro de su hitbox) la marca: %s" % _describe())
 	var model := _model_box(key)
 	await _aim(Vector3(model.get_center().x, model.end.y - 0.001, model.get_center().z))
 	_check(_marks(key), "por su modelo, sí: %s" % _describe())
@@ -993,7 +1011,7 @@ func _pair_client() -> void:
 	await _aim(FRAME_SPOT)
 	var aim := camera.aim_ray()
 	_check(not _touches_model(frame, aim[0], _floor_point(aim[0], aim[1])), "el cliente apunta por el hueco, sin tocar el modelo")
-	_check(not _marks(frame), "y no lo marca: %s" % _describe())
+	_check(_marks(frame), "y lo marca, porque la hitbox tapa el hueco: %s" % _describe())
 	await _aim(_bar(frame, -1.0))
 	_check(_marks(frame), "apuntando a una barra, sí, desde su cámara: %s" % _describe())
 	_press_e()

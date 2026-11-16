@@ -1,7 +1,19 @@
 [gd_resource type="Resource" script_class="InvItemDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_ability.gd" id="1_okq5m"]
 [ext_resource type="PackedScene" path="res://assets/models/collectibles/banquitobrutalisnumoer3.glb" id="2_model"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_body_shape.gd" id="2_mw0fk"]
+
+[sub_resource type="ConvexPolygonShape3D" id="ConvexPolygonShape3D_l8pul"]
+margin = 0.004
+points = PackedVector3Array(-0.25, 0.04444592, -0.062499993, -0.25, 0.12153088, -0.062499993, -0.19170909, 3.1027012e-06, -0.062499993, -0.25, 0.04444592, 0.06250001, -0.25, 0.12153088, 0.06250001, 0.25, 0.12153088, -0.062499993, -0.19170909, 3.1027012e-06, 0.06250001, 0.19166014, 3.1027012e-06, -0.062499993, 0.25, 0.12153088, 0.06250001, 0.25, 0.04444592, -0.062499993, 0.19166014, 3.1027012e-06, 0.06250001, 0.25, 0.04444592, 0.06250001)
+
+[sub_resource type="Resource" id="Resource_l8lr0"]
+script = ExtResource("2_mw0fk")
+shapes = Array[ConvexPolygonShape3D]([SubResource("ConvexPolygonShape3D_l8pul")])
+source = "rayo 80 607cc21c755dfe7e | convexa"
+kind = 0
 
 [resource]
 script = ExtResource("1_def")
@@ -12,3 +24,4 @@ size = Vector2i(2, 3)
 model = ExtResource("2_model")
 color = Color(0.55, 0.4, 0.3, 1)
 world_size = 0.5
+body_shape = SubResource("Resource_l8lr0")

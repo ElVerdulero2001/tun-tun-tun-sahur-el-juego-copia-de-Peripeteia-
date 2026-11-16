@@ -1,7 +1,13 @@
 [gd_resource type="Resource" script_class="InvItemDef" format=3 uid="uid://i6sj6vx88nnk"]
 
-[ext_resource type="Script" uid="uid://b7nk0xja28wl4" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
-[ext_resource type="Script" uid="uid://ctmg42i1j3vg2" path="res://scripts/inventory/inv_ability.gd" id="1_ut1a7"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_item_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_ability.gd" id="1_ut1a7"]
+[ext_resource type="Script" path="res://scripts/inventory/inv_body_shape.gd" id="2_xh3cf"]
+
+[sub_resource type="Resource" id="Resource_i01sn"]
+script = ExtResource("2_xh3cf")
+box_size = Vector3(0.1, 0.18, 0.1)
+offset = Vector3(0, 0.09, 0)
 
 [sub_resource type="BoxMesh" id="BoxMesh_battery"]
 size = Vector3(0.1, 0.18, 0.1)
@@ -19,3 +25,4 @@ default_state = {
 mesh = SubResource("BoxMesh_battery")
 color = Color(0.3, 0.75, 0.35, 1)
 world_size = 0.18
+body_shape = SubResource("Resource_i01sn")

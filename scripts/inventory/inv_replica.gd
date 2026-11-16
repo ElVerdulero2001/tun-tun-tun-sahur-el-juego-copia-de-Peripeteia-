@@ -103,6 +103,10 @@ var _shown_box: InvGrid
 var _shown_dirty := true
 var _taken := {}  # id de un objeto del mundo -> true: recogido entero, sin confirmar
 var _drops: Array = []  # lo soltado sin confirmar: {"key": -número del pedido, "stack", "pos"}
+## Lo que el host sacó del mundo en los últimos paquetes: número -> tick del
+## host en que salió ("wrt", desde la segunda prueba del usuario, 2026-11-15).
+## Lo lee y lo vacía InvBodies.sync_views.
+var gone_ticks := {}
 
 
 func reset() -> void:
@@ -113,6 +117,7 @@ func reset() -> void:
 	box = null
 	_forget_want()
 	world.clear()
+	gone_ticks.clear()
 	equipment.clear()
 	pending.clear()
 	_uses.clear()
@@ -369,8 +374,12 @@ func apply_commit(payload: Dictionary) -> void:
 			_world_put(entry)
 		in_world = true
 	if payload.has("wr") and payload["wr"] is Array:
-		for uid in payload["wr"]:
+		var ticks: Array = payload["wrt"] if payload.get("wrt") is Array else []
+		for i in payload["wr"].size():
+			var uid: Variant = payload["wr"][i]
 			world.erase(uid)
+			if typeof(uid) == TYPE_INT and i < ticks.size() and typeof(ticks[i]) == TYPE_INT:
+				gone_ticks[uid] = ticks[i]
 		in_world = true
 	if payload.has("own"):
 		var grid := InvGrid.from_snapshot(payload["own"], catalog)

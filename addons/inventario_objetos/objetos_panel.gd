@@ -694,6 +694,14 @@ func _save(confirmed: bool) -> Dictionary:
 		var form_problems := _item_form.form_problems()
 		if not form_problems.is_empty():
 			return {"ok": false, "message": "\n".join(form_problems)}
+		# El cuerpo físico se guarda preparado (desde el 2026-11-15): si le faltan
+		# las formas del modelo, se generan acá; si no salen, no se guarda. Solo
+		# con todo lo demás en orden (si no, lo dice el guardado de siempre).
+		if problems().is_empty():
+			var body_problem := _item_form.prepare_body()
+			_item_form.refresh_body()
+			if body_problem != "":
+				return {"ok": false, "message": "Cuerpo físico: " + body_problem}
 		if _item_original == null:
 			var created := Guardado.create_item(_item_draft, _item_form.path, load(Destinos.CATALOG_PATH), writer)
 			if created["ok"]:

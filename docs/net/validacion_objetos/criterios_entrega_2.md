@@ -105,3 +105,7 @@ En `release_before_ack` y `throw_before_ack`, `clean` y `degraded`:
 Una por caso, en este orden, sin baterías paralelas: contrato original, `contract_test_e2`, `fingerprint_test`; `drop050` (`clean`, `degraded`), `grab_move`, `late_grab_hitch`, `throw050`, `release_before_ack` (`clean`, `degraded`), `throw_before_ack` (`clean`, `degraded`), `grab_rejected`, `throw_rejected`, `dup_throw`, `stale_snapshot`, `disconnect_holding`, `ready_gate`, `fingerprint_mismatch`, `late_release_hitch`. Degradación: `--one-way-ms=100 --jitter-ms=40 --loss=0.05`, semilla 12345. Límite externo de 20 s por caso, tiempo real, sin `--fixed-fps`.
 
 Si un criterio falla, se investiga ese fallo con las trazas antes de repetir. Una segunda corrida del mismo caso solo se hace para separar un error del instrumento de uno del runtime, y las dos se informan.
+
+### Agregado antes de ejecutar `grab_move_left` (2026-11-16 13:40)
+
+En `grab_move` (`20261116_133351`) el objetivo termina en x = 0 y la caja 1 cae sobre la arista de la caja 2, que descansa en x = 0,5: los rangos en x se superponen 0,1 m. El caso pretendía una caída aislada, así que es un error de diseño del caso. Se conserva la corrida y sus fallos (C3, C4, C6, C9, C11), sin cambiar criterios. Para separar el agarre del contacto con la otra caja se agrega `grab_move_left`, igual a `grab_move` pero moviendo el objetivo hacia −x: la caja cae en x = −1, lejos de la caja 2 y de la pared. Lo deciden los mismos criterios que `grab_move`.

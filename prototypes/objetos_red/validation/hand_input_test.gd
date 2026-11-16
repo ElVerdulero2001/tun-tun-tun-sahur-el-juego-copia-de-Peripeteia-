@@ -109,8 +109,9 @@ func _tests() -> void:
 		ok01 = ok01 and enc.decode_float(20) == 1.5 and enc.decode_float(24) == -2.25 and enc.decode_float(28) == 0.125
 		qd = Quaternion(enc.decode_float(32), enc.decode_float(36), enc.decode_float(40), enc.decode_float(44))
 		ok01 = ok01 and qang(qd, q0) <= 1e-6
-	check("I01_disposicion", ok01, "size %d; prefijo %s; giro %.3e rad" % [enc.size(),
-		enc.slice(0, 20).hex_encode(), qang(qd, q0) if enc.size() == 48 else -1.0])
+	# Corrección del instrumento (intento 1): GDScript no admite %e; se usa String.num_scientific.
+	check("I01_disposicion", ok01, "size %d; prefijo %s; giro %s rad" % [enc.size(),
+		enc.slice(0, 20).hex_encode(), String.num_scientific(qang(qd, q0) if enc.size() == 48 else -1.0)])
 
 	# I02: decodifica bytes armados a mano.
 	var d2: Array = HandInput.decode(packet([r1]))
@@ -121,7 +122,7 @@ func _tests() -> void:
 		ang2 = qang(f.target.basis.get_rotation_quaternion(), q0)
 		ok02 = f.uid == 7 and f.epoch == 3 and f.session == 11 and f.tick == 1234 \
 			and f.target.origin == pos and ang2 <= 1e-6
-	check("I02_decodifica_bytes_a_mano", ok02, "registros %d; giro %.3e rad" % [d2.size(), ang2])
+	check("I02_decodifica_bytes_a_mano", ok02, "registros %d; giro %s rad" % [d2.size(), String.num_scientific(ang2)])
 
 	# I03: cantidades.
 	var six: Array = []
@@ -267,7 +268,8 @@ func _tests() -> void:
 			for axis in 3: max_pos = maxf(max_pos, absf(a.target.origin[axis] - b.target.origin[axis]))
 			max_ang = maxf(max_ang, qang(a.target.basis.get_rotation_quaternion(), b.target.basis.get_rotation_quaternion()))
 	check("I12_ida_y_vuelta", empty == 0 and id_bad == 0 and max_pos <= 1e-6 and max_ang <= 1e-6,
-		"conjuntos perdidos %d; identificadores distintos %d; posición máx %.3e m; giro máx %.3e rad" % [empty, id_bad, max_pos, max_ang])
+		"conjuntos perdidos %d; identificadores distintos %d; posición máx %s m; giro máx %s rad" % [empty, id_bad,
+			String.num_scientific(max_pos), String.num_scientific(max_ang)])
 
 	# I13: orden del paquete.
 	var o13: Array = HandInput.decode(packet([rec(7, 3, 11, 5, pos, q0), rec(7, 3, 11, 3, pos, q0), rec(7, 3, 11, 4, pos, q0)]))
@@ -323,9 +325,14 @@ func _tests() -> void:
 	var det_err := absf(b.determinant() - 1.0)
 	var cmd := {"op": "grab", "uid": 1, "epoch": 1, "session": 1, "action": 1, "tick": 0,
 		"target": Transform3D(b, Vector3(0, 1, 0)), "anchor": Vector3(0, 0.2, 0), "direction": Vector3.ZERO}
+	var bbt := b * b.transposed()
+	var ortho_err := 0.0
+	for r in 3:
+		for c in 3: ortho_err = maxf(ortho_err, absf(bbt[c][r] - (1.0 if r == c else 0.0)))
 	check("I16_rotacion_de_main_codificable", first_fail == -1 or first_fail > 20000,
-		"primer evento no codificable: %s; |det−1| al final %.3e; valid_command acepta esa base: %s" % [
-			"ninguno en 200000" if first_fail == -1 else str(first_fail), det_err, Authority.valid_command(cmd)])
+		"primer evento no codificable: %s; al final |det−1| %s y máx |B·Bᵀ − I| %s; valid_command acepta esa base: %s" % [
+			"ninguno en 200000" if first_fail == -1 else str(first_fail), String.num_scientific(det_err),
+			String.num_scientific(ortho_err), Authority.valid_command(cmd)])
 
 	# I16b: asimetría entre la orden de agarre y la mano.
 	var sk := Basis.from_scale(Vector3(1.004, 1.0, 1.0 / 1.004))

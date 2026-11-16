@@ -6,6 +6,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const dir = process.argv[2];
+// Entrega 3: --out=<archivo> escribe el análisis en otro lado (control sobre trazas viejas sin tocar su analysis.json).
+const outArg = process.argv.slice(3).find((a) => a.startsWith('--out='));
+const outPath = outArg ? outArg.slice('--out='.length) : path.join(dir, 'analysis.json');
 const readJsonl = (f) => {
   const p = path.join(dir, f);
   if (!fs.existsSync(p)) return [];
@@ -684,14 +687,137 @@ if (CASE === 'wall' || CASE === 'throw_wall') {
   info.e2 = e2;
 }
 
+// ================================================================ entrega 3
+// Agregado ANTES de correr la entrega 3 (criterios_entrega_3.md §5). No cambia nada de lo anterior.
+{
+  const e3 = {};
+  const LOSSY = NET === 'lossy', DEGR = NET === 'degraded';
+  const decideN2 = NET === 'clean' || LOSSY;
+  const decideM = LOSSY || DEGR;
+  const hist = (arr) => arr.reduce((h, x) => { h[x] = (h[x] ?? 0) + 1; return h; }, {});
+  const stat = (a) => a.length ? { min: Math.min(...a), max: Math.max(...a), mean: r6(a.reduce((x, y) => x + y, 0) / a.length), n: a.length } : null;
+  // D4: toda respuesta recibida nombra objeto y acción; ninguna se descarta.
+  {
+    const bad = results.filter((r) => !(r.uid === 1 || r.uid === 2) || !(Number.isInteger(r.action) && r.action >= 1));
+    const disc = byKind(C, 'discarded_result');
+    e3.responses = { total: results.length, bad_count: bad.length, bad_examples: bad.slice(0, 3), discarded: disc.length, discarded_examples: disc.slice(0, 3) };
+    if (results.length || disc.length) check('D4_respuestas_identificadas', bad.length === 0 && disc.length === 0,
+      `${results.length} resultados; sin objeto/acción válidos ${bad.length}; discarded_result ${disc.length}`, 'uid ∈ {1,2}, acción ≥ 1; 0 descartados');
+  }
+  // D5/D6: dup_throw.
+  if (CASE === 'dup_throw') {
+    const thr = requests.find((r) => r.op === 'throw');
+    const lastDup = ev(CD, 'drv_dup').at(-1);
+    const stale = results.filter((r) => lastDup && r.local_tick >= lastDup.tick && r.status === 'stale');
+    check('D5_stale_con_accion_y_objeto', !!thr && stale.length >= 1 && stale.every((r) => r.action === thr.action && r.uid === thr.uid),
+      `${stale.length} stale después del último duplicado: ${stale.map((r) => `acción ${r.action}, objeto ${r.uid}`).join('; ') || 'ninguno'}; lanzamiento: acción ${thr?.action}, objeto ${thr?.uid}`,
+      'acción y objeto del lanzamiento');
+    const flood = ev(CD, 'drv_flood')[0];
+    if (flood) {
+      const lo = flood.first_action, hi = flood.first_action + flood.n - 1;
+      const fr = results.filter((r) => r.action >= lo && r.action <= hi);
+      check('D6_respuestas_a_la_inundacion', fr.length === flood.n && fr.every((r) => r.status === 'rejected' && r.uid === flood.uid),
+        `${fr.length}/${flood.n} respuestas; estados ${JSON.stringify(hist(fr.map((r) => r.status)))}; objetos ${[...new Set(fr.map((r) => r.uid))].join(',')}`,
+        `${flood.n} rejected con objeto ${flood.uid}`);
+    }
+  }
+  // N2 y movimiento con red: agarre del invitado.
+  {
+    const g = requests.find((r) => r.op === 'grab');
+    const gAcc = g ? results.find((r) => r.action === g.action && r.status === 'accepted') : null;
+    const gApp = gAcc ? (applied.filter((a) => a.action === g.action && a.uid === g.uid && a.op === 'grab' && a.applied_tick <= gAcc.local_tick).at(-1) ?? null) : null;
+    if (g && gApp) {
+      const U = g.uid;
+      const hc = byKind(H, 'controller').filter((r) => r.uid === U && r.owner !== 1).sort((a, b) => a.step_tick - b.step_tick);
+      const cMap = new Map(byKind(C, 'controller').filter((r) => r.uid === U).map((r) => [r.step_tick, r]));
+      const common = hc.filter((r) => cMap.has(r.step_tick));
+      const first = hc[0];
+      const hasTarget = hc.some((r) => Array.isArray(r.target));
+      check('N2a_entrada_desde_el_primer_tick', decideN2 ? (first != null && first.step_tick === gApp.applied_tick && first.input_tick === first.step_tick) : null,
+        `primer controller del host en ${first?.step_tick} (agarre aplicado en ${gApp.applied_tick}), input_tick ${first?.input_tick}`,
+        'mismo tick; input_tick = step_tick', decideN2 ? '' : 'informativo');
+      let maxT = null, tgtBad = 0, fb = 0;
+      for (const r of common) {
+        if (r.input_tick !== r.step_tick) fb++;
+        const c = cMap.get(r.step_tick);
+        if (Array.isArray(r.target) && Array.isArray(c.target)) {
+          const d = Math.max(...[0, 1, 2].map((i) => Math.abs(r.target[i] - c.target[i])));
+          maxT = Math.max(maxT ?? 0, d);
+          if (d > 1e-6) tgtBad++;
+        }
+      }
+      check('N2b_mismo_objetivo_mismo_tick', hasTarget && decideN2 ? (common.length > 0 && fb === 0 && tgtBad === 0) : null,
+        `${common.length} pasos comunes; con respaldo ${fb}; objetivo distinto ${tgtBad}; diferencia máx ${r6(maxT)} m`, '0 respaldo; ≤ 1e-6 m',
+        !hasTarget ? 'traza sin objetivo' : decideN2 ? '' : 'informativo');
+      const t0 = Math.min(g.local_tick, gApp.applied_tick);
+      const holdTicks = sortedTicks(CP[U]).filter((t) => t >= t0 && CP[U].get(t).phase === 1 && HP[U].get(t)?.phase === 1 && HP[U].get(t).owner !== 1);
+      let maxD = 0, maxA = 0, at = null;
+      for (const t of holdTicks) {
+        const c = CP[U].get(t), h = HP[U].get(t);
+        const d = len(sub(comPhys(c.p, c.q), comPhys(h.p, h.q)));
+        if (d > maxD) { maxD = d; at = t; }
+        maxA = Math.max(maxA, qang(c.q, h.q));
+      }
+      check('M1_agarre_con_red', decideM ? (holdTicks.length > 0 && maxD <= TOL.pos && maxA <= TOL.ang) : null,
+        `${r6(maxD)} m (tick ${at}) / ${r6(maxA * 180 / Math.PI)}° en ${holdTicks.length} ticks`, '2 mm / 0,3°', decideM ? '' : 'informativo');
+      check('M2_sin_respaldo_con_red', decideM ? (common.length > 0 && fb === 0) : null,
+        `${fb} pasos del host con respaldo de ${common.length} comunes; pasos del host sin el invitado ${hc.length - common.length}`, '0', decideM ? '' : 'informativo');
+      // M3: primera recepción en el host de cada tick que necesitaba.
+      const sess = gApp.initial?.session;
+      const hi = byKind(H, 'hand_input').filter((r) => r.uid === U && r.session === sess && r.peer !== 1);
+      const firstBy = new Map(), receipts = new Map();
+      for (const r of hi) { if (!firstBy.has(r.input_tick)) firstBy.set(r.input_tick, r); receipts.set(r.input_tick, (receipts.get(r.input_tick) ?? 0) + 1); }
+      const needed = [...new Set(common.map((r) => r.step_tick))];
+      const arrived = needed.filter((t) => firstBy.has(t)).map((t) => firstBy.get(t));
+      const late = arrived.filter((r) => r.input_tick <= r.local_tick);
+      const never = needed.filter((t) => !firstBy.has(t));
+      const margins = arrived.map((r) => r.input_tick - (r.local_tick + 1));
+      e3.inputs = { session: sess, needed: needed.length, late_first_arrival: late.length,
+        late_max_ticks: late.length ? Math.max(...late.map((r) => r.local_tick + 1 - r.input_tick)) : 0, never_arrived: never.length,
+        margin_ticks: stat(margins), receipts_per_needed_tick: hist(needed.map((t) => receipts.get(t) ?? 0)),
+        late_examples: late.slice(0, 5).map((r) => ({ input_tick: r.input_tick, received_before_step: r.local_tick + 1 })),
+        fallback_steps: common.filter((r) => r.input_tick !== r.step_tick).slice(0, 8).map((r) => ({ step: r.step_tick, used: r.input_tick })) };
+      check('M3_entradas_tardias', null,
+        `${late.length} de ${needed.length} ticks llegaron después de su paso (máx ${e3.inputs.late_max_ticks}); nunca llegaron ${never.length}; margen ${JSON.stringify(stat(margins))}`,
+        'se registra', 'no amplía tolerancias');
+      // HI2: estados de la bandeja y cola después de la salida.
+      const exitReq = requests.find((r) => r.uid === U && (r.op === 'release' || r.op === 'throw'));
+      const exitApp = exitReq ? applied.find((a) => a.action === exitReq.action && a.uid === U && a.op === exitReq.op) : null;
+      const afterExit = exitApp ? hi.filter((r) => r.local_tick + 1 >= exitApp.applied_tick) : [];
+      e3.tail = { exit_applied_tick: exitApp?.applied_tick ?? null, after_exit: hist(afterExit.map((r) => r.status)) };
+      check('HI2_estados_y_cola', null, `sesión ${sess}: ${JSON.stringify(hist(hi.map((r) => r.status)))}; después de la salida (${exitApp?.applied_tick}): ${JSON.stringify(e3.tail.after_exit)}`, 'se registra');
+    }
+  }
+  // HI1: entradas válidas en el host.
+  {
+    const hiAll = byKind(H, 'hand_input');
+    const discHI = byKind(H, 'discarded').filter((r) => r.cause === 'invalid_hand_inputs');
+    const badSt = hiAll.filter((r) => ['invalid', 'conflicting_tick', 'capacity'].includes(r.status));
+    e3.hand_status = hist(hiAll.map((r) => r.status));
+    if (hiAll.length || discHI.length) check('HI1_entradas_validas', discHI.length === 0 && badSt.length === 0,
+      `${hiAll.length} entradas; paquetes descartados ${discHI.length}; estados ${JSON.stringify(e3.hand_status)}`, 'sin invalid/conflicting_tick/capacity ni paquetes descartados');
+  }
+  // HL: acciones propias del host.
+  {
+    const pairs = byKind(H, 'request').map((q) => ({ q, a: applied.find((a) => a.uid === q.uid && a.op === q.op && a.action === q.action && a.requested_tick === q.requested_tick) }));
+    if (pairs.length) {
+      const bad = pairs.filter(({ q, a }) => !a || a.applied_tick !== q.requested_tick + 1 || a.late !== false || a.local_tick !== q.local_tick);
+      check('HL_accion_local_del_host', bad.length === 0,
+        pairs.map(({ q, a }) => `${q.op} caja ${q.uid}: pedido ${q.requested_tick} (paso ${q.local_tick}), aplicado ${a?.applied_tick}, late ${a?.late}`).join('; '),
+        'aplicado = pedido + 1, en el paso del pedido, late=false');
+    }
+  }
+  info.e3 = e3;
+}
+
 // ---------------------------------------------------------------- salida
 const out = { case: CASE, net: NET, slow: SLOW, run_dir: dir, checks, info };
-fs.writeFileSync(path.join(dir, 'analysis.json'), JSON.stringify(out, null, 1));
+fs.writeFileSync(outPath, JSON.stringify(out, null, 1));
 const fmt = (c) => `${c.ok === true ? 'PASS' : c.ok === false ? 'FAIL' : 'INFO'} ${c.id}: ${c.metric}  [tol ${c.tol}]${c.note ? '  (' + c.note + ')' : ''}`;
 console.log(`== ${CASE} / ${NET}${SLOW !== 1 ? ' / slow ' + SLOW : ''}`);
 for (const c of checks) console.log('  ' + fmt(c));
 const brief = { net: info.net, actions: info.actions, reconcile: info.reconcile, handoffs: info.handoffs, draw_label: info.draw_label,
   corrections: info.corrections && { count: info.corrections.count, over_tol: info.corrections.over_tol, by_phase: info.corrections.by_phase, top: info.corrections.largest?.slice(0, 3) },
   release: info.release && { ...info.release, rise: info.release.rise, a1: info.release.a1 && { ...info.release.a1, top: undefined } },
-  remote_draw: info.remote_draw, proxies: info.proxies, e2: info.e2 };
+  remote_draw: info.remote_draw, proxies: info.proxies, e2: info.e2, e3: info.e3 };
 console.log(JSON.stringify(brief, null, 1).split('\n').map((l) => '  ' + l).join('\n'));

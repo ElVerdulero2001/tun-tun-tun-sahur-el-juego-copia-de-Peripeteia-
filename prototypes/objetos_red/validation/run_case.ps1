@@ -6,9 +6,10 @@
 #   degraded   --one-way-ms=100 --jitter-ms=40 --loss=0.05 en ambos procesos (semilla de aplicación 12345, fija en main.gd)
 #   asym       invitado --one-way-ms=150, host 0, sin jitter ni pérdida (demora dirigida del evento de salida)
 #   mismatch   invitado --slow=0.5 contra host --slow=1 (huella distinta)
+#   lossy      --one-way-ms=100 --loss=0.05 en ambos procesos, sin jitter (entrega 3: degraded sin jitter)
 param(
     [Parameter(Mandatory = $true)][string]$Case,
-    [ValidateSet('clean', 'degraded', 'asym', 'mismatch')][string]$Net = 'clean',
+    [ValidateSet('clean', 'degraded', 'asym', 'mismatch', 'lossy')][string]$Net = 'clean',
     [ValidateRange(0.01, 1.0)][double]$Slow = 1.0,
     [string]$EnginePath = 'C:\Users\ElCaido97\Desktop\Godot_v4.7.2.exe',
     [ValidateRange(1024, 65535)][int]$Port = 43211,
@@ -34,6 +35,7 @@ $hostNet = @(); $clientNet = @()
 switch ($Net) {
     'degraded' { $hostNet = @('--one-way-ms=100', '--jitter-ms=40', '--loss=0.05'); $clientNet = $hostNet }
     'asym' { $clientNet = @('--one-way-ms=150') }
+    'lossy' { $hostNet = @('--one-way-ms=100', '--loss=0.05'); $clientNet = $hostNet }
 }
 $hostSlow = $Slow; $clientSlow = $Slow
 if ($Net -eq 'mismatch') { $hostSlow = 1.0; $clientSlow = 0.5 }

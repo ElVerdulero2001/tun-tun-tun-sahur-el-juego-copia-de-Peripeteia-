@@ -66,9 +66,13 @@ func recent(count: int) -> Array:
 ## Compara el estado del host para host_tick con lo predicho y corrige si hace
 ## falta. Se llama al empezar el tick current_tick, así que lo predicho llega
 ## hasta current_tick - 1. `step` mueve el actor un tick con un input.
-func reconcile(actor: ActorBody, host_tick: int, host_state: PackedByteArray, used_input_tick: int, current_tick: int, step: Callable) -> void:
+## replay_matching_state is opt-in for a consumer whose historical timeline was
+## invalidated. It preserves stale-input/old-claim guards; existing callers keep
+## the original fast path and behavior with the default false.
+func reconcile(actor: ActorBody, host_tick: int, host_state: PackedByteArray, used_input_tick: int, current_tick: int, step: Callable,
+		replay_matching_state: bool = false) -> void:
 	var predicted: Variant = _states.get(host_tick)
-	if predicted != null and predicted == host_state:
+	if predicted != null and predicted == host_state and not replay_matching_state:
 		matches += 1
 		_forget_up_to(host_tick)
 		return
@@ -77,7 +81,7 @@ func reconcile(actor: ActorBody, host_tick: int, host_state: PackedByteArray, us
 	# lo va a adoptar cuando llegue. Corregir ahora volvería a lo viejo, y lo
 	# nuevo, al llegar, traería otra corrección de vuelta: un ida y vuelta que
 	# no termina, quieto entre dos lugares (el temblor parado sobre la balsa).
-	if host_state in _claimed.get(host_tick, []):
+	if host_state in _claimed.get(host_tick, []) and (not replay_matching_state or predicted != host_state):
 		adopted_old_claims += 1
 		_forget_up_to(host_tick)
 		return

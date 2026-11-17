@@ -1,4 +1,4 @@
-# Adaptador local de objetos al actor y al reloj — entregas 10 y 11
+# Adaptador local de objetos al actor y al reloj — entregas 10 a 12
 
 Experimento separado del laboratorio. Usa sin cambios `ActorInput`, `ActorBody`, `ActorMotor`, `ActorTuning`, `SimClock`, `InvAuthority.eyes` e `InvHoldMotion.target_of` del proyecto. El núcleo físico sigue siendo la GDExtension de mundos Rapier propios; Jolt mueve al actor.
 
@@ -12,6 +12,32 @@ Experimento separado del laboratorio. Usa sin cambios `ActorInput`, `ActorBody`,
 4. Aplica la transición de mano y exactamente un paso nativo con `SimClock.world_dt(tick)`. Guarda los bytes del input, ojos, dt y acción del tick. El objetivo no sale de una pose visual suavizada.
 
 El adaptador debe ser el único que avanza su mundo nativo. Los observadores leen muestras; no llaman `step()` ni mueven los cuerpos. Una discontinuidad de ticks se detecta y detiene esta predicción.
+
+## Fuente de historia desde ClientPrediction — entrega 12
+
+`history_bridge.gd` es un nodo por vínculo/escena. Se conecta a una instancia real de `ClientPrediction` mediante `start(adapter, prediction, step_actor)`, antes de capturar inputs o ejecutar acciones. El callable es el paso local que ya usa la escena: eventos, consumibles y `ActorMotor`. El puente no sustituye ese algoritmo ni simula otro personaje.
+
+En el proveedor del actor se llama `bridge.capture_input(input)` incluso cuando el adaptador nativo no esté preparado. En `tick_finished` el puente guarda los ojos físicos reales, el dt, el estado completo del actor y los bytes de intención. Mantiene como máximo 120 ticks/256 KiB serializados, incluidos los estados del actor, además del costo de los contenedores. Los inputs y estados también deben seguir entrando a `ClientPrediction.record` mientras la física del objeto esté suspendida.
+
+La copia de intención excluye `held_claim`: es el resultado de una predicción, no una orden del actor. No se modifica el `ActorInput` original que usa el actor o manda la red. Un reintento con los mismos bytes durante la captura es idempotente; otro contenido para ese tick pide recuperación. Todas las acciones del vínculo deben pasar por `bridge.queue_action` para conservar su identidad en el diario.
+
+Los puntos de conexión probados en el prototipo son:
+
+- `bridge.reconcile_actor(...)` donde la escena usaba `ClientPrediction.reconcile` para un estado propio recibido por `NetSync`.
+- `bridge.apply_world_slow(...)` donde la escena agregaba el tramo y llamaba a `ClientPrediction.replay_from`.
+- `bridge.apply_authority_trusted(packet)` entre ticks terminados o en pausa, para un paquete de objetos cuyo emisor ya validó el transporte.
+
+Los dos primeros métodos delegan en `ClientPrediction` real y envuelven el callable existente. Tras **cada paso real repetido** toman los ojos y el estado resultantes. También guardan el estado ancla restaurado cuando disponen de su input. No reconstruyen los ojos mediante una traslación inventada ni leen la pose visual suavizada. Al anunciar un tramo pasado se invalida inmediatamente la historia del objeto, sin esperar su próximo paquete de autoridad.
+
+Si falta historia del personaje, el puente mantiene la física de objetos detenida y pide un nuevo estado del actor. Un nuevo argumento opcional de `ClientPrediction.reconcile`, `replay_matching_state = false`, permite al puente reconstruir ticks posteriores aun cuando el estado del tick recibido coincida con el guardado. Los demás llamadores conservan el comportamiento anterior por defecto. Se mantienen las protecciones de input tardío y afirmaciones antiguas. No se cambió `ActorMotor`, `SimClock`, `NetSync` ni el formato de paquetes.
+
+Durante la suspensión, el registrador sigue capturando los ticks nuevos del actor. La recuperación arma el lote completo desde esa historia, con el token vigente, y deja que el adaptador compruebe/reemplace el candidato. No se recupera dentro de un replay del actor ni con huecos o sin una base válida. Un nuevo cambio de historia en ticks posteriores al mundo nativo congelado también invalida los lotes en vuelo. Una resincronización descarta el registro y exige una nueva base del personaje; la escena conserva la responsabilidad de limpiar `ClientPrediction` y reconstruir vínculos al cambiar de actor/conexión.
+
+`queue_action` devuelve un estado explícito: `queued`, `known` o `rejected`. `known` informa si ya se emitió un efecto o se confirmó el ID; no afirma que la acción se ejecutó físicamente. Las acciones canceladas al suspender no se resucitan por un duplicado.
+
+`effect_ready` unifica los efectos provisionales de una acción ejecutada en vivo con el primer efecto de una acción que solo se conoce después por autoridad: máximo uno por ID. `action_confirmed` se emite una vez al aceptar su ACK. Así, una suelta que se ejecutó físicamente por primera vez durante recuperación puede emitir su efecto al confirmarse, sin duplicarlo en futuras revisiones. Son señales; no se agregaron sonidos ni transacciones de inventario. Los consumidores de dominio deben distinguir efecto provisional y confirmación autorizada.
+
+La escena del laboratorio todavía **no instala** este puente ni cambia sus llamadas. El prototipo prueba los puntos de conexión con el código real de predicción, pero los estados de autoridad siguen siendo locales/instrumentados. No hay transporte ENet del adaptador, permisos/inventario, múltiples manos, presentación, cambio de actor probado ni rendimiento aprobado. La migración debe reemplazar el recorrido anterior, nunca ejecutar las dos físicas sobre el mismo objeto.
 
 ## Confirmación e historia corregida — entrega 11
 
@@ -37,7 +63,7 @@ Cada frame tiene las mismas cinco claves del diario: `tick`, `dt`, `eyes`, `inpu
 
 Solo después de restaurar y repetir el candidato se reemplazan mundo, diario, firma y última autoridad, y se reactiva la captura. Un fallo conserva mundo y metadatos aceptados. La recuperación no mueve al actor ni al reloj y no emite efectos de acciones. Las identidades de acciones anteriores se conservan para evitar resucitar pendientes cancelados; su resolución de dominio corresponde a la futura autoridad.
 
-Se recupera el mismo vínculo de conexión/contexto/objeto/mano. Una conexión, contexto o vínculo nuevo exige otro adaptador preparado por la escena; un paquete no puede cambiar esos permisos. No hay adquisición automática de snapshots ni reconstrucción automática del inventario. La obtención de frames corregidos desde `NetSync`, el transporte, los errores de permisos y la presentación siguen pendientes.
+Se recupera el mismo vínculo de conexión/contexto/objeto/mano. Una conexión, contexto o vínculo nuevo exige otro adaptador preparado por la escena; un paquete no puede cambiar esos permisos. No hay adquisición automática de snapshots ni reconstrucción automática del inventario. La entrega 12 obtiene frames desde `ClientPrediction` real en el prototipo; falta instalar esos puntos de conexión en el laboratorio, el transporte, los errores de permisos y la presentación.
 
 ## Uso de la API local
 
@@ -60,7 +86,7 @@ La primera versión nativa tiene constantes de controlador conocidas. El adaptad
 - Un duplicado o una muestra anterior a la última autoridad aceptada se ignoran. Falta la identidad/revisión de protocolo definitiva: el tick solo se usa dentro de esta sesión/contexto fijo.
 - Presupuesto excedido, historia ausente, input faltante, cambio de Tuning o resincronización piden recuperación y desactivan la predicción. Una resincronización también descarta el diario. La entrega 11 permite recuperar el mismo vínculo mediante un estado y un lote corregido; no obtiene esos datos automáticamente ni mezcla a réplica.
 
-La sustitución temporal mantiene dos mundos vivos y puede duplicar transitoriamente la memoria de sus cachés. Falta medir costo y memoria con el catálogo y la notebook. Las interfaces de invalidación/recuperación todavía no están conectadas a `NetSync`.
+La sustitución temporal mantiene dos mundos vivos y puede duplicar transitoriamente la memoria de sus cachés. Falta medir costo y memoria con el catálogo y la notebook. El puente de historia no está instalado en los puntos de recepción de `NetSync` del laboratorio.
 
 `trusted` conserva su significado: solo bytes generados por la autoridad correcta, después de una frontera externa de protocolo. Longitud, manifiesto y checksum no autentican al emisor ni protegen frente a todas las mutaciones de estructuras nativas. El ensayo N3 de Claude demuestra cuelgues y abortos fuera de ese uso; no se declara resuelto.
 
@@ -83,3 +109,5 @@ Otros casos comprueban la pausa real del reloj, un tramo de cámara lenta con dt
 Las entradas siguen siendo inyectadas por un driver local y los checkpoints salen de una referencia local. Estos resultados no sustituyen al ensayo de ENet con input real ni a la validación independiente de Claude.
 
 La entrega 11 agrega `api_authority`, `api_scope`, `api_time` y `api_recovery` al runner. Comprueban confirmación tardía (pedido 30, aplicado 34), ámbito/revisión, recuperación del dt modificado en el pasado y reanudación tras cinco ticks de suspensión con el actor avanzando. Son pruebas locales. El driver inyecta una corrección del actor y aporta su historia de ojos; no ejecuta una corrección de `NetSync`.
+
+La entrega 12 agrega `hist_actor`, `hist_time`, `hist_gap`, `hist_effect` y `hist_guards`. Ejecutan la corrección/repetición real de `ClientPrediction` y `ActorMotor`, observan sus salidas por tick y verifican recuperación nativa contra referencias. Cubren falta de historia, replay optativo de estado coincidente, protección de afirmaciones antiguas/input tardío y un primer efecto que llega por confirmación. Los inputs y estados de autoridad siguen siendo inyectados por el driver; no hay red en estos modos.

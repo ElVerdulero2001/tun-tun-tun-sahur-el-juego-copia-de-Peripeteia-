@@ -1,6 +1,6 @@
 # Núcleo nativo de objetos, primera implementación
 
-**Núcleo nativo y adaptador local verificados independientemente en sus alcances. La entrega 11 agrega una API local de autoridad e historia corregida, pendiente de revisión independiente; no cambia el código nativo ni integra el laboratorio.** [Revisión y evidencia vigente](../../docs/net/entregas/revision_codex_entrega_10.md). [Contrato y etapas restantes](../../docs/net/contrato_nucleo_fisico_objetos.md).
+**Núcleo nativo, adaptador local y API de autoridad/recuperación verificados independientemente en sus alcances. La entrega 12 agrega un registrador conectado al replay real de ClientPrediction, pendiente de revisión independiente; no cambia el código nativo ni integra el laboratorio.** [Revisión y evidencia vigente](../../docs/net/entregas/revision_codex_entrega_11.md). [Contrato y etapas restantes](../../docs/net/contrato_nucleo_fisico_objetos.md).
 
 Cada instancia `SahurObjectWorld` posee su propio `PhysicsWorld` de Rapier 0.36.0, sus handles, identidades públicas y caché. No registra un PhysicsServer global ni usa StateManager3D, RIDs o InstanceIDs del proceso de origen. Jolt continúa activo en Godot. Se fija la resolución de dependencias con Cargo.lock; no se modifica ni reutiliza la DLL del addon godot-rapier.
 

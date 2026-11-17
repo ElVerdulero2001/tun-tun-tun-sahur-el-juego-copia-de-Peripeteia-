@@ -234,7 +234,10 @@ func apply_authority_trusted(packet: Dictionary) -> bool:
 func invalidate_history_from(at_tick: int, cause: String) -> bool:
 	if clock == null or at_tick < 0 or at_tick > 0x7FFFFFFF or cause not in ["actor", "world_time"]:
 		return _fail("invalid_history_change")
-	if at_tick > _last_tick: return true
+	# While native prediction is stopped the actor can still accumulate corrected
+	# frames. A change in those ticks must also invalidate in-flight recovery.
+	var history_present := _last_tick if ready_for_input else maxi(_last_tick, _observed_clock_tick)
+	if at_tick > history_present: return true
 	for t in _history.keys():
 		if t >= at_tick:
 			_history_bytes -= var_to_bytes(_history[t]).size()

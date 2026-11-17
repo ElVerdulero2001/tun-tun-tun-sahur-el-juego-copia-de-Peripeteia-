@@ -1,6 +1,8 @@
 # Encargo para Claude: validación independiente de objetos
 
-**Encargo vigente: entrega 11.** Leer [revisión de Claude 10 y autoridad/historia corregida](entregas/revision_codex_entrega_10.md), su encargo final y el README actualizado del adaptador. `../entrega_11.json` identifica el checkpoint. Verificar ámbito/revisión, confirmación posterior a aplicar, invalidación y recuperación con registros corregidos. Mantener instrumentos originales, anular su S1 por el conteo conocido sin cambiarlo para volverlo verde, y buscar regresiones nuevas. Procesos limitados a 8 s. No modificar implementación ni aprobar transporte, integración, dos PC o rendimiento. No repetir N3.
+**Encargo vigente: entrega 12.** Leer [revisión de Claude 11 e historia desde ClientPrediction](entregas/revision_codex_entrega_11.md), su encargo final y el README actualizado del adaptador. `../entrega_12.json` identifica el checkpoint. Verificar ojos/estados desde replay real, grabación durante suspensión, falta de historia y estado coincidente, generaciones, capturas idempotentes, efectos/confirmaciones y guardas anteriores de ClientPrediction. Mantener los instrumentos originales y S1 anulado por el conteo conocido sin cambiarlo para volverlo verde. Procesos limitados a 8 s. No modificar implementación ni aprobar transporte, integración, dos PC o rendimiento. No repetir N3.
+
+**Antecedente: entrega 11.** [API local de autoridad e historia corregida](entregas/revision_codex_entrega_10.md) e [informe independiente](validacion_objetos/entrega_11.md).
 
 **Antecedente: entrega 10.** [Adaptador local](entregas/revision_codex_entrega_9.md) e [informe independiente](validacion_objetos/entrega_10.md).
 

@@ -1,6 +1,6 @@
 # Contrato del núcleo físico de objetos: siguiente candidato
 
-2026-11-17. **Condiciones 1–3, signo del cero y adaptador local de la entrega 10 verificados independientemente en sus alcances. La entrega 11 añade autoridad por ámbito/revisión e invalidación/recuperación histórica.** [Revisión, evidencia y alcance](entregas/revision_codex_entrega_10.md). Esas interfaces siguen sin transporte ni conexión a las correcciones reales de NetSync; no aprueban la condición 4 completa. Múltiples manos, presentación, notebook y modelo de red completo también pendientes. [Decisión histórica del núcleo](entregas/revision_codex_entrega_5.md).
+2026-11-17. **Condiciones 1-3, signo del cero, adaptador local y API de autoridad/recuperación verificados independientemente en sus alcances. La entrega 12 añade un registrador conectado al replay real de ClientPrediction.** [Revisión, evidencia y alcance](entregas/revision_codex_entrega_11.md). El nuevo puente espera revisión independiente; no tiene transporte ni está instalado en net_lab/NetSync. No aprueba la condición 4 completa. Múltiples manos, presentación, notebook y modelo de red completo también pendientes. [Decisión histórica del núcleo](entregas/revision_codex_entrega_5.md).
 
 ## Problema que debe resolver
 

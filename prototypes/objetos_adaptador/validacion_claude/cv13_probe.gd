@@ -386,6 +386,8 @@ func _process(_dt: float) -> void:
 	if done: return
 	if Time.get_ticks_msec() - started > 7000:
 		check("run_internal_deadline", false); finish(); return
+	if bye_deadline >= 0 and (bye_received or Time.get_ticks_msec() >= bye_deadline):
+		finish(); return
 	if mode == "capacity" or not running: return
 	if role == "host":
 		if phase == "run": host_watch()
@@ -477,7 +479,19 @@ func client_final() -> void:
 		_rpc_phase.rpc_id(1, channel._high_water, channel._last_revision)
 		return
 	_finished.rpc_id(1, final_stats)
-	finish()
+	wait_bye()
+
+## Corrección tras la segunda corrida: el cliente espera el saludo del host (hasta 1 s)
+## antes de cerrar ENet, para que su último aviso no se pierda en el cierre.
+var bye_deadline := -1
+var bye_received := false
+
+func wait_bye() -> void:
+	bye_deadline = Time.get_ticks_msec() + 1000
+
+@rpc("authority", "call_remote", "reliable", 1)
+func _bye() -> void:
+	if role == "client" and multiplayer.get_remote_sender_id() == 1: bye_received = true
 
 func host_stats() -> Dictionary:
 	return {"transfer_acks": channel.transfer_acks, "sent": channel.sent_chunks, "max_wire": channel.max_wire_bytes,
@@ -489,6 +503,7 @@ func _finished(stats: Dictionary) -> void:
 	if role != "host" or multiplayer.get_remote_sender_id() != peer_id: return
 	if host_final.is_empty(): host_final = host_stats()
 	client_final_stats = stats
+	_bye.rpc_id(peer_id)
 	finish()
 
 # --- Modo rpc: mensajes reales fabricados y cierre ---------------------------
@@ -546,7 +561,8 @@ func chunk(payload: PackedByteArray, id: int, index: int, opts: Dictionary = {})
 	var cb := Channel.CHUNK_BYTES
 	var total: int = opts.get("total", payload.size())
 	var count: int = opts.get("count", ceili(float(payload.size()) / cb))
-	var dg: PackedByteArray = opts.get("digest", Channel.digest(payload))
+	# Corrección tras la segunda corrida: get() evaluaba el SHA del sobre entero en cada fragmento.
+	var dg: PackedByteArray = opts.digest if opts.has("digest") else Channel.digest(payload)
 	var data: PackedByteArray = opts.get("data", payload.slice(index * cb, mini((index + 1) * cb, payload.size())))
 	var b := StreamPeerBuffer.new()
 	b.put_u32(opts.get("magic", Channel.MAGIC)); b.put_u32(opts.get("connection", 13)); b.put_u32(id)
@@ -555,7 +571,9 @@ func chunk(payload: PackedByteArray, id: int, index: int, opts: Dictionary = {})
 
 func all_chunks(payload: PackedByteArray, id: int, opts: Dictionary) -> Array:
 	var out: Array = []
-	for i in ceili(float(payload.size()) / Channel.CHUNK_BYTES): out.append(chunk(payload, id, i, opts))
+	var once := opts.duplicate()
+	if not once.has("digest"): once.digest = Channel.digest(payload)
+	for i in ceili(float(payload.size()) / Channel.CHUNK_BYTES): out.append(chunk(payload, id, i, once))
 	return out
 
 @rpc("authority", "call_remote", "reliable", 1)
@@ -661,7 +679,7 @@ func _after_close() -> void:
 		"stats": channel.stats()}
 	client_seams()
 	_finished.rpc_id(1, final_stats)
-	finish()
+	wait_bye()
 
 # --- Puntos locales (seam_) -----------------------------------------------------
 
@@ -859,7 +877,7 @@ func finish() -> void:
 	var result := {"role": role, "mode": mode, "final_tick": final_tick, "peer_id": peer_id, "checks": checks,
 		"failures": failures, "snapshot_bytes": snapshot_bytes, "extra_boxes": extra_boxes, "box_sizes": box_sizes,
 		"capture_failures": capture_failures, "closed_count": closed_count, "elapsed_ms": Time.get_ticks_msec() - started,
-		"enet": enet_stats}
+		"enet": enet_stats, "bye_received": bye_received}
 	if role == "host":
 		result.merge({"ticks": host_ticks, "publishes": publishes, "actions_in": actions_in, "acks": acks,
 			"watch": watch, "slow_announced": slow_announced, "struct": host_struct, "final": host_final,

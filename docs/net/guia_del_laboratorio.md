@@ -1,6 +1,6 @@
 # Guía del laboratorio de red
 
-**Entrega experimental actual de objetos, entrega 10:** [revisión de Claude 9 y primer adaptador local de actor/reloj](entregas/revision_codex_entrega_9.md). El prototipo usa ActorInput, ActorMotor y SimClock sin modificarlos, guarda entradas/ojos/dt y repite un lanzamiento sin duplicar sus efectos. Siete escenarios de construcción pasan; falta validación independiente, transporte, integración del inventario y presentación. No se migró el laboratorio.
+**Entrega experimental actual de objetos, entrega 11:** [revisión de Claude 10, autoridad e historia corregida](entregas/revision_codex_entrega_10.md). El adaptador local fue validado; se agregaron estados por sesión/contexto/revisión, confirmación posterior a aplicar, invalidación histórica y recuperación con registros corregidos. Once escenarios de construcción pasan. La API nueva espera validación independiente; transporte, NetSync, inventario y presentación siguen pendientes. No se migró el laboratorio.
 
 **Preparación del núcleo, entrega 7:** [Rust/MSVC verificados; dependencias pendientes por red](entregas/preparacion_nucleo_objetos_entrega_7.md). El runtime y la decisión técnica de la entrega 6 se conservan. Todavía no hay un núcleo nuevo compilado.
 

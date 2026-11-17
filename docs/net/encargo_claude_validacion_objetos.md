@@ -1,6 +1,8 @@
 # Encargo para Claude: validación independiente de objetos
 
-**Encargo vigente: entrega 10.** Leer [revisión de Claude 9 y adaptador local](entregas/revision_codex_entrega_9.md), especialmente su encargo final, y `prototypes/objetos_adaptador/README.md`. `../entrega_10.json` identifica el checkpoint. Verificar N1/N2 y construir instrumentos propios del diario/replay de actor y reloj, con procesos limitados a 8 s. Compilar con la caché compartida; no hacen falta dependencias nuevas. No modificar implementación ni aprobar transporte, integración, dos PC o rendimiento. No repetir N3 exploratorio.
+**Encargo vigente: entrega 11.** Leer [revisión de Claude 10 y autoridad/historia corregida](entregas/revision_codex_entrega_10.md), su encargo final y el README actualizado del adaptador. `../entrega_11.json` identifica el checkpoint. Verificar ámbito/revisión, confirmación posterior a aplicar, invalidación y recuperación con registros corregidos. Mantener instrumentos originales, anular su S1 por el conteo conocido sin cambiarlo para volverlo verde, y buscar regresiones nuevas. Procesos limitados a 8 s. No modificar implementación ni aprobar transporte, integración, dos PC o rendimiento. No repetir N3.
+
+**Antecedente: entrega 10.** [Adaptador local](entregas/revision_codex_entrega_9.md) e [informe independiente](validacion_objetos/entrega_10.md).
 
 **Antecedente: entrega 9.** [Corrección](entregas/revision_codex_entrega_8.md) e [informe independiente](validacion_objetos/entrega_9.md).
 

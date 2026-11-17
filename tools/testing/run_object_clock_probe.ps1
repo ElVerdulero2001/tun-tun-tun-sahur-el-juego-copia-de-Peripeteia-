@@ -1,5 +1,5 @@
 param(
-    [string]$Modes = 'normal,slow,pause,resync,budget,tuning,history',
+    [string]$Modes = 'normal,slow,pause,resync,budget,tuning,history,api_authority,api_scope,api_time,api_recovery',
     [string]$EnginePath = 'C:\Users\ElCaido97\Desktop\Godot_v4.7.2.exe'
 )
 $ErrorActionPreference = 'Stop'
@@ -10,7 +10,7 @@ $nativeSources = @(Get-ChildItem (Join-Path $repo 'native/objetos_core/src') -Fi
 $nativeSources += Get-Item (Join-Path $repo 'native/objetos_core/Cargo.toml'), (Join-Path $repo 'native/objetos_core/Cargo.lock')
 if (@($nativeSources | Where-Object LastWriteTimeUtc -GT (Get-Item $dll).LastWriteTimeUtc).Count) { throw 'La DLL es anterior a las fuentes.' }
 $modeList = @($Modes -split '[,\s]+' | Where-Object { $_ })
-foreach ($m in $modeList) { if ($m -notin @('normal','slow','pause','resync','budget','tuning','history')) { throw ('Modo desconocido '+$m) } }
+foreach ($m in $modeList) { if ($m -notin @('normal','slow','pause','resync','budget','tuning','history','api_authority','api_scope','api_time','api_recovery')) { throw ('Modo desconocido '+$m) } }
 $run = Join-Path $repo ('tmp/clock_probe/' + [DateTime]::UtcNow.ToString('yyyyMMdd_HHmmss') + '_' + [Guid]::NewGuid().ToString('N').Substring(0,6))
 $runtime = Join-Path $run 'runtime'
 New-Item -ItemType Directory -Force -Path $runtime,(Join-Path $runtime 'bin'),(Join-Path $runtime '.godot'),(Join-Path $run 'profile/roaming'),(Join-Path $run 'profile/local'),(Join-Path $runtime 'scenes/actor'),(Join-Path $runtime 'prototypes/objetos_adaptador') | Out-Null
@@ -69,7 +69,8 @@ try {
     # stand-ins or edits to ActorInput/ActorMotor/SimClock are used.
     Run-Bounded 'import' @('--headless','--editor','--path',$runtime,'--quit','--log-file',(Join-Path $run 'import.godot.log')) $true
     foreach ($m in $modeList) {
-        Run-Bounded $m @('--headless','--path',$runtime,'--scene','res://prototypes/objetos_adaptador/probe.tscn','--log-file',(Join-Path $run ($m+'.godot.log')),'--',('--mode='+$m),('--result='+(Join-Path $run ($m+'.result.json'))),('--trace='+(Join-Path $run ($m+'.trace.json'))))
+        $scene = if ($m.StartsWith('api_')) { 'res://prototypes/objetos_adaptador/probe_authority.tscn' } else { 'res://prototypes/objetos_adaptador/probe.tscn' }
+        Run-Bounded $m @('--headless','--path',$runtime,'--scene',$scene,'--log-file',(Join-Path $run ($m+'.godot.log')),'--',('--mode='+$m),('--result='+(Join-Path $run ($m+'.result.json'))),('--trace='+(Join-Path $run ($m+'.trace.json'))))
     }
 } finally {
     [ordered]@{run=$run;runtime=$runtime;dll_sha256=(Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant();stages=$records;production_sources=$sourceManifest} |

@@ -1,6 +1,6 @@
 # Núcleo nativo de objetos, primera implementación
 
-**GDExtension construida y compilada; capacidades 1–3 y corrección de la entrega 9 verificadas independientemente dentro de su uso trusted. La entrega 10 compara la pose fija por bits y añade un primer adaptador local de actor/reloj, pendiente de validación independiente. No está integrada al laboratorio.** [Revisión y evidencia vigente](../../docs/net/entregas/revision_codex_entrega_9.md). [Contrato y etapas restantes](../../docs/net/contrato_nucleo_fisico_objetos.md).
+**Núcleo nativo y adaptador local verificados independientemente en sus alcances. La entrega 11 agrega una API local de autoridad e historia corregida, pendiente de revisión independiente; no cambia el código nativo ni integra el laboratorio.** [Revisión y evidencia vigente](../../docs/net/entregas/revision_codex_entrega_10.md). [Contrato y etapas restantes](../../docs/net/contrato_nucleo_fisico_objetos.md).
 
 Cada instancia `SahurObjectWorld` posee su propio `PhysicsWorld` de Rapier 0.36.0, sus handles, identidades públicas y caché. No registra un PhysicsServer global ni usa StateManager3D, RIDs o InstanceIDs del proceso de origen. Jolt continúa activo en Godot. Se fija la resolución de dependencias con Cargo.lock; no se modifica ni reutiliza la DLL del addon godot-rapier.
 
@@ -38,7 +38,7 @@ Límites: 128 cuerpos vivos, 512 UID retirados, 120 checkpoints y 16 MiB de cach
 
 ## Estado y límites
 
-La entrega 9 valida los enlaces de los grafos de contactos y la pose física real de los cuerpos fijos antes de importar. La vista de inspección depende del formato serde de Rapier 0.36.0 fijado por Cargo.lock; al actualizar el solver debe revisarse. No se borran ni regeneran contactos y no se convierte la API `trusted` en un decodificador para datos arbitrarios. Las pruebas originales de Claude pasan al ejecutarlas Codex: 135 comprobaciones Rust y 79 Godot. La revisión independiente de la corrección sigue pendiente.
+La entrega 9 valida los enlaces de los grafos de contactos y la pose física real de los cuerpos fijos antes de importar. La vista de inspección depende del formato serde de Rapier 0.36.0 fijado por Cargo.lock; al actualizar el solver debe revisarse. No se borran ni regeneran contactos y no se convierte la API `trusted` en un decodificador para datos arbitrarios. Las pruebas originales de Claude pasan al ejecutarlas Codex: 135 comprobaciones Rust y 79 Godot. Claude confirmó esa corrección; la API del adaptador de la entrega 11 espera su revisión independiente.
 
 La caché conserva **hasta** 120 checkpoints dentro de 16 MiB. En la fixture de 128 cuerpos apilados, cada snapshot mide 614.284 bytes y solo caben **27** checkpoints (unos 0,45 s a 60 ticks/s). El adaptador debe consultar los checkpoints realmente disponibles y recuperarse ante `checkpoint_expired`; no prometer dos segundos ni ampliar la memoria para ocultar el caso. El costo de inspección y replay requiere medición en la notebook.
 

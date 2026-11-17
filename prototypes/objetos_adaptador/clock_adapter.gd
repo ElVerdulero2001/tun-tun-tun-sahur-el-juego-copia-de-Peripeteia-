@@ -27,6 +27,11 @@ var _epoch := 0
 var _session := 0
 var _last_tick := 0
 var _last_authority_tick := -1
+var _last_authority_revision := 0
+var _connection_epoch := 1
+var _context_revision := 1
+var _history_generation := 1
+var _observed_clock_tick := 0
 var _signature := PackedByteArray()
 var _pending := {}
 var _queued := {}
@@ -35,11 +40,14 @@ var _history := {}
 var _history_bytes := 0
 
 func start(p_clock: SimClock, p_actor: ActorBody, p_tuning: ActorTuning,
-		factory: Callable, uid: int, epoch: int, session: int) -> bool:
+		factory: Callable, uid: int, epoch: int, session: int,
+		connection_epoch := 1, context_revision := 1) -> bool:
 	if clock != null: return _fail("already_attached")
 	if p_clock == null or p_actor == null or p_tuning == null or not factory.is_valid() \
 		or uid <= 0 or epoch <= 0 or session <= 0 or maxi(uid, maxi(epoch, session)) > 0x7FFFFFFF:
 		return _fail("invalid_binding")
+	if connection_epoch <= 0 or context_revision <= 0 or maxi(connection_epoch, context_revision) > 0x7FFFFFFF:
+		return _fail("invalid_context_binding")
 	# The first native controller has explicit fixed parameters. Reject unsupported
 	# tuning instead of silently simulating a different hand on this path.
 	var params := [p_tuning.hold_follow_time, p_tuning.hold_move_limit, p_tuning.hold_accel_limit,
@@ -53,6 +61,8 @@ func start(p_clock: SimClock, p_actor: ActorBody, p_tuning: ActorTuning,
 	if candidate.snapshot_trusted().is_empty(): return _fail("unsealed_context")
 	clock = p_clock; actor = p_actor; tuning = p_tuning; _factory = factory
 	world = candidate; _uid = uid; _epoch = epoch; _session = session
+	_connection_epoch = connection_epoch; _context_revision = context_revision
+	_observed_clock_tick = clock.tick
 	_last_tick = clock.tick; _signature = _tuning_signature()
 	clock.tick_finished.connect(_after_tick)
 	clock.hard_resynced.connect(_hard_resynced)
@@ -95,6 +105,7 @@ func queue_action(at_tick: int, action_id: int, kind: String,
 	return true
 
 func _after_tick(at_tick: int) -> void:
+	_observed_clock_tick = at_tick
 	if not ready_for_input: return
 	if at_tick != _last_tick + 1 or world.get_tick() != _last_tick or not _pending.has(at_tick):
 		_fail("clock_or_input_gap", true); return
@@ -152,9 +163,9 @@ func _apply_frame(target_world, frame: Dictionary) -> bool:
 	if target_world.cache_checkpoint() < 0: return _fail(target_world.get_last_error())
 	return true
 
-## Authority bytes only, after an external protocol has authenticated and bounded
-## them. No RPC calls this method. Replay happens in a candidate world, with saved
-## inputs, eyes and dt. It never calls the input provider or advances the actor.
+## Legacy entry point for the delivery 10 fixtures, with their fixed timeline.
+## New integration must use apply_authority_trusted/recover_authority_trusted,
+## which check scope, revisions and historical time before replay.
 func reconcile_trusted(checkpoint_tick: int, bytes: PackedByteArray) -> bool:
 	if not ready_for_input: return _fail("not_ready")
 	if checkpoint_tick <= _last_authority_tick: return _fail("duplicate_or_stale_authority")
@@ -184,17 +195,178 @@ func history_stats() -> Dictionary:
 	return {"ticks": _history.size(), "bytes": _history_bytes,
 		"oldest": _history.keys().min() if not _history.is_empty() else -1, "latest": _last_tick}
 
+## Scene-owned metadata, not authentication. A transport must bind its sender
+## before calling either checked method below. Native bytes remain trusted-only.
+func authority_scope() -> Dictionary:
+	return {"connection": _connection_epoch, "context": _context_revision,
+		"uid": _uid, "epoch": _epoch, "hold_session": _session,
+		"hand_signature": _tuning_signature().hex_encode().sha256_text()}
+
+func recovery_generation() -> int:
+	return _history_generation
+
+func last_authority() -> Dictionary:
+	return {"tick": _last_authority_tick, "revision": _last_authority_revision}
+
+## Revisions order states independently of tick: a newer revision may correct
+## the same tick, but never move authority back to an older physical tick.
+func apply_authority_trusted(packet: Dictionary) -> bool:
+	if not ready_for_input: return _fail("not_ready")
+	if not _valid_authority(packet): return false
+	if packet.tick > _last_tick: return _fail("future_authority")
+	if _tuning_signature() != _signature: return _fail("tuning_changed", true)
+	if _last_tick - packet.tick > MAX_REPLAY_STEPS: return _fail("replay_budget", true)
+	for t in range(packet.tick + 1, _last_tick + 1):
+		if not _history.has(t): return _fail("history_expired", true)
+		if _history[t].dt != SimClock.world_dt(t):
+			invalidate_history_from(t, "world_time")
+			return false
+	var candidate = _replay_candidate(packet.tick, packet.snapshot, _history, _last_tick)
+	if candidate == null: return false
+	world = candidate
+	_last_authority_tick = packet.tick; _last_authority_revision = packet.revision
+	replayed_steps += _last_tick - packet.tick
+	last_error = ""
+	return true
+
+## Notify this before consuming corrected actor history or a retroactive time
+## change. Future-only changes do not invalidate already simulated inputs.
+func invalidate_history_from(at_tick: int, cause: String) -> bool:
+	if clock == null or at_tick < 0 or at_tick > 0x7FFFFFFF or cause not in ["actor", "world_time"]:
+		return _fail("invalid_history_change")
+	if at_tick > _last_tick: return true
+	for t in _history.keys():
+		if t >= at_tick:
+			_history_bytes -= var_to_bytes(_history[t]).size()
+			_history.erase(t)
+	if not ready_for_input:
+		_history_generation += 1
+		last_error = "timeline_invalidated:" + cause
+		recovery_required.emit(last_error)
+		return true
+	_fail("timeline_invalidated:" + cause, true)
+	return true
+
+## A caller that owns the corrected actor/time history supplies a complete batch
+## from authority tick + 1 to the CURRENT clock tick. No old frames are silently
+## borrowed. A generation token prevents an in-flight stale batch being reused.
+func recover_authority_trusted(packet: Dictionary, frames: Array, generation: int) -> bool:
+	if clock == null or ready_for_input: return _fail("recovery_not_needed")
+	if generation != _history_generation: return _fail("stale_recovery_generation")
+	if clock.tick != _observed_clock_tick: return _fail("recovery_phase")
+	if not _valid_authority(packet): return false
+	var present := clock.tick
+	if packet.tick > present: return _fail("future_authority")
+	var count: int = present - packet.tick
+	if count > MAX_REPLAY_STEPS: return _fail("replay_budget")
+	if frames.size() != count: return _fail("incomplete_recovery_frames")
+	var supported := [0.08, 12.0, 80.0, 720.0, 7200.0]
+	var params := [tuning.hold_follow_time, tuning.hold_move_limit, tuning.hold_accel_limit,
+		tuning.hold_turn_limit, tuning.hold_turn_accel]
+	for i in params.size():
+		if not is_equal_approx(params[i], supported[i]): return _fail("unsupported_hand_tuning")
+	var replacement := {}
+	var byte_count := 0
+	for i in frames.size():
+		if typeof(frames[i]) != TYPE_DICTIONARY: return _fail("invalid_recovery_frame")
+		var supplied: Dictionary = frames[i]
+		if not _valid_recovery_frame(supplied, packet.tick + 1 + i): return false
+		var frame: Dictionary = supplied.duplicate(true)
+		byte_count += var_to_bytes(frame).size()
+		if byte_count > HISTORY_BYTES: return _fail("recovery_history_bytes")
+		replacement[frame.tick] = frame
+	var candidate = _replay_candidate(packet.tick, packet.snapshot, replacement, present)
+	if candidate == null: return false
+	world = candidate
+	_history = replacement; _history_bytes = byte_count
+	_pending.clear(); _queued.clear()
+	_last_tick = present; _signature = _tuning_signature()
+	_last_authority_tick = packet.tick; _last_authority_revision = packet.revision
+	replayed_steps += count
+	ready_for_input = true
+	last_error = ""
+	return true
+
+func _valid_authority(packet: Dictionary) -> bool:
+	var keys := ["version", "connection", "context", "uid", "epoch", "hold_session", "hand_signature", "revision", "tick", "snapshot", "acks"]
+	if packet.size() != keys.size() or not keys.all(func(k): return packet.has(k)):
+		return _fail("invalid_authority_envelope")
+	for key in ["version", "connection", "context", "uid", "epoch", "hold_session", "revision", "tick"]:
+		if typeof(packet[key]) != TYPE_INT or packet[key] < (0 if key == "tick" else 1) or packet[key] > 0x7FFFFFFF:
+			return _fail("invalid_authority_envelope")
+	if packet.version != 1: return _fail("authority_version")
+	if typeof(packet.hand_signature) != TYPE_STRING or packet.hand_signature.length() != 64:
+		return _fail("authority_scope")
+	for key in ["connection", "context", "uid", "epoch", "hold_session", "hand_signature"]:
+		if packet[key] != authority_scope()[key]: return _fail("authority_scope")
+	if packet.revision <= _last_authority_revision: return _fail("duplicate_or_stale_revision")
+	if packet.tick < _last_authority_tick: return _fail("authority_tick_regression")
+	if typeof(packet.snapshot) != TYPE_PACKED_BYTE_ARRAY or packet.snapshot.is_empty() or packet.snapshot.size() > MAX_SNAPSHOT_BYTES:
+		return _fail("invalid_checkpoint")
+	if typeof(packet.acks) != TYPE_ARRAY or packet.acks.size() > 16: return _fail("invalid_action_confirmation")
+	var seen := {}
+	for ack in packet.acks:
+		if typeof(ack) != TYPE_DICTIONARY or ack.size() != 4: return _fail("invalid_action_confirmation")
+		for key in ["id", "requested_tick", "applied_tick"]:
+			if typeof(ack.get(key)) != TYPE_INT or ack[key] < 0 or ack[key] > 0x7FFFFFFF:
+				return _fail("invalid_action_confirmation")
+		if typeof(ack.get("kind")) != TYPE_STRING or not _actions.has(ack.id) or seen.has(ack.id):
+			return _fail("invalid_action_confirmation")
+		var original: Dictionary = bytes_to_var(_actions[ack.id]) # our own scene-generated bytes
+		if ack.kind != original.kind or ack.requested_tick != original.tick \
+			or ack.applied_tick < ack.requested_tick or ack.applied_tick > packet.tick:
+			return _fail("invalid_action_confirmation")
+		seen[ack.id] = true
+	return true
+
+func _valid_recovery_frame(frame: Dictionary, at_tick: int) -> bool:
+	var keys := ["tick", "dt", "eyes", "input", "action"]
+	if frame.size() != keys.size() or not keys.all(func(k): return frame.has(k)):
+		return _fail("invalid_recovery_frame")
+	if typeof(frame.tick) != TYPE_INT or frame.tick != at_tick or typeof(frame.dt) != TYPE_FLOAT \
+		or not is_finite(frame.dt) or frame.dt <= 0.0 or frame.dt > 1.0 / 30.0 \
+		or frame.dt != SimClock.world_dt(at_tick) or typeof(frame.eyes) != TYPE_VECTOR3 or not frame.eyes.is_finite() \
+		or typeof(frame.input) != TYPE_PACKED_BYTE_ARRAY or frame.input.size() > MAX_INPUT_BYTES \
+		or typeof(frame.action) != TYPE_DICTIONARY:
+		return _fail("invalid_recovery_frame")
+	var input := _read_input(frame.input)
+	if input == null or input.tick != at_tick: return _fail("invalid_recovery_input")
+	if not frame.action.is_empty():
+		if typeof(frame.action.get("id")) != TYPE_INT or not _actions.has(frame.action.id):
+			return _fail("unknown_recovery_action")
+		var original: Dictionary = bytes_to_var(_actions[frame.action.id])
+		if original != frame.action or original.tick != at_tick: return _fail("recovery_action_conflict")
+	return true
+
+func _replay_candidate(at_tick: int, bytes: PackedByteArray, records: Dictionary, present: int):
+	var candidate = _factory.call()
+	if candidate == null or not candidate.restore_trusted(bytes):
+		_fail("checkpoint_rejected"); return null
+	if candidate.get_tick() != at_tick:
+		_fail("checkpoint_tick_mismatch"); return null
+	for t in range(at_tick + 1, present + 1):
+		if not _apply_frame(candidate, records[t]):
+			_fail("replay_failed:" + last_error); return null
+	return candidate
+
 func _tuning_signature() -> PackedByteArray:
 	return var_to_bytes([tuning.hold_min_distance, tuning.hold_max_distance, tuning.hold_follow_time,
 		tuning.hold_move_limit, tuning.hold_accel_limit, tuning.hold_turn_limit, tuning.hold_turn_accel])
 
 func _hard_resynced() -> void:
 	_pending.clear(); _queued.clear(); _history.clear(); _history_bytes = 0
+	if not ready_for_input:
+		_history_generation += 1
+		last_error = "clock_resynced"
+		recovery_required.emit("clock_resynced")
+		return
 	_fail("clock_resynced", true)
 
 func _fail(reason: String, recover := false) -> bool:
 	last_error = reason
 	if recover and ready_for_input:
 		ready_for_input = false
+		_history_generation += 1
+		_pending.clear(); _queued.clear()
 		recovery_required.emit(reason)
 	return false

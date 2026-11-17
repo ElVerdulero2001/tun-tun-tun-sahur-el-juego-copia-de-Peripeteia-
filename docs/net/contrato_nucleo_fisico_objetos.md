@@ -1,6 +1,6 @@
 # Contrato del núcleo físico de objetos: siguiente candidato
 
-2026-11-17. **Condiciones 1–3 verificadas independientemente; corrección de la entrega 9 aceptada dentro del uso trusted. La entrega 10 añade un primer adaptador local al actor/reloj y comparación estricta del signo del cero.** [Revisión, evidencia y alcance](entregas/revision_codex_entrega_9.md). El driver local no aprueba la condición 4 completa: quedan transporte, correcciones del actor, múltiples manos y presentación. Notebook y modelo de red completo también pendientes. [Decisión histórica del núcleo](entregas/revision_codex_entrega_5.md).
+2026-11-17. **Condiciones 1–3, signo del cero y adaptador local de la entrega 10 verificados independientemente en sus alcances. La entrega 11 añade autoridad por ámbito/revisión e invalidación/recuperación histórica.** [Revisión, evidencia y alcance](entregas/revision_codex_entrega_10.md). Esas interfaces siguen sin transporte ni conexión a las correcciones reales de NetSync; no aprueban la condición 4 completa. Múltiples manos, presentación, notebook y modelo de red completo también pendientes. [Decisión histórica del núcleo](entregas/revision_codex_entrega_5.md).
 
 ## Problema que debe resolver
 

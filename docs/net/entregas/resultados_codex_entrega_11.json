@@ -1,0 +1,601 @@
+{
+  "delivery": 11,
+  "previous_delivery_commit": "5fb0d1fc1d42488f1c96ef1aef16fe7f3b721d81",
+  "independent_validation_commit": "b49d3ecf719c3fa1a83d652d93f5d103c08fe091",
+  "independent_new_api_validation_pending": true,
+  "native_core_changed": false,
+  "native_core_compiled": true,
+  "native_binary_reused_from_delivery": 10,
+  "checked_authority_api": true,
+  "corrected_history_recovery_api": true,
+  "transport_implemented": false,
+  "netsync_hook_implemented": false,
+  "model_approved": false,
+  "laboratory_migrated": false,
+  "baseline": {
+    "evidence": "tmp/revision_entrega_10/baseline/adapter_20261117_105630",
+    "copied_files_checked_against_delivery_10": 13,
+    "summary": {
+      "PASS": 80,
+      "FAIL": 2,
+      "INFO": 13,
+      "NOEVAL": 0
+    },
+    "analysis_reference": "baseline runtime copies, checked against delivery 10 manifest",
+    "known_instrument_failure": "S1 checks at tick 32 when 23 slow ticks elapsed; full trace contains 24 from 10 to 33"
+  },
+  "clock_probe": {
+    "evidence": "tmp/clock_probe/20261117_141146_b22b02",
+    "runner_stages": [
+      {
+        "name": "import",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 3577,
+        "errors": [],
+        "status": "IMPORTED"
+      },
+      {
+        "name": "normal",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1873,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "slow",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1728,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "pause",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1823,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "resync",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1360,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "budget",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1648,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "tuning",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1385,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "history",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 3122,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "api_authority",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1631,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "api_scope",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1640,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "api_time",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1635,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "api_recovery",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1651,
+        "errors": [],
+        "status": "PASSED"
+      }
+    ],
+    "code_copy_hashes_verified": 220,
+    "markdown_excluded_from_code_verification": true,
+    "modes": [
+      {
+        "mode": "api_authority",
+        "status": "PASSED",
+        "checks": 174,
+        "failures": 0,
+        "captures": 60,
+        "replayed_steps": 15,
+        "effects": [
+          [
+            1,
+            "grab"
+          ],
+          [
+            2,
+            "release"
+          ]
+        ],
+        "recoveries": [],
+        "seconds": 0.849613
+      },
+      {
+        "mode": "api_recovery",
+        "status": "PASSED",
+        "checks": 177,
+        "failures": 0,
+        "captures": 60,
+        "replayed_steps": 10,
+        "effects": [
+          [
+            1,
+            "grab"
+          ],
+          [
+            2,
+            "release"
+          ]
+        ],
+        "recoveries": [
+          "timeline_invalidated:actor",
+          "timeline_invalidated:actor"
+        ],
+        "seconds": 0.849837
+      },
+      {
+        "mode": "api_scope",
+        "status": "PASSED",
+        "checks": 191,
+        "failures": 0,
+        "captures": 60,
+        "replayed_steps": 15,
+        "effects": [
+          [
+            1,
+            "grab"
+          ],
+          [
+            2,
+            "release"
+          ]
+        ],
+        "recoveries": [],
+        "seconds": 0.856011
+      },
+      {
+        "mode": "api_time",
+        "status": "PASSED",
+        "checks": 190,
+        "failures": 0,
+        "captures": 60,
+        "replayed_steps": 8,
+        "effects": [
+          [
+            1,
+            "grab"
+          ],
+          [
+            2,
+            "release"
+          ]
+        ],
+        "recoveries": [
+          "timeline_invalidated:world_time"
+        ],
+        "seconds": 0.850276
+      },
+      {
+        "mode": "budget",
+        "status": "PASSED",
+        "checks": 323,
+        "failures": 0,
+        "captures": 60,
+        "replayed_steps": 17,
+        "effects": [
+          [
+            1,
+            "grab"
+          ],
+          [
+            2,
+            "release"
+          ]
+        ],
+        "recoveries": [
+          "replay_budget"
+        ],
+        "seconds": 0.863738
+      },
+      {
+        "mode": "history",
+        "status": "PASSED",
+        "checks": 776,
+        "failures": 0,
+        "captures": 150,
+        "replayed_steps": 17,
+        "effects": [
+          [
+            1,
+            "grab"
+          ],
+          [
+            2,
+            "release"
+          ]
+        ],
+        "recoveries": [],
+        "seconds": 2.36199
+      },
+      {
+        "mode": "normal",
+        "status": "PASSED",
+        "checks": 375,
+        "failures": 0,
+        "captures": 70,
+        "replayed_steps": 17,
+        "effects": [
+          [
+            1,
+            "grab"
+          ],
+          [
+            2,
+            "release"
+          ]
+        ],
+        "recoveries": [],
+        "seconds": 1.030113
+      },
+      {
+        "mode": "pause",
+        "status": "PASSED",
+        "checks": 377,
+        "failures": 0,
+        "captures": 70,
+        "replayed_steps": 17,
+        "effects": [
+          [
+            1,
+            "grab"
+          ],
+          [
+            2,
+            "release"
+          ]
+        ],
+        "recoveries": [],
+        "seconds": 1.118476
+      },
+      {
+        "mode": "resync",
+        "status": "PASSED",
+        "checks": 248,
+        "failures": 0,
+        "captures": 45,
+        "replayed_steps": 17,
+        "effects": [
+          [
+            1,
+            "grab"
+          ],
+          [
+            2,
+            "release"
+          ]
+        ],
+        "recoveries": [
+          "clock_resynced"
+        ],
+        "seconds": 0.608299
+      },
+      {
+        "mode": "slow",
+        "status": "PASSED",
+        "checks": 376,
+        "failures": 0,
+        "captures": 70,
+        "replayed_steps": 17,
+        "effects": [
+          [
+            1,
+            "grab"
+          ],
+          [
+            2,
+            "release"
+          ]
+        ],
+        "recoveries": [],
+        "seconds": 1.022069
+      },
+      {
+        "mode": "tuning",
+        "status": "PASSED",
+        "checks": 248,
+        "failures": 0,
+        "captures": 45,
+        "replayed_steps": 17,
+        "effects": [
+          [
+            1,
+            "grab"
+          ],
+          [
+            2,
+            "release"
+          ]
+        ],
+        "recoveries": [
+          "tuning_changed"
+        ],
+        "seconds": 0.614821
+      }
+    ]
+  },
+  "claude_10_regression": {
+    "evidence": "tmp/revision_entrega_10/final/adapter_20261117_111357",
+    "raw_summary": {
+      "PASS": 80,
+      "FAIL": 2,
+      "INFO": 13,
+      "NOEVAL": 0
+    },
+    "known_invalid_instrument_results": [
+      {
+        "mode": "proceso",
+        "id": "G0_slow",
+        "verdict": "FAIL",
+        "metric": "exit 2, 805 ms, script_errors=0, otras=[]",
+        "tol": "código 0, sin vencer, sin SCRIPT ERROR"
+      },
+      {
+        "mode": "slow",
+        "id": "S1_dt_guardado_y_paso_en_vivo",
+        "verdict": "FAIL",
+        "metric": "{\"distintos_a_R_pura\":[],\"dt_distintos\":[],\"frames_lentos\":23}",
+        "tol": "24 lentos, iguales"
+      }
+    ],
+    "unexpected_failures": 0,
+    "full_trace_slow_count": 24,
+    "slow_first": 10,
+    "slow_last": 33,
+    "runner": {
+      "records": [
+        {
+          "name": "import",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 3823,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": false
+        },
+        {
+          "name": "replay",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 831,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "slow",
+          "exit_code": 2,
+          "timed_out": false,
+          "ms": 805,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "pause",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 809,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "errors",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 805,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "limits",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 894,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "resync",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 813,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "tuning",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 806,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "capture",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 807,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        }
+      ],
+      "godot_left": 0
+    }
+  },
+  "dll": {
+    "path": "implementacion/tmp/native_target/debug/sahur_object_world.dll",
+    "bytes": 5720064,
+    "sha256": "d7761f5f0586390f130a55014d346183c7e6f208fb4778b17c97b1fdd29abf77"
+  },
+  "source_hashes": [
+    {
+      "path": "prototypes/objetos_adaptador/clock_adapter.gd",
+      "sha256": "c740e3608a13fe1cb59deb1664d3689ef23d33cde9d2e368cec2c1c6d25bc6b0",
+      "sha256_lf": "c740e3608a13fe1cb59deb1664d3689ef23d33cde9d2e368cec2c1c6d25bc6b0"
+    },
+    {
+      "path": "prototypes/objetos_adaptador/probe.gd",
+      "sha256": "ff8e18a49254ef224f5f56adfb7aab3008d9c5d0f254d45cdd9708cf48ff69fe",
+      "sha256_lf": "ff8e18a49254ef224f5f56adfb7aab3008d9c5d0f254d45cdd9708cf48ff69fe"
+    },
+    {
+      "path": "prototypes/objetos_adaptador/probe.tscn",
+      "sha256": "bfc8afb9744ff7410a00a5bec16f3c2e191a523de0d39f5d4d43c2025801f644",
+      "sha256_lf": "bfc8afb9744ff7410a00a5bec16f3c2e191a523de0d39f5d4d43c2025801f644"
+    },
+    {
+      "path": "prototypes/objetos_adaptador/probe_authority.gd",
+      "sha256": "6bcf742d19843fc41434641e0aa76a0bcfe0650a953aca3e6b11fe9ffdab08a1",
+      "sha256_lf": "6bcf742d19843fc41434641e0aa76a0bcfe0650a953aca3e6b11fe9ffdab08a1"
+    },
+    {
+      "path": "prototypes/objetos_adaptador/probe_authority.tscn",
+      "sha256": "fc0f0e52d3bd0fa58cf7b210ea1fb377277a293186e5ed16dbb2c0780a84951b",
+      "sha256_lf": "fc0f0e52d3bd0fa58cf7b210ea1fb377277a293186e5ed16dbb2c0780a84951b"
+    },
+    {
+      "path": "tools/testing/run_object_clock_probe.ps1",
+      "sha256": "100233c6d3d6153115bd4332c737435f8e80f60ac94a10c50e3feffc74269b45",
+      "sha256_lf": "100233c6d3d6153115bd4332c737435f8e80f60ac94a10c50e3feffc74269b45"
+    },
+    {
+      "path": "native/objetos_core/src/world.rs",
+      "sha256": "4d3708ecbcdd23dd4359b899528254ceef00699cd742c5b26dd7a7f4af09bf6f",
+      "sha256_lf": "4d3708ecbcdd23dd4359b899528254ceef00699cd742c5b26dd7a7f4af09bf6f"
+    },
+    {
+      "path": "native/objetos_core/src/extension.rs",
+      "sha256": "08ea16ef3eda90e6198db6bcd7e681a1093b88c4eb45bbf4a1df7cf9055e4b27",
+      "sha256_lf": "08ea16ef3eda90e6198db6bcd7e681a1093b88c4eb45bbf4a1df7cf9055e4b27"
+    },
+    {
+      "path": "native/objetos_core/src/snapshot_graph.rs",
+      "sha256": "03b6ce6eaf1cdf0ca80b65e2ea8cdfb8add04a63f64aef1cae42cb8352fbc895",
+      "sha256_lf": "03b6ce6eaf1cdf0ca80b65e2ea8cdfb8add04a63f64aef1cae42cb8352fbc895"
+    },
+    {
+      "path": "native/objetos_core/Cargo.lock",
+      "sha256": "5b259749cbe021d62c4d000987a763e2a69e9eff62eee2bd86887f8d5680ee78",
+      "sha256_lf": "5b259749cbe021d62c4d000987a763e2a69e9eff62eee2bd86887f8d5680ee78"
+    },
+    {
+      "path": "scripts/actor/actor_input.gd",
+      "sha256": "a799b008d1de5811b4ca87f3fc0eceabf7a020182c4d339b9236abb583edd415",
+      "sha256_lf": "a799b008d1de5811b4ca87f3fc0eceabf7a020182c4d339b9236abb583edd415"
+    },
+    {
+      "path": "scripts/actor/actor_body.gd",
+      "sha256": "f705b8f2f7b8d42cfa86d12867f6699f7deaf591d7464550c39e8c080ebc9049",
+      "sha256_lf": "f705b8f2f7b8d42cfa86d12867f6699f7deaf591d7464550c39e8c080ebc9049"
+    },
+    {
+      "path": "scripts/actor/actor_motor.gd",
+      "sha256": "63e441eba89e3b84427a9df85cdd336cef94f75f371a5edf3267bdb3707fe4ac",
+      "sha256_lf": "63e441eba89e3b84427a9df85cdd336cef94f75f371a5edf3267bdb3707fe4ac"
+    },
+    {
+      "path": "scripts/actor/actor_tuning.gd",
+      "sha256": "0a37ff3bcb9b91e30a810bf6df630010df1af08a0d2d4991c900c55d3ea327c3",
+      "sha256_lf": "0a37ff3bcb9b91e30a810bf6df630010df1af08a0d2d4991c900c55d3ea327c3"
+    },
+    {
+      "path": "scripts/actor/base_registry.gd",
+      "sha256": "64768a613a1ac92e8175ae85aab17a978f48bb0d5686defe0b7a7fbe61a9bebd",
+      "sha256_lf": "64768a613a1ac92e8175ae85aab17a978f48bb0d5686defe0b7a7fbe61a9bebd"
+    },
+    {
+      "path": "scripts/net/sim_clock.gd",
+      "sha256": "3db2bfca69595e028480f170e9521bb0bcb29de5c2c52b4b761cae4fc3214a43",
+      "sha256_lf": "3db2bfca69595e028480f170e9521bb0bcb29de5c2c52b4b761cae4fc3214a43"
+    },
+    {
+      "path": "scripts/inventory/inv_authority.gd",
+      "sha256": "295b4fe893a647e7e137910f7e405d829532cd2ac31be0fd208516f7b297fe06",
+      "sha256_lf": "295b4fe893a647e7e137910f7e405d829532cd2ac31be0fd208516f7b297fe06"
+    },
+    {
+      "path": "scripts/inventory/inv_hold_motion.gd",
+      "sha256": "c12f2151d68a2f871a8ee4dd138f6116eb49f28e9f6d4cc99697bcf61672bb7d",
+      "sha256_lf": "c12f2151d68a2f871a8ee4dd138f6116eb49f28e9f6d4cc99697bcf61672bb7d"
+    },
+    {
+      "path": "scenes/actor/actor.tscn",
+      "sha256": "de06273ccf20e757aa56fa0802360f44a7020ff2ba6966c8928dfb21bd32b99c",
+      "sha256_lf": "de06273ccf20e757aa56fa0802360f44a7020ff2ba6966c8928dfb21bd32b99c"
+    }
+  ],
+  "limits": [
+    "local_api_only_no_rpc",
+    "scene_scope_metadata_is_not_authentication",
+    "trusted_native_snapshots_only",
+    "corrected_actor_eyes_supplied_by_caller",
+    "no_live_netsync_history_hook",
+    "one_actor_one_binding_fixed_context",
+    "no_native_transport_inventory_or_presentation",
+    "same_machine_no_performance_approval",
+    "legacy_reconcile_kept_only_for_old_fixtures",
+    "N3_not_executed"
+  ]
+}

@@ -1,4 +1,4 @@
-param([string]$Modes = 'net_future,net_close,net_timeout,net_lease,action_window', [string]$EnginePath = 'C:\Users\ElCaido97\Desktop\Godot_v4.7.2.exe')
+param([string]$Modes = 'net_future,net_close,net_timeout,net_lease,net_quiet,action_window', [string]$EnginePath = 'C:\Users\ElCaido97\Desktop\Godot_v4.7.2.exe')
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $dll = Join-Path $repo 'tmp/native_target/debug/sahur_object_world.dll'
@@ -54,16 +54,19 @@ function Collect-Probe($job, [bool]$importOnly=$false) {
     }
 }
 $owned=@()
+$seen=@{}
 try {
     $job=Start-Probe 'import' @('--headless','--editor','--path',$runtime,'--quit','--log-file',(Join-Path $run 'import.godot.log')); $owned+=$job
     Collect-Probe $job $true
     foreach($mode in ($Modes -split ',')) {
+        $seen[$mode]=1+$(if($seen.ContainsKey($mode)){$seen[$mode]}else{0})
+        $tag=if($seen[$mode] -gt 1){$mode+'_'+$seen[$mode]}else{$mode}
         $socket=[Net.Sockets.Socket]::new([Net.Sockets.AddressFamily]::InterNetwork,[Net.Sockets.SocketType]::Dgram,[Net.Sockets.ProtocolType]::Udp)
         $socket.Bind([Net.IPEndPoint]::new([Net.IPAddress]::Loopback,0)); $port=$socket.LocalEndPoint.Port; $socket.Dispose()
         $jobs=@()
         foreach($role in $(if($mode -eq 'action_window'){@('single')}else{@('host','client')})) {
-            $name=$mode+'_'+$role
-            $scene=if($mode -eq 'action_window'){'res://prototypes/objetos_adaptador/probe_action_window.tscn'}else{'res://prototypes/objetos_adaptador/probe_lifecycle.tscn'}
+            $name=$tag+'_'+$role
+            $scene=if($mode -eq 'action_window'){'res://prototypes/objetos_adaptador/probe_action_window.tscn'}elseif($mode -eq 'net_quiet'){'res://prototypes/objetos_adaptador/probe_quiet.tscn'}else{'res://prototypes/objetos_adaptador/probe_lifecycle.tscn'}
             $job=Start-Probe $name @('--headless','--path',$runtime,'--scene',$scene,'--log-file',(Join-Path $run ($name+'.godot.log')),'--',('--role='+$role),('--mode='+$mode),('--port='+$port),('--result='+(Join-Path $run ($name+'.result.json'))),('--trace='+(Join-Path $run ($name+'.trace.json'))))
             $owned+=$job; $jobs+=$job
         }

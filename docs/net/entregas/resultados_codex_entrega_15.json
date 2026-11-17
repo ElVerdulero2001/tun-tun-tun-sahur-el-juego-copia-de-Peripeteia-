@@ -1,0 +1,699 @@
+{
+  "delivery": 15,
+  "independent_validation_base": "8073085",
+  "native_core_changed": false,
+  "production_changed": false,
+  "laboratory_migrated": false,
+  "own": {
+    "path": "tmp/lifecycle_probe/20261117_213458_0e9c8e",
+    "stages": [
+      {
+        "name": "import",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 3665,
+        "errors": [],
+        "status": "IMPORTED"
+      },
+      {
+        "name": "action_window_single",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1750,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_quiet_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 7377,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_quiet_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 7377,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_quiet_2_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 6918,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_quiet_2_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 6917,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_quiet_3_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 6954,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_quiet_3_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 6956,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_close_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1460,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_close_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1458,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_timeout_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1470,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_timeout_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1468,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_lease_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 6921,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_lease_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 6921,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_future_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 2575,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "net_future_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 2574,
+        "errors": [],
+        "status": "PASSED"
+      }
+    ],
+    "tests": [
+      {
+        "file": "action_window_single.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 3979,
+        "failed": [],
+        "actions": 900,
+        "effects": 900,
+        "max_active": 121,
+        "max_known": 121
+      },
+      {
+        "file": "net_close_client.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 61,
+        "failed": [],
+        "effects": [
+          [
+            1,
+            "grab"
+          ]
+        ]
+      },
+      {
+        "file": "net_close_host.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 92,
+        "failed": [],
+        "effects": []
+      },
+      {
+        "file": "net_future_client.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 117,
+        "failed": [],
+        "effects": [
+          [
+            1,
+            "grab"
+          ],
+          [
+            2,
+            "release"
+          ]
+        ]
+      },
+      {
+        "file": "net_future_host.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 168,
+        "failed": [],
+        "effects": []
+      },
+      {
+        "file": "net_lease_client.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 114,
+        "failed": [],
+        "effects": [
+          [
+            1,
+            "grab"
+          ]
+        ]
+      },
+      {
+        "file": "net_lease_host.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 92,
+        "failed": [],
+        "effects": []
+      },
+      {
+        "file": "net_quiet_2_client.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 53,
+        "failed": [],
+        "effects": [
+          [
+            1,
+            "grab"
+          ]
+        ]
+      },
+      {
+        "file": "net_quiet_2_host.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 94,
+        "failed": [],
+        "effects": []
+      },
+      {
+        "file": "net_quiet_3_client.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 53,
+        "failed": [],
+        "effects": [
+          [
+            1,
+            "grab"
+          ]
+        ]
+      },
+      {
+        "file": "net_quiet_3_host.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 94,
+        "failed": [],
+        "effects": []
+      },
+      {
+        "file": "net_quiet_client.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 53,
+        "failed": [],
+        "effects": [
+          [
+            1,
+            "grab"
+          ]
+        ]
+      },
+      {
+        "file": "net_quiet_host.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 94,
+        "failed": [],
+        "effects": []
+      },
+      {
+        "file": "net_timeout_client.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 61,
+        "failed": [],
+        "effects": [
+          [
+            1,
+            "grab"
+          ]
+        ]
+      },
+      {
+        "file": "net_timeout_host.result.json",
+        "status": "PASSED",
+        "failures": 0,
+        "checks": 93,
+        "failed": [],
+        "effects": []
+      }
+    ],
+    "quiet": [
+      {
+        "file": "net_quiet_2_client.stdout.log",
+        "diagnostics": [
+          "QUIET_DIAGNOSTIC={\"max_activity_gap_ms\":497,\"min_throttle\":1,\"role\":\"client\"}"
+        ]
+      },
+      {
+        "file": "net_quiet_2_host.stdout.log",
+        "diagnostics": [
+          "QUIET_DIAGNOSTIC={\"max_activity_gap_ms\":497,\"min_throttle\":32,\"role\":\"host\"}"
+        ]
+      },
+      {
+        "file": "net_quiet_3_client.stdout.log",
+        "diagnostics": [
+          "QUIET_DIAGNOSTIC={\"max_activity_gap_ms\":504,\"min_throttle\":1,\"role\":\"client\"}"
+        ]
+      },
+      {
+        "file": "net_quiet_3_host.stdout.log",
+        "diagnostics": [
+          "QUIET_DIAGNOSTIC={\"max_activity_gap_ms\":502,\"min_throttle\":32,\"role\":\"host\"}"
+        ]
+      },
+      {
+        "file": "net_quiet_client.stdout.log",
+        "diagnostics": [
+          "QUIET_DIAGNOSTIC={\"max_activity_gap_ms\":497,\"min_throttle\":1,\"role\":\"client\"}"
+        ]
+      },
+      {
+        "file": "net_quiet_host.stdout.log",
+        "diagnostics": [
+          "QUIET_DIAGNOSTIC={\"max_activity_gap_ms\":497,\"min_throttle\":32,\"role\":\"host\"}"
+        ]
+      }
+    ]
+  },
+  "regression": {
+    "path": "tmp/validacion_objetos/entrega_14/run14_20261117_183538",
+    "records": [
+      {
+        "name": "import",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 3865,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": false
+      },
+      {
+        "name": "actions",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 1280,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "bridge",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 810,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "quiet_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 7465,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "quiet_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 7741,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "close_host_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 3132,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "close_host_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 3309,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "close_client_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 2468,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "close_client_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 2751,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "close_both_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 2932,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "close_both_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 3214,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "lease_silent_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 7472,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "lease_silent_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 7645,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "future_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 6181,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      },
+      {
+        "name": "future_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 6348,
+        "error_lines": [
+          "ERROR: Failed to read the root certificate store."
+        ],
+        "result": true
+      }
+    ],
+    "report": [
+      {
+        "id": "runner_processes",
+        "verdict": "FAIL",
+        "note": "14 procesos; con problema: actions(exit 0, 1 lineas, result true); bridge(exit 0, 1 lineas, result true); quiet_host(exit 0, 1 lineas, result true); quiet_client(exit 0, 1 lineas, result true); close_host_host(exit 0, 1 lineas, result true); close_host_client(exit 0, 1 lineas, result true); close_client_host(exit 0, 1 lineas, result true); close_client_client(exit 0, 1 lineas, result true); close_both_host(exit 0, 1 lineas, result true); close_both_client(exit 0, 1 lineas, result true); lease_silent_host(exit 0, 1 lineas, result true); lease_silent_client(exit 0, 1 lineas, result true); future_host(exit 0, 1 lineas, result true); future_client(exit 0, 1 lineas, result true); max 7741 ms; Godot abiertos al final 0"
+      },
+      {
+        "id": "A_setup_capture",
+        "verdict": "PASS",
+        "note": "884/884"
+      },
+      {
+        "id": "A1",
+        "verdict": "PASS",
+        "note": "4/4 | encoladas 730, efectos 731, id max 2147483647"
+      },
+      {
+        "id": "A2",
+        "verdict": "PASS",
+        "note": "895/895 | max todas [activas, conocidas, efectos, confirmadas, comandos] = [121,121,121,3,120]; 200-400 [121,121,121,3,120]; 400-700 [121,121,121,0,120]"
+      },
+      {
+        "id": "A3",
+        "verdict": "PASS",
+        "note": "14/14 | d=0:acept/conf d=24:acept/conf d=119:acept/conf d=120:acept/conf d=121:acept/sin d=122:acept/sin d=200:acept/sin"
+      },
+      {
+        "id": "A3h",
+        "verdict": "HALLAZGO",
+        "note": "acciones con primer ACK a d>=121 aceptado sin confirmacion: 3/3; ninguna senal de vencimiento en la API"
+      },
+      {
+        "id": "A4",
+        "verdict": "PASS",
+        "note": "14/14 | 241:1 242:1 250:1 290:1 361:1 362:1 490:1"
+      },
+      {
+        "id": "A5",
+        "verdict": "PASS",
+        "note": "22/22 | id_0=invalid_action_confirmation; id_above_max=invalid_action_confirmation; active_wrong_kind=invalid_action_confirmation; active_wrong_requested=invalid_action_confirmation; applied_lt_requested=invalid_action_confirmation; applied_gt_packet=invalid_action_confirmation; duplicate_in_packet=invalid_action_confirmation; retired_requested_in_window=invalid_action_confirmation; seventeen=invalid_action_confirmation; negative_id=invalid_action_confirmation; kind_throw=invalid_action_confirmation"
+      },
+      {
+        "id": "A5i",
+        "verdict": "INFO",
+        "note": "A5i_gap_id_below_watermark: aceptado en silencio, callback false; A5i_retired_wrong_kind: aceptado en silencio, callback false"
+      },
+      {
+        "id": "A5i_no_callback",
+        "verdict": "PASS",
+        "note": "2/2"
+      },
+      {
+        "id": "A6",
+        "verdict": "PASS",
+        "note": "17/17 | dup_identical_active=known; same_id_other_content=rejected:action_identity_conflict; retired_identical_retry=rejected:retired_action; gap_above_watermark=rejected:nonmonotonic_action_id; gap_below_watermark=rejected:retired_action; id_0=rejected:invalid_action; id_minus_1=rejected:invalid_action; id_0x80000000=rejected:invalid_action"
+      },
+      {
+        "id": "A7",
+        "verdict": "PASS",
+        "note": "3/3 | {\"actions_in_window\":24,\"error\":\"\",\"replayed\":24}"
+      },
+      {
+        "id": "A8",
+        "verdict": "PASS",
+        "note": "4/4 | {\"actions_in_window\":24,\"error\":\"\"}"
+      },
+      {
+        "id": "A9",
+        "verdict": "PASS",
+        "note": "7/7 | pedidos en suspension {\"rejected:not_ready\":150}; {\"active\":0,\"max_id\":3534,\"retired_before_tick\":730,\"retired_id\":3534}"
+      },
+      {
+        "id": "A9b",
+        "verdict": "PASS",
+        "note": "3/3 | {\"error\":\"\",\"replayed_from\":840}"
+      },
+      {
+        "id": "A9c",
+        "verdict": "PASS",
+        "note": "1/1"
+      },
+      {
+        "id": "A10",
+        "verdict": "PASS",
+        "note": "4/4 | {\"after\":{\"reason\":\"nonmonotonic_action_id\",\"status\":\"rejected\"},\"later\":{\"reason\":\"nonmonotonic_action_id\",\"status\":\"rejected\"},\"max\":{\"status\":\"queued\"},\"over\":{\"reason\":\"invalid_action\",\"status\":\"rejected\"}}"
+      },
+      {
+        "id": "A_status",
+        "verdict": "PASS",
+        "note": "0 fallas, 1876 comprobaciones, 432 ms, error adaptador 'invalid_action'"
+      },
+      {
+        "id": "P_setup",
+        "verdict": "PASS",
+        "note": "180/180"
+      },
+      {
+        "id": "P1",
+        "verdict": "PASS",
+        "note": "61/61"
+      },
+      {
+        "id": "P2",
+        "verdict": "PASS",
+        "note": "2/2"
+      },
+      {
+        "id": "P3",
+        "verdict": "PASS",
+        "note": "1/1"
+      },
+      {
+        "id": "P4",
+        "verdict": "PASS",
+        "note": "3/3"
+      },
+      {
+        "id": "P5",
+        "verdict": "PASS",
+        "note": "8/8"
+      },
+      {
+        "id": "P6",
+        "verdict": "PASS",
+        "note": "4/4"
+      },
+      {
+        "id": "P7",
+        "verdict": "PASS",
+        "note": "2/2"
+      },
+      {
+        "id": "P8",
+        "verdict": "PASS",
+        "note": "5/5"
+      },
+      {
+        "id": "P9",
+        "verdict": "PASS",
+        "note": "1/1"
+      },
+      {
+        "id": "P_applied",
+        "verdict": "INFO",
+        "note": "60@60(r1) 90@90(r31) 100@100(r33) 108@108(r34) 109@109(r35) 119@122(r38) 128@133(r39) 146@146(r41) | rechazos [{\"clock\":140,\"reason\":\"authority_scope\"}] | pausa [108,109] | exactitud mal []"
+      },
+      {
+        "id": "P_status",
+        "verdict": "PASS",
+        "note": "0 fallas, 269 comprobaciones"
+      },
+      {
+        "id": "L",
+        "verdict": "INSUFICIENTE",
+        "note": "faltan resultados de lanes"
+      },
+      {
+        "id": "N_quiet",
+        "verdict": "PASS",
+        "note": "cierres host [] cliente []; hueco max host 505 ms (24), cliente 505 ms (22); throttle min host->cliente 32 (<=1 en 0/59), cliente->host 1 (<=1 en 12/59); ms host 6605 cliente 6606"
+      },
+      {
+        "id": "N_close_host",
+        "verdict": "PASS",
+        "note": "cliente peer_closed a 0.006 s; transferencia en vuelo al cerrar false; ms host 2162 cliente 2163"
+      },
+      {
+        "id": "N_close_client",
+        "verdict": "PASS",
+        "note": "host peer_closed a 0.001 s; ms host 1575 cliente 1561"
+      },
+      {
+        "id": "N_close_both",
+        "verdict": "PASS",
+        "note": "host peer_closed, cliente ; ms host 2047 cliente 2049"
+      },
+      {
+        "id": "N_lease_silent",
+        "verdict": "PASS",
+        "note": "cliente peer_idle_timeout, cierre-actividad 5003 ms, ultima actividad -0.009 s despues del silencio; ms host 6546 cliente 6543"
+      },
+      {
+        "id": "N_future",
+        "verdict": "PASS",
+        "note": "aplicados 10 (antes de 240: 9), en pausa 0, futuros 0, ocupacion max 2, desplazados 0, espera max 32 ticks, cuadros de pausa 25; ms host 5177 cliente 5178"
+      }
+    ],
+    "error_lines": [
+      "ERROR: Failed to read the root certificate store."
+    ],
+    "interpretation": "32 PASS / 1 FAIL / 1 INSUFICIENTE / 1 HALLAZGO / 2 INFO, unchanged reporter. FAIL is root certificate store line in every process. Lanes intentionally omitted: old tap overrides heartbeat as unreliable. A3h is a hardcoded old no-expiry statement: old instrument does not subscribe to new action_expired signal. New expiry checks are in own probe."
+  },
+  "discarded_own_attempts": [
+    {
+      "path": "tmp/lifecycle_probe/20261117_213310_14cb9e",
+      "reason": "Quiet probe let client exit before host had completed its quiet interval, disconnecting host; fixed handshake in probe."
+    },
+    {
+      "path": "tmp/lifecycle_probe/20261117_213355_fb504e",
+      "reason": "All passed; repeated quiet mode reused output filenames. Final runner adds distinct suffixes and final run retains every pair."
+    }
+  ],
+  "dll_sha256": "d7761f5f0586390f130a55014d346183c7e6f208fb4778b17c97b1fdd29abf77"
+}

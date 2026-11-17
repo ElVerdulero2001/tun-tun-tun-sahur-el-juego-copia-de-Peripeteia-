@@ -16,6 +16,8 @@ var max_active := 0
 var max_known := 0
 var revision := 0
 var checkpoint := PackedByteArray()
+var expired := {}
+var confirmed_ids := {}
 
 func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
@@ -35,6 +37,8 @@ func _ready() -> void:
 	check("history_start", history.start(adapter, ClientPrediction.new(), step_actor))
 	history.effect_ready.connect(func(_id: int, _kind: String): effects += 1)
 	history.action_confirmed.connect(func(_id: int, _kind: String, _r: int, _a: int): confirms += 1)
+	history.action_confirmed.connect(func(id: int, _kind: String, _r: int, _a: int): confirmed_ids[id] = true)
+	history.action_expired.connect(on_expired)
 	clock.tick_finished.connect(after_tick)
 	# Jolt must have installed the actor/static shapes before its first queries.
 	await get_tree().physics_frame
@@ -45,9 +49,12 @@ func _ready() -> void:
 		clock._run_tick()
 		if checks.any(func(c): return not c.passed): break
 	check("900_actions_450_cycles", effects == 900 and adapter.ready_for_input)
+	check("ack_at_120_confirmed_without_expiry", confirmed_ids.has(1360) and not expired.has(1360))
+	check("all_18_unconfirmed_actions_expired_once", expired.size() == 18)
 	check("action_memory_bounded", max_active <= 122 and max_known <= 122 and history._confirmed.size() <= 122)
 	if adapter.ready_for_input and clock.tick == 900:
 		var reference = make_world(); reference.restore_trusted(adapter.world.snapshot_trusted())
+		check("queue_before_suspension", history.queue_action(901, 1802, "grab").status == "queued")
 		adapter.invalidate_history_from(899, "actor")
 		for _i in 140:
 			clock._run_tick(); reference.step(SimClock.TICK_DT)
@@ -56,6 +63,8 @@ func _ready() -> void:
 		check("current_authority_recovers_long_suspension", history.apply_authority_trusted(envelope(1040, reference.snapshot_trusted(), [ack(699)])))
 		check("retired_unconfirmed_ack_has_no_late_callback", confirms == before_confirms and effects == 900)
 		check("long_suspension_exact", var_to_bytes(adapter.world.samples()) == var_to_bytes(reference.samples()))
+		check("late_ack_never_confirms_expired_action", not confirmed_ids.has(1398) and expired.size() == 19)
+		check("unexecuted_action_expires_during_suspension", expired.has(1802) and not confirmed_ids.has(1802) and effects == 900)
 	var failures := checks.filter(func(c): return not c.passed).size()
 	var result := {"mode": "action_window", "status": "PASSED" if failures == 0 else "FAILED", "failures": failures,
 		"checks": checks, "actions": 900, "effects": effects, "confirmations_emitted": confirms,
@@ -105,8 +114,9 @@ func after_tick(tick: int) -> void:
 		check("native_ready_%d_%s" % [tick, adapter.last_error], false)
 		return
 	if tick == 690: checkpoint = adapter.world.snapshot_trusted()
-	if tick <= 680 or tick >= 700:
+	if tick <= 679 or tick >= 700:
 		var conf: Array = [ack(tick)]
+		if tick == 800: conf.append(ack(680)) # last eligible tick, d=120
 		if tick > 130: conf.append(ack(1)) # retired ACK must not grow sets/re-emit
 		var before := effects
 		var p: Dictionary
@@ -132,3 +142,11 @@ func after_tick(tick: int) -> void:
 func check(id: String, passed: bool) -> void:
 	checks.append({"id": id, "passed": passed})
 	if not passed: push_error("CHECK_FAILED: " + id)
+
+func on_expired(id: int, kind: String, requested_tick: int) -> void:
+	check("expiry_once_%d" % id, not expired.has(id))
+	check("expiry_unconfirmed_%d" % id, not confirmed_ids.has(id))
+	check("expiry_exact_boundary_%d" % id, clock.tick == requested_tick + 121)
+	check("expiry_original_identity_%d" % id, id == requested_tick * 2 and kind == ("grab" if requested_tick % 2 else "release"))
+	check("expiry_cleanup_before_callback_%d" % id, not history._known_actions.has(id) and adapter.is_retired_action(id))
+	expired[id] = true

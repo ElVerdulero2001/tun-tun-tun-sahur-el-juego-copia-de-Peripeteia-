@@ -1,3 +1,5 @@
+**Entrega experimental actual: 15.** [Revision de Claude 14 y encargo siguiente](entregas/revision_codex_entrega_14.md). Corrige cierre falso por latidos no confiables y agrega aviso de vencimiento. Espera revision independiente; net_lab conserva su recorrido anterior.
+
 # Guía del laboratorio de red
 
 **Entrega experimental actual de objetos, entrega 14:** [revisión de Claude 13 y correcciones de cierre, futuro y acciones](entregas/revision_codex_entrega_13.md). Claude comprobó recepción/replay real, con ventanas sin cobertura y tres hallazgos conservados en su informe. Se corrigieron el cierre de un solo lado, la inanición del cliente atrasado y el tope por duración de acciones. Pasan las pruebas propias nuevas, 900 acciones, los 16 modos anteriores y los dos de red; las correcciones esperan revisión independiente. Net_lab todavía conserva su recorrido anterior.

@@ -72,7 +72,9 @@ func _remote_close(data: PackedByteArray) -> void:
 	if not _valid_peer_control(data): return
 	last_error = "peer_closed"; stop(false)
 
-@rpc("any_peer", "call_remote", "unreliable", 0)
+# Liveness must survive ENet's unreliable packet throttle, including idle links.
+# Control channel 0 stays independent of snapshot fragments on channel 1.
+@rpc("any_peer", "call_remote", "reliable", 0)
 func _heartbeat(data: PackedByteArray) -> void:
 	if not _valid_peer_control(data): return
 	_peer_active = true; _last_peer_activity = Time.get_ticks_msec()

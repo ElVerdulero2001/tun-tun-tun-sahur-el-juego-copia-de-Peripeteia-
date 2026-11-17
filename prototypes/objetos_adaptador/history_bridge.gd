@@ -6,6 +6,8 @@ signal history_rebuilt(first_tick: int, last_tick: int)
 signal authority_needed(reason: String)
 signal effect_ready(action_id: int, kind: String)
 signal action_confirmed(action_id: int, kind: String, requested_tick: int, applied_tick: int)
+## Confirmation window elapsed, NOT an authority rejection or permission to retry.
+signal action_expired(action_id: int, kind: String, requested_tick: int)
 
 const HISTORY_TICKS := 120
 const HISTORY_BYTES := 262144
@@ -77,6 +79,8 @@ func queue_action(tick: int, id: int, kind: String, anchor := Vector3.ZERO, impu
 
 func _tick_finished(tick: int) -> void:
 	_actor_tick = tick
+	# Retirement/notification also runs when input capture or prediction stopped.
+	_trim()
 	if not _pending_inputs.has(tick):
 		actor_baseline_ready = false
 		adapter.invalidate_history_from(tick, "actor")
@@ -226,9 +230,14 @@ func _trim() -> void:
 		var oldest: int = _frames.keys().min()
 		for tick in _commands.keys():
 			if tick < oldest: _commands.erase(tick)
+	var expired: Array = []
 	for id in _known_actions.keys():
 		if adapter.is_retired_action(id):
+			if not _confirmed.has(id): expired.append(_known_actions[id])
 			_known_actions.erase(id); _effects.erase(id); _confirmed.erase(id)
+	# Finish cleanup before callbacks: a listener may query or re-enter the API.
+	for command in expired:
+		action_expired.emit(command.id, command.kind, command.tick)
 
 func _reset_history() -> void:
 	_frames.clear(); _states.clear(); _pending_inputs.clear(); _commands.clear(); _bytes = 0

@@ -1,3 +1,5 @@
+**Entrega 15:** [revision de Claude 14 y correcciones](entregas/revision_codex_entrega_14.md). H1 y H2 aceptados: latidos confiables y senal de vencimiento de acciones sin confirmar. Ver evidencia y limites en el informe. Espera revision independiente; laboratorio sin migrar.
+
 # Coordinación de la reconstrucción de objetos
 
 ## Reparto acordado

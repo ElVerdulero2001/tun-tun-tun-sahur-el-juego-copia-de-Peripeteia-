@@ -1,3 +1,5 @@
+**Entrega 15:** [contrato y validacion pendiente](../../docs/net/entregas/revision_codex_entrega_14.md). Heartbeat confiable en canal 0; intervalo/lease sin cambios. history_bridge.action_expired(id, kind, requested_tick) avisa una vez cuando se retira una accion sin confirmar (tick solicitado + 121). No equivale a rechazo ni habilita reintento de inventario. Ambos extremos deben usar el canal actualizado. Las subclases de prueba con override RPC no confiable deben adaptarse para medir el nuevo canal.
+
 # Estados nativos por ENet y correcciones por NetSync — entregas 13 y 14
 
 **Correcciones de la entrega 14:** [contrato y evidencia de cierre, futuro y retiro de acciones](../../docs/net/entregas/revision_codex_entrega_13.md). El cliente conserva un futuro pendiente y un único sucesor; el cierre se comunica y hay heartbeat/plazo de ausencia. Los IDs son crecientes y los callbacks de acciones retiradas caducan; no sirven de ledger persistente de inventario.

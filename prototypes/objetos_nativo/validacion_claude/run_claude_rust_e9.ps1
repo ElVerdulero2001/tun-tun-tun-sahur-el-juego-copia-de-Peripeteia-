@@ -76,7 +76,8 @@ try {
     $envOld = $envNew.Clone(); $envOld['CARGO_TARGET_DIR'] = Join-Path $repo 'tmp\native_target_baseline'
     $cb = Run-Bounded 'compile_baseline' $cargo @('test', '--no-default-features', '--no-run', '--manifest-path', (Join-Path $wt 'native\objetos_core\Cargo.toml'), '--locked', '--offline', '--test', 'claude_e9_cost', '--message-format=json-render-diagnostics') 180 $envOld
     if ($cb.rec.exit_code -ne 0) { throw ('Compilacion de la base fallida. Logs: ' + $out) }
-    $baseline = (Get-Exes $cb.stdout 'claude_e9_cost')[0].exe
+    $baseline = @(Get-Exes $cb.stdout 'claude_e9_cost')[0].exe
+    if (-not $baseline) { throw 'Sin ejecutable de costo de la base' }
     $baseSha = (Get-FileHash -LiteralPath $baseline -Algorithm SHA256).Hash.ToLowerInvariant()
     foreach ($x in $exes) {
         if ($x.name -in @('claude_e9_cost', 'claude_e9_step_after')) { continue }

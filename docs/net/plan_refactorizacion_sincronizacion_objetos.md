@@ -1,3 +1,5 @@
+**Estado actual: entrega 16.** [Registro host y limites de integracion](entregas/revision_codex_entrega_15.md). Las correcciones de latidos y vencimiento quedaron aprobadas por Claude. Se construye el registro de ejecucion idempotente por vinculo; permisos/alcance y rechazo remoto todavia no estan integrados.
+
 # Plan de refactorización y reconstrucción de la sincronización de objetos
 
 **Estado actual, entrega 14:** [revisión de Claude 13 y correcciones](entregas/revision_codex_entrega_13.md). La recepción/replay real fue comprobada en el alcance informado, sin aprobar todas las ventanas. Antes de integrar se corrigen tres hallazgos: cierre remoto/ausencia, cliente atrasado con dos slots acotados y registro de acciones con IDs crecientes y retiro por ventana. La entrega espera revisión independiente; no cambia producción ni migra net_lab. Concesiones/inventario/InvHands, varias manos, catálogo, presentación, notebook y modelo completo siguen pendientes. Los estados anteriores son historial.

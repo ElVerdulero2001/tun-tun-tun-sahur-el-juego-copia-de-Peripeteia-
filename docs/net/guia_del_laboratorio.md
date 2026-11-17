@@ -1,3 +1,5 @@
+**Entrega experimental actual: 16.** [Registro de acciones del host](entregas/revision_codex_entrega_15.md). Claude aprobo latidos/vencimiento de la 15. Registro reutilizable y escena ENet nuevos esperan validacion independiente; net_lab conserva su recorrido anterior.
+
 **Entrega experimental actual: 15.** [Revision de Claude 14 y encargo siguiente](entregas/revision_codex_entrega_14.md). Corrige cierre falso por latidos no confiables y agrega aviso de vencimiento. Espera revision independiente; net_lab conserva su recorrido anterior.
 
 # Guía del laboratorio de red

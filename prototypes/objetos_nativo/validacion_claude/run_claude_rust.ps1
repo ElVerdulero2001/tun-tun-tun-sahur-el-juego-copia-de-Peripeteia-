@@ -45,7 +45,7 @@ $manifest = Join-Path $repo 'native\objetos_core\Cargo.toml'
 $c = Run-Bounded 'compile' (Join-Path $ToolchainBin 'cargo.exe') @('test', '--no-default-features', '--no-run', '--manifest-path', $manifest, '--locked', '--offline', '--message-format=json-render-diagnostics') 180 $envBuild
 if ($c.rec.exit_code -ne 0 -or $c.rec.timed_out) { throw ('Compilacion fallida. Logs: ' + $out) }
 $exes = @($c.stdout -split "`n" | ForEach-Object { try { $_ | ConvertFrom-Json } catch {} } |
-    Where-Object { $_.reason -eq 'compiler-artifact' -and $_.profile.test -and $_.executable -and $_.target.name -like 'claude_*' } |
+    Where-Object { $_.reason -eq 'compiler-artifact' -and $_.profile.test -and $_.executable -and $_.target.name -like 'claude_*' -and $_.target.name -notlike 'claude_diag_*' } |
     ForEach-Object { [ordered]@{ name = $_.target.name; exe = $_.executable } })
 if ($exes.Count -ne 5) { throw ('Se esperaban 5 ejecutables claude_*, hay ' + $exes.Count) }
 $records = @()

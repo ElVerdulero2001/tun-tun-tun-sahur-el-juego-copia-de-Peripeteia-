@@ -23,7 +23,10 @@ for (const r of runner.runs) {
   const tests = Object.fromEntries(lines.map((l) => /^test (\S+) \.\.\. (ok|FAILED)/.exec(l) ?? /^test (\S+) \.\.\. .*?(ok|FAILED)$/.exec(l)).filter(Boolean).map((m) => [m[1], m[2]]));
   const missing = (expected[r.name] ?? []).filter((t) => !done.includes(t));
   out.processes.push({ name: r.name, exit: r.exit_code, ms: r.ms, timed_out: r.timed_out, done, tests, missing });
-  for (const l of lines) {
+  // libtest escribe "test nombre ... " sin salto antes de la primera salida de cada prueba.
+  for (const raw of lines) {
+    const at = Math.max(raw.indexOf('CLAUDE_CHECK\t'), raw.indexOf('CLAUDE_TRAJ_SHA\t'));
+    const l = at >= 0 ? raw.slice(at) : raw;
     if (l.startsWith('CLAUDE_TRAJ_SHA\t')) sha[r.name] = l.split('\t')[1];
     if (!l.startsWith('CLAUDE_CHECK\t')) continue;
     const [, id, verdict, metric, tol] = l.split('\t');

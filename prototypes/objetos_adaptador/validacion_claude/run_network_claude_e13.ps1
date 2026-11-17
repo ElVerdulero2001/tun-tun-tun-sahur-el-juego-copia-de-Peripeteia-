@@ -12,7 +12,7 @@ param(
     [switch]$CheckOnly
 )
 $ErrorActionPreference = 'Stop'
-$pairs = @('base', 'delay', 'time_order', 'time_old', 'conflict_pause', 'future', 'big', 'rpc')
+$pairs = @('base', 'delay', 'time_order', 'time_old', 'conflict_pause', 'future', 'big', 'rpc', 'quiet')
 $known = $pairs + @('capacity')
 $list = @($Modes -split '[,\s]+' | Where-Object { $_ })
 foreach ($m in $list) { if ($known -notcontains $m) { throw ('Modo desconocido: ' + $m) } }

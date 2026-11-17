@@ -19,7 +19,8 @@ add('proceso', 'G0_copias', pf(copiesOk && (runner?.copies || []).length > 0), `
 add('proceso', 'G0_dll', 'INFO', runner?.dll_sha256 || '?');
 for (const r of runner?.records || []) {
   const scriptErr = r.error_lines.filter((l) => /^SCRIPT ERROR:|^USER ERROR:/.test(l) || (/^ERROR:/.test(l) && !/CHECK_FAILED|root certificate/.test(l)));
-  add('proceso', `G0_${r.name}`, pf(!r.timed_out && r.result !== false && scriptErr.length === 0 && (r.name === 'import' || r.result)),
+  // Corrección tras la primera corrida: la importación no escribe resultado; antes se exigía igual.
+  add('proceso', `G0_${r.name}`, pf(!r.timed_out && scriptErr.length === 0 && (r.name === 'import' || r.result)),
     `exit ${r.exit_code}, ${r.ms} ms, vencido=${r.timed_out}, lineas=${r.error_lines.length}, otras=${JSON.stringify(scriptErr.slice(0, 3))}`, '< 8 s, sin errores de script');
 }
 
@@ -114,13 +115,15 @@ function gradeMode(mode) {
   const cs = cli.struct, hs = host.struct;
   const capKeys = { bridge_ticks: 120, bridge_bytes: 262144, adapter_ticks: 120, bridge_pending: 1, channel_rx: MAX_BYTES };
   const capBad = Object.entries(capKeys).filter(([k, v]) => Math.max(cs.first[k] ?? 0, cs.second[k] ?? 0) > v);
-  const hostBad = Math.max(hs.first.inputs ?? 0, hs.second.inputs ?? 0) > 241;
+  // Corrección tras la primera corrida: NetSync recorta _claims con la misma regla que _inputs
+  // (INPUT_HISTORY_TICKS), así que lleva la misma cota; antes figuraba entre las "sin cota".
+  const hostBad = Math.max(hs.first.inputs ?? 0, hs.second.inputs ?? 0, hs.first.claims ?? 0, hs.second.claims ?? 0) > 241;
   add(mode, 'B5_estructuras_acotadas', pf(capBad.length === 0 && !hostBad && cli.rx_watch.max_rx <= MAX_BYTES && cli.provenance.slow_not_drained === 0),
     { excedidas: capBad, host_inputs: [hs.first.inputs, hs.second.inputs], max_rx: cli.rx_watch.max_rx, max_pendiente: cli.rx_watch.max_pending });
   if (mode === 'base') {
     const unc = ['pending_inputs', 'commands', 'pred_inputs', 'pred_states', 'pred_claimed', 'events', 'spans', 'tap_queue', 'adapter_pending', 'adapter_queued', 'known_actions', 'adapter_actions'];
     const grew = unc.filter((k) => (cs.second[k] ?? 0) > (cs.first[k] ?? 0));
-    const hostGrew = ['claims', 'adapter_actions'].filter((k) => (hs.second[k] ?? 0) > (hs.first[k] ?? 0));
+    const hostGrew = ['adapter_actions'].filter((k) => (hs.second[k] ?? 0) > (hs.first[k] ?? 0));
     add(mode, 'B5_sin_crecimiento_200_ticks', pf(grew.length === 0 && hostGrew.length === 0), { crecen_cliente: grew.map((k) => [k, cs.first[k], cs.second[k]]),
       crecen_host: hostGrew, primera: cs.first, segunda: cs.second }, 'segunda mitad <= primera en lo que no tiene cota');
     add(mode, 'I_objetos_godot', 'INFO', { cliente: [cs.first.objects, cs.second.objects], host: [hs.first.objects, hs.second.objects] });
@@ -132,7 +135,9 @@ function gradeMode(mode) {
   if (mode === 'delay') {
     let mx = -1, late = 0; for (const t of cli.tap.executed_snapshots) { if (t < mx) late++; mx = Math.max(mx, t); }
     add(mode, 'I_snapshots_desordenados', 'INFO', { desordenados: late, ejecutados: cli.tap.executed_snapshots.length, perdidos_netsync: cli.final.snapshots_missing });
-    const lag = host.publishes.filter((p) => p.tick !== ft).map((p) => p.at - p.tick);
+    // Corrección tras la primera corrida: el vaciado del tick final publica también el sobre
+    // del tick 76 (demora 4) por diseño de mi instrumento; la demora se exige antes del vaciado.
+    const lag = host.publishes.filter((p) => p.at !== ft).map((p) => p.at - p.tick);
     add(mode, 'M_delay_publicacion_tardia', pf(lag.length > 0 && lag.every((d) => d >= 6)), { demoras: [...new Set(lag)] });
   }
   if (mode === 'time_order') {
@@ -222,7 +227,7 @@ function gradeCapacity() {
   'confirmado si 1..256 entran, desde 257 action_capacity, y los registros conservan 256 ids con el diario <= 120');
 }
 
-for (const m of runner?.modes || []) { if (m === 'capacity') gradeCapacity(); else gradeMode(m); }
+for (const m of runner?.modes || []) { if (m === 'capacity') gradeCapacity(); else if (m !== 'quiet') gradeMode(m); }
 const summary = out.reduce((s, c) => { s[c.verdict] = (s[c.verdict] || 0) + 1; return s; }, {});
 for (const c of out) console.log(`${c.verdict.padEnd(6)} [${c.mode}] ${c.id}: ${c.metric.slice(0, 400)}${c.tol ? '  [' + c.tol + ']' : ''}`);
 console.log(JSON.stringify(summary));

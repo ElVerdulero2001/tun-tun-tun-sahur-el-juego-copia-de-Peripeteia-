@@ -13,7 +13,7 @@ const Channel = preload("res://prototypes/objetos_adaptador/authority_channel.gd
 const NetworkBridge = preload("res://prototypes/objetos_adaptador/scene_network_bridge.gd")
 const TapLink = preload("res://prototypes/objetos_adaptador/validacion_claude/cv13_tap_link.gd")
 const ACTOR = preload("res://scenes/actor/actor.tscn")
-const PAIR_MODES := ["base", "delay", "time_order", "time_old", "conflict_pause", "future", "big", "rpc"]
+const PAIR_MODES := ["base", "delay", "time_order", "time_old", "conflict_pause", "future", "big", "rpc", "quiet"]
 const RELEASE_IMPULSE := Vector3(1.5, 2, -1)
 const BOX_TARGET_BYTES := 24000
 const BOX_COUNTS := [8, 16, 32, 64, 120]
@@ -94,6 +94,9 @@ var current_case := ""
 var close_res := {}
 var after_close := {}
 var cap: Array = []
+# Diagnóstico agregado después de la primera corrida: estadísticas de ENet del
+# peer remoto por tick (estrangulamiento, pérdida, ida y vuelta).
+var enet_stats := {}
 
 func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
@@ -295,6 +298,10 @@ func step_actor(input: ActorInput) -> void:
 func after_tick(tick: int) -> void:
 	if mode == "capacity":
 		capacity_tick(tick); return
+	var enet: ENetPacketPeer = (multiplayer.multiplayer_peer as ENetMultiplayerPeer).get_peer(peer_id if role == "host" else 1)
+	if enet != null:
+		enet_stats[str(tick)] = [enet.get_statistic(ENetPacketPeer.PEER_PACKET_THROTTLE), enet.get_statistic(ENetPacketPeer.PEER_PACKET_LOSS),
+			enet.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME), enet.get_statistic(ENetPacketPeer.PEER_LAST_ROUND_TRIP_TIME)]
 	if role == "host":
 		host_ticks[str(tick)] = {"world": world_sha(), "frame": frame_parts(adapter.recorded_frame(tick)),
 			"actor": sha(actor.state.to_bytes()), "used": sync.used_input_tick(peer_id), "dt": SimClock.world_dt(tick)}
@@ -324,6 +331,7 @@ func after_tick(tick: int) -> void:
 	if tick == final_tick: clock.paused = true
 
 func maybe_publish(tick: int) -> void:
+	if mode == "quiet": return # control: sin tráfico del canal de objetos
 	var every := 1 if mode == "big" else 4
 	if tick % every != 0 and tick != final_tick: return
 	var p: Dictionary = adapter.authority_scope()
@@ -390,7 +398,7 @@ func _process(_dt: float) -> void:
 			paused_by_test = false; clock.paused = false; pause_info.resumed_tick = clock.tick
 	if clock.paused:
 		network.after_actor_tick(); note_applications(true)
-	if clock.tick == final_tick and adapter.last_authority().tick == final_tick:
+	if clock.tick == final_tick and (mode == "quiet" or adapter.last_authority().tick == final_tick):
 		client_final()
 
 func host_watch() -> void:
@@ -850,7 +858,8 @@ func finish() -> void:
 	var failures := checks.filter(func(c): return not c.passed).size()
 	var result := {"role": role, "mode": mode, "final_tick": final_tick, "peer_id": peer_id, "checks": checks,
 		"failures": failures, "snapshot_bytes": snapshot_bytes, "extra_boxes": extra_boxes, "box_sizes": box_sizes,
-		"capture_failures": capture_failures, "closed_count": closed_count, "elapsed_ms": Time.get_ticks_msec() - started}
+		"capture_failures": capture_failures, "closed_count": closed_count, "elapsed_ms": Time.get_ticks_msec() - started,
+		"enet": enet_stats}
 	if role == "host":
 		result.merge({"ticks": host_ticks, "publishes": publishes, "actions_in": actions_in, "acks": acks,
 			"watch": watch, "slow_announced": slow_announced, "struct": host_struct, "final": host_final,

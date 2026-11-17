@@ -45,6 +45,8 @@ La inspección de `SimClock.apply_tick_rate` corrigió un punto del plan: el rel
 
 ## Entregas e integración
 
+**Entrega 10:** [revisión de Claude 9 y primer adaptador local](entregas/revision_codex_entrega_9.md). La corrección anterior queda aceptada en su uso trusted. Se ajustó el signo del cero y se construyó `prototypes/objetos_adaptador/`: actor/reloj reales, diario de inputs/ojos/dt y replay local acotado con efectos externos únicos. Siete modos de construcción pasan; espera validación independiente. No contiene transporte ni reemplaza el laboratorio. `../entrega_10.json` en la raíz de colaboración identifica el checkpoint.
+
 **Entrega 9:** [revisión de Claude 8 y restauración corregida](entregas/revision_codex_entrega_8.md). Condiciones 1–3 del núcleo aceptadas en el alcance independiente; D18b reproducido y corregido sin modificar instrumentos. Pasan 135 comprobaciones Rust y 79 Godot de Claude al ejecutarlas Codex; la corrección requiere revisión independiente. Capacidad medida: 27 checkpoints con 128 cuerpos en la fixture de pila. El siguiente adaptador conectará input real, SimClock, presentación y transferencia acotada antes de migrar.
 
 **Entrega 8:** [núcleo nativo construido y compilado](entregas/entrega_8_nucleo_nativo.md). Nueve pruebas Rust y siete procesos Godot de construcción pasan, incluidos aislamiento de mundos, identidad y una suelta tardía por ENet con comparación exacta en el mismo tick. La revisión independiente corresponde a Claude; el laboratorio no está migrado y el modelo completo sigue sin aprobar.

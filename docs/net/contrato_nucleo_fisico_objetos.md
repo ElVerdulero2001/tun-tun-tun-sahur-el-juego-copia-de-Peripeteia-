@@ -1,6 +1,6 @@
 # Contrato del núcleo físico de objetos: siguiente candidato
 
-2026-11-16. Decisión posterior a la validación 5. **Condiciones 1–3 verificadas independientemente en la entrega 8; entrega 9 corrige validación de contactos y pose fija.** [Revisión, evidencia y condiciones del adaptador](entregas/revision_codex_entrega_8.md). Controlador real, notebook y modelo de red completo todavía pendientes. Ver [revisión y reproducciones históricas](entregas/revision_codex_entrega_5.md).
+2026-11-17. **Condiciones 1–3 verificadas independientemente; corrección de la entrega 9 aceptada dentro del uso trusted. La entrega 10 añade un primer adaptador local al actor/reloj y comparación estricta del signo del cero.** [Revisión, evidencia y alcance](entregas/revision_codex_entrega_9.md). El driver local no aprueba la condición 4 completa: quedan transporte, correcciones del actor, múltiples manos y presentación. Notebook y modelo de red completo también pendientes. [Decisión histórica del núcleo](entregas/revision_codex_entrega_5.md).
 
 ## Problema que debe resolver
 

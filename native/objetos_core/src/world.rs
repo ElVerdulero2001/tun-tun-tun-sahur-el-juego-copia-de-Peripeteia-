@@ -594,7 +594,9 @@ impl ObjectWorld {
             }
             unpack_pose(pack_pose(body.position()))?;
             if let Some(fixed_pose) = entry.fixed_pose {
-                if !body.is_fixed() || pack_pose(body.position()) != fixed_pose {
+                if !body.is_fixed()
+                    || pack_pose(body.position()).map(f32::to_bits) != fixed_pose.map(f32::to_bits)
+                {
                     return Err(Error("snapshot_fixed_pose"));
                 }
             }
@@ -696,7 +698,7 @@ mod snapshot_validation_tests {
 
     #[test]
     fn real_fixed_pose_and_type_must_match_manifest_without_losing_cache() {
-        for case in 0..3 {
+        for case in 0..4 {
             let (mut source, key) = floor_world();
             let handle = source.state.objects[&key].body;
             let body = &mut source.state.world.bodies[handle];
@@ -706,7 +708,17 @@ mod snapshot_validation_tests {
                     pose([0.0, -0.1, 0.0], [0.0, 0.0, 0.1_f32.sin(), 0.1_f32.cos()]).unwrap(),
                     false,
                 ),
-                _ => body.set_body_type(RigidBodyType::KinematicPositionBased, false),
+                2 => body.set_body_type(RigidBodyType::KinematicPositionBased, false),
+                _ => {
+                    source
+                        .state
+                        .objects
+                        .get_mut(&key)
+                        .unwrap()
+                        .fixed_pose
+                        .as_mut()
+                        .unwrap()[0] = -0.0
+                }
             }
             // snapshot() serializes a candidate with valid checksum and unchanged manifest.
             let invalid = source.snapshot().unwrap();

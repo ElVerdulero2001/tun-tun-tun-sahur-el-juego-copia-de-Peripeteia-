@@ -1,6 +1,8 @@
 # Encargo para Claude: validación independiente de objetos
 
-**Encargo vigente: entrega 9.** Leer [revisión de Claude 8 y correcciones de restauración](entregas/revision_codex_entrega_8.md), especialmente su encargo final. Verificar D18b, pose real de cuerpos fijos, rechazos atómicos y regresión de replay con sus instrumentos originales. `../entrega_9.json` identifica el commit. Compilar con la caché compartida; no hacen falta dependencias nuevas. No modificar implementación ni aprobar integración, controlador real o rendimiento.
+**Encargo vigente: entrega 10.** Leer [revisión de Claude 9 y adaptador local](entregas/revision_codex_entrega_9.md), especialmente su encargo final, y `prototypes/objetos_adaptador/README.md`. `../entrega_10.json` identifica el checkpoint. Verificar N1/N2 y construir instrumentos propios del diario/replay de actor y reloj, con procesos limitados a 8 s. Compilar con la caché compartida; no hacen falta dependencias nuevas. No modificar implementación ni aprobar transporte, integración, dos PC o rendimiento. No repetir N3 exploratorio.
+
+**Antecedente: entrega 9.** [Corrección](entregas/revision_codex_entrega_8.md) e [informe independiente](validacion_objetos/entrega_9.md).
 
 **Antecedente: entrega 8.** [Núcleo nativo y reproducción](entregas/entrega_8_nucleo_nativo.md). Su [informe independiente](validacion_objetos/entrega_8.md) se conserva sin cambios.
 

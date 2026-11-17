@@ -1,6 +1,6 @@
 # Guía del laboratorio de red
 
-**Entrega experimental actual de objetos, entrega 9:** [revisión independiente de la 8 y correcciones de restauración](entregas/revision_codex_entrega_8.md). Claude confirmó aislamiento, identidad y replay en el alcance del ensayo; se corrigieron D18b y la pose real del piso, conservando sus pruebas. El controlador real, reloj y presentación siguen pendientes; no se migró el laboratorio.
+**Entrega experimental actual de objetos, entrega 10:** [revisión de Claude 9 y primer adaptador local de actor/reloj](entregas/revision_codex_entrega_9.md). El prototipo usa ActorInput, ActorMotor y SimClock sin modificarlos, guarda entradas/ojos/dt y repite un lanzamiento sin duplicar sus efectos. Siete escenarios de construcción pasan; falta validación independiente, transporte, integración del inventario y presentación. No se migró el laboratorio.
 
 **Preparación del núcleo, entrega 7:** [Rust/MSVC verificados; dependencias pendientes por red](entregas/preparacion_nucleo_objetos_entrega_7.md). El runtime y la decisión técnica de la entrega 6 se conservan. Todavía no hay un núcleo nuevo compilado.
 

@@ -1,6 +1,6 @@
 # Guía del laboratorio de red
 
-**Entrega experimental actual de objetos, entrega 13:** [revisión de Claude 12 y recepción real por ENet/NetSync](entregas/revision_codex_entrega_12.md). El puente de historia quedó validado (60/0/1). El nuevo canal acotado y el punto de conexión con NetSync pasan dos modos con host/cliente en procesos separados, incluida suelta tardía, replay positivo e igualdad en el mismo tick. Esperan revisión independiente. El laboratorio principal todavía no instala este recorrido.
+**Entrega experimental actual de objetos, entrega 14:** [revisión de Claude 13 y correcciones de cierre, futuro y acciones](entregas/revision_codex_entrega_13.md). Claude comprobó recepción/replay real, con ventanas sin cobertura y tres hallazgos conservados en su informe. Se corrigieron el cierre de un solo lado, la inanición del cliente atrasado y el tope por duración de acciones. Pasan las pruebas propias nuevas, 900 acciones, los 16 modos anteriores y los dos de red; las correcciones esperan revisión independiente. Net_lab todavía conserva su recorrido anterior.
 
 **Preparación del núcleo, entrega 7:** [Rust/MSVC verificados; dependencias pendientes por red](entregas/preparacion_nucleo_objetos_entrega_7.md). El runtime y la decisión técnica de la entrega 6 se conservan. Todavía no hay un núcleo nuevo compilado.
 

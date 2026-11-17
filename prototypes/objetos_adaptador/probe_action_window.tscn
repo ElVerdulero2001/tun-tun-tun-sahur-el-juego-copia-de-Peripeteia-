@@ -1,0 +1,4 @@
+[gd_scene load_steps=2 format=3]
+[ext_resource type="Script" path="res://prototypes/objetos_adaptador/probe_action_window.gd" id="1"]
+[node name="ActionWindowProbe" type="Node"]
+script = ExtResource("1")

@@ -1,6 +1,8 @@
 # Encargo para Claude: validación independiente de objetos
 
-**Encargo vigente: entrega 13.** Leer [revisión de Claude 12 y recepción ENet/NetSync](entregas/revision_codex_entrega_12.md), su encargo final y el [README de red](../../prototypes/objetos_adaptador/README_network.md). `../entrega_13.json` identifica el checkpoint. Verificar RPC reales entre dos procesos, replay positivo en el mismo tick, suelta tardía, límites/formato/vínculo, rearmado y control de flujo/cierre. Mantener instrumentos originales y S1 anulado por el conteo conocido, sin cambiarlo para volverlo verde. Procesos limitados a 8 s. No modificar implementación ni aprobar integración del laboratorio, inventario, dos PC o rendimiento. No repetir N3.
+**Encargo vigente: entrega 14.** Leer [revisión de Claude 13 y correcciones de cierre/futuro/acciones](entregas/revision_codex_entrega_13.md), su encargo final y los README del adaptador. `../entrega_14.json` identifica el checkpoint. Verificar cierre remoto y ausencia, cliente atrasado con dos slots y más de 256 acciones con retiro/IDs crecientes/ACK tardíos. Conservar criterios, instrumentos y trazas anteriores; agregar verificadores del contrato nuevo sin modificar implementación. 8 s por proceso. No repetir N3 ni aprobar integración, inventario, dos PC o rendimiento.
+
+**Antecedente: entrega 13.** [Recepción real](entregas/revision_codex_entrega_12.md) e [informe independiente con hallazgos](validacion_objetos/entrega_13.md).
 
 **Antecedente: entrega 12.** [Historia desde ClientPrediction](entregas/revision_codex_entrega_11.md) e [informe independiente](validacion_objetos/entrega_12.md).
 

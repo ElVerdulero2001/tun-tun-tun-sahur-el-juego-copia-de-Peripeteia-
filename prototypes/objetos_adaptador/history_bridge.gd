@@ -189,6 +189,7 @@ func apply_authority_trusted(packet: Dictionary) -> bool:
 		ok = adapter.recover_authority_trusted(packet, frames, adapter.recovery_generation())
 	if not ok: return _fail(adapter.last_error)
 	for ack in packet.acks:
+		if adapter.is_retired_action(ack.id): continue
 		if not _confirmed.has(ack.id):
 			_confirmed[ack.id] = true
 			action_confirmed.emit(ack.id, ack.kind, ack.requested_tick, ack.applied_tick)
@@ -200,6 +201,7 @@ func _on_effect(id: int, kind: String) -> void:
 	_emit_effect_once(id, kind)
 
 func _emit_effect_once(id: int, kind: String) -> void:
+	if adapter.is_retired_action(id): return
 	if _effects.has(id): return
 	_effects[id] = true
 	effect_ready.emit(id, kind)
@@ -224,6 +226,9 @@ func _trim() -> void:
 		var oldest: int = _frames.keys().min()
 		for tick in _commands.keys():
 			if tick < oldest: _commands.erase(tick)
+	for id in _known_actions.keys():
+		if adapter.is_retired_action(id):
+			_known_actions.erase(id); _effects.erase(id); _confirmed.erase(id)
 
 func _reset_history() -> void:
 	_frames.clear(); _states.clear(); _pending_inputs.clear(); _commands.clear(); _bytes = 0

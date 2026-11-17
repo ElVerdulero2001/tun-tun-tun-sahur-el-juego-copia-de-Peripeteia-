@@ -10,6 +10,7 @@ var own_states_received := 0
 var slow_announcements := 0
 var authorities_applied := 0
 var _pending := {}
+var _latest := {}
 var _other: Callable
 var _base: Callable
 
@@ -40,10 +41,16 @@ func _own_state(host_tick: int, state: PackedByteArray, used_tick: int, _margin:
 ## never restores inside tick_started/provider/replay.
 func after_actor_tick(_tick: int = -1) -> void:
 	var packet: Dictionary = channel.take_packet()
-	if not packet.is_empty(): _pending = packet
+	if not packet.is_empty():
+		if _pending.is_empty() or packet.tick == _pending.tick: _pending = packet
+		else: _latest = packet
 	if _pending.is_empty() or history.clock.tick != history.stats().actor_tick: return
+	# Pin the first future state until reachable. Keep only the latest successor.
+	# Once a newer state is already eligible, use it to reduce replay work.
+	if not _latest.is_empty() and _latest.tick <= history.clock.tick:
+		_pending = _latest; _latest = {}
 	if _pending.tick > history.clock.tick or not history.actor_baseline_ready: return
-	packet = _pending; _pending = {}
+	packet = _pending; _pending = _latest; _latest = {}
 	if history.apply_authority_trusted(packet):
 		authorities_applied += 1
 		object_authority_applied.emit(packet.tick, packet.revision)
@@ -51,6 +58,6 @@ func after_actor_tick(_tick: int = -1) -> void:
 		object_authority_rejected.emit(history.last_error)
 
 func _channel_closed() -> void:
-	_pending.clear()
+	_pending.clear(); _latest.clear()
 	history.actor_baseline_ready = false
 	history.adapter.invalidate_history_from(history.clock.tick, "actor")

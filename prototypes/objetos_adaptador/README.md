@@ -1,6 +1,6 @@
-# Adaptador local de objetos al actor y al reloj — entregas 10 a 13
+# Adaptador local de objetos al actor y al reloj — entregas 10 a 14
 
-**Entrega 13:** el [canal ENet y punto de conexión con NetSync](README_network.md) ejercitan recepción real en dos procesos. El registrador de la entrega 12 quedó validado; los módulos de red esperan revisión independiente. Este directorio sigue separado de net_lab.
+**Entrega 14:** [cierre remoto, estados futuros y acciones prolongadas](../../docs/net/entregas/revision_codex_entrega_13.md). La recepción/replay fue verificada en su alcance; las tres correcciones nuevas esperan revisión independiente. Este directorio sigue separado de net_lab.
 
 Experimento separado del laboratorio. Usa sin cambios `ActorInput`, `ActorBody`, `ActorMotor`, `ActorTuning`, `SimClock`, `InvAuthority.eyes` e `InvHoldMotion.target_of` del proyecto. El núcleo físico sigue siendo la GDExtension de mundos Rapier propios; Jolt mueve al actor.
 
@@ -71,7 +71,7 @@ Se recupera el mismo vínculo de conexión/contexto/objeto/mano. Una conexión, 
 
 Crear un nodo con `clock_adapter.gd`. `start(clock, actor, tuning, world_factory, uid, epoch, session)` requiere un mundo sellado compatible y el mismo tick inicial que el reloj. La factory debe devolver una instancia nueva con la misma topología/contexto. No añade autoloads ni cambia el reloj o el input del personaje.
 
-El proveedor de inputs de la escena llama `capture(input)` **antes** de devolverlo a `SimClock`. Las acciones son explícitas: `queue_action(tick, id, "grab", anchor)` o `queue_action(tick, id, "release", Vector3.ZERO, impulse)`. Solo caben una transición por tick y dos ticks de cola; un ID repetido con el mismo contenido no ejecuta otra acción, y con contenido distinto se rechaza. Se conservan hasta 256 identidades de acción por sesión; agotar ese límite requiere otra sesión, no reutilizar IDs.
+El proveedor de inputs de la escena llama `capture(input)` **antes** de devolverlo a `SimClock`. Las acciones son explícitas: `queue_action(tick, id, "grab", anchor)` o `queue_action(tick, id, "release", Vector3.ZERO, impulse)`. Solo caben una transición por tick y dos ticks de cola; un ID repetido con el mismo contenido no ejecuta otra acción, y con contenido distinto se rechaza. Los IDs nuevos son estrictamente crecientes y nunca se reutilizan. Se retiran registros anteriores a tick_actual - 120 mediante una marca; los reintentos retirados se rechazan. El límite 256 es de registros activos, no de acciones durante toda la partida. ACK de acciones retiradas no emiten efectos ni una primera confirmación tardía; un ledger persistente de inventario queda fuera de esta ventana.
 
 Esta API no concede permisos: las validaciones de alcance, dueño, sesión, inventario y concesiones del host deberán precederla al integrar. Ningún RPC nuevo recibe estas llamadas. Los controles reales de agarre/suelta siguen usando el sistema anterior del laboratorio.
 

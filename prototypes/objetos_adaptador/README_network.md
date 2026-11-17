@@ -1,4 +1,6 @@
-# Estados nativos por ENet y correcciones por NetSync — entrega 13
+# Estados nativos por ENet y correcciones por NetSync — entregas 13 y 14
+
+**Correcciones de la entrega 14:** [contrato y evidencia de cierre, futuro y retiro de acciones](../../docs/net/entregas/revision_codex_entrega_13.md). El cliente conserva un futuro pendiente y un único sucesor; el cierre se comunica y hay heartbeat/plazo de ausencia. Los IDs son crecientes y los callbacks de acciones retiradas caducan; no sirven de ledger persistente de inventario.
 
 El recorrido de esta entrega usa dos procesos y los mensajes reales de `NetSync`: el cliente manda inputs/estados afirmados, el host simula al actor y publica snapshots, y `scene_network_bridge.gd` lleva el estado propio recibido al `history_bridge` validado. Los estados del mundo nativo viajan por `authority_channel.gd`. El laboratorio principal todavía no instancia estos componentes.
 
@@ -26,8 +28,8 @@ No se modificaron `NetSync`, su formato de paquetes, `SimClock`, `ActorMotor` ni
 | Snapshot dentro del sobre | hasta 1 048 620 bytes; hasta 16 ACK únicos |
 | Envío | hasta 8 fragmentos por callback `_process`; un envío en vuelo y un único sobre pendiente reemplazable |
 | Control de flujo | el siguiente envío espera el ACK remoto de **transferencia completa**, separado de los ACK físicos del sobre |
-| Caducidad | 5 s desde inicio, no renovados por duplicados; el envío vencido detiene el vínculo |
-| Recepción pendiente | un único estado completo, el más reciente por revisión/tick |
+| Caducidad | transferencia: 5 s desde inicio; ausencia del peer: 5 s desde su última actividad, con heartbeat cada 500 ms tras primer tráfico; inicialización: 5 s |
+| Recepción pendiente | un estado en el canal; en el puente, un futuro fijado y un único sucesor más reciente |
 | Reconexión | nodo nuevo, adaptador nuevo y nueva época de conexión; un canal detenido no se reutiliza |
 
 La cabecera contiene magic, conexión, transferencia, tamaño total, índice/cantidad y SHA-256 del sobre completo. Se verifican remitente/vínculo, dimensiones, duplicados coherentes, SHA y ámbito antes de entregar el sobre al registrador. Un fragmento repetido idéntico es idempotente; uno conflictivo descarta esa transferencia. Fragmentos fuera de orden se rearman; transferencias anteriores no resucitan. No se usa `bytes_to_var` ni se crean objetos desde el wire.
@@ -36,7 +38,7 @@ Los RPC guardan sobres; **no restauran mundos nativos dentro del callback de red
 
 Son cotas de contenido retenido por la aplicación y del trabajo enviado por callback. Hay copias temporales al serializar/rearmar, buffers de Godot/ENet, metadatos y dos mundos durante la corrección. No equivalen a una cota de RAM del proceso. El tamaño máximo no certifica que todos los equipos/redes lo transfieran antes de la caducidad. No se midió throughput sostenido ni memoria pico en la notebook.
 
-Al cerrarse el canal se descarta el estado pendiente, se invalida la historia y se detiene la predicción del objeto. El dueño de la escena conserva el cierre de sesión y la reconstrucción de nodos/concesiones; este canal no cambia ni reinicia por su cuenta la conexión del actor.
+Al cerrarse el canal se avisa por RPC confiable de control al peer activo, se descartan ambos slots del puente, se invalida la historia y se detiene la predicción del objeto. Un aviso perdido se detecta por ausencia de actividad. La escena debe comenzar a publicar o pedir dentro de los 5 s iniciales. Los controles llevan los 52 bytes del ámbito completo y no importan snapshots. El dueño de la escena conserva el cierre de sesión y la reconstrucción de nodos/concesiones; este canal no cambia ni reinicia por su cuenta la conexión del actor.
 
 ## Pedidos y confirmaciones de acciones
 
@@ -59,3 +61,7 @@ El runner copia fuentes exactas a un proyecto temporal e instala allí la DLL ya
 Se compara el hash de poses/velocidades nativas entre procesos en el mismo tick **después de un replay positivo desde un checkpoint posterior a la suelta**, antes del checkpoint final. También se exige igualdad final, correcciones reales del personaje, historial de replay, efectos únicos y confirmaciones únicas. Las pruebas de formato, conflicto, timeout y presión usan un nodo de transporte adicional vinculado a la conexión real, mediante puntos de prueba locales; sus buffers opacos nunca entran al deserializador nativo. Los ACK reales de transferencia sí corren entre los dos procesos.
 
 No se certifican todavía `net_lab.gd` migrado, controles de InvHands, selección/alcance, inventario, múltiples manos, catálogo variable, presentación, notebook o dos PC físicas. El siguiente paso es instalar este recorrido en una escena utilizable del laboratorio, con las concesiones y representación de objetos correspondientes.
+
+## Reproducir las correcciones de ciclo de vida
+
+`tools/testing/run_object_lifecycle_probe.ps1` ejecuta cliente atrasado, cierre normal, timeout inducido, lease de cinco segundos reales y una fixture de 900 acciones con 140 ticks adicionales suspendidos. Cada proceso está limitado a 8 s. El bucle manual de acciones no mide cuadros ni rendimiento de la notebook. El informe enlazado describe la política de callbacks retirados y los criterios independientes pendientes.

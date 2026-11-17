@@ -1,6 +1,6 @@
 # Contrato del núcleo físico de objetos: siguiente candidato
 
-2026-11-17. **Núcleo, adaptador local, API de autoridad/recuperación y registrador desde ClientPrediction verificados independientemente en sus alcances. La entrega 13 agrega recepción real por ENet/NetSync en una escena de dos procesos, pendiente de revisión independiente.** [Revisión, evidencia y alcance](entregas/revision_codex_entrega_12.md). El núcleo no cambia; net_lab todavía no instala el recorrido. Esto no aprueba la condición 4 completa. Concesiones/inventario, múltiples manos, presentación, notebook y modelo de red completo siguen pendientes. [Decisión histórica del núcleo](entregas/revision_codex_entrega_5.md).
+2026-11-17. **Núcleo, adaptador e historia real validados en sus alcances. Claude 13 comprobó replay por ENet/NetSync y encontró tres limitaciones de integración. La entrega 14 corrige cierre, espera de estados futuros y duración de los IDs de acción; espera revisión independiente.** [Revisión, evidencia y alcance](entregas/revision_codex_entrega_13.md). El núcleo no cambia y net_lab todavía no instala el recorrido. La condición 4 completa, inventario/concesiones, varias manos, presentación, notebook y modelo de red completo siguen pendientes.
 
 ## Problema que debe resolver
 

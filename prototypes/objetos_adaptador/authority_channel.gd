@@ -12,6 +12,7 @@ const MAX_BYTES := 1050000
 const MAX_CHUNKS := 1094
 const CHUNKS_PER_FRAME := 8
 const TIMEOUT_MS := 5000
+const HEARTBEAT_MS := 500
 const SCOPE_FIELDS := ["connection", "context", "uid", "epoch", "hold_session"]
 var last_error := ""
 var sent_chunks := 0
@@ -35,6 +36,9 @@ var _last_revision := 0
 var _last_sent_revision := 0
 var _last_sent_tick := -1
 var _last_tick := -1
+var _peer_active := false
+var _last_peer_activity := 0
+var _last_heartbeat := 0
 
 func start(scope: Dictionary, target_peer: int = 1) -> bool:
 	if _ever_bound or not _valid_scope(scope) or multiplayer.multiplayer_peer == null \
@@ -44,14 +48,43 @@ func start(scope: Dictionary, target_peer: int = 1) -> bool:
 	if target_peer not in multiplayer.get_peers() or (_sender and target_peer == 1) or (not _sender and target_peer != 1):
 		return _fail("invalid_peer")
 	_scope = scope.duplicate(true); _peer = target_peer; _bound = true; _ever_bound = true
+	_last_peer_activity = Time.get_ticks_msec(); _last_heartbeat = _last_peer_activity
 	multiplayer.peer_disconnected.connect(_peer_left)
 	multiplayer.server_disconnected.connect(stop)
 	return true
 
-func stop() -> void:
+func stop(notify_peer: bool = true) -> void:
 	if not _bound: return
+	# No remote control on local parser-only nodes: actual traffic establishes
+	# that the peer has this RPC path. Before first traffic the 5s startup lease
+	# still expires. A caller must publish/request within that initialization lease.
+	if notify_peer and _peer_active and _can_send(): _remote_close.rpc_id(_peer, _control_scope())
 	_bound = false; _rx.clear(); _tx.clear(); _pending.clear(); _next_packet.clear()
 	closed.emit()
+
+func _can_send() -> bool:
+	return multiplayer.multiplayer_peer != null \
+		and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED \
+		and _peer in multiplayer.get_peers()
+
+@rpc("any_peer", "call_remote", "reliable", 0)
+func _remote_close(data: PackedByteArray) -> void:
+	if not _valid_peer_control(data): return
+	last_error = "peer_closed"; stop(false)
+
+@rpc("any_peer", "call_remote", "unreliable", 0)
+func _heartbeat(data: PackedByteArray) -> void:
+	if not _valid_peer_control(data): return
+	_peer_active = true; _last_peer_activity = Time.get_ticks_msec()
+
+func _control_scope() -> PackedByteArray:
+	var b := StreamPeerBuffer.new(); _write_scope(b, _scope)
+	return b.data_array
+
+func _valid_peer_control(data: PackedByteArray) -> bool:
+	if not _bound or multiplayer.get_remote_sender_id() != _peer or data.size() != 52: return false
+	var b := StreamPeerBuffer.new(); b.data_array = data
+	return _read_scope(b, _scope)
 
 func _peer_left(id: int) -> void:
 	if id == _peer: stop()
@@ -82,6 +115,11 @@ func stats() -> Dictionary:
 
 func _process(_delta: float) -> void:
 	if not _bound: return
+	var now := Time.get_ticks_msec()
+	if now - _last_peer_activity > TIMEOUT_MS:
+		last_error = "peer_idle_timeout"; stop(); return
+	if _peer_active and now - _last_heartbeat >= HEARTBEAT_MS and _can_send():
+		_last_heartbeat = now; _heartbeat.rpc_id(_peer, _control_scope())
 	if not _rx.is_empty() and Time.get_ticks_msec() - _rx.started > TIMEOUT_MS:
 		_rx.clear(); last_error = "transfer_timeout"
 	if not _sender: return
@@ -102,6 +140,7 @@ func _process(_delta: float) -> void:
 		b.put_u32(_tx.data.size()); b.put_u16(_tx.index); b.put_u16(count); b.put_data(_tx.digest)
 		b.put_data(_tx.data.slice(_tx.index * CHUNK_BYTES, mini((_tx.index + 1) * CHUNK_BYTES, _tx.data.size())))
 		max_wire_bytes = maxi(max_wire_bytes, b.data_array.size())
+		_peer_active = true
 		_receive_chunk.rpc_id(_peer, b.data_array)
 		sent_chunks += 1; _tx.index += 1
 		if _tx.index == count: _tx.awaiting_ack = true
@@ -110,10 +149,13 @@ func _process(_delta: float) -> void:
 func _transfer_ack(id: int) -> void:
 	if not _bound or not _sender or multiplayer.get_remote_sender_id() != _peer or _tx.is_empty(): return
 	if id != _tx.id or not _tx.awaiting_ack: return
+	_last_peer_activity = Time.get_ticks_msec(); _peer_active = true
 	transfer_acks += 1; _tx.clear()
 
 @rpc("authority", "call_remote", "reliable", 1)
 func _receive_chunk(data: PackedByteArray) -> void:
+	if _bound and not _sender and multiplayer.get_remote_sender_id() == _peer:
+		_peer_active = true; _last_peer_activity = Time.get_ticks_msec()
 	accept_host_chunk(multiplayer.get_remote_sender_id(), data, true)
 
 ## Also exposed as a deterministic validation seam; callers cannot bypass the
@@ -165,6 +207,7 @@ func request_action(action: Dictionary) -> bool:
 	b.put_u32(action.id); b.put_u32(action.tick); b.put_u8(1 if action.kind == "grab" else 2)
 	for v: Vector3 in [action.anchor, action.impulse]:
 		b.put_float(v.x); b.put_float(v.y); b.put_float(v.z)
+	_peer_active = true
 	_submit_action.rpc_id(1, b.data_array)
 	return true
 
@@ -178,6 +221,7 @@ func _submit_action(data: PackedByteArray) -> void:
 		"anchor": Vector3(b.get_float(), b.get_float(), b.get_float()),
 		"impulse": Vector3(b.get_float(), b.get_float(), b.get_float())}
 	if kind not in [1, 2] or not _valid_action(action): return
+	_last_peer_activity = Time.get_ticks_msec(); _peer_active = true
 	action_requested.emit(action)
 
 static func _valid_action(a: Dictionary) -> bool:

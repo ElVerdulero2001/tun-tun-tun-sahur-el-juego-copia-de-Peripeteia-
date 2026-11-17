@@ -1,6 +1,6 @@
 # Núcleo nativo de objetos, primera implementación
 
-**Núcleo, adaptador local y puente de historia verificados independientemente en sus alcances. La entrega 13 agrega un canal ENet acotado y recepción real de NetSync en dos procesos de prueba, pendiente de revisión independiente; no cambia el núcleo ni integra net_lab.** [Revisión y evidencia vigente](../../docs/net/entregas/revision_codex_entrega_12.md). [Contrato y etapas restantes](../../docs/net/contrato_nucleo_fisico_objetos.md).
+**El núcleo no cambia. Claude verificó recepción/replay en dos procesos y encontró tres limitaciones del adaptador/canal; la entrega 14 las corrige y espera revisión independiente.** [Revisión vigente](../../docs/net/entregas/revision_codex_entrega_13.md). [Contrato y etapas restantes](../../docs/net/contrato_nucleo_fisico_objetos.md). Net_lab todavía conserva su recorrido anterior.
 
 Cada instancia `SahurObjectWorld` posee su propio `PhysicsWorld` de Rapier 0.36.0, sus handles, identidades públicas y caché. No registra un PhysicsServer global ni usa StateManager3D, RIDs o InstanceIDs del proceso de origen. Jolt continúa activo en Godot. Se fija la resolución de dependencias con Cargo.lock; no se modifica ni reutiliza la DLL del addon godot-rapier.
 

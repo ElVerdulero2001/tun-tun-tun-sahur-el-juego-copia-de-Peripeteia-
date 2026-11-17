@@ -7,6 +7,9 @@ extends Node
 ## comparar entre procesos y con Time.get_ticks_msec() (el reloj del canal) dentro del proceso.
 ## Las comprobaciones entre procesos las califica cv14_report.mjs.
 const Channel = preload("res://prototypes/objetos_adaptador/authority_channel.gd")
+## Corregido tras la primera corrida (rotulado en el informe): los carriles usan la subclase de
+## diagnostico, que solo cuenta los controles recibidos y llama al metodo original.
+const TapChannel = preload("res://prototypes/objetos_adaptador/validacion_claude/cv14_tap_channel.gd")
 const LANES := ["notice", "scope_close", "scope_heartbeat", "good_heartbeat", "intruder_close",
 	"intruder_heartbeat", "startup", "send_timeout", "both_close", "quiet", "quiet_idle"]
 const END_S := 6.3
@@ -39,7 +42,7 @@ func _ready() -> void:
 	offset_ms = unix_ms() - Time.get_ticks_msec()
 	for i in LANES.size():
 		var name: String = LANES[i]
-		var lane = Channel.new(); lane.name = "Lane_" + name; add_child(lane)
+		var lane = TapChannel.new(); lane.name = "Lane_" + name; add_child(lane)
 		lanes[name] = lane
 		scopes[name] = {"connection": 21, "context": 3, "uid": 100 + i, "epoch": 2, "hold_session": 4,
 			"hand_signature": ("lane_%s" % name).sha256_text()}
@@ -150,7 +153,9 @@ func observe(now: int) -> void:
 	if now - last_sample >= 100:
 		last_sample = now
 		var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
-		for id in multiplayer.get_peers():
+		# Corregido tras la primera corrida: un cliente solo tiene en ENet al servidor (1);
+		# pedir otro id imprimia "!peers.has(p_id)" en cada muestra.
+		for id in (multiplayer.get_peers() if role == "host" else [1]):
 			var pp := enet.get_peer(id)
 			if pp == null: continue
 			throttle.append([snappedf(rel(), 0.001), id, pp.get_statistic(ENetPacketPeer.PEER_PACKET_THROTTLE),
@@ -216,6 +221,11 @@ func finish() -> void:
 		r.stats = lanes[name].stats()
 		r.last_error = lanes[name].last_error
 		r.peer_active = lanes[name]._peer_active
+		r.heartbeats_in = lanes[name].heartbeats_in
+		r.heartbeat_at_unix = {}
+		for s in lanes[name].heartbeat_at:
+			r.heartbeat_at_unix[s] = lanes[name].heartbeat_at[s].map(func(m): return (m + offset_ms) / 1000.0)
+		r.closes_in = lanes[name].closes_in
 		if r.tx_started_msec >= 0: r.tx_started_unix = (r.tx_started_msec + offset_ms) / 1000.0
 		r.start_unix = (r.start_msec + offset_ms) / 1000.0 if r.start_msec >= 0 else -1.0
 		lane_out[name] = r

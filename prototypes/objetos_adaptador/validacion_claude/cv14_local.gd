@@ -447,6 +447,7 @@ func run_bridge() -> void:
 	# P9
 	check("P9_exact_after_each_application", exact_bad.is_empty())
 	info.corrections = prediction.corrections; info.replay_callbacks = history.replay_callbacks
+	sync.free() # corregido tras la primera corrida: NetSync fuera del arbol quedaba sin liberar
 
 func pause_phase() -> void:
 	clock.paused = true

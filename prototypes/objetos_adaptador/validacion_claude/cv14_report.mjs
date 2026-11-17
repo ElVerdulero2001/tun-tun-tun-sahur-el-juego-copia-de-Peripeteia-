@@ -74,19 +74,27 @@ if (lh && lc && li) {
   { const c = one(C.scope_close), h = one(H.scope_close);
     add('L_scope_close', pass(c && h && c.rel >= 4.95 && h.rel >= 4.95 && c.error === 'peer_closed' && c.unix - H.scope_close.stop_unix < 0.5),
       `cierres cliente ${JSON.stringify(C.scope_close.closes.map((x) => [x.rel, x.error]))}, host ${JSON.stringify(H.scope_close.closes.map((x) => [x.rel, x.error]))}`); }
+  // Llegadas de latidos por remitente despues de un instante (solo desde la segunda corrida,
+  // con la subclase de diagnostico; en la primera no hay datos y se informa "?").
+  const arrivals = (r, sender, after) => (r.heartbeat_at_unix ? (r.heartbeat_at_unix[String(sender)] || []).filter((u) => u > after).length : '?');
   const good = C.good_heartbeat;
   const goodOk = good.closes.length === 0 && good.bound_at_end;
-  add('L_good_heartbeat', pass(goodOk), `cliente vinculado al final ${good.bound_at_end}, cierres ${JSON.stringify(good.closes.map((x) => [x.rel, x.error]))}, silencio desde ${f3(H.good_heartbeat.silence_unix - lh.t0)} s`);
+  add('L_good_heartbeat', pass(goodOk), `cliente vinculado al final ${good.bound_at_end}, cierres ${JSON.stringify(good.closes.map((x) => [x.rel, x.error]))}, silencio desde ${f3(H.good_heartbeat.silence_unix - lh.t0)} s; latidos del host recibidos despues del silencio ${arrivals(good, 1, H.good_heartbeat.silence_unix)} de ~${lh.forged.heartbeat} mandados`);
   { const c = one(C.scope_heartbeat);
     const ok = c && c.error === 'peer_idle_timeout' && c.last_activity_unix <= H.scope_heartbeat.silence_unix + 0.25 && ms(c, c.last_activity_msec) >= 5000 && ms(c, c.last_activity_msec) <= 5150;
-    add('L_scope_heartbeat', ok ? 'PASS' : (goodOk ? 'FAIL' : 'INSUFICIENTE'),
-      `cierre ${c?.error} a ${f3(c ? c.rel : null)} s; ultima actividad ${f3(c ? c.last_activity_unix - H.scope_heartbeat.silence_unix : null)} s despues del silencio; cierre-actividad ${ms(c, c?.last_activity_msec)} ms`); }
+    const got = arrivals(C.scope_heartbeat, 1, H.scope_heartbeat.silence_unix);
+    // Criterio: si falla el control good_heartbeat, este caso queda INSUFICIENTE (corregido tras la primera corrida).
+    add('L_scope_heartbeat', !goodOk ? 'INSUFICIENTE' : (ok ? 'PASS' : 'FAIL'),
+      `cierre ${c?.error} a ${f3(c ? c.rel : null)} s; ultima actividad ${f3(c ? c.last_activity_unix - H.scope_heartbeat.silence_unix : null)} s despues del silencio; cierre-actividad ${ms(c, c?.last_activity_msec)} ms; latidos con ambito viejo recibidos ${got}`); }
   { const h = one(H.intruder_close), c = one(C.intruder_close);
     add('L_intruder_close', pass(h && c && h.rel >= 4.95 && c.rel >= 4.95 && h.error === 'peer_closed' && h.unix - C.intruder_close.stop_unix < 0.5),
       `host ${JSON.stringify(H.intruder_close.closes.map((x) => [x.rel, x.error]))}, cliente ${JSON.stringify(C.intruder_close.closes.map((x) => [x.rel, x.error]))}`); }
   { const h = one(H.intruder_heartbeat);
-    add('L_intruder_heartbeat', pass(h && h.error === 'peer_idle_timeout' && h.last_activity_unix <= C.intruder_heartbeat.silence_unix + 0.25 && ms(h, h.last_activity_msec) >= 5000 && ms(h, h.last_activity_msec) <= 5150),
-      `host ${h?.error} a ${f3(h?.rel)} s; ultima actividad ${f3(h ? h.last_activity_unix - C.intruder_heartbeat.silence_unix : null)} s despues del silencio del cliente; cierre-actividad ${ms(h, h?.last_activity_msec)} ms`); }
+    const ok = h && h.error === 'peer_idle_timeout' && h.last_activity_unix <= C.intruder_heartbeat.silence_unix + 0.25 && ms(h, h.last_activity_msec) >= 5000 && ms(h, h.last_activity_msec) <= 5150;
+    const got = arrivals(H.intruder_heartbeat, lh.intruder_id, C.intruder_heartbeat.silence_unix);
+    // Agregado tras la primera corrida: sin ninguna llegada del intruso el caso no prueba el remitente.
+    add('L_intruder_heartbeat', got === 0 ? 'INSUFICIENTE' : pass(ok),
+      `host ${h?.error} a ${f3(h?.rel)} s; ultima actividad ${f3(h ? h.last_activity_unix - C.intruder_heartbeat.silence_unix : null)} s despues del silencio del cliente; cierre-actividad ${ms(h, h?.last_activity_msec)} ms; latidos del intruso que llegaron ${got}`); }
   { const h = one(H.startup), c = one(C.startup);
     const okH = h && h.error === 'peer_idle_timeout' && ms(h, H.startup.start_msec) >= 5000 && ms(h, H.startup.start_msec) <= 5150;
     const okC = c && c.error === 'peer_idle_timeout' && ms(c, C.startup.start_msec) >= 5000 && ms(c, C.startup.start_msec) <= 5150;
@@ -100,7 +108,7 @@ if (lh && lc && li) {
   add('L_both_close', pass(H.both_close.closes.length === 1 && C.both_close.closes.length === 1), `host ${JSON.stringify(H.both_close.closes.map((x) => x.error))}, cliente ${JSON.stringify(C.both_close.closes.map((x) => x.error))}`);
   for (const q of ['quiet', 'quiet_idle']) {
     add('L_' + q, pass(H[q].closes.length === 0 && C[q].closes.length === 0 && H[q].bound_at_end && C[q].bound_at_end),
-      `cierres host ${JSON.stringify(H[q].closes.map((x) => [x.rel, x.error]))} cliente ${JSON.stringify(C[q].closes.map((x) => [x.rel, x.error]))}; hueco max host ${H[q].act_max_gap} ms (${H[q].act_updates} act.), cliente ${C[q].act_max_gap} ms (${C[q].act_updates})`);
+      `cierres host ${JSON.stringify(H[q].closes.map((x) => [x.rel, x.error]))} cliente ${JSON.stringify(C[q].closes.map((x) => [x.rel, x.error]))}; hueco max host ${H[q].act_max_gap} ms (${H[q].act_updates} act.), cliente ${C[q].act_max_gap} ms (${C[q].act_updates}); latidos recibidos host ${JSON.stringify(H[q].heartbeats_in ?? '?')} cliente ${JSON.stringify(C[q].heartbeats_in ?? '?')}`);
   }
   const thr = (res) => { const by = {}; for (const [, id, t] of res.throttle) { (by[id] ||= []).push(t); } return Object.entries(by).map(([id, ts]) => `${id}: min ${Math.min(...ts)}, <32 ${ts.filter((t) => t < 32).length}/${ts.length}, <=1 ${ts.filter((t) => t <= 1).length}`).join('; '); };
   add('L_throttle', 'INFO', `host [${thr(lh)}] cliente [${thr(lc)}] intruso [${thr(li)}]`);

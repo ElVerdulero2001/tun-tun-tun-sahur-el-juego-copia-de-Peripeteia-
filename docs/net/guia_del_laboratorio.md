@@ -1,6 +1,6 @@
 # Guía del laboratorio de red
 
-**Entrega experimental actual de objetos, entrega 12:** [revisión de Claude 11 y fuente real de historia del actor](entregas/revision_codex_entrega_11.md). La API de autoridad/recuperación fue validada; se agregó un registrador conectado al replay real de ClientPrediction, activo durante la suspensión del objeto, y resolución única de efectos/confirmaciones. Los 16 escenarios propios pasan; este puente espera revisión independiente. Todavía no se conectó NetSync/ENet ni se migró el laboratorio.
+**Entrega experimental actual de objetos, entrega 13:** [revisión de Claude 12 y recepción real por ENet/NetSync](entregas/revision_codex_entrega_12.md). El puente de historia quedó validado (60/0/1). El nuevo canal acotado y el punto de conexión con NetSync pasan dos modos con host/cliente en procesos separados, incluida suelta tardía, replay positivo e igualdad en el mismo tick. Esperan revisión independiente. El laboratorio principal todavía no instala este recorrido.
 
 **Preparación del núcleo, entrega 7:** [Rust/MSVC verificados; dependencias pendientes por red](entregas/preparacion_nucleo_objetos_entrega_7.md). El runtime y la decisión técnica de la entrega 6 se conservan. Todavía no hay un núcleo nuevo compilado.
 

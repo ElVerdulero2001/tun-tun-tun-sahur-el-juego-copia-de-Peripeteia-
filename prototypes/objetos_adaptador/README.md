@@ -1,4 +1,6 @@
-# Adaptador local de objetos al actor y al reloj — entregas 10 a 12
+# Adaptador local de objetos al actor y al reloj — entregas 10 a 13
+
+**Entrega 13:** el [canal ENet y punto de conexión con NetSync](README_network.md) ejercitan recepción real en dos procesos. El registrador de la entrega 12 quedó validado; los módulos de red esperan revisión independiente. Este directorio sigue separado de net_lab.
 
 Experimento separado del laboratorio. Usa sin cambios `ActorInput`, `ActorBody`, `ActorMotor`, `ActorTuning`, `SimClock`, `InvAuthority.eyes` e `InvHoldMotion.target_of` del proyecto. El núcleo físico sigue siendo la GDExtension de mundos Rapier propios; Jolt mueve al actor.
 

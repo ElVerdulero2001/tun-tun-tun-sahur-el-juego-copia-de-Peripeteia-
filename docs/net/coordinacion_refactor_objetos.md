@@ -45,6 +45,8 @@ La inspección de `SimClock.apply_tick_rate` corrigió un punto del plan: el rel
 
 ## Entregas e integración
 
+**Entrega 13:** [revisión de Claude 12 y recepción ENet/NetSync](entregas/revision_codex_entrega_12.md). Se acepta el puente de historia (60 PASS/0 FAIL/1 INFO). Canal acotado, ACK de transferencia/control de flujo y punto de conexión con NetSync real en una escena de dos procesos. Pasan dos modos con suelta tardía y replay positivo igual al host en el mismo tick. Espera revisión independiente. No cambia producción ni instala el recorrido en net_lab; `../entrega_13.json` identifica el checkpoint.
+
 **Entrega 12:** [revisión de Claude 11 e historia desde ClientPrediction real](entregas/revision_codex_entrega_11.md). La API anterior queda aceptada (55 PASS/0 FAIL/9 INFO). Se agrega grabación durante suspensión, ojos/estados del replay real, recuperación por estado coincidente y resolución única de efectos/confirmaciones. Los 16 escenarios propios pasan; el puente espera revisión independiente. Solo cambia en producción un argumento final optativo de ClientPrediction. Sin transporte ni migración del laboratorio; `../entrega_12.json` identifica el checkpoint.
 
 **Entrega 11:** [revisión de Claude 10 y API de autoridad/recuperación](entregas/revision_codex_entrega_10.md). Se acepta el adaptador local; S1 queda anulado como error de conteo del instrumento, sin modificarlo. Se agregaron ámbito/revisión, confirmación posterior a aplicar, invalidación y reconstrucción mediante lote corregido. Once escenarios propios pasan y se conservan las regresiones de Claude sin fallos funcionales nuevos. La nueva API espera revisión independiente; no tiene transporte ni reemplaza el laboratorio.

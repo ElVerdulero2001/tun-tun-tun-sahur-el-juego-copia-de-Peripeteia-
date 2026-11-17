@@ -1,11 +1,43 @@
-# Núcleo nativo de objetos: preparación
+# Núcleo nativo de objetos, primera implementación
 
-**Dependencias declaradas; módulo todavía sin implementar ni compilar.** Se conserva el [contrato](../../docs/net/contrato_nucleo_fisico_objetos.md). Este directorio prepara una GDExtension con mundos Rapier propios, sin registrar un `PhysicsServer3D` global.
+**GDExtension construida y compilada; validación independiente pendiente. No está integrada al laboratorio.** [Entrega 8 y evidencia](../../docs/net/entregas/entrega_8_nucleo_nativo.md). [Contrato y etapas restantes](../../docs/net/contrato_nucleo_fisico_objetos.md).
 
-La primera descarga requiere `tools/testing/descargar_dependencias_objetos.cmd`, ejecutado por el usuario fuera de la sesión de Codex porque su conexión a `crates.io` está bloqueada. Ese archivo llama a `prepare_object_native_dependencies.ps1`; selecciona la copia de implementación si existe, usa una caché dentro de sus temporales y ejecuta únicamente `cargo fetch`. No instala herramientas ni cambia el proyecto Godot.
+Cada instancia `SahurObjectWorld` posee su propio `PhysicsWorld` de Rapier 0.36.0, sus handles, identidades públicas y caché. No registra un PhysicsServer global ni usa StateManager3D, RIDs o InstanceIDs del proceso de origen. Jolt continúa activo en Godot. Se fija la resolución de dependencias con Cargo.lock; no se modifica ni reutiliza la DLL del addon godot-rapier.
 
-El lanzador corregido también funciona si el enlace del chat lo guardó solo en Descargas: en ausencia de un preparador adyacente, busca el del proyecto en su ruta conocida. Las copias descargadas de la primera versión deben reemplazarse por la versión corregida, o se puede ejecutar directamente el archivo dentro de `tools/testing`.
+## Compilar y ejecutar
 
-Dependencias principales: Rapier 0.36.0 con serialización y determinismo mejorado, godot-rust 0.5.4 para Godot 4.7, bincode 1.3.3 y SHA-256. `Cargo.lock` se genera en esa primera descarga y debe conservarse en la entrega que construya el módulo. El compilador Rust/MSVC ya generó una DLL de prueba correctamente; esa DLL solo comprueba las herramientas, no las físicas.
+Desde la copia de implementación, con la caché ya descargada:
 
-Los resultados de descarga quedan en `tmp/native_toolchain/downloads/`. Cada ejecución tiene un límite de 180 segundos y conserva sus logs y resultado. Un error no se registra como dependencias listas. El estado `READY` solo significa descarga completa, no compilación, carga en Godot ni aceptación de red.
+```powershell
+& .\tools\testing\build_object_native.ps1 -Stage CoreTests
+& .\tools\testing\build_object_native.ps1 -Stage Extension
+& .\tools\testing\run_object_native_probe.ps1 -Stages all
+```
+
+El builder admite `-ToolchainBin` y `-CargoCachePath`. En la copia de Claude, pasar `-CargoCachePath '..\implementacion\tmp\native_toolchain\cargo'`: comparte únicamente la caché de paquetes, genera sus propios binarios y no necesita descargar otra vez. Se compila con `--locked --offline`, dos tareas y perfil dev optimizado a nivel 1, sin símbolos de depuración. El resultado es `tmp/native_target/debug/sahur_object_world.dll`; no es un benchmark de release.
+
+Cada compilación tiene límite externo de 180 s por defecto, con progreso; cada ejecutable Rust de pruebas y cada proceso Godot tienen límite de 8 s. El runner Godot copia el proyecto y DLL a un directorio nuevo dentro de tmp, registra allí la extensión y aísla AppData. No abre el editor ni instala la DLL en el juego. Usa `-Stages local`, `file`, `enet` o `late` para un caso acotado. Rechaza una DLL anterior a las fuentes y al lockfile.
+
+## API de Godot
+
+Crear mediante `ClassDB.instantiate("SahurObjectWorld")`; es un RefCounted, cuya referencia pertenece al controlador de la escena. Las operaciones devuelven bool o un valor vacío/-1 al rechazar; `get_last_error()` da el motivo. No se canoniza una pose recibida con escala, cizalla o valores no finitos.
+
+| Operación | Contrato de esta versión |
+| --- | --- |
+| `add_box(uid, epoch, size, mass, initial)` | Caja centrada en el origen y COM central; masa 0 fija, masa positiva dinámica. Formas y material predeterminados de la fixture |
+| `remove_body(uid, epoch)` | Solo antes de sellar; retirar una identidad exige una aparición mayor al reutilizar el UID |
+| `seal_topology(context_revision)` | Fija miembros, formas y contexto; bloquea altas/bajas posteriores |
+| `begin_hold`, `set_goal`, `release_body` | Controlador de punto de agarre, velocidad y giro con límites; la segunda suelta sin agarre se rechaza |
+| `apply_impulse`, `step(dt)` | Impulso central y un único paso manual; dt finito en (0, 1/30] |
+| `sample`, `samples` | Identidad, tick físico, pose, velocidades, reposo, agarre y contactos con identidades públicas |
+| `cast_ray` | Raycast nativo sobre las cajas propias, incluso recién creadas; búsqueda lineal acotada por la capacidad |
+| `snapshot_trusted`, `restore_trusted` | Snapshot completo del mundo, manifiesto y controlador; validación del candidato antes del reemplazo. Importar invalida toda la caché de la predicción anterior |
+| `cache_checkpoint`, `restore_cached` | Caché local por tick; restaurar conserva el pasado y elimina el futuro de esa rama |
+
+Límites: 128 cuerpos vivos, 512 UID retirados, 120 checkpoints y 16 MiB de caché. Payload de snapshot de hasta 1 MiB más 44 bytes de envoltorio; `get_build_info().max_snapshot_bytes` informa el límite de payload. Se verifican identidades, parámetros, contexto, asociación de handles y manifiesto de cajas. El checksum detecta alteraciones; **no autentica al emisor ni convierte el deserializador en un protocolo para datos hostiles**. Esta API se denomina trusted deliberadamente. Las fixtures usan datos generados por el propio ejecutable/host de ensayo.
+
+## Estado y límites
+
+Pasaron nueve pruebas Rust y siete procesos Godot de construcción, incluidos contacto activo, reposo/despertar, orden de creación distinto, mundo ajeno vivo, importación por archivo/ENet y reconciliación de una suelta tardía comparada en el mismo tick. Son ensayos de Codex, no una aceptación independiente.
+
+El caso de red usa objetivos de mano preacordados, cuatro ticks iniciales de ventaja y un envío deliberadamente demorado. No sustituye al adaptador de input/actor ni a SimClock. La comparación final es exacta en el tick 140. Todavía faltan dos PC, geometría y COM del catálogo, movimiento del escenario, inventario/topología variable, presentación, reloj y presupuesto de producción.

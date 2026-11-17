@@ -1,0 +1,274 @@
+{
+  "delivery": 8,
+  "base_commit": "48b1a1b",
+  "constructed_by": "Codex",
+  "independent_validation_pending": true,
+  "independent_validation_base": "637fa91",
+  "native_core_implemented": true,
+  "native_core_compiled": true,
+  "model_approved": false,
+  "laboratory_migrated": false,
+  "dependency_lock_sha256": "5b259749cbe021d62c4d000987a763e2a69e9eff62eee2bd86887f8d5680ee78",
+  "engine_sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+  "dll": {
+    "path": "implementacion/tmp/native_target/debug/sahur_object_world.dll",
+    "bytes": 5698048,
+    "sha256": "6ac3c3cc5b37ff667878e2d5f3a04794990781fbbae6ef9d39aba45965f85bca",
+    "profile": "dev opt-level=1 debug=0 single-thread"
+  },
+  "rust_tests": {
+    "count": 9,
+    "result": {
+      "stage": "tests_1",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.1483494,
+      "limit_seconds": 8
+    },
+    "evidence": "implementacion/tmp/native_build/20261117_001028_CoreTests_8d4e4e"
+  },
+  "extension_build": {
+    "stage": "extension",
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 2.3147356,
+    "limit_seconds": 180
+  },
+  "probes": [
+    {
+      "role": "local",
+      "status": "PASSED",
+      "failures": 0,
+      "checks": 1214,
+      "seconds": 0.048267,
+      "facts": {
+        "build": {
+          "global_physics_server": false,
+          "godot_api": "4.7",
+          "max_bodies": 128,
+          "max_snapshot_bytes": 1048576,
+          "rapier": "0.36.0",
+          "schema": 1,
+          "single_thread": true
+        },
+        "contact_tick": 17,
+        "engine": "4.7.2-stable (official)",
+        "godot_backend": "Jolt Physics",
+        "snapshot_bytes": 6179
+      }
+    },
+    {
+      "role": "export",
+      "status": "PASSED",
+      "failures": 0,
+      "checks": 386,
+      "seconds": 0.021928,
+      "facts": {
+        "engine": "4.7.2-stable (official)",
+        "export_tick": 17,
+        "godot_backend": "Jolt Physics",
+        "snapshot_bytes": 6179
+      }
+    },
+    {
+      "role": "import",
+      "status": "PASSED",
+      "failures": 0,
+      "checks": 420,
+      "seconds": 0.034638,
+      "facts": {
+        "engine": "4.7.2-stable (official)",
+        "godot_backend": "Jolt Physics",
+        "received_bytes": 371712,
+        "received_sha256": "3fde86a07cca6eb1cb2aac277ae98eb5919e4ac7b4a8fc960b01043f9e856967"
+      }
+    },
+    {
+      "role": "enet_export",
+      "status": "PASSED",
+      "failures": 0,
+      "checks": 387,
+      "seconds": 0.243148,
+      "facts": {
+        "acknowledged": true,
+        "engine": "4.7.2-stable (official)",
+        "export_tick": 17,
+        "godot_backend": "Jolt Physics",
+        "sent_bytes": 371712,
+        "sent_sha256": "3fde86a07cca6eb1cb2aac277ae98eb5919e4ac7b4a8fc960b01043f9e856967",
+        "snapshot_bytes": 6179
+      }
+    },
+    {
+      "role": "enet_import",
+      "status": "PASSED",
+      "failures": 0,
+      "checks": 421,
+      "seconds": 0.173992,
+      "facts": {
+        "engine": "4.7.2-stable (official)",
+        "godot_backend": "Jolt Physics",
+        "received_bytes": 371712,
+        "received_sha256": "3fde86a07cca6eb1cb2aac277ae98eb5919e4ac7b4a8fc960b01043f9e856967"
+      }
+    },
+    {
+      "role": "late_host",
+      "status": "PASSED",
+      "failures": 0,
+      "checks": 198,
+      "seconds": 2.472517,
+      "facts": {
+        "authority_applied_tick": 73,
+        "duplicate_requests": 1,
+        "requested_release_tick": 46,
+        "state_sha256": "be29fca42e30df5b58f79b10c892d1635b8cb7f293b1b315a83cad684ff444a6",
+        "timeline": "prearranged_hand_goals_release_predicted_46_sent_74_duplicate_95",
+        "transport": "real_ENet_localhost"
+      }
+    },
+    {
+      "role": "late_client",
+      "status": "PASSED",
+      "failures": 0,
+      "checks": 206,
+      "seconds": 2.443875,
+      "facts": {
+        "authority_applied_tick": 73,
+        "compared_tick": 140,
+        "duplicate_confirmations": 1,
+        "predicted_present_at_correction": 76,
+        "replayed_steps": 3,
+        "requested_release_tick": 46,
+        "state_sha256": "be29fca42e30df5b58f79b10c892d1635b8cb7f293b1b315a83cad684ff444a6",
+        "timeline": "prearranged_hand_goals_release_predicted_46_sent_74_duplicate_95",
+        "transport": "real_ENet_localhost"
+      }
+    }
+  ],
+  "runner": {
+    "runtime": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\native_probe\\20261117_001419_ba2bc3",
+    "dll_sha256": "6ac3c3cc5b37ff667878e2d5f3a04794990781fbbae6ef9d39aba45965f85bca",
+    "lock_sha256": "5b259749cbe021d62c4d000987a763e2a69e9eff62eee2bd86887f8d5680ee78",
+    "stages": [
+      {
+        "name": "local",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 428,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "export",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 257,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "import",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 260,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "enet_export",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 458,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "enet_import",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 351,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "late_host",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 2663,
+        "errors": [],
+        "status": "PASSED"
+      },
+      {
+        "name": "late_client",
+        "exit_code": 0,
+        "timed_out": false,
+        "ms": 2665,
+        "errors": [],
+        "status": "PASSED"
+      }
+    ],
+    "remaining_own_processes": 0
+  },
+  "source_hashes": [
+    {
+      "path": "native/objetos_core/Cargo.toml",
+      "sha256": "1b41f07de292f205ff82a31c8e74c77540133343b0ff230e764a52be0a04062c",
+      "sha256_lf": "1b41f07de292f205ff82a31c8e74c77540133343b0ff230e764a52be0a04062c"
+    },
+    {
+      "path": "native/objetos_core/Cargo.lock",
+      "sha256": "5b259749cbe021d62c4d000987a763e2a69e9eff62eee2bd86887f8d5680ee78",
+      "sha256_lf": "5b259749cbe021d62c4d000987a763e2a69e9eff62eee2bd86887f8d5680ee78"
+    },
+    {
+      "path": "native/objetos_core/src/lib.rs",
+      "sha256": "6aa70838bad29961e3f8706bf3be0bafd45c61f4b6bdf1883651fb936bd4e1ec",
+      "sha256_lf": "6aa70838bad29961e3f8706bf3be0bafd45c61f4b6bdf1883651fb936bd4e1ec"
+    },
+    {
+      "path": "native/objetos_core/src/world.rs",
+      "sha256": "e06636b8ce98e30f7742540b8590a2474ac7d7bee0d9c76814785aa5d14fe880",
+      "sha256_lf": "e06636b8ce98e30f7742540b8590a2474ac7d7bee0d9c76814785aa5d14fe880"
+    },
+    {
+      "path": "native/objetos_core/src/extension.rs",
+      "sha256": "08ea16ef3eda90e6198db6bcd7e681a1093b88c4eb45bbf4a1df7cf9055e4b27",
+      "sha256_lf": "08ea16ef3eda90e6198db6bcd7e681a1093b88c4eb45bbf4a1df7cf9055e4b27"
+    },
+    {
+      "path": "native/objetos_core/tests/world_contract.rs",
+      "sha256": "c66fc6aa0ae31112c6bca32f7cca4cadf77626e9729fa092aa0e6bf7bc5f5c28",
+      "sha256_lf": "c66fc6aa0ae31112c6bca32f7cca4cadf77626e9729fa092aa0e6bf7bc5f5c28"
+    },
+    {
+      "path": "prototypes/objetos_nativo/probe.gd",
+      "sha256": "1df0bfbb622eecc6a02c479cabfead4eeb60bf03026a242df1dab413cf0ee5af",
+      "sha256_lf": "1df0bfbb622eecc6a02c479cabfead4eeb60bf03026a242df1dab413cf0ee5af"
+    },
+    {
+      "path": "prototypes/objetos_nativo/late_action.gd",
+      "sha256": "82845c5ac1ea21d1e99dfa5707d106e31b79340b0b7764d259b5f08528241a38",
+      "sha256_lf": "82845c5ac1ea21d1e99dfa5707d106e31b79340b0b7764d259b5f08528241a38"
+    },
+    {
+      "path": "tools/testing/build_object_native.ps1",
+      "sha256": "2fcc57f2a44322f8e11bcecd202581023c48ba1011653418295c7844c8cd6a51",
+      "sha256_lf": "2fcc57f2a44322f8e11bcecd202581023c48ba1011653418295c7844c8cd6a51"
+    },
+    {
+      "path": "tools/testing/run_object_native_probe.ps1",
+      "sha256": "93c13bbd85abb7557c216ffe50fe90e3e2f2d19be95b0900009c3105966d90d1",
+      "sha256_lf": "93c13bbd85abb7557c216ffe50fe90e3e2f2d19be95b0900009c3105966d90d1"
+    }
+  ],
+  "limits": [
+    "same_machine",
+    "fixed_topology",
+    "centered_boxes",
+    "trusted_native_snapshots",
+    "prearranged_hand_timeline",
+    "no_catalog_inventory_actor_clock_adapter",
+    "no_production_performance_approval"
+  ]
+}

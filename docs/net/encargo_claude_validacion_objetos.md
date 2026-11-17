@@ -1,6 +1,8 @@
 # Encargo para Claude: validación independiente de objetos
 
-**Estado vigente: entrega 6.** Leer [revisión de Claude 5 y bloqueo nativo](entregas/revision_codex_entrega_5.md). No repetir Rapier sin un núcleo corregido y compilado. El único alcance nuevo de verificación independiente es D4/G02 y la regresión del giro. La copia de Claude permanece en `637fa91`; `../entrega_6.json` identifica la implementación nueva. Las secciones siguientes son antecedentes.
+**Encargo vigente: entrega 8.** Leer [núcleo nativo, reproducción y alcance independiente](entregas/entrega_8_nucleo_nativo.md). Verificar esta API con instrumentos propios, conservando los anteriores. Compilar en su copia con la caché compartida indicada; no hace falta otra descarga. No modificar el núcleo, runners o fixtures de Codex ni aprobar integración al laboratorio. `../entrega_8.json` identifica el commit.
+
+**Antecedente: entrega 6.** Leer [revisión de Claude 5 y bloqueo nativo](entregas/revision_codex_entrega_5.md). No repetir Rapier sin un núcleo corregido y compilado. El único alcance nuevo de verificación independiente es D4/G02 y la regresión del giro. La copia de Claude permanece en `637fa91`; `../entrega_6.json` identifica la implementación nueva. Las secciones siguientes son antecedentes.
 
 **Antecedente: entrega 5.** Leer [capacidad Rapier y verificación independiente acotada](entregas/ensayo_rollback_rapier_entrega_5.md). Incluye las verificaciones pendientes entonces de la entrega 4.
 

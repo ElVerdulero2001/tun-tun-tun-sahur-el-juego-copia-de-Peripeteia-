@@ -1,12 +1,12 @@
 # Contrato del núcleo físico de objetos: siguiente candidato
 
-2026-11-16. Decisión posterior a la validación 5. **Diseño para construir y comprobar; todavía no existe una extensión propia compilada ni un modelo de red aprobado.** Ver [revisión y reproducciones](entregas/revision_codex_entrega_5.md).
+2026-11-16. Decisión posterior a la validación 5. **Primer núcleo implementado y compilado en la [entrega 8](entregas/entrega_8_nucleo_nativo.md); validación independiente y modelo de red completo todavía pendientes.** Ver [revisión y reproducciones](entregas/revision_codex_entrega_5.md).
 
 ## Problema que debe resolver
 
 El solver Rapier repite correctamente los contactos probados. Su integración Godot v0.36.0 mediante `StateManager3D` no ofrece aislamiento suficiente para este proyecto: carga el espacio entero, restaura IDs globales y adopta IDs del proceso de origen. Los fallos R3/R4 de Claude están reproducidos por Codex. La versión `main` consultada conserva las operaciones involucradas; cambiar de versión sin una corrección verificada no es una solución demostrada.
 
-El próximo candidato es una **GDExtension acotada que posea mundos Rapier de objetos**, en lugar de usar `StateManager3D` para rebobinar el servidor físico global de Godot. Jolt conserva el personaje y los sistemas existentes. No se reconstruye el solver ni se añade otro servidor global: se encapsula Rapier con estado y ciclo de vida propios.
+El candidato implementado en la entrega 8 es una **GDExtension acotada que posee mundos Rapier de objetos**, en lugar de usar `StateManager3D` para rebobinar el servidor físico global de Godot. Jolt conserva el personaje y los sistemas existentes. No se reconstruye el solver ni se añade otro servidor global: se encapsula Rapier con estado y ciclo de vida propios.
 
 Esta elección conserva la separación por escenas: cada controlador del mundo de objetos posee su instancia nativa. No hay autoload de física ni memoria de simulación compartida entre partidas o predictores.
 

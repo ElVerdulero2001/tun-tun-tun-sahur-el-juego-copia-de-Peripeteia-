@@ -86,7 +86,7 @@ try {
     $step = ($exes | Where-Object { $_.name -eq 'claude_e9_step_after' }).exe
     $skip = @()
     for ($k = 1; $k -le 6; $k++) {
-        $r = Run-Bounded ('claude_e9_step_after_' + $k) $step @('--nocapture', '--test-threads=1') 8 @{ CLAUDE_STEP_SKIP = ($skip -join ',') }
+        $r = Run-Bounded ('claude_e9_step_after_' + $k) $step @('--ignored', '--nocapture', '--test-threads=1') 8 @{ CLAUDE_STEP_SKIP = ($skip -join ',') }
         if (-not $r.rec.timed_out) { break }
         $at = @($r.stdout -split "`r?`n" | Where-Object { $_ -match '^CLAUDE_STEP_AT\t(\d+)' } | ForEach-Object { [int]($_ -split "`t")[1] })
         if ($at.Count -eq 0) { break }

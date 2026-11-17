@@ -9,6 +9,7 @@ use std::io::Write;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 #[test]
+#[ignore = "exploratorio: con datos alterados puede colgar o abortar el proceso; correr con --ignored"]
 fn n3_step_after_accept() {
     let mut rep = Report::new("n3_step_after_accept");
     let start_at: usize = std::env::var("CLAUDE_STEP_START").ok().and_then(|v| v.parse().ok()).unwrap_or(0);

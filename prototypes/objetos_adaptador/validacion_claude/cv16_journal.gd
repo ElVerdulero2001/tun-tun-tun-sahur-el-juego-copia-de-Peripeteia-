@@ -178,7 +178,7 @@ func after_tick(tick: int) -> void:
 	if not conf.is_empty():
 		conf[0].applied_tick = -99; conf.append({}) # J5: el arreglo devuelto es una copia
 		if journal.stats().bound and journal.confirmations() != expected: conf_bad.append(["copy", tick])
-	if mode == "journal" and tick in [20, 21, 90, 91]:
+	if mode == "journal" and tick in [21, 22, 90, 91]:
 		rows["frame_%d" % tick] = adapter.recorded_frame(tick).get("action", {}).duplicate(true)
 	if hook_after.has(tick): hook_after[tick].call()
 
@@ -211,7 +211,7 @@ func between_journal(now: int) -> void:
 		d2.status = "forged"
 		check("J5_returned_copy_%d" % nt, journal.request(PEER, a).get("status") == "scheduled")
 		if nt in [11, 12, 13, 14]: conflicts("J3_pending_%d" % nt, a)
-		if nt in [20, 21]:
+		if nt in [21, 22]: # corregido tras la primera corrida: el 20 lo niega la politica (multiplo de 10)
 			a.impulse = Vector3(7, 0, 0); a.anchor = Vector3(0.3, 0, 0) # J5: modificar el original despues del pedido
 		return
 	match now:
@@ -381,14 +381,15 @@ func res(id: int) -> Dictionary:
 func checks_journal(applied: Array) -> void:
 	# J1
 	var j1 := range(1, 301)
-	var deny_ok := j1.filter(func(t): return t % 10 == 0).all(func(t): return res(ids_by_tick[t]).status == "rejected" \
+	# Corregido tras la primera corrida: 50-80 tienen tipos invalidos y 90 es "mutate" (permitida).
+	var deny_ok := j1.filter(func(t): return t % 10 == 0 and not t in [50, 60, 70, 80, 90]).all(func(t): return res(ids_by_tick[t]).status == "rejected" \
 		and res(ids_by_tick[t]).reason == "denied" and not effects.has(ids_by_tick[t]))
 	check("J1_denied_every_10", deny_ok)
 	var plain := j1.filter(func(t): return t % 10 != 0 and not t in [50, 60, 70, 80])
 	check("J1_applied_at_requested_tick", plain.all(func(t): return res(ids_by_tick[t]).status == "applied" and res(ids_by_tick[t]).applied_tick == t))
 	check("J1_records_bounded", mem.w1 <= 123 and mem.w2 <= 123 and mem.w2 <= mem.w1)
 	# J5 originales modificados despues del pedido y politica que modifica su copia
-	for t in [20, 21, 90, 91]:
+	for t in [21, 22, 90, 91]:
 		var o: Dictionary = actions[ids_by_tick[t]]
 		var fa: Dictionary = rows.get("frame_%d" % t, {})
 		var same: bool = not fa.is_empty() and fa.id == o.id and fa.kind == o.kind and fa.anchor == o.anchor and fa.impulse == o.impulse and fa.tick == t

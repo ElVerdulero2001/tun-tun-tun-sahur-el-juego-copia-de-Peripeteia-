@@ -57,7 +57,9 @@ for (const tag of tags) {
   const res = (id) => hx.resolved_log.filter((r) => r.id === id);
   const r1 = log(1), r2 = log(2), r3 = log(3);
   const res2 = res(2)[0] || {}, res3 = res(3)[0] || {};
-  const dup2 = r2.find((r) => r.clock >= 55 && r.status === 'applied' && JSON.stringify(r.impulse) === JSON.stringify(r2[0]?.impulse));
+  // Corregido tras la primera corrida: el duplicado del tick 60 del cliente llega al host antes
+  // de su tick 55 (va atras). Se identifica como el tercer pedido o posterior con el mismo impulso.
+  const dup2 = r2.slice(2).find((r) => r.status === 'applied' && JSON.stringify(r.impulse) === JSON.stringify(r2[0]?.impulse));
   const conflict2 = r2.find((r) => r.reason === 'action_identity_conflict');
   const dup3 = r3.length >= 2 ? r3[r3.length - 1] : null;
   const n1 = r1.length >= 2 && r1[0].status === 'scheduled' && r1.slice(1).every((r) => ['scheduled', 'applied'].includes(r.status))

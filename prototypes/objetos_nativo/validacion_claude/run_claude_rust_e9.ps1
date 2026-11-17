@@ -59,10 +59,17 @@ $exes = Get-Exes $c.stdout 'claude_e9_*'
 if ($exes.Count -ne 6) { throw ('Se esperaban 6 ejecutables claude_e9_*, hay ' + $exes.Count) }
 $wt = Join-Path $repo 'tmp\wt_baseline'
 $baseline = $null
+# git escribe avisos por stderr: con Stop, PowerShell 5.1 los convierte en error. Se mira el codigo.
+function Invoke-Git([string[]]$GitArgs) {
+    $ErrorActionPreference = 'Continue'
+    $o = & git -c 'safe.directory=*' @GitArgs 2>&1
+    if ($LASTEXITCODE -ne 0) { throw ('git ' + ($GitArgs -join ' ') + ' fallo: ' + ($o -join ' ')) }
+    return (($o | Where-Object { $_ -is [string] }) -join "`n").Trim()
+}
 try {
     if (Test-Path -LiteralPath $wt) { throw ('Ya existe ' + $wt) }
-    & git -c 'safe.directory=*' -C $repo worktree add --detach $wt $BaselineCommit 2>&1 | Out-Null
-    $baseCommit = (& git -c 'safe.directory=*' -C $wt rev-parse HEAD).Trim()
+    [void](Invoke-Git @('-C', $repo, 'worktree', 'add', '--detach', $wt, $BaselineCommit))
+    $baseCommit = Invoke-Git @('-C', $wt, 'rev-parse', 'HEAD')
     $tests = Join-Path $wt 'native\objetos_core\tests'
     foreach ($d in @('claude_common', 'claude_e9_common')) { Copy-Item -Recurse -LiteralPath (Join-Path $repo ('native\objetos_core\tests\' + $d)) -Destination (Join-Path $tests $d) }
     Copy-Item -LiteralPath (Join-Path $repo 'native\objetos_core\tests\claude_e9_cost.rs') -Destination $tests
@@ -90,10 +97,10 @@ try {
         [void](Run-Bounded ('cost_base_' + $k) $baseline @('--nocapture', '--test-threads=1') 8 @{})
     }
 } finally {
-    if (Test-Path -LiteralPath $wt) { & git -c 'safe.directory=*' -C $repo worktree remove --force $wt 2>&1 | Out-Null }
+    if (Test-Path -LiteralPath $wt) { try { [void](Invoke-Git @('-C', $repo, 'worktree', 'remove', '--force', $wt)) } catch { Write-Host $_ } }
     $sources = @(Get-ChildItem -LiteralPath (Join-Path $repo 'native\objetos_core\tests') -Recurse -File -Filter 'claude_e9*' | ForEach-Object {
         [ordered]@{ path = $_.FullName.Substring($repo.Length + 1); sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() } })
-    [ordered]@{ out = $out; repo = $repo; head = (& git -c 'safe.directory=*' -C $repo rev-parse HEAD).Trim(); baseline_commit = $baseCommit; baseline_exe_sha256 = $baseSha
+    [ordered]@{ out = $out; repo = $repo; head = (Invoke-Git @('-C', $repo, 'rev-parse', 'HEAD')); baseline_commit = $baseCommit; baseline_exe_sha256 = $baseSha
         step_after_skipped = $skip; worktree_removed = (-not (Test-Path -LiteralPath $wt)); runs = $records; sources = $sources } |
         ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $out 'runner.json') -Encoding UTF8
 }

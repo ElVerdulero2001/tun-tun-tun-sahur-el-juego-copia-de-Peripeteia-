@@ -1,6 +1,6 @@
 # Guía del laboratorio de red
 
-**Entrega experimental actual de objetos, entrega 8:** [núcleo nativo construido y primeras pruebas](entregas/entrega_8_nucleo_nativo.md). Aislamiento, restauración y suelta tardía comprobados en fixtures de Codex; pendientes de revisión independiente y adaptación del laboratorio. Jolt y el recorrido actual del juego se conservan.
+**Entrega experimental actual de objetos, entrega 9:** [revisión independiente de la 8 y correcciones de restauración](entregas/revision_codex_entrega_8.md). Claude confirmó aislamiento, identidad y replay en el alcance del ensayo; se corrigieron D18b y la pose real del piso, conservando sus pruebas. El controlador real, reloj y presentación siguen pendientes; no se migró el laboratorio.
 
 **Preparación del núcleo, entrega 7:** [Rust/MSVC verificados; dependencias pendientes por red](entregas/preparacion_nucleo_objetos_entrega_7.md). El runtime y la decisión técnica de la entrega 6 se conservan. Todavía no hay un núcleo nuevo compilado.
 

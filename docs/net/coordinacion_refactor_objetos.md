@@ -45,6 +45,8 @@ La inspección de `SimClock.apply_tick_rate` corrigió un punto del plan: el rel
 
 ## Entregas e integración
 
+**Entrega 9:** [revisión de Claude 8 y restauración corregida](entregas/revision_codex_entrega_8.md). Condiciones 1–3 del núcleo aceptadas en el alcance independiente; D18b reproducido y corregido sin modificar instrumentos. Pasan 135 comprobaciones Rust y 79 Godot de Claude al ejecutarlas Codex; la corrección requiere revisión independiente. Capacidad medida: 27 checkpoints con 128 cuerpos en la fixture de pila. El siguiente adaptador conectará input real, SimClock, presentación y transferencia acotada antes de migrar.
+
 **Entrega 8:** [núcleo nativo construido y compilado](entregas/entrega_8_nucleo_nativo.md). Nueve pruebas Rust y siete procesos Godot de construcción pasan, incluidos aislamiento de mundos, identidad y una suelta tardía por ENet con comparación exacta en el mismo tick. La revisión independiente corresponde a Claude; el laboratorio no está migrado y el modelo completo sigue sin aprobar.
 
 **Entrega 7, preparación:** [herramientas verificadas y descarga pendiente](entregas/preparacion_nucleo_objetos_entrega_7.md). Rust/MSVC generan una DLL. La conexión de Codex a crates.io falla; se deja un preparador para que el usuario descargue las dependencias en la caché del proyecto. El núcleo nuevo todavía no está implementado ni compilado. No repetir validación física hasta que exista.

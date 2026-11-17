@@ -593,6 +593,11 @@ impl ObjectWorld {
                 return Err(Error("snapshot_association"));
             }
             unpack_pose(pack_pose(body.position()))?;
+            if let Some(fixed_pose) = entry.fixed_pose {
+                if !body.is_fixed() || pack_pose(body.position()) != fixed_pose {
+                    return Err(Error("snapshot_fixed_pose"));
+                }
+            }
             let cuboid = collider
                 .shape()
                 .as_cuboid()
@@ -610,6 +615,39 @@ impl ObjectWorld {
         let dt = candidate.world.integration_parameters.dt;
         if !dt.is_finite() || dt <= 0.0 || dt > 1.0 / 30.0 {
             return Err(Error("snapshot_dt"));
+        }
+        let narrow = &candidate.world.narrow_phase;
+        crate::snapshot_graph::validate(narrow.contact_graph(), &candidate.world, |a, b, pair| {
+            pair.collider1 == a && pair.collider2 == b && pair.rigid().is_some()
+        })?;
+        crate::snapshot_graph::validate(
+            narrow.intersection_graph(),
+            &candidate.world,
+            |_, _, _| false,
+        )?;
+        // The private collider-to-node map must expose the same incident pairs
+        // as the now-validated raw graph. Traversal is bounded by that graph.
+        for entry in candidate.objects.values() {
+            let expected = narrow
+                .contact_graph()
+                .raw_graph()
+                .raw_edges()
+                .iter()
+                .filter(|edge| {
+                    edge.weight.collider1 == entry.collider
+                        || edge.weight.collider2 == entry.collider
+                })
+                .count();
+            let mut actual = 0;
+            for pair in narrow.contact_pairs_with(entry.collider) {
+                if pair.collider1 != entry.collider && pair.collider2 != entry.collider {
+                    return Err(Error("snapshot_contact_mapping"));
+                }
+                actual += 1;
+            }
+            if actual != expected {
+                return Err(Error("snapshot_contact_mapping"));
+            }
         }
         Ok(())
     }
@@ -635,5 +673,57 @@ impl ObjectWorld {
             .ok_or(Error("checkpoint_expired"))?
             .clone();
         self.restore_impl(&bytes, true)
+    }
+}
+
+#[cfg(test)]
+mod snapshot_validation_tests {
+    use super::*;
+
+    fn floor_world() -> (ObjectWorld, Key) {
+        let mut world = ObjectWorld::default();
+        let key = Key::new(1, 1).unwrap();
+        world
+            .add_box(
+                key,
+                BoxSpec::new([8.0, 0.2, 8.0], 0.0),
+                pose([0.0, -0.1, 0.0], [0.0, 0.0, 0.0, 1.0]).unwrap(),
+            )
+            .unwrap();
+        world.seal(1).unwrap();
+        (world, key)
+    }
+
+    #[test]
+    fn real_fixed_pose_and_type_must_match_manifest_without_losing_cache() {
+        for case in 0..3 {
+            let (mut source, key) = floor_world();
+            let handle = source.state.objects[&key].body;
+            let body = &mut source.state.world.bodies[handle];
+            match case {
+                0 => body.set_position(pose([0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]).unwrap(), false),
+                1 => body.set_position(
+                    pose([0.0, -0.1, 0.0], [0.0, 0.0, 0.1_f32.sin(), 0.1_f32.cos()]).unwrap(),
+                    false,
+                ),
+                _ => body.set_body_type(RigidBodyType::KinematicPositionBased, false),
+            }
+            // snapshot() serializes a candidate with valid checksum and unchanged manifest.
+            let invalid = source.snapshot().unwrap();
+            let (mut target, _) = floor_world();
+            target.cache_checkpoint().unwrap();
+            let before = target.snapshot().unwrap();
+            let cache = target.cache_stats();
+            assert_eq!(
+                target.restore_trusted(&invalid),
+                Err(Error("snapshot_fixed_pose")),
+                "case {case}"
+            );
+            assert_eq!(target.snapshot().unwrap(), before);
+            assert_eq!(target.cache_stats(), cache);
+            target.restore_cached(0).unwrap();
+            target.step(1.0 / 60.0).unwrap();
+            assert_eq!(target.sample(key).unwrap().pose[1], -0.1);
+        }
     }
 }

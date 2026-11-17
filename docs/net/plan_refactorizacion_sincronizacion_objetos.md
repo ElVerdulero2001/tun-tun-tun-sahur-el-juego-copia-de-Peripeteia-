@@ -1,5 +1,7 @@
 # Plan de refactorización y reconstrucción de la sincronización de objetos
 
+**Estado actual, entrega 9:** [revisión de Claude 8, correcciones y condiciones del siguiente adaptador](entregas/revision_codex_entrega_8.md). Condiciones 1–3 del contrato nativo aceptadas en una PC; D18b y la pose fija corregidos con regresiones originales. Pendientes controlador real, SimClock, presentación, transporte acotado, catálogo y notebook. Con la fixture de 128 cuerpos caben 27 checkpoints por memoria. Modelo completo y migración siguen sin aprobar. Las decisiones anteriores son historial.
+
 **Avance de construcción, entrega 8:** existe un núcleo Rapier por instancia, sin StateManager ni servidor global. [Resultados, límites y puerta independiente](entregas/entrega_8_nucleo_nativo.md). Pasan fixtures propias de identidad, aislamiento, replay y una suelta tardía por ENet; todavía no se aprobó el modelo completo ni se migró el laboratorio. Las decisiones anteriores se conservan como historial.
 
 **Decisión después de la validación 5:** se rechaza integrar `StateManager3D` publicado como predictor aislado por R3/R4 reproducidos. El siguiente candidato será un [núcleo nativo con mundos de objetos propios](contrato_nucleo_fisico_objetos.md), conservando Jolt para el personaje. [Entrega 6, correcciones y bloqueo de compilación](entregas/revision_codex_entrega_5.md). La capacidad básica de replay confirmada debajo no aprueba la integración.

@@ -1,6 +1,6 @@
 # Contrato del núcleo físico de objetos: siguiente candidato
 
-2026-11-16. Decisión posterior a la validación 5. **Primer núcleo implementado y compilado en la [entrega 8](entregas/entrega_8_nucleo_nativo.md); validación independiente y modelo de red completo todavía pendientes.** Ver [revisión y reproducciones](entregas/revision_codex_entrega_5.md).
+2026-11-16. Decisión posterior a la validación 5. **Condiciones 1–3 verificadas independientemente en la entrega 8; entrega 9 corrige validación de contactos y pose fija.** [Revisión, evidencia y condiciones del adaptador](entregas/revision_codex_entrega_8.md). Controlador real, notebook y modelo de red completo todavía pendientes. Ver [revisión y reproducciones históricas](entregas/revision_codex_entrega_5.md).
 
 ## Problema que debe resolver
 

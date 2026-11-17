@@ -1,0 +1,416 @@
+{
+  "delivery": 9,
+  "previous_delivery_commit": "aeee009bfaab0ef8e58defe8ac409ff2de5481fe",
+  "independent_validation_commit": "25d97f8bc2424664ec44d8979d3007b8a4aee95b",
+  "independent_fix_validation_pending": true,
+  "native_core_implemented": true,
+  "native_core_compiled": true,
+  "model_approved": false,
+  "laboratory_migrated": false,
+  "baseline": {
+    "evidence": "tmp/revision_entrega_8/baseline/rust_20261116_230626",
+    "summary": {
+      "PASS": 134,
+      "FAIL": 1,
+      "INFO": 23,
+      "NOEVAL": 1
+    },
+    "accepted_snapshots_panicking": 22,
+    "accepted_fixed_pose_changes": 25
+  },
+  "rust_core": {
+    "evidence": "tmp/native_build/20261117_021014_CoreTests_d1e378",
+    "test_count": 23,
+    "executables": 8,
+    "results": [
+      {
+        "stage": "tests_0",
+        "exit_code": 0,
+        "timed_out": false,
+        "seconds": 0.1468216,
+        "limit_seconds": 8
+      },
+      {
+        "stage": "tests_1",
+        "exit_code": 0,
+        "timed_out": false,
+        "seconds": 0.5090001,
+        "limit_seconds": 8
+      },
+      {
+        "stage": "tests_2",
+        "exit_code": 0,
+        "timed_out": false,
+        "seconds": 0.151698,
+        "limit_seconds": 8
+      },
+      {
+        "stage": "tests_3",
+        "exit_code": 0,
+        "timed_out": false,
+        "seconds": 0.1451772,
+        "limit_seconds": 8
+      },
+      {
+        "stage": "tests_4",
+        "exit_code": 0,
+        "timed_out": false,
+        "seconds": 0.6721977,
+        "limit_seconds": 8
+      },
+      {
+        "stage": "tests_5",
+        "exit_code": 0,
+        "timed_out": false,
+        "seconds": 0.1327943,
+        "limit_seconds": 8
+      },
+      {
+        "stage": "tests_6",
+        "exit_code": 0,
+        "timed_out": false,
+        "seconds": 0.5269524,
+        "limit_seconds": 8
+      },
+      {
+        "stage": "tests_7",
+        "exit_code": 0,
+        "timed_out": false,
+        "seconds": 0.1800846,
+        "limit_seconds": 8
+      }
+    ]
+  },
+  "extension_build": {
+    "stage": "extension",
+    "exit_code": 0,
+    "timed_out": false,
+    "seconds": 10.2425645,
+    "limit_seconds": 180
+  },
+  "dll": {
+    "path": "implementacion/tmp/native_target/debug/sahur_object_world.dll",
+    "bytes": 5720064,
+    "sha256": "8f1d8be49184fcb6b42e87b67d597912d898d2fcf60c727aad01e041481fb6af"
+  },
+  "claude_rust": {
+    "evidence": "tmp/revision_entrega_8/corrected/rust_20261116_231047",
+    "summary": {
+      "PASS": 135,
+      "FAIL": 0,
+      "INFO": 23,
+      "NOEVAL": 1
+    },
+    "processes": [
+      {
+        "name": "claude_capacity",
+        "exit": 0,
+        "ms": 408,
+        "timed_out": false,
+        "done": [
+          "d06_d08_capacity_limits",
+          "e3_cache_byte_limit_with_128_bodies"
+        ],
+        "tests": {},
+        "missing": []
+      },
+      {
+        "name": "claude_replay_run1",
+        "exit": 0,
+        "ms": 41,
+        "timed_out": false,
+        "done": [
+          "a_contact_sleep_wake_and_b_identity",
+          "b2_ray_distances",
+          "b3_epochs",
+          "f_controller_in_checkpoint"
+        ],
+        "tests": {},
+        "missing": []
+      },
+      {
+        "name": "claude_replay_run2",
+        "exit": 0,
+        "ms": 40,
+        "timed_out": false,
+        "done": [
+          "a_contact_sleep_wake_and_b_identity",
+          "b2_ray_distances",
+          "b3_epochs",
+          "f_controller_in_checkpoint"
+        ],
+        "tests": {},
+        "missing": []
+      },
+      {
+        "name": "claude_isolation",
+        "exit": 0,
+        "ms": 32,
+        "timed_out": false,
+        "done": [
+          "c_isolation_between_instances"
+        ],
+        "tests": {},
+        "missing": []
+      },
+      {
+        "name": "claude_mutations",
+        "exit": 0,
+        "ms": 563,
+        "timed_out": false,
+        "done": [
+          "d18_mutation_sweep"
+        ],
+        "tests": {},
+        "missing": []
+      },
+      {
+        "name": "claude_rejections",
+        "exit": 0,
+        "ms": 67,
+        "timed_out": false,
+        "done": [
+          "d17_snapshot_rejections_keep_world_and_cache",
+          "d_api_rejections_are_atomic",
+          "e_cache_limits_expiry_and_discards"
+        ],
+        "tests": {},
+        "missing": []
+      }
+    ],
+    "mutation_sweep": {
+      "mutations": 8055,
+      "restore_panics": 0,
+      "sample_panics": 0,
+      "changed_on_reject": 0,
+      "accepted_fixed_pose_changes": 0,
+      "fixed_pose_rejections": 25,
+      "graph_rejections": 184,
+      "mapping_rejections": 32,
+      "accepted_other_mutations": 5245
+    }
+  },
+  "claude_godot": {
+    "evidence": "tmp/revision_entrega_8/corrected/godot_20261116_231121",
+    "summary": {
+      "PASS": 79,
+      "FAIL": 0,
+      "INFO": 4,
+      "NOEVAL": 0
+    },
+    "runner": {
+      "out": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\revision_entrega_8\\corrected\\godot_20261116_231121",
+      "stages": [
+        "binding",
+        "exchange",
+        "late_codex",
+        "late_push"
+      ],
+      "dll_sha256": "8f1d8be49184fcb6b42e87b67d597912d898d2fcf60c727aad01e041481fb6af",
+      "records": [
+        {
+          "name": "binding",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 2432,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "control1",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 1728,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "control2",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 1725,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "export",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 245,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "import",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 339,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "late_codex_host",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 2945,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "late_codex_client",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 2749,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "late_push_host",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 2923,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        },
+        {
+          "name": "late_push_client",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 2735,
+          "error_lines": [
+            "ERROR: Failed to read the root certificate store."
+          ],
+          "result": true
+        }
+      ],
+      "own_processes_left": 0
+    }
+  },
+  "codex_godot": {
+    "evidence": "tmp/native_probe/20261117_021133_b35c67",
+    "runner": {
+      "runtime": "C:\\Users\\ElCaido97\\Documents\\tun-tun-tun-sahur\\tmp\\colaboracion_objetos_20261116\\implementacion\\tmp\\native_probe\\20261117_021133_b35c67",
+      "dll_sha256": "8f1d8be49184fcb6b42e87b67d597912d898d2fcf60c727aad01e041481fb6af",
+      "lock_sha256": "5b259749cbe021d62c4d000987a763e2a69e9eff62eee2bd86887f8d5680ee78",
+      "stages": [
+        {
+          "name": "local",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 466,
+          "errors": [],
+          "status": "PASSED"
+        },
+        {
+          "name": "export",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 342,
+          "errors": [],
+          "status": "PASSED"
+        },
+        {
+          "name": "import",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 338,
+          "errors": [],
+          "status": "PASSED"
+        },
+        {
+          "name": "enet_export",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 622,
+          "errors": [],
+          "status": "PASSED"
+        },
+        {
+          "name": "enet_import",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 427,
+          "errors": [],
+          "status": "PASSED"
+        },
+        {
+          "name": "late_host",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 2837,
+          "errors": [],
+          "status": "PASSED"
+        },
+        {
+          "name": "late_client",
+          "exit_code": 0,
+          "timed_out": false,
+          "ms": 2761,
+          "errors": [],
+          "status": "PASSED"
+        }
+      ],
+      "remaining_own_processes": 0
+    }
+  },
+  "capacity": {
+    "fixture_bodies": 128,
+    "snapshot_bytes": 614284,
+    "retained_checkpoints": 27,
+    "retained_bytes": 16585668,
+    "max_cache_bytes": 16777216,
+    "max_cache_ticks": 120
+  },
+  "source_hashes": [
+    {
+      "path": "native/objetos_core/Cargo.toml",
+      "sha256": "1b41f07de292f205ff82a31c8e74c77540133343b0ff230e764a52be0a04062c",
+      "sha256_lf": "1b41f07de292f205ff82a31c8e74c77540133343b0ff230e764a52be0a04062c"
+    },
+    {
+      "path": "native/objetos_core/Cargo.lock",
+      "sha256": "5b259749cbe021d62c4d000987a763e2a69e9eff62eee2bd86887f8d5680ee78",
+      "sha256_lf": "5b259749cbe021d62c4d000987a763e2a69e9eff62eee2bd86887f8d5680ee78"
+    },
+    {
+      "path": "native/objetos_core/src/lib.rs",
+      "sha256": "e249c655ce4f309740fb7e1d83685d873bda772be9aa474b134c43303cc78c88",
+      "sha256_lf": "e249c655ce4f309740fb7e1d83685d873bda772be9aa474b134c43303cc78c88"
+    },
+    {
+      "path": "native/objetos_core/src/world.rs",
+      "sha256": "afa0087f076b5d561a46a4c5ec95e9c15b50b8e9f78a9ff1c7b6035f286fc14b",
+      "sha256_lf": "afa0087f076b5d561a46a4c5ec95e9c15b50b8e9f78a9ff1c7b6035f286fc14b"
+    },
+    {
+      "path": "native/objetos_core/src/snapshot_graph.rs",
+      "sha256": "03b6ce6eaf1cdf0ca80b65e2ea8cdfb8add04a63f64aef1cae42cb8352fbc895",
+      "sha256_lf": "03b6ce6eaf1cdf0ca80b65e2ea8cdfb8add04a63f64aef1cae42cb8352fbc895"
+    }
+  ],
+  "limits": [
+    "same_machine",
+    "trusted_native_snapshots_only",
+    "pinned_rapier_serde_graph_layout",
+    "fixed_topology_centered_boxes",
+    "prearranged_hand_timeline",
+    "no_actor_clock_transport_presentation_adapter",
+    "no_performance_approval"
+  ]
+}

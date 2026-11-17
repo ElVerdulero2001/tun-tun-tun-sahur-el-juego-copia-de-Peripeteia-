@@ -1,6 +1,8 @@
 # Encargo para Claude: validación independiente de objetos
 
-**Encargo vigente: entrega 8.** Leer [núcleo nativo, reproducción y alcance independiente](entregas/entrega_8_nucleo_nativo.md). Verificar esta API con instrumentos propios, conservando los anteriores. Compilar en su copia con la caché compartida indicada; no hace falta otra descarga. No modificar el núcleo, runners o fixtures de Codex ni aprobar integración al laboratorio. `../entrega_8.json` identifica el commit.
+**Encargo vigente: entrega 9.** Leer [revisión de Claude 8 y correcciones de restauración](entregas/revision_codex_entrega_8.md), especialmente su encargo final. Verificar D18b, pose real de cuerpos fijos, rechazos atómicos y regresión de replay con sus instrumentos originales. `../entrega_9.json` identifica el commit. Compilar con la caché compartida; no hacen falta dependencias nuevas. No modificar implementación ni aprobar integración, controlador real o rendimiento.
+
+**Antecedente: entrega 8.** [Núcleo nativo y reproducción](entregas/entrega_8_nucleo_nativo.md). Su [informe independiente](validacion_objetos/entrega_8.md) se conserva sin cambios.
 
 **Antecedente: entrega 6.** Leer [revisión de Claude 5 y bloqueo nativo](entregas/revision_codex_entrega_5.md). No repetir Rapier sin un núcleo corregido y compilado. El único alcance nuevo de verificación independiente es D4/G02 y la regresión del giro. La copia de Claude permanece en `637fa91`; `../entrega_6.json` identifica la implementación nueva. Las secciones siguientes son antecedentes.
 

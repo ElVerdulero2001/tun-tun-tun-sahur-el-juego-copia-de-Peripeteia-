@@ -111,6 +111,14 @@ func queue_action(at_tick: int, action_id: int, kind: String,
 	_queued[at_tick] = action
 	return true
 
+## A pending action from this binding can be withdrawn before the native step.
+## Keep the identity registered so a cancellation never makes its ID reusable.
+func cancel_queued_action(at_tick: int, action_id: int) -> bool:
+	if _queued.get(at_tick, {}).get("id", 0) != action_id:
+		return false
+	_queued.erase(at_tick)
+	return true
+
 func _after_tick(at_tick: int) -> void:
 	_observed_clock_tick = at_tick
 	_retire_old_actions(at_tick)

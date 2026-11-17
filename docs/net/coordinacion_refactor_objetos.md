@@ -1,5 +1,8 @@
 **Entrega 16:** [revision de Claude 15 y registro host](entregas/revision_codex_entrega_15.md). H1/H2 aprobados en loopback por Claude (0 FAIL, 0 INSUFICIENTE). Nuevo registro de acciones del host probado localmente y por ENet/NetSync; espera revision independiente. No migra laboratorio ni instala permisos reales.
 
+**Entrega 17.** Sala jugable con un anfitrión observador y un invitado que maneja una caja. Se comprobó el circuito en dos procesos de una PC. Queda la prueba visual y entre dos PC. [Sala de objetos](entregas/revision_codex_entrega_16.md)
+
+
 **Entrega 15:** [revision de Claude 14 y correcciones](entregas/revision_codex_entrega_14.md). H1 y H2 aceptados: latidos confiables y senal de vencimiento de acciones sin confirmar. Ver evidencia y limites en el informe. Espera revision independiente; laboratorio sin migrar.
 
 # Coordinación de la reconstrucción de objetos

@@ -110,7 +110,16 @@ func confirmations() -> Array:
 
 func stop(reason := "closed") -> void:
 	if not _bound: return
-	_bound = false; _scheduled.clear(); _inflight = 0
+	_bound = false
+	_scheduled.clear()
+	var inflight := _inflight
+	_inflight = 0
+	if inflight != 0:
+		var tick: int = _records[inflight].result.scheduled_tick
+		if not _adapter.cancel_queued_action(tick, inflight):
+			var frame: Dictionary = _adapter.recorded_frame(tick)
+			if frame.get("action", {}).get("id", 0) == inflight:
+				_resolve(inflight, "applied", "", tick)
 	for id in _records.keys():
 		if _records[id].terminal_tick < 0: _resolve(id, "cancelled", reason, _adapter.clock.tick)
 

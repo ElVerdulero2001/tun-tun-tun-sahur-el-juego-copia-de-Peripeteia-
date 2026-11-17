@@ -66,7 +66,7 @@ try {
         $jobs=@()
         foreach($role in $(if($mode -in @('action_window','host_journal')){@('single')}else{@('host','client')})) {
             $name=$tag+'_'+$role
-            $scene=if($mode -eq 'host_journal'){'res://prototypes/objetos_adaptador/probe_host_journal.tscn'}elseif($mode -eq 'net_journal'){'res://prototypes/objetos_adaptador/probe_journal_network.tscn'}elseif($mode -eq 'action_window'){'res://prototypes/objetos_adaptador/probe_action_window.tscn'}elseif($mode -eq 'net_quiet'){'res://prototypes/objetos_adaptador/probe_quiet.tscn'}else{'res://prototypes/objetos_adaptador/probe_lifecycle.tscn'}
+            $scene=if($mode -eq 'net_play_room'){'res://prototypes/objetos_adaptador/probe_play_room.tscn'}elseif($mode -eq 'host_journal'){'res://prototypes/objetos_adaptador/probe_host_journal.tscn'}elseif($mode -eq 'net_journal'){'res://prototypes/objetos_adaptador/probe_journal_network.tscn'}elseif($mode -eq 'action_window'){'res://prototypes/objetos_adaptador/probe_action_window.tscn'}elseif($mode -eq 'net_quiet'){'res://prototypes/objetos_adaptador/probe_quiet.tscn'}else{'res://prototypes/objetos_adaptador/probe_lifecycle.tscn'}
             $job=Start-Probe $name @('--headless','--path',$runtime,'--scene',$scene,'--log-file',(Join-Path $run ($name+'.godot.log')),'--',('--role='+$role),('--mode='+$mode),('--port='+$port),('--result='+(Join-Path $run ($name+'.result.json'))),('--trace='+(Join-Path $run ($name+'.trace.json'))))
             $owned+=$job; $jobs+=$job
         }

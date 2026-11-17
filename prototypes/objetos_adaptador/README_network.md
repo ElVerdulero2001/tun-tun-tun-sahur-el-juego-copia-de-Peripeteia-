@@ -1,5 +1,8 @@
 **Entrega 16:** [registro host, uso y encargo independiente](../../docs/net/entregas/revision_codex_entrega_15.md). host_action_journal.gd programa y confirma despues del paso nativo. Ejecutar `run_object_lifecycle_probe.ps1 -Modes 'host_journal,net_journal'`. La politica de red sigue siendo una concesion de fixture; rechazos remotos e inventario pendientes.
 
+**Entrega 17.** Sala jugable con un anfitrión observador y un invitado que maneja una caja. Se comprobó el circuito en dos procesos de una PC. Queda la prueba visual y entre dos PC. [Sala de objetos](../../docs/net/entregas/revision_codex_entrega_16.md)
+
+
 **Entrega 15:** [contrato y validacion pendiente](../../docs/net/entregas/revision_codex_entrega_14.md). Heartbeat confiable en canal 0; intervalo/lease sin cambios. history_bridge.action_expired(id, kind, requested_tick) avisa una vez cuando se retira una accion sin confirmar (tick solicitado + 121). No equivale a rechazo ni habilita reintento de inventario. Ambos extremos deben usar el canal actualizado. Las subclases de prueba con override RPC no confiable deben adaptarse para medir el nuevo canal.
 
 # Estados nativos por ENet y correcciones por NetSync — entregas 13 y 14

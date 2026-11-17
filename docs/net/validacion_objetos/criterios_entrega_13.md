@@ -87,6 +87,17 @@ En un nodo aparte vinculado a la conexión viva, sin puente:
 - **Rearmado:** transferencia del tamaño máximo admitido rearmada fuera de orden; cantidad > `MAX_CHUNKS`; caducidad del rearmado; liberación después de completar, conflicto, caducidad y `stop`.
 - **Emisor** (nodo con `_process` apagado): un inválido no reemplaza al pendiente; mismo tick con revisión mayor sí; tick menor no; `stop` vacía envío y pendiente.
 
+## 3b. Añadido al construir los instrumentos, antes de correrlos
+
+Se agregó durante la construcción, antes de la primera ejecución de `cv13` (los runners de Codex y mis regresiones ya habían corrido; ver el informe).
+
+- **Lectura:** en `clock_adapter.gd`, `_actions` solo crece. El adaptador rechaza con `action_capacity` cuando llega a `MAX_ACTIONS` (256), y nada lo recorta. En `history_bridge.gd`, `_known_actions`, `_effects` y `_confirmed` tampoco se recortan. Es acumulación fuera de las estructuras del canal.
+- **Modo `capacity`** (un proceso, sin red, `--fixed-fps 60`): una acción nueva por tick, alternando agarrar y soltar, del 1 al 270.
+  - Se confirma la lectura si entran 1..256, desde la 257 todas dan `action_capacity`, y al final el registrador conserva 256 ids con su diario ≤ 120 ticks.
+  - Si se confirma, se informa como **HALLAZGO**, no como FAIL de la entrega: el README no promete acciones ilimitadas. Si el comportamiento es otro, FAIL de mi lectura.
+- **Categoría HALLAZGO:** también para `I_cierre_de_un_solo_lado` (si el cliente sigue vinculado tras el `stop()` del host) y para la vivacidad de `future` si no se aplica ningún sobre antes de la final. Son comportamientos medidos que el informe debe destacar, sin cambiar el veredicto de seguridad.
+- **Comparación de veredictos de regresión:** contra las corridas de la entrega 12, id por id.
+
 ## 4. Lo que no se certifica
 
 Integración en `net_lab.gd`, inventario o permisos reales, dos PC, rendimiento o memoria pico del proceso, ataques de un tercer proceso, ni deserialización de snapshots hostiles (N3). La demora de ENet en sí no se simula: la demora y el desorden se introducen en NetSync (simulador) y en el momento de publicar del host.

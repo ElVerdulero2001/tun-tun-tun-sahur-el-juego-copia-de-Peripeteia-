@@ -6,13 +6,13 @@
 # cada modo con --fixed-fps 60 y limite externo de 8 s. Guarda los hashes de cada copia.
 # Uso: powershell -NoProfile -ExecutionPolicy Bypass -File run_adapter_claude.ps1 [-Modes 'replay,slow']
 param(
-    [string]$Modes = 'scope,late,time,actor,resync',
+    [string]$Modes = 'scope,late,time,actor,resync11',
     [string]$OutRoot = '',
     [string]$EnginePath = 'C:\Users\ElCaido97\Desktop\Godot_v4.7.2.exe',
     [switch]$CheckOnly
 )
 $ErrorActionPreference = 'Stop'
-$known = @('scope', 'late', 'time', 'actor', 'resync')
+$known = @('scope', 'late', 'time', 'actor', 'resync11')
 $list = @($Modes -split '[,\s]+' | Where-Object { $_ })
 foreach ($m in $list) { if ($known -notcontains $m) { throw ('Modo desconocido: ' + $m) } }
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')).Path

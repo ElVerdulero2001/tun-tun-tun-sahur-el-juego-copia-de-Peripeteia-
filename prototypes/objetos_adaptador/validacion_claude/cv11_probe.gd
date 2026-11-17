@@ -2,7 +2,7 @@ extends "res://prototypes/objetos_adaptador/validacion_claude/cv10_probe.gd"
 ## Validación independiente (Claude), entrega 11: API de autoridad con ámbito/revisión,
 ## suelta tardía, invalidación histórica y recuperación (criterios_entrega_11.md §4).
 ## Hereda escena, proveedor variable, diario propio y referencias de cv10_probe.gd sin cambiarlos.
-## Modos: scope, late, time, actor, resync. El "proveedor de ojos corregidos" es este instrumento.
+## Modos: scope, late, time, actor, resync11 (no "resync": ese nombre activa también el modo heredado de cv10). El "proveedor de ojos corregidos" es este instrumento.
 
 var factory_calls := 0
 var r_host
@@ -22,7 +22,7 @@ func make_world(bigger := false):
 func _ready() -> void:
 	super()
 	if done: return
-	end_tick = {"scope": 22, "late": 42, "time": 46, "actor": 50, "resync": 26}.get(mode, 30)
+	end_tick = {"scope": 22, "late": 42, "time": 46, "actor": 50, "resync11": 26}.get(mode, 30)
 	if mode == "late": r_host = make_world()
 
 # --- utilidades -----------------------------------------------------------------------------
@@ -122,7 +122,7 @@ func after_tick(t: int) -> void:
 		"late": late_tick(t)
 		"time": time_tick(t)
 		"actor": actor_tick(t)
-		"resync": resync11_tick(t)
+		"resync11": resync11_tick(t)
 
 # --- scope ----------------------------------------------------------------------------------
 func scope_tick(t: int) -> void:

@@ -20,6 +20,8 @@ const HOLD_VISUAL_MAX_OFFSET := 0.12
 const HOLD_VISUAL_MAX_ANGLE := PI / 18.0
 const HOLD_VISUAL_IDLE_OFFSET := 0.008
 const HOLD_VISUAL_IDLE_ANGLE := PI / 300.0
+const GRAB_PREVIEW_MAX_OFFSET := 0.18
+const GRAB_HANDOFF_TIME := 0.075
 const ROOM := [
 	[1, Vector3(12, 0.25, 12), Vector3(0, -0.125, 0)],
 	[3, Vector3(12, 3, 0.25), Vector3(0, 1.5, -6)],
@@ -70,13 +72,20 @@ var join_target := ""
 var note := ""
 var shown_pose_ready := false
 var box_view_query := PhysicsShapeQueryParameters3D.new()
+var box_view_shape := BoxShape3D.new()
+var grab_preview_shape := BoxShape3D.new()
+var grab_preview := false
+var grab_preview_anchor := Vector3.ZERO
+var grab_handoff_from := Transform3D.IDENTITY
+var grab_handoff_remaining := 0.0
 
 func _ready() -> void:
 	_build_room()
 	_build_menu()
-	var box_shape := BoxShape3D.new()
-	box_shape.size = BOX_SIZE
-	box_view_query.shape = box_shape
+	box_view_shape.size = BOX_SIZE
+	# A small inset lets the preview lift boxes that are resting against a surface.
+	grab_preview_shape.size = BOX_SIZE - Vector3.ONE * 0.012
+	box_view_query.shape = box_view_shape
 	box_view_query.collision_mask = 1
 	box_view_query.margin = 0.005
 	if not ClassDB.class_exists("SahurObjectWorld"):
@@ -454,7 +463,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			MOUSE_BUTTON_WHEEL_DOWN: hold_distance = maxf(hold_distance - 0.15, tuning.hold_min_distance)
 
 func _look(motion: Vector2, rotating: bool) -> void:
-	if rotating and _sample().get("held", false):
+	if rotating and (grab_preview or _sample().get("held", false)):
 		box_rotation = (Quaternion(Vector3.UP, -motion.x * 0.008) *
 			Quaternion(Vector3.RIGHT, -motion.y * 0.008) * box_rotation).normalized()
 		return
@@ -493,7 +502,13 @@ func _try_action(throwing: bool) -> bool:
 		return false
 	pending_id = serial
 	pending_since = Time.get_ticks_msec()
-	note = "Esperando al anfitrión…"
+	if held:
+		note = "Esperando al anfitrión…"
+	else:
+		grab_preview = true
+		grab_preview_anchor = anchor
+		grab_handoff_remaining = 0.0
+		note = "Agarrando…"
 	return true
 
 func _request_host_action(action: Dictionary) -> void:
@@ -553,6 +568,7 @@ func _room_result(id: int, result: String, tick: int, reason: String) -> void:
 	else:
 		pending_id = 0
 		applied_tick = -1
+		_settle_grab_preview()
 		note = "Pedido rechazado: " + reason
 
 func _process(delta: float) -> void:
@@ -575,6 +591,7 @@ func _process(delta: float) -> void:
 	if pending_id != 0 and Time.get_ticks_msec() - pending_since > 2500:
 		pending_id = 0
 		applied_tick = -1
+		_settle_grab_preview()
 		note = "Se venció el pedido. Mirá el estado de la caja antes de reintentar."
 	var state := "Caja en mano" if sample.held else "Caja libre"
 	if not ready_to_play: state = "Esperando el primer estado de la caja…"
@@ -590,7 +607,15 @@ func _present_box(sample: Dictionary, delta: float) -> void:
 		return
 	var held_locally: bool = session == "guest" and sample.held and adapter.ready_for_input
 	var follow_rate := 35.0
-	if held_locally:
+	if grab_preview and (held_locally or not adapter.ready_for_input):
+		_settle_grab_preview()
+	if grab_preview:
+		var goal := InvHoldMotion.target(_eyes(), yaw, pitch, hold_distance, box_rotation, tuning)
+		var offset := goal.origin - goal.basis * grab_preview_anchor - pose.origin
+		var spin := (goal.basis * pose.basis.transposed()).get_rotation_quaternion()
+		pose = _held_view_pose(pose, offset, spin, true)
+		follow_rate = 65.0
+	elif held_locally:
 		var lv: Vector3 = sample.lv
 		var av: Vector3 = sample.av
 		var offset := lv * HOLD_VISUAL_LEAD
@@ -605,7 +630,8 @@ func _present_box(sample: Dictionary, delta: float) -> void:
 			var live_turn := (live_goal.basis * tick_goal.basis.transposed()).get_rotation_quaternion()
 			spin = (live_turn * spin).normalized()
 		var shown := box_visual.transform
-		if offset.length_squared() < HOLD_VISUAL_IDLE_OFFSET ** 2 and spin.angle_to(Quaternion.IDENTITY) < HOLD_VISUAL_IDLE_ANGLE:
+		if grab_handoff_remaining <= 0.0 and offset.length_squared() < HOLD_VISUAL_IDLE_OFFSET ** 2 \
+				and spin.angle_to(Quaternion.IDENTITY) < HOLD_VISUAL_IDLE_ANGLE:
 			if pose.origin.distance_squared_to(shown.origin) < HOLD_VISUAL_IDLE_OFFSET ** 2 \
 					and pose.basis.get_rotation_quaternion().angle_to(shown.basis.get_rotation_quaternion()) < HOLD_VISUAL_IDLE_ANGLE:
 				return
@@ -614,18 +640,33 @@ func _present_box(sample: Dictionary, delta: float) -> void:
 		if sample.contacts.is_empty():
 			pose = _held_view_pose(pose, offset, spin)
 			follow_rate = 100.0
+	if grab_handoff_remaining > 0.0:
+		grab_handoff_remaining = maxf(0.0, grab_handoff_remaining - delta)
+		var progress := 1.0 - grab_handoff_remaining / GRAB_HANDOFF_TIME
+		box_visual.transform = grab_handoff_from.interpolate_with(pose, smoothstep(0.0, 1.0, progress))
+		return
 	box_visual.transform = box_visual.transform.interpolate_with(pose, 1.0 - exp(-delta * follow_rate))
 
-func _held_view_pose(pose: Transform3D, offset: Vector3, spin: Quaternion) -> Transform3D:
+func _settle_grab_preview() -> void:
+	if not grab_preview:
+		return
+	grab_preview = false
+	grab_handoff_from = box_visual.transform
+	grab_handoff_remaining = GRAB_HANDOFF_TIME
+
+func _held_view_pose(pose: Transform3D, offset: Vector3, spin: Quaternion, preview := false) -> Transform3D:
 	var turn := spin.angle_to(Quaternion.IDENTITY)
 	if offset.length_squared() < 0.000001 and turn < 0.001:
 		return pose
 	var space := get_world_3d().direct_space_state
+	box_view_query.shape = grab_preview_shape if preview else box_view_shape
+	box_view_query.margin = 0.0 if preview else 0.005
 	box_view_query.transform = pose
 	box_view_query.motion = Vector3.ZERO
 	if not space.intersect_shape(box_view_query, 1).is_empty():
 		return pose
-	var limited := offset.limit_length(HOLD_VISUAL_MAX_OFFSET)
+	var limit := GRAB_PREVIEW_MAX_OFFSET if preview else HOLD_VISUAL_MAX_OFFSET
+	var limited := offset.limit_length(limit)
 	box_view_query.motion = limited
 	if not limited.is_zero_approx():
 		var fraction := space.cast_motion(box_view_query)[0]

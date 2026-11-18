@@ -23,3 +23,5 @@ Si el invitado dice «Sin respuesta», comprobá la IP y el puerto y permití la
 Esta versión hace que la caja sostenida responda antes al mouse del invitado y filtra movimientos mínimos cuando está casi quieta. Probalo caminando de costado, haciendo un giro corto con el mouse y frenando la caja junto a una pared.
 
 La edición `sala_objetos_agarre_directo.zip` acelera el seguimiento físico al girar y caminar con la caja. Usá esta misma edición en anfitrión e invitado.
+
+La edición `sala_objetos_agarre_anticipado.zip` mantiene el seguimiento directo y adelanta la respuesta visual al hacer clic derecho para agarrar. Si el anfitrión rechaza el agarre, la caja vuelve suavemente a su lugar.

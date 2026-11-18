@@ -14,6 +14,11 @@ const REACH := 2.5
 const MAX_ACTION_LEAD := 15
 const THROW_IMPULSE := 5.0
 const DEFAULT_PORT := 29471
+const HOLD_VISUAL_LEAD := 0.035
+const HOLD_VISUAL_MAX_OFFSET := 0.18
+const HOLD_VISUAL_MAX_ANGLE := PI / 18.0
+const HOLD_VISUAL_IDLE_OFFSET := 0.008
+const HOLD_VISUAL_IDLE_ANGLE := PI / 300.0
 const ROOM := [
 	[1, Vector3(12, 0.25, 12), Vector3(0, -0.125, 0)],
 	[3, Vector3(12, 3, 0.25), Vector3(0, 1.5, -6)],
@@ -63,10 +68,16 @@ var transport_connected := false
 var join_target := ""
 var note := ""
 var shown_pose_ready := false
+var box_view_query := PhysicsShapeQueryParameters3D.new()
 
 func _ready() -> void:
 	_build_room()
 	_build_menu()
+	var box_shape := BoxShape3D.new()
+	box_shape.size = BOX_SIZE
+	box_view_query.shape = box_shape
+	box_view_query.collision_mask = 1
+	box_view_query.margin = 0.005
 	if not ClassDB.class_exists("SahurObjectWorld"):
 		status.text = "Falta la extensión física. Abrí la sala con el lanzador de la entrega."
 
@@ -299,6 +310,9 @@ func _setup(id: int) -> bool:
 	if not adapter.start(clock, actor, tuning, _make_world, BOX_ID, 1, 1, connection, 1):
 		_end_session("No se pudo iniciar el mundo de objetos.")
 		return false
+	if session == "guest":
+		adapter.recovery_required.connect(func(reason: String):
+			print("Sala de objetos: recuperación en tick %d (%s)" % [clock.tick, reason]))
 	if not channel.start(adapter.authority_scope(), id if session == "host" else 1):
 		_end_session("No se pudo abrir el canal de objetos: %s." % channel.last_error)
 		return false
@@ -546,12 +560,7 @@ func _process(delta: float) -> void:
 	var sample := _sample()
 	if sample.is_empty():
 		return
-	var pose: Transform3D = sample.pose
-	if not shown_pose_ready:
-		box_visual.transform = pose
-		shown_pose_ready = true
-	else:
-		box_visual.transform = box_visual.transform.interpolate_with(pose, 1.0 - exp(-delta * 35.0))
+	_present_box(sample, delta)
 	if session == "host":
 		status.text = "Anfitrión · Vista de la sala · Esc para volver\n" + note
 		return
@@ -566,6 +575,62 @@ func _process(delta: float) -> void:
 	if not adapter.ready_for_input: state = "Recuperando el estado de la caja…"
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED: state = "Clic para retomar · Esc para volver"
 	status.text = "Invitado · " + state + "\n" + note
+
+func _present_box(sample: Dictionary, delta: float) -> void:
+	var pose: Transform3D = sample.pose
+	if not shown_pose_ready:
+		box_visual.transform = pose
+		shown_pose_ready = true
+		return
+	var held_locally: bool = session == "guest" and sample.held and adapter.ready_for_input
+	var follow_rate := 35.0
+	if held_locally:
+		var lv: Vector3 = sample.lv
+		var av: Vector3 = sample.av
+		var offset := lv * HOLD_VISUAL_LEAD
+		var spin := Quaternion.IDENTITY
+		if av.length_squared() > 0.000001:
+			spin = Quaternion(av.normalized(), minf(av.length() * HOLD_VISUAL_LEAD, HOLD_VISUAL_MAX_ANGLE))
+		if current_input != null and not current_input.hold.is_empty():
+			var eyes := _eyes()
+			var tick_goal := InvHoldMotion.target_of(eyes, current_input, tuning)
+			var live_goal := InvHoldMotion.target(eyes, yaw, pitch, hold_distance, box_rotation, tuning)
+			offset += live_goal.origin - tick_goal.origin
+			var live_turn := (live_goal.basis * tick_goal.basis.transposed()).get_rotation_quaternion()
+			spin = (live_turn * spin).normalized()
+		var shown := box_visual.transform
+		if offset.length_squared() < HOLD_VISUAL_IDLE_OFFSET ** 2 and spin.angle_to(Quaternion.IDENTITY) < HOLD_VISUAL_IDLE_ANGLE:
+			if pose.origin.distance_squared_to(shown.origin) < HOLD_VISUAL_IDLE_OFFSET ** 2 \
+					and pose.basis.get_rotation_quaternion().angle_to(shown.basis.get_rotation_quaternion()) < HOLD_VISUAL_IDLE_ANGLE:
+				return
+		# Keep the normal draw path at walls and during recovery. Only the
+		# local held box gets ahead of the last completed physics tick.
+		if sample.contacts.is_empty():
+			pose = _held_view_pose(pose, offset, spin)
+			follow_rate = 100.0
+	box_visual.transform = box_visual.transform.interpolate_with(pose, 1.0 - exp(-delta * follow_rate))
+
+func _held_view_pose(pose: Transform3D, offset: Vector3, spin: Quaternion) -> Transform3D:
+	var turn := spin.angle_to(Quaternion.IDENTITY)
+	if offset.length_squared() < 0.000001 and turn < 0.001:
+		return pose
+	var space := get_world_3d().direct_space_state
+	box_view_query.transform = pose
+	box_view_query.motion = Vector3.ZERO
+	if not space.intersect_shape(box_view_query, 1).is_empty():
+		return pose
+	var limited := offset.limit_length(HOLD_VISUAL_MAX_OFFSET)
+	box_view_query.motion = limited
+	if not limited.is_zero_approx():
+		var fraction := space.cast_motion(box_view_query)[0]
+		if fraction < 1.0:
+			return pose
+	if turn > HOLD_VISUAL_MAX_ANGLE:
+		spin = Quaternion.IDENTITY.slerp(spin, HOLD_VISUAL_MAX_ANGLE / turn)
+	var predicted := Transform3D(Basis(spin) * pose.basis, pose.origin + limited)
+	box_view_query.transform = predicted
+	box_view_query.motion = Vector3.ZERO
+	return predicted if space.intersect_shape(box_view_query, 1).is_empty() else pose
 
 func _end_session(message: String) -> void:
 	if ended:

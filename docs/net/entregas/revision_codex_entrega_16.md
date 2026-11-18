@@ -36,3 +36,9 @@ En la grabación del invitado se ve el ciclo de agarrar, mover, soltar y lanzar 
 - Cerca de 0:48, la caja sale hacia arriba, cae y rueda junto a la pared. El invitado vuelve a agarrarla y continúa moviéndola.
 
 Esta prueba valida el funcionamiento y la coincidencia visual reportada en una sesión real. La grabación del invitado no permite medir latencia ni comparar las dos vistas cuadro a cuadro. Video local: `Documents/otro proyecto bobo/capturas/2026-11-18 08-53-39.mp4`.
+
+## Respuesta visual de la caja en mano
+
+El retraso acumula la respuesta del controlador de Rapier y el suavizado del dibujo. Mientras sostiene la caja, el invitado anticipa el dibujo a partir de la velocidad simulada y el movimiento del mouse pendiente del próximo tick. El adelanto queda acotado a 18 cm y 10 grados, y se descarta si encuentra geometría en el recorrido. Con la caja casi quieta, se filtran variaciones de hasta unos 8 mm y 0,6 grados. El cálculo físico que usa el anfitrión para soltar y lanzar sigue tomando la pose y la velocidad del cuerpo.
+
+Cuatro corridas de red en una PC completaron agarre, giro, traslado, suelta y lanzamiento. Una prueba dirigida verificó respuesta antes del próximo tick al mover el mouse, estabilidad frente a una variación quieta de 4 mm, límite de pose contra la pared y vuelta al dibujo habitual al soltar. Queda medir la sensación y reproducir el temblor reportado en las dos PC. La sala registra el motivo cuando suspende la predicción para recuperar un estado.

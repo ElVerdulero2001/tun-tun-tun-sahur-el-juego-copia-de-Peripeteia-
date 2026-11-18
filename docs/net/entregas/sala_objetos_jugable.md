@@ -27,3 +27,5 @@ La edición `sala_objetos_agarre_directo.zip` acelera el seguimiento físico al 
 La edición `sala_objetos_agarre_anticipado.zip` mantiene el seguimiento directo y adelanta la respuesta visual al hacer clic derecho para agarrar. Si el anfitrión rechaza el agarre, la caja vuelve suavemente a su lugar.
 
 La edición `sala_objetos_estable.zip` estabiliza el dibujo de la caja en mano y muestra la trayectoria del anfitrión después de soltar. Usá esta edición en ambas PC.
+
+La edición `sala_objetos_suelta_bloque.zip` ajusta el contacto visual de la caja libre con el bloque y el piso. Para comprobarlo, usá esta edición en ambas PC y soltá la caja sobre el bloque, primero plana y después inclinada cerca del borde.

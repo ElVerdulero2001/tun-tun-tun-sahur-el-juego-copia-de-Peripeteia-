@@ -23,13 +23,16 @@ const GRAB_PREVIEW_MAX_OFFSET := 0.18
 const GRAB_HANDOFF_TIME := 0.075
 const FREE_DRAW_BUFFER_TICKS := 4.0
 const MAX_FREE_DRAW_SAMPLES := 24
+const FREE_SUPPORT_MAX_DEPTH := 0.08
+const FLOOR_ID := 1
+const LOW_BLOCK_ID := 7
 const ROOM := [
-	[1, Vector3(12, 0.25, 12), Vector3(0, -0.125, 0)],
+	[FLOOR_ID, Vector3(12, 0.25, 12), Vector3(0, -0.125, 0)],
 	[3, Vector3(12, 3, 0.25), Vector3(0, 1.5, -6)],
 	[4, Vector3(12, 3, 0.25), Vector3(0, 1.5, 6)],
 	[5, Vector3(0.25, 3, 12), Vector3(-6, 1.5, 0)],
 	[6, Vector3(0.25, 3, 12), Vector3(6, 1.5, 0)],
-	[7, Vector3(2.1, 0.5, 0.8), Vector3(2.5, 0.25, -2.75)],
+	[LOW_BLOCK_ID, Vector3(2.1, 0.5, 0.8), Vector3(2.5, 0.25, -2.75)],
 ]
 
 var camera: Camera3D
@@ -81,9 +84,9 @@ var grab_handoff_from := Transform3D.IDENTITY
 var grab_handoff_remaining := 0.0
 var free_draw_samples: Array[Dictionary] = []
 var free_draw_tick := -1.0
+var free_supports: Array[AABB] = []
 var drew_box_held := false
-var loose_draw_offset := Vector3.ZERO
-var loose_draw_rotation := Quaternion.IDENTITY
+var loose_draw_from := Transform3D.IDENTITY
 var loose_draw_remaining := 0.0
 
 func _ready() -> void:
@@ -127,7 +130,9 @@ func _build_room() -> void:
 		body.position = part_position
 		body.add_child(collider)
 		add_child(body)
-		body.add_child(_mesh(size, Color("#4d6470") if part[0] == 1 else Color("#324651")))
+		if part[0] == FLOOR_ID or part[0] == LOW_BLOCK_ID:
+			free_supports.append(AABB(part_position - size * 0.5, size))
+		body.add_child(_mesh(size, Color("#4d6470") if part[0] == FLOOR_ID else Color("#324651")))
 	# Floor markings make sliding and the position at release easier to judge.
 	for i in range(-5, 6):
 		var line := _mesh(Vector3(0.018, 0.002, 11.5), Color("#263943"))
@@ -637,14 +642,11 @@ func _present_box(sample: Dictionary, delta: float) -> void:
 			return
 	if draw_free_from_host and not grab_preview:
 		if drew_box_held:
-			var shown := box_visual.transform
-			loose_draw_offset = shown.origin - pose.origin
-			loose_draw_rotation = (shown.basis * pose.basis.transposed()).get_rotation_quaternion()
+			loose_draw_from = box_visual.transform
 			loose_draw_remaining = GRAB_HANDOFF_TIME
 		if loose_draw_remaining > 0.0:
-			var weight := smoothstep(0.0, 1.0, loose_draw_remaining / GRAB_HANDOFF_TIME)
-			pose.origin += loose_draw_offset * weight
-			pose.basis = Basis(Quaternion.IDENTITY.slerp(loose_draw_rotation, weight)) * pose.basis
+			var progress := 1.0 - loose_draw_remaining / GRAB_HANDOFF_TIME
+			pose = loose_draw_from.interpolate_with(pose, smoothstep(0.0, 1.0, progress))
 			loose_draw_remaining = maxf(0.0, loose_draw_remaining - delta)
 	elif sample.held:
 		loose_draw_remaining = 0.0
@@ -652,12 +654,12 @@ func _present_box(sample: Dictionary, delta: float) -> void:
 	if grab_handoff_remaining > 0.0:
 		grab_handoff_remaining = maxf(0.0, grab_handoff_remaining - delta)
 		var progress := 1.0 - grab_handoff_remaining / GRAB_HANDOFF_TIME
-		box_visual.transform = grab_handoff_from.interpolate_with(pose, smoothstep(0.0, 1.0, progress))
-		return
+		pose = grab_handoff_from.interpolate_with(pose, smoothstep(0.0, 1.0, progress))
+	elif not draw_free_from_host or grab_preview:
+		pose = box_visual.transform.interpolate_with(pose, 1.0 - exp(-delta * follow_rate))
 	if draw_free_from_host and not grab_preview:
-		box_visual.transform = pose
-		return
-	box_visual.transform = box_visual.transform.interpolate_with(pose, 1.0 - exp(-delta * follow_rate))
+		pose = _free_box_contact_pose(pose)
+	box_visual.transform = pose
 
 func _live_held_box_pose() -> Transform3D:
 	var goal := InvHoldMotion.target(_eyes(), yaw, pitch, hold_distance, box_rotation, tuning)
@@ -689,6 +691,42 @@ func _free_box_view_pose(delta: float) -> Transform3D:
 	var to: Transform3D = free_draw_samples[1].pose
 	var fraction: float = (free_draw_tick - free_draw_samples[0].tick) / (free_draw_samples[1].tick - free_draw_samples[0].tick)
 	return from.interpolate_with(to, clampf(fraction, 0.0, 1.0))
+
+func _free_box_contact_pose(pose: Transform3D) -> Transform3D:
+	var vertical_axes := Vector3(pose.basis.x.y, pose.basis.y.y, pose.basis.z.y)
+	var bottom := pose.origin.y - vertical_axes.abs().dot(BOX_SIZE * 0.5)
+	var lift := 0.0
+	for support in free_supports:
+		var depth := support.end.y - bottom
+		# Only correct shallow top contacts. A box falling beside the block can pass its side.
+		if depth > 0.0 and depth <= FREE_SUPPORT_MAX_DEPTH:
+			lift = maxf(lift, _box_support_lift(pose, support, depth))
+	pose.origin.y += lift
+	return pose
+
+func _box_support_lift(pose: Transform3D, support: AABB, lift: float) -> float:
+	var world_axes := [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
+	var box_axes := [pose.basis.x, pose.basis.y, pose.basis.z]
+	var axes := world_axes + box_axes
+	for world_axis: Vector3 in world_axes:
+		for box_axis: Vector3 in box_axes:
+			axes.append(world_axis.cross(box_axis))
+
+	# Test the separating axes of the two boxes. For each overlap, compute the
+	# upward travel needed to separate along that axis and keep the shortest exit.
+	var center_offset := pose.origin - support.get_center()
+	var half_support := support.size * 0.5
+	var inverse_basis := pose.basis.transposed()
+	for axis: Vector3 in axes:
+		if axis.length_squared() < 0.00000001:
+			continue
+		var radius := half_support.dot(axis.abs()) + (BOX_SIZE * 0.5).dot((inverse_basis * axis).abs())
+		var separation := center_offset.dot(axis)
+		if absf(separation) >= radius:
+			return 0.0
+		if absf(axis.y) > 0.0001:
+			lift = minf(lift, (radius - separation * signf(axis.y)) / absf(axis.y))
+	return lift
 
 func _settle_grab_preview() -> void:
 	if not grab_preview:

@@ -21,3 +21,5 @@ La escena tiene una caja, suelo, paredes y un obstáculo bajo. El invitado esper
 Si el invitado dice «Sin respuesta», comprobá la IP y el puerto y permití la entrada por UDP al ejecutable exacto de Godot en el firewall del anfitrión. Si dice que UDP se abrió pero la escena no inició, comprobá que ambas PC usen el mismo ZIP.
 
 Esta versión hace que la caja sostenida responda antes al mouse del invitado y filtra movimientos mínimos cuando está casi quieta. Probalo caminando de costado, haciendo un giro corto con el mouse y frenando la caja junto a una pared.
+
+La edición `sala_objetos_agarre_directo.zip` acelera el seguimiento físico al girar y caminar con la caja. Usá esta misma edición en anfitrión e invitado.

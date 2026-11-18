@@ -14,8 +14,9 @@ const REACH := 2.5
 const MAX_ACTION_LEAD := 15
 const THROW_IMPULSE := 5.0
 const DEFAULT_PORT := 29471
-const HOLD_VISUAL_LEAD := 0.035
-const HOLD_VISUAL_MAX_OFFSET := 0.18
+const ROOM_MODEL_REVISION := 2
+const HOLD_VISUAL_LEAD := 0.012
+const HOLD_VISUAL_MAX_OFFSET := 0.12
 const HOLD_VISUAL_MAX_ANGLE := PI / 18.0
 const HOLD_VISUAL_IDLE_OFFSET := 0.008
 const HOLD_VISUAL_IDLE_ANGLE := PI / 300.0
@@ -276,11 +277,14 @@ func _prepare_host(id: int) -> void:
 	connection = randi_range(1, 0x7fffffff)
 	if _setup(id):
 		connect_deadline = Time.get_ticks_msec() + 5000
-		_prepare_guest.rpc_id(id, connection)
+		_prepare_guest.rpc_id(id, connection, ROOM_MODEL_REVISION)
 
 @rpc("authority", "call_remote", "reliable", 0)
-func _prepare_guest(epoch: int) -> void:
+func _prepare_guest(epoch: int, model_revision: int) -> void:
 	if session != "guest" or clock != null or epoch < 1:
+		return
+	if model_revision != ROOM_MODEL_REVISION:
+		_end_session("La versión de la sala es distinta. Usá el mismo ZIP en las dos PC.")
 		return
 	connection = epoch
 	if _setup(multiplayer.get_unique_id()):
@@ -307,7 +311,7 @@ func _setup(id: int) -> bool:
 	sync.clock = clock
 	adapter = Adapter.new()
 	add_child(adapter)
-	if not adapter.start(clock, actor, tuning, _make_world, BOX_ID, 1, 1, connection, 1):
+	if not adapter.start(clock, actor, tuning, _make_world, BOX_ID, 1, 1, connection, ROOM_MODEL_REVISION):
 		_end_session("No se pudo iniciar el mundo de objetos.")
 		return false
 	if session == "guest":
@@ -365,12 +369,14 @@ func _ready_to_run() -> void:
 
 func _make_world():
 	var world = ClassDB.instantiate("SahurObjectWorld")
+	if not world.has_method("enable_direct_hand") or not world.enable_direct_hand():
+		return null
 	for part in ROOM:
 		if not world.add_box(part[0], 1, part[1], 0.0, Transform3D(Basis.IDENTITY, part[2])):
 			return null
 	if not world.add_box(BOX_ID, 1, BOX_SIZE, 2.0, Transform3D(Basis.IDENTITY, BOX_START)):
 		return null
-	return world if world.seal_topology(1) else null
+	return world if world.seal_topology(ROOM_MODEL_REVISION) else null
 
 func _provide_input(_who: ActorBody, tick: int) -> ActorInput:
 	if session == "host":

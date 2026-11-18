@@ -163,6 +163,10 @@ impl SahurObjectWorld {
         self.run(|w| w.remove(key(uid, epoch)?)).is_some()
     }
     #[func]
+    fn enable_direct_hand(&mut self) -> bool {
+        self.run(ObjectWorld::enable_direct_hand).is_some()
+    }
+    #[func]
     fn seal_topology(&mut self, context_revision: i64) -> bool {
         self.run(|w| w.seal(u64::try_from(context_revision).map_err(|_| Error("invalid_context"))?))
             .is_some()

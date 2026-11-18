@@ -12,6 +12,11 @@ const MAGIC: &[u8; 8] = b"SOBJW001";
 const HEADER: usize = 44;
 const MODEL: &str =
     "rapier-0.36.0:f32:single-thread:enhanced-determinism:box-center:hand-v1:codec-v1";
+const DIRECT_HAND_MODEL: &str = "direct-hand-v1";
+const DIRECT_FOLLOW_TIME: f32 = 0.025;
+const DIRECT_LINEAR_LIMIT: f32 = 30.0;
+const SOFT_LINEAR_LIMIT: f32 = 12.0;
+const SOFT_ANGULAR_LIMIT: f32 = 4.0 * std::f32::consts::PI;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Error(pub &'static str);
@@ -110,6 +115,7 @@ pub struct ObjectWorld {
     state: State,
     cache: BTreeMap<u64, Vec<u8>>,
     cache_bytes: usize,
+    direct_hand: bool,
 }
 impl Default for ObjectWorld {
     fn default() -> Self {
@@ -127,6 +133,7 @@ impl Default for ObjectWorld {
             },
             cache: BTreeMap::new(),
             cache_bytes: 0,
+            direct_hand: false,
         }
     }
 }
@@ -166,6 +173,19 @@ fn codec() -> impl Options {
 }
 
 impl ObjectWorld {
+    /// Seal the controller into the model fingerprint. Restore can only use
+    /// snapshots recorded with the same controller.
+    pub fn enable_direct_hand(&mut self) -> Result<()> {
+        if self.state.context_revision.is_some() || self.tick() != 0 {
+            return Err(Error("hand_profile_locked"));
+        }
+        self.direct_hand = true;
+        let mut hash = Sha256::new();
+        hash.update(MODEL.as_bytes());
+        hash.update(DIRECT_HAND_MODEL.as_bytes());
+        self.state.model = hash.finalize().into();
+        Ok(())
+    }
     pub fn tick(&self) -> u64 {
         self.state.tick
     }
@@ -321,6 +341,12 @@ impl ObjectWorld {
         }
         entry.hold = None;
         let body = &mut self.state.world.bodies[entry.body];
+        if self.direct_hand {
+            // Quicker steering can generate more speed than a normal release
+            // should inherit. Apply the explicit throw impulse after the cap.
+            body.set_linvel(body.linvel().clamp_length_max(SOFT_LINEAR_LIMIT), true);
+            body.set_angvel(body.angvel().clamp_length_max(SOFT_ANGULAR_LIMIT), true);
+        }
         body.set_gravity_scale(1.0, true);
         body.set_linear_damping(entry.spec.linear_damping);
         body.set_angular_damping(entry.spec.angular_damping);
@@ -359,24 +385,46 @@ impl ObjectWorld {
                 let body = &mut self.state.world.bodies[entry.body];
                 // Center-origin boxes: local COM = zero. No render offset is used.
                 let wanted = goal.translation - goal.rotation * Vector::from_array(hold.anchor);
-                let desired = ((wanted - body.center_of_mass()) / 0.08).clamp_length_max(12.0);
-                body.set_linvel(
-                    body.linvel() + (desired - body.linvel()).clamp_length_max(80.0 * dt),
-                    true,
-                );
+                let follow_time = if self.direct_hand {
+                    DIRECT_FOLLOW_TIME.max(dt)
+                } else {
+                    0.08
+                };
+                let linear_limit = if self.direct_hand {
+                    DIRECT_LINEAR_LIMIT
+                } else {
+                    SOFT_LINEAR_LIMIT
+                };
+                let desired =
+                    ((wanted - body.center_of_mass()) / follow_time).clamp_length_max(linear_limit);
+                let linear = if self.direct_hand {
+                    desired
+                } else {
+                    body.linvel() + (desired - body.linvel()).clamp_length_max(80.0 * dt)
+                };
+                body.set_linvel(linear, true);
                 let mut error = goal.rotation * body.rotation().inverse();
                 if error.w < 0.0 {
                     error = -error;
                 }
                 let (axis, angle) = error.to_axis_angle();
+                let angular_limit = if self.direct_hand {
+                    2.0 * SOFT_ANGULAR_LIMIT
+                } else {
+                    SOFT_ANGULAR_LIMIT
+                };
                 let wanted_spin = if angle > 0.0001 {
-                    (axis * (angle / 0.08)).clamp_length_max(4.0 * std::f32::consts::PI)
+                    (axis * (angle / follow_time)).clamp_length_max(angular_limit)
                 } else {
                     Vector::ZERO
                 };
-                let angular = body.angvel()
-                    + (wanted_spin - body.angvel())
-                        .clamp_length_max(40.0 * std::f32::consts::PI * dt);
+                let angular = if self.direct_hand {
+                    wanted_spin
+                } else {
+                    body.angvel()
+                        + (wanted_spin - body.angvel())
+                            .clamp_length_max(40.0 * std::f32::consts::PI * dt)
+                };
                 body.set_angvel(angular, true);
             }
         }
@@ -736,6 +784,108 @@ mod snapshot_validation_tests {
             target.restore_cached(0).unwrap();
             target.step(1.0 / 60.0).unwrap();
             assert_eq!(target.sample(key).unwrap().pose[1], -0.1);
+        }
+    }
+}
+
+#[cfg(test)]
+mod direct_hand_tests {
+    use super::*;
+
+    const DT: f32 = 1.0 / 60.0;
+
+    fn at(x: f32, angle: f32) -> Pose {
+        Pose::from_parts(Vector::new(x, 1.0, 0.0), Rotation::from_rotation_y(angle))
+    }
+
+    fn room(direct: bool, wall: bool) -> (ObjectWorld, Key) {
+        let mut world = ObjectWorld::default();
+        if direct {
+            world.enable_direct_hand().unwrap();
+        }
+        let held = Key::new(1, 1).unwrap();
+        world
+            .add_box(held, BoxSpec::new([0.52, 0.45, 0.58], 2.0), at(-1.0, 0.0))
+            .unwrap();
+        if wall {
+            world
+                .add_box(
+                    Key::new(2, 1).unwrap(),
+                    BoxSpec::new([0.25, 3.0, 5.0], 0.0),
+                    at(0.0, 0.0),
+                )
+                .unwrap();
+        }
+        world.seal(1).unwrap();
+        world.begin_hold(held, [0.0; 3], at(-1.0, 0.0)).unwrap();
+        (world, held)
+    }
+
+    fn ticks_to_target(direct: bool) -> usize {
+        let (mut world, held) = room(direct, false);
+        let target = at(1.5, std::f32::consts::FRAC_PI_2);
+        world.set_goal(held, target).unwrap();
+        for tick in 1..60 {
+            world.step(DT).unwrap();
+            let sample = world.sample(held).unwrap();
+            let remaining_angle = (target.rotation
+                * unpack_pose(sample.pose).unwrap().rotation.inverse())
+            .to_scaled_axis()
+            .length();
+            if (sample.pose[0] - 1.5).abs() < 0.15 && remaining_angle < 0.15 {
+                return tick;
+            }
+        }
+        panic!("held box did not reach the target");
+    }
+
+    #[test]
+    fn direct_hand_catches_up_faster_after_a_quick_sweep() {
+        let old = ticks_to_target(false);
+        let new = ticks_to_target(true);
+        println!("quick sweep: previous {old} ticks, direct {new} ticks");
+        assert!(new <= 8 && new * 2 < old);
+    }
+
+    #[test]
+    fn direct_hand_keeps_held_collision_and_release_speed() {
+        let (mut world, held) = room(true, true);
+        world.set_goal(held, at(2.0, 1.9)).unwrap();
+        for _ in 0..20 {
+            world.step(DT).unwrap();
+            assert!(world.sample(held).unwrap().pose[0] < -0.125);
+        }
+        let (mut world, held) = room(true, false);
+        world.set_goal(held, at(2.0, 1.9)).unwrap();
+        world.step(DT).unwrap();
+        assert!(world.sample(held).unwrap().linear[0] > SOFT_LINEAR_LIMIT);
+        world.release(held, [4.0, 0.0, 0.0]).unwrap();
+        let sample = world.sample(held).unwrap();
+        assert!((sample.linear[0] - 14.0).abs() < 0.001);
+        assert!(Vector::from_array(sample.angular).length() <= SOFT_ANGULAR_LIMIT + 0.001);
+    }
+
+    #[test]
+    fn direct_hand_restore_requires_matching_profile_and_replays() {
+        let (mut source, held) = room(true, false);
+        source.set_goal(held, at(1.5, 1.4)).unwrap();
+        source.step(DT).unwrap();
+        let snapshot = source.snapshot().unwrap();
+        let (mut legacy, _) = room(false, false);
+        assert_eq!(
+            legacy.restore_trusted(&snapshot),
+            Err(Error("snapshot_model_or_context"))
+        );
+        assert_eq!(
+            legacy.enable_direct_hand(),
+            Err(Error("hand_profile_locked"))
+        );
+        let (mut restored, _) = room(true, false);
+        restored.restore_trusted(&snapshot).unwrap();
+        for _ in 0..5 {
+            source.step(DT).unwrap();
+            restored.step(DT).unwrap();
+            assert_eq!(source.sample(held).unwrap(), restored.sample(held).unwrap());
         }
     }
 }

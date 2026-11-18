@@ -59,6 +59,8 @@ var applied_tick := -1
 var pending_since := 0
 var ready_to_play := false
 var connect_deadline := 0
+var transport_connected := false
+var join_target := ""
 var note := ""
 var shown_pose_ready := false
 
@@ -88,13 +90,13 @@ func _build_room() -> void:
 	add_child(environment)
 	for part in ROOM:
 		var size: Vector3 = part[1]
-		var position: Vector3 = part[2]
+		var part_position: Vector3 = part[2]
 		var body := StaticBody3D.new()
 		var collider := CollisionShape3D.new()
 		var shape := BoxShape3D.new()
 		shape.size = size
 		collider.shape = shape
-		body.position = position
+		body.position = part_position
 		body.add_child(collider)
 		add_child(body)
 		body.add_child(_mesh(size, Color("#4d6470") if part[0] == 1 else Color("#324651")))
@@ -172,8 +174,8 @@ func _build_menu() -> void:
 	var row := HBoxContainer.new()
 	column.add_child(row)
 	address = LineEdit.new()
-	address.text = "127.0.0.1"
 	address.placeholder_text = "IP del anfitrión"
+	address.tooltip_text = "Usá 127.0.0.1 solo para dos ventanas en la misma PC."
 	address.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(address)
 	port_input = SpinBox.new()
@@ -200,10 +202,13 @@ func _build_menu() -> void:
 func start_session(role: String, ip: String, port: int) -> bool:
 	if not session.is_empty() or not ClassDB.class_exists("SahurObjectWorld"):
 		return false
+	if role == "guest" and ip.is_empty():
+		status.text = "Ingresá la IP que muestra el anfitrión. En esta misma PC usá 127.0.0.1."
+		return false
 	var peer := ENetMultiplayerPeer.new()
 	var error := peer.create_server(port, 1, 2) if role == "host" else peer.create_client(ip, port, 2)
 	if error != OK:
-		status.text = "No se pudo abrir la conexión. Revisá la dirección y el puerto."
+		status.text = "No se pudo abrir UDP %d. %s" % [port, error_string(error)]
 		return false
 	session = role
 	sync = NetSync.new()
@@ -215,11 +220,15 @@ func start_session(role: String, ip: String, port: int) -> bool:
 	if session == "host":
 		multiplayer.peer_connected.connect(_prepare_host)
 		multiplayer.peer_disconnected.connect(func(_id): _end_session("El invitado salió."))
-		status.text = "Anfitrión · UDP %d · Esperando al invitado" % port
+		status.text = _hosting_status(port)
+		print(status.text)
 	else:
-		multiplayer.connection_failed.connect(func(): _end_session("No se pudo conectar al anfitrión."))
+		join_target = "%s:%d" % [ip, port]
+		multiplayer.connected_to_server.connect(_on_transport_connected)
+		multiplayer.connection_failed.connect(func(): _end_session(_no_host_reply()))
 		multiplayer.server_disconnected.connect(func(): _end_session("Se perdió al anfitrión."))
-		status.text = "Conectando a %s:%d…" % [ip, port]
+		status.text = "Conectando a %s por UDP…" % join_target
+		print(status.text)
 		connect_deadline = Time.get_ticks_msec() + 10000
 	multiplayer.multiplayer_peer = peer
 	host_button.disabled = true
@@ -227,9 +236,32 @@ func start_session(role: String, ip: String, port: int) -> bool:
 	menu.hide()
 	return true
 
+func _hosting_status(port: int) -> String:
+	var ipv4 := PackedStringArray()
+	for ip in IP.get_local_addresses():
+		if ip.is_valid_ip_address() and not ip.contains(":") and not ip.begins_with("127.") and not ip.begins_with("169.254."):
+			ipv4.append(ip)
+	ipv4.sort()
+	var message := "Anfitrión · UDP %d · Esperando al invitado" % port
+	if not ipv4.is_empty():
+		message += "\nDesde otra PC: " + "  /  ".join(ipv4)
+	return message + "\nDesde esta PC: 127.0.0.1"
+
+func _on_transport_connected() -> void:
+	transport_connected = true
+	connect_deadline = Time.get_ticks_msec() + 5000
+	status.text = "Conectado a %s. Preparando la escena…" % join_target
+	print(status.text)
+
+func _no_host_reply() -> String:
+	return "Sin respuesta de %s por UDP. Revisá la IP del anfitrión, el puerto y el firewall." % join_target
+
 func _prepare_host(id: int) -> void:
 	if ended or clock != null:
 		return
+	transport_connected = true
+	status.text = "Invitado conectado. Preparando la escena…"
+	print(status.text)
 	connection = randi_range(1, 0x7fffffff)
 	if _setup(id):
 		connect_deadline = Time.get_ticks_msec() + 5000
@@ -268,7 +300,7 @@ func _setup(id: int) -> bool:
 		_end_session("No se pudo iniciar el mundo de objetos.")
 		return false
 	if not channel.start(adapter.authority_scope(), id if session == "host" else 1):
-		_end_session("No se pudo abrir el canal de objetos.")
+		_end_session("No se pudo abrir el canal de objetos: %s." % channel.last_error)
 		return false
 	channel.closed.connect(func(): _end_session("Canal cerrado: %s" % channel.last_error))
 	if session == "host":
@@ -505,7 +537,10 @@ func _room_result(id: int, result: String, tick: int, reason: String) -> void:
 
 func _process(delta: float) -> void:
 	if connect_deadline != 0 and Time.get_ticks_msec() > connect_deadline:
-		_end_session("Se venció la espera de conexión.")
+		if transport_connected:
+			_end_session("La conexión UDP se abrió, pero la escena no terminó de iniciar. Verificá que ambas PC usen el mismo ZIP.")
+		else:
+			_end_session(_no_host_reply())
 	if clock == null or clock.paused:
 		return
 	var sample := _sample()
@@ -543,6 +578,7 @@ func _end_session(message: String) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	reticle.hide()
 	status.text = message + " Volvé al inicio para reconectar."
+	print(status.text)
 	menu.show()
 	_close_peer.call_deferred()
 

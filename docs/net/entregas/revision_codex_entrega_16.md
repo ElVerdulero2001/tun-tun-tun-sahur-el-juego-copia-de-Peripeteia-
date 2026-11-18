@@ -20,3 +20,9 @@ El anfitrión comprueba la distancia, la línea libre hasta el punto de agarre y
 ```
 
 La sensación de la suelta en pantalla, el uso del mouse en la ventana y la conexión entre dos PC quedan para la pasada manual. El laboratorio principal sigue como escena aparte. La guía del paquete explica cómo abrir la sala y los controles. [sala_objetos_jugable.md](sala_objetos_jugable.md)
+
+## Ajuste de conexión de la sala
+
+El anfitrión muestra las IPv4 disponibles. El invitado informa si se vence la espera sin respuesta UDP o si el transporte abrió y luego falló el inicio de la escena. El campo de IP comienza vacío para que la dirección de la propia máquina no se use por accidente al conectar desde otra PC. Se corrigieron los avisos del editor por los nombres locales de la posición y la huella del paquete.
+
+La prueba automatizada completó el circuito de la caja en dos procesos de una misma PC usando localhost y sus direcciones de Wi-Fi y Radmin. Se verificó la escucha en todas las interfaces IPv4. La ruta entre dos equipos queda por confirmar.

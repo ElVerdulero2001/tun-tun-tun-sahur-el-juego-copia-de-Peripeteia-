@@ -169,7 +169,7 @@ func accept_host_chunk(sender: int, data: PackedByteArray, acknowledge: bool = f
 	var b := StreamPeerBuffer.new(); b.data_array = data
 	var magic := b.get_u32(); var connection := b.get_u32(); var id := b.get_u32()
 	var total := b.get_u32(); var index := b.get_u16(); var count := b.get_u16()
-	var digest: PackedByteArray = b.get_data(32)[1]
+	var expected_digest: PackedByteArray = b.get_data(32)[1]
 	if magic != MAGIC or connection != _scope.connection or id <= 0 or id > 0x7FFFFFFF \
 		or total < 1 or total > MAX_BYTES or count < 1 or count > MAX_CHUNKS \
 		or count != ceili(float(total) / CHUNK_BYTES) or index >= count \
@@ -178,9 +178,9 @@ func accept_host_chunk(sender: int, data: PackedByteArray, acknowledge: bool = f
 	if id < _high_water or (id == _high_water and _rx.is_empty()): return _reject("stale_transfer")
 	if id > _high_water:
 		_high_water = id
-		_rx = {"id": id, "total": total, "count": count, "digest": digest,
+		_rx = {"id": id, "total": total, "count": count, "digest": expected_digest,
 			"parts": {}, "bytes": 0, "started": Time.get_ticks_msec()}
-	if _rx.total != total or _rx.count != count or _rx.digest != digest:
+	if _rx.total != total or _rx.count != count or _rx.digest != expected_digest:
 		_rx.clear(); return _reject("transfer_conflict")
 	var part: PackedByteArray = b.get_data(b.get_available_bytes())[1]
 	if _rx.parts.has(index):
@@ -191,7 +191,7 @@ func accept_host_chunk(sender: int, data: PackedByteArray, acknowledge: bool = f
 	var payload := PackedByteArray()
 	for i in count: payload.append_array(_rx.parts[i])
 	_rx.clear()
-	if digest(payload) != digest: return _reject("transfer_digest")
+	if digest(payload) != expected_digest: return _reject("transfer_digest")
 	var packet := decode_packet(payload, _scope)
 	if packet.is_empty(): return _reject("packet_format_or_scope")
 	if packet.revision <= _last_revision or packet.tick < _last_tick: return _reject("stale_authority")

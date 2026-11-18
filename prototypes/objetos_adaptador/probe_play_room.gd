@@ -16,12 +16,14 @@ func _ready() -> void:
 	super._ready()
 	var role := "host"
 	var port := DEFAULT_PORT
+	var target := "127.0.0.1"
 	for arg in OS.get_cmdline_user_args():
 		if arg == "--role=client": role = "guest"
 		if arg.begins_with("--port="): port = int(arg.trim_prefix("--port="))
+		if arg.begins_with("--address="): target = arg.trim_prefix("--address=")
 		if arg.begins_with("--result="): result_path = arg.trim_prefix("--result=")
 	deadline = Time.get_ticks_msec() + 6500
-	if not start_session(role, "127.0.0.1", port): _finish(false, "start_failed")
+	if not start_session(role, target, port): _finish(false, "start_failed")
 
 func _guest_input(tick: int) -> ActorInput:
 	var sampled := super._guest_input(tick)

@@ -15,13 +15,14 @@ const MAX_ACTION_LEAD := 15
 const THROW_IMPULSE := 5.0
 const DEFAULT_PORT := 29471
 const ROOM_MODEL_REVISION := 2
-const HOLD_VISUAL_LEAD := 0.012
 const HOLD_VISUAL_MAX_OFFSET := 0.12
 const HOLD_VISUAL_MAX_ANGLE := PI / 18.0
 const HOLD_VISUAL_IDLE_OFFSET := 0.008
 const HOLD_VISUAL_IDLE_ANGLE := PI / 300.0
 const GRAB_PREVIEW_MAX_OFFSET := 0.18
 const GRAB_HANDOFF_TIME := 0.075
+const FREE_DRAW_BUFFER_TICKS := 4.0
+const MAX_FREE_DRAW_SAMPLES := 24
 const ROOM := [
 	[1, Vector3(12, 0.25, 12), Vector3(0, -0.125, 0)],
 	[3, Vector3(12, 3, 0.25), Vector3(0, 1.5, -6)],
@@ -78,6 +79,12 @@ var grab_preview := false
 var grab_preview_anchor := Vector3.ZERO
 var grab_handoff_from := Transform3D.IDENTITY
 var grab_handoff_remaining := 0.0
+var free_draw_samples: Array[Dictionary] = []
+var free_draw_tick := -1.0
+var drew_box_held := false
+var loose_draw_offset := Vector3.ZERO
+var loose_draw_rotation := Quaternion.IDENTITY
+var loose_draw_remaining := 0.0
 
 func _ready() -> void:
 	_build_room()
@@ -326,6 +333,7 @@ func _setup(id: int) -> bool:
 	if session == "guest":
 		adapter.recovery_required.connect(func(reason: String):
 			print("Sala de objetos: recuperación en tick %d (%s)" % [clock.tick, reason]))
+		adapter.authority_sample_applied.connect(_on_authority_box_sample)
 	if not channel.start(adapter.authority_scope(), id if session == "host" else 1):
 		_end_session("No se pudo abrir el canal de objetos: %s." % channel.last_error)
 		return false
@@ -483,7 +491,8 @@ func _try_action(throwing: bool) -> bool:
 	var forward := Basis.from_euler(Vector3(pitch, yaw, 0)) * Vector3.FORWARD
 	var anchor := Vector3.ZERO
 	if not held:
-		var pose: Transform3D = sample.pose
+		# Aim at the body we actually drew rather than a later, replayed pose.
+		var pose: Transform3D = box_visual.transform if shown_pose_ready else sample.pose
 		var inverse := pose.affine_inverse()
 		var local_box := AABB(-BOX_SIZE * 0.5, BOX_SIZE)
 		var hit: Variant = local_box.intersects_segment(inverse * eyes, inverse * (eyes + forward * REACH))
@@ -508,6 +517,7 @@ func _try_action(throwing: bool) -> bool:
 		grab_preview = true
 		grab_preview_anchor = anchor
 		grab_handoff_remaining = 0.0
+		loose_draw_remaining = 0.0
 		note = "Agarrando…"
 	return true
 
@@ -607,45 +617,78 @@ func _present_box(sample: Dictionary, delta: float) -> void:
 		return
 	var held_locally: bool = session == "guest" and sample.held and adapter.ready_for_input
 	var follow_rate := 35.0
+	var draw_free_from_host: bool = session == "guest" and not sample.held and not free_draw_samples.is_empty()
 	if grab_preview and (held_locally or not adapter.ready_for_input):
 		_settle_grab_preview()
-	if grab_preview:
-		var goal := InvHoldMotion.target(_eyes(), yaw, pitch, hold_distance, box_rotation, tuning)
-		var offset := goal.origin - goal.basis * grab_preview_anchor - pose.origin
+	if draw_free_from_host:
+		pose = _free_box_view_pose(delta)
+	if grab_preview or (held_locally and sample.contacts.is_empty()):
+		var goal := _live_held_box_pose()
+		var offset := goal.origin - pose.origin
 		var spin := (goal.basis * pose.basis.transposed()).get_rotation_quaternion()
-		pose = _held_view_pose(pose, offset, spin, true)
+		pose = _held_view_pose(pose, offset, spin, grab_preview)
 		follow_rate = 65.0
-	elif held_locally:
-		var lv: Vector3 = sample.lv
-		var av: Vector3 = sample.av
-		var offset := lv * HOLD_VISUAL_LEAD
-		var spin := Quaternion.IDENTITY
-		if av.length_squared() > 0.000001:
-			spin = Quaternion(av.normalized(), minf(av.length() * HOLD_VISUAL_LEAD, HOLD_VISUAL_MAX_ANGLE))
-		if current_input != null and not current_input.hold.is_empty():
-			var eyes := _eyes()
-			var tick_goal := InvHoldMotion.target_of(eyes, current_input, tuning)
-			var live_goal := InvHoldMotion.target(eyes, yaw, pitch, hold_distance, box_rotation, tuning)
-			offset += live_goal.origin - tick_goal.origin
-			var live_turn := (live_goal.basis * tick_goal.basis.transposed()).get_rotation_quaternion()
-			spin = (live_turn * spin).normalized()
+		if held_locally: follow_rate = 100.0
+	if held_locally and grab_handoff_remaining <= 0.0:
 		var shown := box_visual.transform
-		if grab_handoff_remaining <= 0.0 and offset.length_squared() < HOLD_VISUAL_IDLE_OFFSET ** 2 \
-				and spin.angle_to(Quaternion.IDENTITY) < HOLD_VISUAL_IDLE_ANGLE:
-			if pose.origin.distance_squared_to(shown.origin) < HOLD_VISUAL_IDLE_OFFSET ** 2 \
-					and pose.basis.get_rotation_quaternion().angle_to(shown.basis.get_rotation_quaternion()) < HOLD_VISUAL_IDLE_ANGLE:
-				return
-		# Keep the normal draw path at walls and during recovery. Only the
-		# local held box gets ahead of the last completed physics tick.
-		if sample.contacts.is_empty():
-			pose = _held_view_pose(pose, offset, spin)
-			follow_rate = 100.0
+		if pose.origin.distance_squared_to(shown.origin) < HOLD_VISUAL_IDLE_OFFSET ** 2 \
+				and pose.basis.get_rotation_quaternion().angle_to(shown.basis.get_rotation_quaternion()) < HOLD_VISUAL_IDLE_ANGLE:
+			drew_box_held = true
+			return
+	if draw_free_from_host and not grab_preview:
+		if drew_box_held:
+			var shown := box_visual.transform
+			loose_draw_offset = shown.origin - pose.origin
+			loose_draw_rotation = (shown.basis * pose.basis.transposed()).get_rotation_quaternion()
+			loose_draw_remaining = GRAB_HANDOFF_TIME
+		if loose_draw_remaining > 0.0:
+			var weight := smoothstep(0.0, 1.0, loose_draw_remaining / GRAB_HANDOFF_TIME)
+			pose.origin += loose_draw_offset * weight
+			pose.basis = Basis(Quaternion.IDENTITY.slerp(loose_draw_rotation, weight)) * pose.basis
+			loose_draw_remaining = maxf(0.0, loose_draw_remaining - delta)
+	elif sample.held:
+		loose_draw_remaining = 0.0
+	drew_box_held = sample.held
 	if grab_handoff_remaining > 0.0:
 		grab_handoff_remaining = maxf(0.0, grab_handoff_remaining - delta)
 		var progress := 1.0 - grab_handoff_remaining / GRAB_HANDOFF_TIME
 		box_visual.transform = grab_handoff_from.interpolate_with(pose, smoothstep(0.0, 1.0, progress))
 		return
+	if draw_free_from_host and not grab_preview:
+		box_visual.transform = pose
+		return
 	box_visual.transform = box_visual.transform.interpolate_with(pose, 1.0 - exp(-delta * follow_rate))
+
+func _live_held_box_pose() -> Transform3D:
+	var goal := InvHoldMotion.target(_eyes(), yaw, pitch, hold_distance, box_rotation, tuning)
+	goal.origin -= goal.basis * grab_preview_anchor
+	return goal
+
+func _on_authority_box_sample(sample: Dictionary) -> void:
+	if sample.held:
+		free_draw_samples.clear()
+		free_draw_tick = -1.0
+		return
+	if not free_draw_samples.is_empty() and sample.tick <= free_draw_samples[-1].tick:
+		return
+	free_draw_samples.append(sample)
+	if free_draw_samples.size() > MAX_FREE_DRAW_SAMPLES:
+		free_draw_samples.pop_front()
+
+func _free_box_view_pose(delta: float) -> Transform3D:
+	var first: int = free_draw_samples[0].tick
+	var latest: int = free_draw_samples[-1].tick
+	var desired := maxf(first, latest - FREE_DRAW_BUFFER_TICKS)
+	var rate := clampf(1.0 + (desired - free_draw_tick) * 0.1, 0.75, 1.25)
+	free_draw_tick = clampf(free_draw_tick + delta * SimClock.TICK_RATE * rate, first, latest)
+	while free_draw_samples.size() > 1 and float(free_draw_samples[1].tick) <= free_draw_tick:
+		free_draw_samples.pop_front()
+	var from: Transform3D = free_draw_samples[0].pose
+	if free_draw_samples.size() < 2:
+		return from
+	var to: Transform3D = free_draw_samples[1].pose
+	var fraction: float = (free_draw_tick - free_draw_samples[0].tick) / (free_draw_samples[1].tick - free_draw_samples[0].tick)
+	return from.interpolate_with(to, clampf(fraction, 0.0, 1.0))
 
 func _settle_grab_preview() -> void:
 	if not grab_preview:

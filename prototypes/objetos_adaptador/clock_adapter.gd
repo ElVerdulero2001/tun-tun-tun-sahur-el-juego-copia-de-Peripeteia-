@@ -4,6 +4,8 @@ extends Node
 signal frame_recorded(frame: Dictionary)
 signal action_effect(action_id: int, kind: String)
 signal recovery_required(reason: String)
+## Pose at the host tick, before replaying any local inputs.
+signal authority_sample_applied(sample: Dictionary)
 
 const HISTORY_TICKS := 120
 const HISTORY_BYTES := 262144
@@ -257,12 +259,14 @@ func apply_authority_trusted(packet: Dictionary) -> bool:
 		if _history[t].dt != SimClock.world_dt(t):
 			invalidate_history_from(t, "world_time")
 			return false
-	var candidate = _replay_candidate(packet.tick, packet.snapshot, _history, _last_tick)
+	var authority_sample := {}
+	var candidate = _replay_candidate(packet.tick, packet.snapshot, _history, _last_tick, authority_sample)
 	if candidate == null: return false
 	world = candidate
 	_last_authority_tick = packet.tick; _last_authority_revision = packet.revision
 	replayed_steps += _last_tick - packet.tick
 	last_error = ""
+	if not authority_sample.is_empty(): authority_sample_applied.emit(authority_sample)
 	return true
 
 ## Notify this before consuming corrected actor history or a retroactive time
@@ -314,7 +318,8 @@ func recover_authority_trusted(packet: Dictionary, frames: Array, generation: in
 		byte_count += var_to_bytes(frame).size()
 		if byte_count > HISTORY_BYTES: return _fail("recovery_history_bytes")
 		replacement[frame.tick] = frame
-	var candidate = _replay_candidate(packet.tick, packet.snapshot, replacement, present)
+	var authority_sample := {}
+	var candidate = _replay_candidate(packet.tick, packet.snapshot, replacement, present, authority_sample)
 	if candidate == null: return false
 	world = candidate
 	_history = replacement; _history_bytes = byte_count
@@ -324,6 +329,7 @@ func recover_authority_trusted(packet: Dictionary, frames: Array, generation: in
 	replayed_steps += count
 	ready_for_input = true
 	last_error = ""
+	if not authority_sample.is_empty(): authority_sample_applied.emit(authority_sample)
 	return true
 
 func _valid_authority(packet: Dictionary) -> bool:
@@ -380,12 +386,14 @@ func _valid_recovery_frame(frame: Dictionary, at_tick: int) -> bool:
 		if original != frame.action or original.tick != at_tick: return _fail("recovery_action_conflict")
 	return true
 
-func _replay_candidate(at_tick: int, bytes: PackedByteArray, records: Dictionary, present: int):
+func _replay_candidate(at_tick: int, bytes: PackedByteArray, records: Dictionary, present: int, authority_sample: Dictionary):
 	var candidate = _factory.call()
 	if candidate == null or not candidate.restore_trusted(bytes):
 		_fail("checkpoint_rejected"); return null
 	if candidate.get_tick() != at_tick:
 		_fail("checkpoint_tick_mismatch"); return null
+	if authority_sample_applied.has_connections():
+		authority_sample.merge(candidate.sample(_uid, _epoch))
 	for t in range(at_tick + 1, present + 1):
 		if not _apply_frame(candidate, records[t]):
 			_fail("replay_failed:" + last_error); return null

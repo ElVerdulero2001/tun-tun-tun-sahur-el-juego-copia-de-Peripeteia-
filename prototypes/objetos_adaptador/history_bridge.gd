@@ -185,7 +185,7 @@ func apply_authority_trusted(packet: Dictionary) -> bool:
 		if not actor_baseline_ready: return _fail("actor_baseline_required")
 		if typeof(packet.get("tick")) != TYPE_INT: return _fail("invalid_authority_tick")
 		var first: int = packet.tick + 1
-		if first < 1 or clock.tick - packet.tick > adapter.MAX_REPLAY_STEPS: return _fail("replay_budget")
+		if first < 1 or clock.tick - packet.tick > adapter.authority_replay_limit: return _fail("replay_budget")
 		var frames: Array = []
 		for tick in range(first, clock.tick + 1):
 			if not _frames.has(tick): return _fail("history_unavailable")

@@ -472,6 +472,27 @@ var _remote_last_positions := {}  # peer -> Vector3
 ## La mano del jugador local (desde el 2026-11-14): sostener, girar y lanzar
 ## objetos sueltos (InvHands). Se arma en _ready, sin tocar la escena.
 var _hands: InvHands
+## Pista de objetos (piloto, desde el 2026-11-18): la caja en un mundo Rapier
+## propio, con la mano de siempre. La elige el host al iniciar (casilla del
+## menú o --pista-objetos); el invitado la recibe del host.
+var _pilot: PistaPiloto
+var pista_chosen := false
+var _pista_check: CheckBox
+## Prueba de la pista (--test-input=pista): en qué paso va y su registro.
+var _pista_phase := ""
+var _pista_phase_tick := 0
+var _pista_step := 0
+var _pista_wait := 0
+var _pista_meter: PistaMedidor
+const PistaDiagnostico = preload("res://scenes/net_lab/pista_objetos/pista_diagnostico.gd")
+var _pista_diagnostico: PistaDiagnostico
+var _diagnostic_folder := "user://diagnosticos_pista"
+var _diagnostic_auto_start := false
+var pista_log_path := ""
+var pista_captures := false
+var _pista_aim_point = null
+var _pista_hold_aim := Vector3.ZERO
+var _pista_was_holding := false
 ## El panel Opciones (F3 o el botón del menú): las preferencias de la mano.
 var _options: LabOptions
 ## Si el panel estaba a la vista al abrir el inventario: al cerrarlo vuelve así.
@@ -545,6 +566,47 @@ func _ready() -> void:
 	options_button.text = "Opciones (F3)"
 	options_button.pressed.connect(_options.toggle)
 	$Hud/Menu/Box.add_child(options_button)
+	# La pista de objetos (piloto): el nodo existe en todas las máquinas (sus
+	# mensajes de red van a la misma ruta) y se activa si el host la elige.
+	_pilot = PistaPiloto.new()
+	_pilot.name = "PistaPiloto"
+	_pilot.pista = $Level.get_node_or_null("PistaDeObjetos") as PistaObjetos
+	_pilot.clock = _clock
+	_pilot.sync = _net_sync
+	_pilot.prediction = _prediction
+	_pilot.tuning = tuning
+	_pilot.link = _link
+	_pilot.hands = _hands
+	_pilot.ui = _inventory_ui
+	_pilot.camera = _camera
+	_pilot.actors_root = _actors
+	_pilot.step_local = _step_local
+	_pilot.local_actor = func() -> ActorBody: return _local_actor if is_instance_valid(_local_actor) else null
+	add_child(_pilot)
+	_pista_diagnostico = PistaDiagnostico.new()
+	_pista_diagnostico.clock = _clock
+	_pista_diagnostico.sample = _diagnostic_sample
+	add_child(_pista_diagnostico)
+	_hands.pilot = _pilot
+	_session.player_waiting.connect(_pilot.player_waiting)
+	_pista_check = CheckBox.new()
+	_pista_check.name = "PistaDeObjetos"
+	_pista_check.text = "Pista de objetos (caja nueva, piloto): la elige el host"
+	_pista_check.button_pressed = pista_chosen
+	_pista_check.toggled.connect(func(on: bool) -> void: pista_chosen = on)
+	$Hud/Menu/Box.add_child(_pista_check)
+	$Hud/Menu/Box.move_child(_pista_check, $Hud/Menu/Box/Solo.get_index())
+	if pista_log_path != "":
+		_pista_meter = PistaMedidor.new()
+		_pista_meter.name = "MedidorDeLaPista"
+		_pista_meter.pilot = _pilot
+		_pista_meter.camera = _camera
+		_pista_meter.path = pista_log_path
+		_pista_meter.phase = func() -> String: return _pista_phase
+		_pista_meter.local_actor = _pilot.local_actor
+		if pista_captures:
+			_pista_meter.captures = {"en_mano_quieto": 30, "suelta_en_movimiento": 22, "sobre_el_apoyo_en_mano": 40, "suelta_sobre_apoyo": 90, "lanzamiento": 46, "espera": 30}
+		add_child(_pista_meter)
 	# Con el inventario abierto, el panel de valores se oculta: tapa la grilla.
 	_inventory_ui.opened.connect(func() -> void:
 		_info_before_inventory = _info.visible
@@ -646,6 +708,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			# Oculta o muestra el panel, para mirar o capturar el juego sin él
 			# (pedido del usuario, 2026-10-19).
 			_info.visible = not _info.visible
+		elif event.ctrl_pressed and event.keycode == KEY_F8:
+			if _pista_diagnostico.recording():
+				_pilot.diagnostic_event.disconnect(_pista_diagnostico.record)
+				_pista_diagnostico.stop()
+				_flash("Diagnóstico guardado: " + _pista_diagnostico.path.get_file())
+			else:
+				_start_diagnostic()
+		elif event.ctrl_pressed and event.keycode == KEY_F9 and _pista_diagnostico.recording():
+			_pista_diagnostico.record("mark", _diagnostic_sample())
+			_flash("Momento marcado en el diagnóstico")
 		elif index >= 0 and event.alt_pressed:
 			# Con Alt: la fila de arriba sin Alt es la barra rápida del inventario.
 			_apply_net_preset(index)
@@ -705,7 +777,9 @@ func _set_paused(on: bool) -> void:
 	_inventory.bodies.set_paused(on)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	if _pista_aim_point != null and _pilot.pista != null and is_instance_valid(_local_actor):
+		_pista_aim(_pilot.pista, _pista_aim_point, delta)
 	max_actors_seen = maxi(max_actors_seen, _clock.sorted_actors().size())
 	if _started:
 		_update_hud()
@@ -729,9 +803,22 @@ func _start(new_role: Role) -> void:
 	_camera.start_capture()
 	if not sim_from_args:
 		_apply_net_preset(_sim_option.selected)
+	if _diagnostic_auto_start:
+		_start_diagnostic()
 	# Antes de la sesión: el host arma el mundo del inventario y el cliente
 	# queda esperando el estado que le mande el host.
 	_inventory.start(role != Role.CLIENT)
+	# La pista de objetos: el host (o jugando solo) la elige; el invitado la
+	# recibe del host al conectarse.
+	if role != Role.CLIENT and pista_chosen and _pilot.pista != null:
+		_session.spawn_slots = _pilot.pista.spawn_slots()
+		_session.host_spawn_override = _session.spawn_slots[0]
+		if not _pilot.start_host(role == Role.HOST):
+			_flash(_pilot.note)
+	elif role == Role.CLIENT:
+		_pilot.start_guest()
+	if test_input == "pista":
+		_hands.ignore_mouse_mode = true
 	match role:
 		Role.HOST:
 			_session.start_host(port, bind_address)
@@ -759,11 +846,78 @@ func _apply_net_preset(index: int) -> void:
 	_link.configure(preset["rtt"], preset["jitter"], preset["loss"], sim_seed, preset.get("stall_every", 0.0), preset.get("stall", 0.0))
 	_sim_preset_name = preset["name"]
 	print("[net_lab] red simulada: %s" % _net_sim_text())
+	_record_diagnostic_profile()
 
 
 func _apply_sim_from_args() -> void:
 	_link.configure(sim_rtt_ms, sim_jitter_ms, sim_loss_percent, sim_seed, sim_stall_every_ms, sim_stall_ms)
 	print("[net_lab] red simulada: %s" % _net_sim_text())
+	_record_diagnostic_profile()
+
+
+func _start_diagnostic() -> void:
+	var role_name: String = ["local", "host", "invitado"][role]
+	var error := _pista_diagnostico.start(_diagnostic_folder, role_name)
+	if error != OK:
+		push_warning("[pista] diagnóstico: %s (%s)" % [_diagnostic_folder, error_string(error)])
+		_flash("No se pudo escribir el diagnóstico: " + error_string(error))
+		return
+	_pilot.diagnostic_event.connect(_pista_diagnostico.record)
+	_record_diagnostic_profile()
+	print("[pista] diagnóstico: " + _pista_diagnostico.path)
+	_flash("Diagnóstico activo: " + _pista_diagnostico.path.get_file())
+
+
+func _record_diagnostic_profile() -> void:
+	if _pista_diagnostico.recording():
+		_pista_diagnostico.record("net_profile", {
+			"name": _sim_preset_name if _link.is_active() else "sin simulación",
+			"added_rtt_ms": _link.added_rtt_ms, "jitter_ms": _link.jitter_ms,
+			"loss_percent": _link.loss_percent, "seed": sim_seed,
+			"stall_ms": _link.stall_ms, "stall_every_ms": _link.stall_every_ms,
+		})
+
+
+func _diagnostic_sample() -> Dictionary:
+	var local_peer := _local_actor.owner_peer_id if is_instance_valid(_local_actor) else 0
+	var actors: Array[Dictionary] = []
+	for actor in _clock.sorted_actors():
+		var peer := actor.owner_peer_id
+		actors.append({
+			"peer": peer, "epoch": actor.state.epoch,
+			"physics": PistaDiagnostico.xyz(BaseRegistry.world_position(actor.state)),
+			"render": PistaDiagnostico.xyz(actor.visual_root().get_global_transform_interpolated().origin),
+			"velocity": PistaDiagnostico.xyz(actor.state.velocity),
+			"input_tick": _net_sync.used_input_tick(peer),
+			"input_margin": _net_sync.input_margin_ticks(peer, _clock.tick),
+			"adoptions": _adoption.count(peer, ClaimAdoption.Result.ADOPTED),
+			"max_adoption_m": _adoption.max_difference(peer),
+		})
+	var box := _pilot.diagnostic_state()
+	var physical_box := _pilot.box_sample()
+	if not physical_box.is_empty():
+		var pose: Transform3D = physical_box.pose
+		box["physics"] = PistaDiagnostico.xyz(pose.origin)
+		box["held"] = physical_box.held
+	if is_instance_valid(_pilot.box_visual) and _pilot.box_visual.visible:
+		box["render"] = PistaDiagnostico.xyz(_pilot.box_visual.global_position)
+	var view := get_viewport().get_camera_3d()
+	return {
+		"local_peer": local_peer, "fps": Engine.get_frames_per_second(),
+		"camera": PistaDiagnostico.xyz(view.global_position) if view != null else [],
+		"view_angles": [_camera.yaw, _camera.pitch], "actors": actors,
+		"net": {
+			"rtt_ms": _clock.rtt_ms, "lead_ticks": _clock.lead_ticks,
+			"worst_margin": _clock.worst_margin, "rate_hz": _clock.rate_hz,
+			"clock_resyncs": _clock.resyncs, "snapshots_received": _net_sync.snapshots_received,
+			"snapshots_missing": _net_sync.snapshots_missing, "sim_dropped": _link.dropped,
+		},
+		"prediction": {
+			"corrections": _prediction.corrections, "last_m": _prediction.last_correction_meters,
+			"late_input_waits": _prediction.waits_late_input,
+		},
+		"box": box,
+	}
 
 
 func _net_sim_text() -> String:
@@ -794,12 +948,13 @@ func _input_for(actor: ActorBody, tick: int) -> ActorInput:
 		_add_player_presses(own, tick)
 		return own
 	var remote := _net_sync.input_for(actor.owner_peer_id, tick)
-	if remote != null:
-		return remote
-	var still := ActorInput.make(tick, Vector2.ZERO, 0.0, 0, actor.state.jump_presses_seen, actor.state.ability_presses_seen,
-			actor.state.power_presses_seen)
-	still.use_presses = actor.state.use_presses_seen
-	return still
+	if remote == null:
+		remote = ActorInput.make(tick, Vector2.ZERO, 0.0, 0, actor.state.jump_presses_seen, actor.state.ability_presses_seen,
+				actor.state.power_presses_seen)
+		remote.use_presses = actor.state.use_presses_seen
+	# Pista de objetos: el invitado vinculado; su mano mueve la caja con este input.
+	_pilot.host_capture(actor, remote, tick)
+	return remote
 
 
 ## Lo que va en el input propio sea cual sea la prueba que arma el resto: los
@@ -862,6 +1017,8 @@ func _local_input(tick: int) -> ActorInput:
 		return _hook_cable_input(tick)
 	if test_input.begins_with("hook:"):
 		return _hook_input(tick, test_input.trim_prefix("hook:"))
+	if test_input == "pista":
+		return _pista_input(tick)
 	if test_input == "zigzag":
 		# Un cuadrado que cambia de lado cada medio segundo y un salto cada dos:
 		# como el input cambia seguido, un input tardío se nota en las correcciones.
@@ -886,6 +1043,207 @@ func _local_input(tick: int) -> ActorInput:
 	if _camera.third_person():
 		buttons |= ActorInput.BUTTON_THIRD_PERSON
 	return ActorInput.make(tick, move, _camera.yaw, buttons, jump_presses)
+
+
+## Prueba de la pista de objetos (--test-input=pista, invitado): con la mano
+## de siempre (InvHands), en primera persona y mirando a la caja, en este orden:
+## agarrarla caminando de costado, girarla y acercarla, soltarla caminando,
+## agarrarla al frenar, soltarla quieto, llevarla sobre el bloque bajo y
+## soltarla ahí, y lanzarla contra la pared. Cada paso queda anotado como fase
+## para el medidor (PistaMedidor). Los lugares son de la sala aprobada: la caja
+## arranca en (0, 0,24, -1,15) de la pista y el bloque está en (2,5, 0,25, -2,75).
+func _pista_input(tick: int) -> ActorInput:
+	var stay := ActorInput.make(tick, Vector2.ZERO, _camera.yaw, 0, jump_presses)
+	var pista := _pilot.pista
+	if pista == null or not is_instance_valid(_local_actor):
+		return stay
+	_camera._wanted_zoom = 0.0
+	_camera._zoom = 0.0
+	var me := pista.to_local(BaseRegistry.world_position(_local_actor.state))
+	var box := pista.to_local(_pilot.box_visual.global_position) if _pilot.box_visual != null else Vector3.ZERO
+	var holding := _hands.is_pilot_holding()
+	var held: bool = _pilot.box_sample().get("held", false)
+	var idle := not _pilot.pending() and _pilot.ready_to_play()
+	_pista_wait += 1
+	var move := Vector2.ZERO
+	# Con la caja en mano mira a un punto fijo, un poco más arriba de donde la
+	# agarró (la levanta), y no a la caja: mirar la caja que se mueve con la mira
+	# arma un lazo que una persona no hace.
+	if holding and not _pista_was_holding:
+		_pista_hold_aim = box + Vector3(0, 0.3, 0)
+	_pista_was_holding = holding
+	var aim_point := _pista_hold_aim if holding else box
+	match _pista_step:
+		0:  # Espera el primer estado de la caja.
+			_pista_set_phase("espera", tick)
+			if idle and _pista_wait > 60:
+				_pista_next()
+		1:  # Se pone a la derecha de la caja, de frente a ella.
+			_pista_set_phase("acomodo", tick)
+			move = _pista_walk_to(me, Vector3(1.6, 0, 0.45))
+			if move == Vector2.ZERO and _pista_wait > 20:
+				_pista_next()
+		2:  # Camina de costado hacia la izquierda y agarra al pasar frente a ella.
+			_pista_set_phase("agarre_de_costado", tick)
+			aim_point = _pista_hold_aim if holding else box
+			move = Vector2(-1, 0)
+			if not holding and not held and me.x < 0.6 and _pista_wait > 6 and not _hands.try_grab() and _pilot.last_refusal != "":
+				print("[pista] no agarró de costado (x %.2f): %s" % [me.x, _pilot.last_refusal])
+			if (holding or held) and me.x < -1.2:
+				_pista_next()
+			elif me.x < -2.5:
+				print("[pista] terminó el costado sin agarrar")
+				_pista_next()
+		3:  # Frena con la caja en mano y la mira un rato.
+			_pista_set_phase("en_mano_quieto", tick)
+			if _pista_wait > 40:
+				_pista_next()
+		4:  # La gira y la acerca, quieto.
+			_pista_set_phase("en_mano_girando", tick)
+			if _hands.is_pilot_holding():
+				_hands._rotation = (Quaternion(Vector3.UP, 0.02) * _hands._rotation).normalized()
+				_hands._distance = maxf(_hands._distance - 0.006, 1.2)
+			if _pista_wait > 50:
+				_pista_next()
+		5:  # Camina de costado hacia la derecha y la suelta en movimiento.
+			_pista_set_phase("suelta_en_movimiento", tick)
+			move = Vector2(1, 0)
+			if _pista_wait == 14 and _hands.is_pilot_holding():
+				_hands.release()
+			if _pista_wait > 40:
+				_pista_next()
+		6:  # Se queda quieto y deja que se asiente.
+			_pista_set_phase("asentando_1", tick)
+			if _pista_wait > 100 and idle:
+				_pista_next()
+		7:  # Se aleja hasta 2,4 m de la caja, de frente.
+			_pista_set_phase("acomodo", tick)
+			aim_point = _pista_hold_aim if holding else box
+			move = _pista_walk_to(me, box + Vector3(0, 0, 2.4) - Vector3(0, box.y, 0))
+			if move == Vector2.ZERO and _pista_wait > 20:
+				_pista_next()
+		8:  # Camina hacia la caja y la agarra justo al frenar.
+			_pista_set_phase("agarre_al_frenar", tick)
+			aim_point = _pista_hold_aim if holding else box
+			var eyes := InvAuthority.eyes(_local_actor, BaseRegistry.world_position(_local_actor.state))
+			if eyes.distance_to(pista.to_global(box)) > 1.75 and _pista_wait < 120:
+				move = Vector2(0, 1)
+			elif not holding and not held and not _hands.try_grab() and _pilot.last_refusal != "":
+				print("[pista] no agarró al frenar: %s" % _pilot.last_refusal)
+			if _pista_wait > 40 and (holding or held):
+				_pista_next()
+			elif _pista_wait > 180:
+				_pista_next()
+		9:  # Quieto con la caja en mano.
+			_pista_set_phase("en_mano_tras_frenar", tick)
+			if _pista_wait > 40:
+				_pista_next()
+		10:  # La suelta quieto.
+			_pista_set_phase("suelta_quieto", tick)
+			if _pista_wait == 4 and _hands.is_pilot_holding():
+				_hands.release()
+			if _pista_wait > 100 and idle:
+				_pista_next()
+		11:  # Va a agarrarla de nuevo para llevarla al bloque.
+			_pista_set_phase("acomodo", tick)
+			aim_point = _pista_hold_aim if holding else box
+			move = _pista_walk_to(me, box + Vector3(0, 0, 1.6) - Vector3(0, box.y, 0))
+			if move == Vector2.ZERO and _pista_wait > 20:
+				_pista_next()
+		12:
+			_pista_set_phase("agarre_para_apoyo", tick)
+			aim_point = _pista_hold_aim if holding else box
+			if not holding and not held and idle:
+				_hands.try_grab()
+			if held and holding and _pista_wait > 20:
+				_pista_next()
+			elif _pista_wait > 180:
+				_pista_next()
+		13:  # La lleva sobre el bloque: se para frente a él y la sostiene arriba.
+			_pista_set_phase("hacia_el_apoyo", tick)
+			aim_point = Vector3(2.5, 1.15, -2.55)
+			_hands._distance = move_toward(_hands._distance, clampf(_pista_eyes_local(pista).distance_to(aim_point), tuning.hold_min_distance, tuning.hold_max_distance), 0.02)
+			move = _pista_walk_to(me, Vector3(2.5, 0, -1.05))
+			if move == Vector2.ZERO and _pista_wait > 60:
+				_pista_next()
+		14:
+			_pista_set_phase("sobre_el_apoyo_en_mano", tick)
+			aim_point = Vector3(2.5, 1.15, -2.55)
+			_hands._distance = move_toward(_hands._distance, clampf(_pista_eyes_local(pista).distance_to(aim_point), tuning.hold_min_distance, tuning.hold_max_distance), 0.02)
+			if _pista_wait > 50:
+				_pista_next()
+		15:  # La suelta sobre el bloque, quieto.
+			_pista_set_phase("suelta_sobre_apoyo", tick)
+			aim_point = Vector3(2.5, 1.15, -2.55)
+			if _pista_wait == 2 and _hands.is_pilot_holding():
+				_hands.release()
+			if _pista_wait > 150 and idle:
+				print("[pista] caja sobre el bloque: centro %s (cara de arriba del bloque y = 0,5; la caja mide %.3f de alto)" % [
+					pista.to_local(_pilot.box_sample().pose.origin), PistaObjetos.BOX_SIZE.y])
+				_pista_next()
+		16:  # La agarra del bloque.
+			_pista_set_phase("agarre_del_apoyo", tick)
+			aim_point = _pista_hold_aim if holding else box
+			if not holding and not held and idle:
+				_hands.try_grab()
+			if held and holding and _pista_wait > 20:
+				_pista_next()
+			elif _pista_wait > 180:
+				_pista_next()
+		17:  # Se da vuelta hacia la pared del fondo y la lanza.
+			_pista_set_phase("lanzamiento", tick)
+			aim_point = Vector3(0.5, 1.6, -6.0)
+			if _pista_wait == 40 and _hands.is_pilot_holding():
+				_hands.throw_held()
+			if _pista_wait > 160 and idle:
+				_pista_next()
+		_:
+			_pista_set_phase("fin", tick)
+	_pista_aim_point = aim_point
+	return ActorInput.make(tick, move, _camera.yaw, 0, jump_presses)
+
+
+func _pista_next() -> void:
+	_pista_step += 1
+	_pista_wait = 0
+
+
+func _pista_set_phase(phase_name: String, tick: int) -> void:
+	if _pista_phase != phase_name:
+		_pista_phase = phase_name
+		_pista_phase_tick = tick
+		print("[pista] fase %s en el tick %d (%d ms)" % [phase_name, tick, int(Time.get_unix_time_from_system() * 1000.0)])
+
+
+func _pista_eyes_local(pista: PistaObjetos) -> Vector3:
+	return pista.to_local(InvAuthority.eyes(_local_actor, BaseRegistry.world_position(_local_actor.state)))
+
+
+## Mira hacia un punto de la pista (yaw y pitch de la cámara), cuadro a cuadro,
+## como el mouse: lo llama _process con el punto que eligió el guion.
+func _pista_aim(pista: PistaObjetos, point_local: Vector3, delta: float) -> void:
+	var eyes := InvAuthority.eyes(_local_actor, _local_actor.visual_root().get_global_transform_interpolated().origin)
+	var to := pista.to_global(point_local) - eyes
+	if to.length() < 0.05:
+		return
+	# Gira como mucho 240° por segundo, como una mano con el mouse: un giro de
+	# golpe mueve la caja de golpe (la mano es rápida).
+	var step := deg_to_rad(240.0) * delta
+	_camera.yaw += clampf(wrapf(atan2(-to.x, -to.z) - _camera.yaw, -PI, PI), -step, step)
+	_camera.pitch += clampf(clampf(asin(clampf(to.normalized().y, -1.0, 1.0)), -1.4, 1.4) - _camera.pitch, -step, step)
+
+
+## Input para caminar hasta un punto de la pista (con el yaw de la cámara);
+## cero al llegar.
+func _pista_walk_to(me: Vector3, target: Vector3) -> Vector2:
+	var to := Vector3(target.x - me.x, 0.0, target.z - me.z)
+	if to.length() < 0.12:
+		return Vector2.ZERO
+	var yaw := _camera.yaw
+	var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
+	var right := Vector3(cos(yaw), 0.0, -sin(yaw))
+	var dir := to.normalized() * clampf(to.length() / 0.6, 0.35, 1.0)
+	return Vector2(dir.dot(right), dir.dot(forward)).limit_length(1.0)
 
 
 ## Prueba de bases: va hasta la base pedida y se queda arriba, dando vueltas
@@ -1895,6 +2253,8 @@ func _on_tick_started(tick: int) -> void:
 		_current_input = _local_input(tick)
 		_add_player_presses(_current_input, tick)
 		_apply_client_events(_local_actor.state, tick)
+		# Pista de objetos: la historia de la caja guarda el input de este tick.
+		_pilot.guest_capture(_current_input)
 
 
 ## Al terminar cada tick. Host: decide qué afirmaciones adopta y después manda
@@ -1922,7 +2282,15 @@ func _on_tick_finished(tick: int) -> void:
 		_mark_hooks_released()
 		for actor in _clock.sorted_actors():
 			if _is_remote(actor):
-				_adoption.consider(actor, _net_sync.claim_for(actor.owner_peer_id, tick), tuning)
+				var recording := _pista_diagnostico.recording()
+				var before := BaseRegistry.world_position(actor.state) if recording else Vector3.ZERO
+				var adopted := _adoption.consider(actor, _net_sync.claim_for(actor.owner_peer_id, tick), tuning)
+				if recording and adopted == ClaimAdoption.Result.ADOPTED:
+					_pista_diagnostico.record("actor_adopted", {
+						"peer": actor.owner_peer_id,
+						"input_tick": _net_sync.used_input_tick(actor.owner_peer_id),
+						"distance_m": before.distance_to(BaseRegistry.world_position(actor.state)),
+					})
 		var rafts := BaseRegistry.all().filter(func(base) -> bool: return base is HostRaft and base.simulated)
 		_net_sync.send_snapshot(tick, _clock.sorted_actors(), rafts)
 	if role != Role.CLIENT:
@@ -2255,7 +2623,7 @@ func _take_world_slow(tick: int) -> void:
 		var first: int = changes.min()
 		if first >= tick or not is_instance_valid(_local_actor) or not _local_actor.simulated:
 			world_slow_on_time += 1
-		elif _prediction.replay_from(_local_actor, first, tick, _step_local):
+		elif _replay_local(first, tick, "world_time"):
 			world_slow_late += 1
 		else:
 			world_slow_too_late += 1
@@ -2280,7 +2648,7 @@ func _take_scheduled_events(tick: int) -> void:
 		_client_events.get_or_add(at, []).append([event[1], event[2]])
 		if at >= tick or not is_instance_valid(_local_actor) or not _local_actor.simulated:
 			events_on_time += 1
-		elif _prediction.replay_from(_local_actor, at, tick, _step_local):
+		elif _replay_local(at, tick, "actor"):
 			events_late += 1
 		else:
 			events_too_late += 1
@@ -2341,7 +2709,19 @@ func _on_own_state(host_tick: int, state_bytes: PackedByteArray, used_input_tick
 		_local_actor.global_position = BaseRegistry.world_position(_local_actor.state)
 		_local_actor.present(_local_actor.state)
 		return
-	_prediction.reconcile(_local_actor, host_tick, state_bytes, used_input_tick, current_tick, _step_local)
+	# Con la pista de objetos vinculada, la corrección avisa también al mundo de la caja.
+	if not _pilot.guest_reconcile(host_tick, state_bytes, used_input_tick, current_tick):
+		_prediction.reconcile(_local_actor, host_tick, state_bytes, used_input_tick, current_tick, _step_local)
+
+
+## Cliente: repite ticks del actor propio desde `first` (un evento o una cámara
+## lenta que llegaron tarde). Con la pista de objetos vinculada, avisando al
+## mundo de la caja.
+func _replay_local(first: int, tick: int, cause: String) -> bool:
+	var done: Variant = _pilot.guest_replay_from(first, tick, cause)
+	if done != null:
+		return done
+	return _prediction.replay_from(_local_actor, first, tick, _step_local)
 
 
 ## Cliente: repite un tick del propio actor, igual que SimClock: los eventos
@@ -2422,6 +2802,7 @@ func _on_connection_lost() -> void:
 	_interpolation.clear()
 	_client_events.clear()
 	_remote_last_positions.clear()
+	_pilot.connection_lost()
 	# Primero el inventario: así la interfaz, al cerrarse, no le pide nada al host.
 	_inventory.connection_lost()
 	_inventory_ui.connection_lost()
@@ -2551,6 +2932,17 @@ func _read_launch_args() -> void:
 			_session.reconnect_wait = arg.trim_prefix("--reconnect-wait=").to_float()
 		elif arg.begins_with("--test-pause-at="):
 			test_pause_tick = arg.trim_prefix("--test-pause-at=").to_int()
+		elif arg == "--pista-objetos":
+			pista_chosen = true
+		elif arg == "--pista-capturas":
+			pista_captures = true
+		elif arg.begins_with("--pista-log="):
+			pista_log_path = arg.trim_prefix("--pista-log=")
+		elif arg == "--pista-diagnostico":
+			_diagnostic_auto_start = true
+		elif arg.begins_with("--pista-diagnostico="):
+			_diagnostic_auto_start = true
+			_diagnostic_folder = arg.trim_prefix("--pista-diagnostico=")
 		elif arg.begins_with("--test-spawn-at="):
 			var xz := arg.trim_prefix("--test-spawn-at=").split(",")
 			_session.host_spawn_override = Vector3(xz[0].to_float(), 0.0, xz[1].to_float())
@@ -2617,6 +3009,11 @@ func _update_hud() -> void:
 					lines.append("      lo que sostiene: %s" % held_text)
 	if role == Role.CLIENT and _hands.held_matches + _hands.held_waits + _hands.held_version_resets > 0:
 		lines.append("lo que sostenés: %s" % _hands.prediction_text())
+	var pista_text := _pilot.status_text()
+	if pista_text != "":
+		lines.append(pista_text)
+		lines.append("Diagnóstico activo (Ctrl+F8 detiene, Ctrl+F9 marca)" if _pista_diagnostico.recording()
+				else "Ctrl+F8 graba diagnóstico de la partida")
 	var world_slow := _world_slow_text()
 	if world_slow != "":
 		lines.append(world_slow)
@@ -2794,6 +3191,15 @@ func _print_summary_and_quit() -> void:
 		])
 	if respawns > 0:
 		print("[net_lab] reapariciones: %d" % respawns)
+	if _pilot.active or _pilot.bindings > 0:
+		print("[pista] resumen: rol=%s vínculos=%d estados_aplicados=%d rechazados=%d viejos_descartados=%d recuperaciones=%d (última: %s) correcciones_de_la_caja=%d máx=%.4f media=%.4f resultados=%s sueltas_diferidas=%d sueltas_por_distancia=%d aplicar_ms_máx=%.2f aplicar_ms_media=%.2f repetición_máx=%d inputs_repetidos_con_caja=%d nota=%s" % [
+			Role.keys()[role], _pilot.bindings, _pilot.authorities_applied, _pilot.authorities_rejected,
+			_pilot.authorities_skipped_old, _pilot.recoveries, _pilot.last_recovery_reason, _pilot.box_corrections,
+			_pilot.box_correction_max, _pilot.box_correction_sum / maxi(_pilot.box_corrections, 1), _pilot.results,
+			_pilot.deferred_releases, _pilot.far_releases, _pilot.apply_usec_max / 1000.0,
+			_pilot.apply_usec_sum / 1000.0 / maxi(_pilot.authorities_applied, 1), _pilot.apply_steps_max, _pilot.inputs_repeated_with_box, _pilot.note.replace("\n", " ")])
+	if _pista_meter != null:
+		_pista_meter.finish()
 	if _inventory.is_host() and _inventory.aims_at_tick + _inventory.aims_now > 0:
 		print("[net_lab] recoger y abrir: %d con los ojos de su tick (%d llegaron cuando el host ya iba más adelante, %d con un input repetido), %d con los de ahora" % [
 			_inventory.aims_at_tick, _inventory.aims_late, _inventory.aims_guessed, _inventory.aims_now])

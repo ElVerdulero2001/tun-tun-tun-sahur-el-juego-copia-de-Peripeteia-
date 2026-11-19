@@ -93,5 +93,9 @@ func _process(_delta: float) -> void:
 	# Con variación, dos paquetes pueden llegar al revés de como salieron, igual que en internet.
 	due.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 	for item in due:
+		var packet: Callable = item[1]
+		# El dueño puede desaparecer mientras un paquete espera en la cola.
+		if not packet.is_valid():
+			continue
 		delivered += 1
-		item[1].call()
+		packet.call()

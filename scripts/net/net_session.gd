@@ -84,6 +84,9 @@ var rejection := ""
 ## Solo para pruebas: dónde aparece (y reaparece) el actor del host o del modo
 ## local, en vez de su lugar de aparición. Nulo para usar el de siempre.
 var host_spawn_override = null
+## Lugares de aparición en vez de SPAWN_SLOTS (vacío: los de siempre). Los pone
+## el laboratorio al elegir la pista de objetos (desde el 2026-11-18).
+var spawn_slots: Array = []
 ## Cliente: si está intentando volver después de un corte, cuántos intentos
 ## lleva en este corte y cuántas veces volvió.
 var reconnecting := false
@@ -481,7 +484,8 @@ func _try_reconnect() -> void:
 func spawn_position(peer_id: int) -> Vector3:
 	if peer_id == 1 and host_spawn_override != null:
 		return host_spawn_override
-	return SPAWN_SLOTS[_slot_of_peer.get(peer_id, 0) % SPAWN_SLOTS.size()]
+	var slots: Array = spawn_slots if not spawn_slots.is_empty() else SPAWN_SLOTS
+	return slots[_slot_of_peer.get(peer_id, 0) % slots.size()]
 
 
 func _spawn_for(peer_id: int) -> void:

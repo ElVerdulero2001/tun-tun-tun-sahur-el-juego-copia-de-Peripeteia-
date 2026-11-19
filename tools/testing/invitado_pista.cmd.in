@@ -1,0 +1,181 @@
+@echo off
+setlocal
+set "PISTA_LANZADOR=%~f0"
+set "PISTA_GODOT=%~1"
+powershell.exe -NoProfile -Command "$raw = [IO.File]::ReadAllText($env:PISTA_LANZADOR); $code = ($raw -split '(?m)^:powershell\r?$', 2)[1]; try { & ([scriptblock]::Create($code)) } catch { Write-Host $_.Exception.Message -ForegroundColor Red; exit 1 }"
+if errorlevel 1 (
+    pause
+    exit /b 1
+)
+exit /b 0
+
+:powershell
+$ErrorActionPreference = 'Stop'
+$servers = @(@SERVIDORES@)
+$key = '@CLAVE@'
+$state = Join-Path $env:LOCALAPPDATA 'Sahur\PistaObjetos'
+$project = Join-Path $state 'proyecto'
+$diagnostics = Join-Path $state 'diagnosticos_pista'
+$managedFile = Join-Path $state 'archivos.txt'
+$preferredServer = Join-Path $state 'servidor.txt'
+$godotFile = Join-Path $state 'godot.txt'
+$imported = Join-Path $state 'importado.txt'
+$utf8 = New-Object Text.UTF8Encoding($false)
+
+function Install-File($temp, $path) {
+    if ([IO.File]::Exists($path)) { [IO.File]::Replace($temp, $path, [NullString]::Value) }
+    else { [IO.File]::Move($temp, $path) }
+}
+
+function Write-LocalFile($path, $value) {
+    [IO.File]::WriteAllText($path + '.nuevo', $value, $utf8)
+    Install-File ($path + '.nuevo') $path
+}
+
+function File-Hash($path) {
+    $stream = [IO.File]::OpenRead($path)
+    try { return [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+    finally { $stream.Dispose() }
+}
+
+function Project-Path($path) {
+    foreach ($part in ($path -split '/')) {
+        if (-not $part -or $part.StartsWith('.') -or $part -match '[<>:"\\|?*\x00-\x1f]|[ .]$' -or
+            $part -match '^(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)') {
+            throw 'La pista contiene un nombre de archivo invalido.'
+        }
+    }
+    Join-Path $project ($path.Replace('/', '\'))
+}
+
+function Remove-OldFile($path) {
+    if (-not [IO.File]::Exists($path)) { return }
+    [IO.File]::Delete($path)
+    $parent = Split-Path -Parent $path
+    while ($parent -ne $project -and [IO.Directory]::Exists($parent) -and
+        [IO.Directory]::GetFileSystemEntries($parent).Length -eq 0) {
+        [IO.Directory]::Delete($parent)
+        $parent = Split-Path -Parent $parent
+    }
+}
+
+[IO.Directory]::CreateDirectory($state) | Out-Null
+for ($attempt = 0; ; $attempt++) {
+    try {
+        $lock = [IO.File]::Open((Join-Path $state 'en_uso'), 'OpenOrCreate', 'ReadWrite', 'None')
+        break
+    } catch [IO.IOException] {
+        if ($attempt -eq 8) { throw 'Ya tenes abierta la pista. Cerra el juego antes de volver a actualizar.' }
+        Start-Sleep -Milliseconds 250
+    }
+}
+
+try {
+    $godot = $env:PISTA_GODOT
+    if (-not $godot -and [IO.File]::Exists($godotFile)) { $godot = [IO.File]::ReadAllText($godotFile) }
+    if (-not $godot) { $godot = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Godot_v4.7.2.exe' }
+    if (-not [IO.File]::Exists($godot)) {
+        throw 'Pone Godot_v4.7.2.exe en el Escritorio o arrastra el EXE sobre Jugar_como_invitado.cmd una sola vez.'
+    }
+    if ($env:PISTA_GODOT) { Write-LocalFile $godotFile $godot }
+
+    if ([IO.File]::Exists($preferredServer)) { $servers = @([IO.File]::ReadAllText($preferredServer)) + $servers }
+    Add-Type -AssemblyName System.Net.Http
+    $handler = New-Object Net.Http.HttpClientHandler
+    $handler.UseProxy = $false
+    $handler.AllowAutoRedirect = $false
+    $http = New-Object Net.Http.HttpClient($handler)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $http.Timeout = [TimeSpan]::FromSeconds(6)
+    $http.DefaultRequestHeaders.Add('Authorization', "Bearer $key")
+    try {
+        Write-Host 'Buscando la pista en la PC del host...'
+        $server = $null
+        $waiting = $false
+        foreach ($candidate in ($servers | Select-Object -Unique)) {
+            try {
+                for ($attempt = 0; $attempt -lt 25; $attempt++) {
+                    $response = $http.GetAsync("$candidate/manifest.json").GetAwaiter().GetResult()
+                    try {
+                        if ($response.IsSuccessStatusCode) {
+                            $manifest = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
+                            $server = $candidate
+                            break
+                        }
+                        if ([int]$response.StatusCode -ne 503) { break }
+                    } finally { $response.Dispose() }
+                    if (-not $waiting) { Write-Host 'El host esta preparando la pista. Esperando...' }
+                    $waiting = $true
+                    Start-Sleep -Seconds 1
+                }
+                if ($server) { break }
+            } catch [System.Net.Http.HttpRequestException], [System.Threading.Tasks.TaskCanceledException] {
+                continue
+            }
+        }
+        if (-not $server) {
+            if ($waiting) { throw 'Godot todavia se esta preparando en el host. Espera a que abra la partida y volve a intentar.' }
+            throw 'No pude conectar con el host. Abri Jugar_como_host.cmd en esa PC y revisa que ambas compartan Wi-Fi o VPN.'
+        }
+        if ($manifest.version -ne 1 -or -not $manifest.files -or $manifest.host -notmatch '^\d{1,3}(\.\d{1,3}){3}$') {
+            throw 'La publicacion del host es incompatible con este lanzador.'
+        }
+        $files = @{}
+        foreach ($entry in $manifest.files) {
+            if ($entry.hash -cnotmatch '^[0-9a-f]{64}$' -or $files.ContainsKey($entry.path)) {
+                throw 'La lista de archivos que publico el host es invalida.'
+            }
+            $files[$entry.path] = Project-Path $entry.path
+        }
+
+        $previous = @()
+        if ([IO.File]::Exists($managedFile)) { $previous = [IO.File]::ReadAllLines($managedFile) }
+        $obsolete = @($previous | Where-Object { -not $files.ContainsKey($_) })
+        $downloads = @(foreach ($entry in $manifest.files) {
+            $path = $files[$entry.path]
+            if (-not [IO.File]::Exists($path) -or (File-Hash $path) -ne $entry.hash) {
+                $entry
+            }
+        })
+        Write-Host ('Archivos para bajar: {0}. Archivos retirados: {1}.' -f $downloads.Count, $obsolete.Count)
+        if ($downloads.Count -or $obsolete.Count) {
+            [IO.File]::Delete($imported)
+            # Si se corta la descarga, el siguiente arranque ve tambien los archivos a medio actualizar.
+            Write-LocalFile $managedFile ((@($previous) + @($files.Keys) | Sort-Object -Unique) -join [Environment]::NewLine)
+        }
+        foreach ($old in $obsolete) { Remove-OldFile (Project-Path $old) }
+        foreach ($entry in $downloads) {
+            $path = $files[$entry.path]
+            [IO.Directory]::CreateDirectory((Split-Path -Parent $path)) | Out-Null
+            $bytes = $http.GetByteArrayAsync("$server/archivo/$($entry.hash)").GetAwaiter().GetResult()
+            $temp = $path + '.pista-nuevo'
+            try {
+                [IO.File]::WriteAllBytes($temp, $bytes)
+                if ((File-Hash $temp) -ne $entry.hash) {
+                    throw ('La descarga no coincide con la version del host: ' + $entry.path)
+                }
+                Install-File $temp $path
+            } finally { [IO.File]::Delete($temp) }
+        }
+        Write-LocalFile $managedFile (@($files.Keys | Sort-Object) -join [Environment]::NewLine)
+        Write-LocalFile $preferredServer $server
+    } finally {
+        $sha.Dispose()
+        $http.Dispose()
+    }
+
+    [IO.Directory]::CreateDirectory($diagnostics) | Out-Null
+    if (-not [IO.File]::Exists($imported) -or [IO.File]::ReadAllText($imported) -ne $godot -or
+        -not [IO.File]::Exists((Join-Path $project '.godot\global_script_class_cache.cfg'))) {
+        Write-Host 'Preparando Godot...'
+        $import = '--headless --path "{0}" --import --log-file "{1}"' -f $project, (Join-Path $state 'import.log')
+        $result = Start-Process -FilePath $godot -ArgumentList $import -Wait -PassThru -WindowStyle Hidden
+        if ($result.ExitCode -ne 0) { throw "Godot no pudo importar la pista. Revisa import.log en $state" }
+        Write-LocalFile $imported $godot
+    }
+    Write-Host ('Entrando a la partida en ' + $manifest.host)
+    Write-Host ('JSONL del invitado: ' + $diagnostics)
+    $arguments = '--path "{0}" --scene res://scenes/net_lab/net_lab.tscn --log-file "{1}" -- --client --address={2} "--pista-diagnostico={3}"' -f $project, (Join-Path $state 'invitado.log'), $manifest.host, $diagnostics
+    $result = Start-Process -FilePath $godot -ArgumentList $arguments -Wait -PassThru
+    if ($result.ExitCode -ne 0) { throw "Godot termino con error. Revisa invitado.log en $state" }
+} finally { $lock.Dispose() }

@@ -16,6 +16,8 @@ const MAX_SNAPSHOT_BYTES := 1048620
 
 var world
 var ready_for_input := false
+## Budget for replaying delayed host snapshots, including after recovery.
+var authority_replay_limit := MAX_REPLAY_STEPS
 var last_error := ""
 var replayed_steps := 0
 var capture_calls := 0
@@ -253,7 +255,7 @@ func apply_authority_trusted(packet: Dictionary) -> bool:
 	if not _valid_authority(packet): return false
 	if packet.tick > _last_tick: return _fail("future_authority")
 	if _tuning_signature() != _signature: return _fail("tuning_changed", true)
-	if _last_tick - packet.tick > MAX_REPLAY_STEPS: return _fail("replay_budget", true)
+	if _last_tick - packet.tick > authority_replay_limit: return _fail("replay_budget", true)
 	for t in range(packet.tick + 1, _last_tick + 1):
 		if not _history.has(t): return _fail("history_expired", true)
 		if _history[t].dt != SimClock.world_dt(t):
@@ -301,7 +303,7 @@ func recover_authority_trusted(packet: Dictionary, frames: Array, generation: in
 	var present := clock.tick
 	if packet.tick > present: return _fail("future_authority")
 	var count: int = present - packet.tick
-	if count > MAX_REPLAY_STEPS: return _fail("replay_budget")
+	if count > authority_replay_limit: return _fail("replay_budget")
 	if frames.size() != count: return _fail("incomplete_recovery_frames")
 	var supported := [0.08, 12.0, 80.0, 720.0, 7200.0]
 	var params := [tuning.hold_follow_time, tuning.hold_move_limit, tuning.hold_accel_limit,

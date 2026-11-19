@@ -102,8 +102,18 @@ const SMOOTH_TICKS := 6
 const FREE_TICKS := 120
 ## Como mucho, cuántos ticks se lleva una pose del host al presente.
 const MAX_CATCH_UP := 30
+## Pista de objetos (piloto, desde el 2026-11-18; PistaPiloto): lo que tiene la
+## mano cuando sostiene la caja de la pista, que no es un objeto del inventario,
+## y la sesión con que su intención viaja en ActorInput.hold. Las sesiones del
+## inventario se cuentan desde 1 y no llegan a este número.
+const PILOT_UID := -2
+const PILOT_HOLD_SESSION := 0x7FFFFFF0
 
 var net: InvNet
+## La pista de objetos, si el laboratorio la armó (PistaPiloto). Con ella, si
+## la mira pasa por su caja, agarrar, soltar y lanzar se le piden a ella; los
+## botones, la rueda y el giro son los mismos. Sin ella, nada cambia.
+var pilot: Node
 var ui: InvUI
 var camera: LabCamera
 var tuning: ActorTuning
@@ -203,7 +213,7 @@ func is_rotating() -> bool:
 func predicted_uid() -> int:
 	if net == null or net.is_host():
 		return -1
-	if _uid != 0:
+	if _uid != 0 and _uid != PILOT_UID:
 		return _uid
 	if not _free.is_empty():
 		return _free["uid"]
@@ -334,6 +344,32 @@ func try_grab() -> bool:
 	if _uid != 0 or blocked() or camera == null:
 		return false
 	var aim := camera.aim_ray()
+	if pilot != null:
+		# La caja de la pista primero: si la mira la toca, es de ella aunque no
+		# se pueda agarrar ahora (lo dice y no sigue con el inventario).
+		var answer: Dictionary = pilot.try_grab(aim[0], aim[1])
+		if not answer.is_empty():
+			if not answer.get("ok", false):
+				if ui != null and answer.get("reason", "") != "":
+					ui.say(answer["reason"])
+				return false
+			grabs += 1
+			_uid = PILOT_UID
+			_session = PILOT_HOLD_SESSION
+			_seq = 0
+			_confirmed = false
+			_distance = answer["distance"]
+			_rotation = answer["rotation"]
+			_blend_uid = 0
+			_free = {}
+			_pred.clear()
+			_goals.clear()
+			_sent.clear()
+			_smooth_left = 0
+			return true
+		if pilot.busy():
+			# La caja de la pista todavía ocupa la mano (suelta en viaje).
+			return false
 	var target := net.interaction_target(actor, aim[0], aim[1], camera.third_person())
 	if target.get("kind", "") != "item" or not target.has("point"):
 		return false
@@ -372,6 +408,11 @@ func try_grab() -> bool:
 func release() -> void:
 	if _uid == 0:
 		return
+	if _uid == PILOT_UID:
+		pilot.release(Vector3.ZERO, false)
+		releases += 1
+		_end_pilot()
+		return
 	net.replica.request(InvProtocol.Op.RELEASE, InvProtocol.release_args(_uid, _session, net.aim_tick()))
 	releases += 1
 	_end_local()
@@ -382,6 +423,11 @@ func throw_held() -> void:
 	if _uid == 0:
 		return
 	var direction: Vector3 = (camera.aim_ray()[1] as Vector3).normalized()
+	if _uid == PILOT_UID:
+		pilot.release(direction, true)
+		throws += 1
+		_end_pilot()
+		return
 	net.replica.request(InvProtocol.Op.THROW, InvProtocol.throw_args(_uid, _session, direction, net.aim_tick()))
 	throws += 1
 	var copy := net.world_view(_uid) if net != null else null
@@ -393,6 +439,14 @@ func throw_held() -> void:
 ## Con `reason`, lo avisa.
 func drop_hold(reason: String, send: bool) -> void:
 	if _uid == 0:
+		return
+	if _uid == PILOT_UID:
+		if send:
+			pilot.release(Vector3.ZERO, false)
+			releases += 1
+		if reason != "" and ui != null:
+			ui.say(reason)
+		_end_pilot()
 		return
 	if send and net != null and net.started:
 		net.replica.request(InvProtocol.Op.RELEASE, InvProtocol.release_args(_uid, _session, net.aim_tick()))
@@ -436,10 +490,47 @@ func _end_local(push := Vector3.ZERO) -> void:
 
 
 ## Lo que va en el input de este tick (ActorInput.hold): vacío si no sostiene.
+## Con la pista de objetos vinculada, sin un objeto del inventario en la mano
+## va siempre la mano de la pista, como en la sala aprobada: así la caja sigue
+## a la mano también mientras viaja el pedido de soltarla.
 func hold_for_input() -> Array:
-	if _uid == 0 or camera == null:
+	if camera == null:
+		return []
+	if _uid == PILOT_UID or (_uid == 0 and pilot != null and pilot.hold_input_active()):
+		return ActorInput.pack_hold(PILOT_HOLD_SESSION, camera.pitch, clampf(_distance, _min_distance(), _max_distance()), _rotation)
+	if _uid == 0:
 		return []
 	return ActorInput.pack_hold(_session, camera.pitch, clampf(_distance, _min_distance(), _max_distance()), _rotation)
+
+
+## Pista de objetos: si la mano tiene su caja.
+func is_pilot_holding() -> bool:
+	return _uid == PILOT_UID
+
+
+## Pista de objetos: [distancia, giro] de la mano ahora (para dibujar la caja).
+func pilot_hold_values() -> Array:
+	return [clampf(_distance, _min_distance(), _max_distance()), _rotation]
+
+
+## Pista de objetos: la caja dejó la mano (el host no la dio, se soltó o se
+## cortó). Con `reason`, lo avisa.
+func pilot_ended(reason: String) -> void:
+	if _uid != PILOT_UID:
+		return
+	if reason != "" and ui != null:
+		ui.say(reason)
+	_end_pilot()
+
+
+## Deja la caja de la pista. La distancia y el giro quedan: la intención sigue
+## viajando igual hasta que el host ejecute la suelta.
+func _end_pilot() -> void:
+	_uid = 0
+	_session = 0
+	_confirmed = false
+	_rotating = false
+	_hidden = 0.0
 
 
 func _min_distance() -> float:
@@ -483,7 +574,7 @@ func _on_hold_lost(uid: int, reason: String) -> void:
 ## pide al host que lo suelte, después del pedido de recoger: si el host no lo
 ## deja recoger (no entra), queda suelto y cae, en vez de quedar en el aire.
 func world_changed() -> void:
-	if _uid == 0:
+	if _uid == 0 or _uid == PILOT_UID:
 		return
 	var item: Dictionary = net.replica.world.get(_uid, {})
 	if item.is_empty():
@@ -517,7 +608,9 @@ func predict(tick: int, input: ActorInput) -> void:
 	if not _active() or net.is_host() or _done_tick == tick:
 		return
 	_done_tick = tick
-	if _uid != 0:
+	if _uid == PILOT_UID:
+		pass  # La caja de la pista la predice PistaPiloto.
+	elif _uid != 0:
 		_predict_held(tick, input)
 	elif not _free.is_empty():
 		_predict_free(tick)

@@ -17,6 +17,7 @@
 [ext_resource type="Script" uid="uid://bd7t6mp22ijfj" path="res://scenes/net_lab/crouch_jump_course.gd" id="15_crouch"]
 [ext_resource type="Script" uid="uid://ovn5c0xoupah" path="res://scripts/inventory/inv_pickup_spawn.gd" id="16_e3qid"]
 [ext_resource type="Resource" uid="uid://brngqdjnl05k5" path="res://scenes/net_lab/inventario/objetos/vendas.tres" id="17_mnpqp"]
+[ext_resource type="Script" path="res://scenes/net_lab/pista_objetos/pista_objetos.gd" id="18_pista"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_lab"]
 
@@ -488,3 +489,7 @@ item = ExtResource("17_mnpqp")
 quantity = 5
 show_label = false
 metadata/_custom_type_script = "uid://ovn5c0xoupah"
+
+[node name="PistaDeObjetos" type="Node3D" parent="." unique_id=1748000201]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 53, 0, -6)
+script = ExtResource("18_pista")

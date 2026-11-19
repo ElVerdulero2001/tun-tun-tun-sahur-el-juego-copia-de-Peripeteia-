@@ -22,6 +22,28 @@
 | Soltar mientras recupera | La caja queda suelta en el dibujo antes de volver a predecir; deja de seguir la mano. |
 | Volver a la red normal con la caja en la mano | Vuelve a predecir con la caja en la mano y la suelta funciona. |
 
+## Suelta en el acto (18 de noviembre, noche)
+
+**Lo que se medía.** En el invitado la suelta esperaba al host: la caja seguía en la mano hasta que llegaba un estado con la suelta y después se dibujaba con las poses del host, 4 ticks atrás. Según el JSONL del invitado de las dos notebooks, la caja quedaba suelta 119–136 ms después del clic sin red simulada y 536–588 ms con Alt+4 en las dos. Al cambiar, la caja iba a donde la había soltado el host, que era donde estaba la mano un rato antes.
+
+**Cambios.**
+
+1. `pista_piloto.gd`: al soltar o lanzar, el invitado pone la suelta en su propio mundo (la cola de acciones del adaptador) en el tick que sigue y le pide al host ese mismo tick. No lo acota con el presente del host, porque el pedido llega como el input de ese tick. Si no puede predecir (recuperando, o el agarre todavía no llegó a su mundo), espera al host como antes.
+2. Con predicción, la caja suelta se dibuja con el mundo propio del invitado; las poses del host quedan para cuando recupera.
+3. Si el host la aplicó en otro tick (el pedido le llegó tarde), `retime_action` (nuevo en `clock_adapter.gd` y `history_bridge.gd`) la mueve en la historia a ese tick. Mientras tanto, si un estado del host la vuelve a poner en la mano, lo dibujado se queda quieto en vez de volver a la mano. El diagnóstico anota `predicted` en `guest_action_sent`, `guest_release_retimed` y `predicted_release`.
+
+**Pruebas en una PC (dos procesos, ENet).** La versión anterior (`04b6acc`) corrió como control en una copia aparte. Los registros están en `tmp/revision_pista_latencia_20261118/suelta_en_el_acto`.
+
+| Caso | Antes (`04b6acc`) | Ahora |
+| --- | --- | --- |
+| Alt+4 en las dos, 4 sueltas del guion: caja suelta en el mundo del invitado | 524–575 ms | 37–53 ms (las muestras son cada 33 ms) |
+| Lo mismo: la caja bajó 5 cm | 687–803 ms (una, a 86 ms, volvió 31 cm para arriba y 88 cm de costado) | 120–138 ms |
+| Lo mismo: corrección más grande de la caja | 1,71 m | 0,30 m |
+| Sin red simulada | — | 8/8 acciones, caja suelta a 37–53 ms |
+| Pedido que le llega tarde al host (traba de 300 ms al soltar) | — | Predicha en el tick 469, el host la aplicó en el 483 y el invitado la corrió. La caja no volvió a subir a la mano. |
+
+Las pruebas de la ventana de 48 y de la caja en la mano al recuperar siguen pasando. En la de soltar mientras recupera, la suelta va por el camino de antes (sin predicción).
+
 **Costo.** Aplicar un estado de 48 ticks cuesta más que uno de 32. En las notebooks, con Alt+4, se midieron 3,3 ms de media y 5,7 ms como máximo por estado con la ventana anterior. Falta medirlo con 48 en las dos notebooks.
 
 ## Qué es

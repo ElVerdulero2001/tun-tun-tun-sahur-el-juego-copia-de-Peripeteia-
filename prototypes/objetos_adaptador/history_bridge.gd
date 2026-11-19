@@ -77,6 +77,32 @@ func queue_action(tick: int, id: int, kind: String, anchor := Vector3.ZERO, impu
 	_known_actions[id] = command; _commands[tick] = command
 	return {"status": "queued"}
 
+## Object lane pilot (2026-11-18): move a predicted action to the tick the host
+## executed it (adapter.retime_action), also in the recorded frames used for
+## recovery, so both histories keep the same action at the same tick.
+func retime_action(id: int, to_tick: int) -> bool:
+	var command: Dictionary = _known_actions.get(id, {})
+	if command.is_empty(): return _fail("unknown_action")
+	var from_tick: int = command.tick
+	if to_tick == from_tick: return true
+	if _commands.has(to_tick) or not (_frames.get(to_tick, {}).get("action", {}) as Dictionary).is_empty():
+		return _fail("action_capacity")
+	if not adapter.retime_action(id, to_tick): return _fail(adapter.last_error)
+	if _commands.get(from_tick, {}).get("id", 0) == id: _commands.erase(from_tick)
+	_set_frame_action(from_tick, id, {})
+	command.tick = to_tick
+	_commands[to_tick] = command
+	_set_frame_action(to_tick, 0, command)
+	return true
+
+func _set_frame_action(tick: int, only_id: int, action: Dictionary) -> void:
+	if not _frames.has(tick): return
+	var frame: Dictionary = _frames[tick]
+	if only_id > 0 and frame.action.get("id", 0) != only_id: return
+	_bytes -= var_to_bytes(frame).size()
+	frame.action = action.duplicate(true)
+	_bytes += var_to_bytes(frame).size()
+
 func _tick_finished(tick: int) -> void:
 	_actor_tick = tick
 	# Retirement/notification also runs when input capture or prediction stopped.

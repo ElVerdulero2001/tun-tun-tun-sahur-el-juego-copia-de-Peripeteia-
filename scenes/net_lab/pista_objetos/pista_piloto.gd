@@ -72,6 +72,9 @@ const GRAB_HANDOFF_TIME := 0.075
 const FREE_DRAW_BUFFER_TICKS := 4.0
 const MAX_FREE_DRAW_SAMPLES := 24
 const FREE_SUPPORT_MAX_DEPTH := 0.08
+## Cómo sigue lo dibujado a la caja suelta del mundo predicho del invitado
+## (por segundo): suaviza los pasos de 60 Hz sin atrasarla más de un tick.
+const FREE_PREDICTED_FOLLOW := 60.0
 ## Lo que miran las consultas del dibujo: el nivel, las cajas y lo que solo
 ## frena a la caja (la barrera de la puerta y el techo).
 const VIEW_MASK := 1 | 4 | PistaObjetos.OBJECT_ONLY_LAYER
@@ -129,6 +132,11 @@ var _guest_applied_tick := -1
 ## (Vector3) o null. Sale cuando llega el estado con el agarre; si el agarre se
 ## rechaza, se cancela.
 var _deferred_release = null
+## La suelta predicha (desde 2026-11-18): el invitado suelta la caja en su
+## propio mundo en el mismo tick que se lo pide al host, sin esperarlo. ID y
+## tick de la suelta pedida mientras el host no la confirma (0 y -1 si no hay).
+var _predicted_release_id := 0
+var _predicted_release_tick := -1
 var _recovery_view_world
 var _recovery_view_sample := {}
 var _pend := {}
@@ -825,6 +833,8 @@ func _clear_pending() -> void:
 	_pending_id = 0
 	_pending_kind = ""
 	_guest_applied_tick = -1
+	_predicted_release_id = 0
+	_predicted_release_tick = -1
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -842,6 +852,13 @@ func _on_result(id: int, status: String, tick: int, reason: String) -> void:
 	if status == "applied":
 		_guest_applied_tick = tick
 		note = ""
+		if id == _predicted_release_id and tick != _predicted_release_tick:
+			# El pedido le llegó tarde al host: la suelta va al tick en que la
+			# aplicó, para que las repeticiones que siguen den lo mismo que en él.
+			var moved: bool = _history.retime_action(id, tick)
+			_diagnose("guest_release_retimed", {"id": id, "from": _predicted_release_tick, "to": tick,
+				"ok": moved, "reason": "" if moved else _history.last_error})
+			_predicted_release_tick = tick
 		_flush_deferred_release()
 		return
 	var kind := _pending_kind
@@ -958,6 +975,15 @@ func _send_action(kind: String, anchor: Vector3, impulse: Vector3) -> bool:
 	# disparada unos 80 cm y volvía) y soltaba antes de lo pedido.
 	var host_now := clock.tick - ceili(maxf(clock.lead_ticks, 0.0))
 	var tick: int = mini(clock.tick + 1, host_now + MAX_ACTION_LEAD)
+	# Suelta en el acto (desde 2026-11-18): el tick que sigue, sin acotar, porque
+	# el invitado suelta ahí en su propio mundo y el host tiene que soltar en el
+	# mismo. El pedido sale antes que el input de ese tick y llega como él, con
+	# unos ticks de anticipación: el límite del host (MAX_ACTION_LEAD, contra su
+	# presente cuando llega) no lo frena. La cota de arriba miraba el presente del
+	# host al salir y con Alt+4 (17,6 ticks adelante) corría la suelta 3 ticks atrás.
+	var predict := kind == "release" and _can_predict_release()
+	if predict:
+		tick = clock.tick + 1
 	var action := {"id": _serial, "tick": tick, "kind": kind, "anchor": anchor, "impulse": impulse}
 	if not _channel.request_action(action):
 		note = _channel.last_error
@@ -967,9 +993,31 @@ func _send_action(kind: String, anchor: Vector3, impulse: Vector3) -> bool:
 	_guest_applied_tick = -1
 	_pending_since = Time.get_ticks_msec()
 	_diagnose("guest_action_sent", {
-		"id": _serial, "kind": kind, "requested_tick": tick, "throw": impulse != Vector3.ZERO,
+		"id": _serial, "kind": kind, "requested_tick": tick, "throw": impulse != Vector3.ZERO, "predicted": predict,
 	})
+	if predict:
+		var queued: Dictionary = _history.queue_action(tick, _serial, kind, anchor, impulse)
+		if queued.get("status", "") == "queued":
+			_predicted_release_id = _serial
+			_predicted_release_tick = tick
+		else:
+			# Sin predicción: la caja espera al host, como antes.
+			_diagnose("guest_release_not_predicted", {"id": _serial, "reason": queued.get("reason", "")})
 	return true
+
+
+## Si la suelta se puede hacer ya en el mundo del invitado: predice, tiene la
+## historia del personaje al día y la caja está en la mano en su mundo (un
+## agarre que el host aplicó pero cuyo estado no llegó todavía no la tiene).
+## El mouse suelta entre ticks (el reloj y la historia en el mismo tick); el
+## guion de prueba, mientras se arma el input del tick que sigue (uno adelante).
+func _can_predict_release() -> bool:
+	if not guest_bound() or not _adapter.ready_for_input or not _history.actor_baseline_ready:
+		return false
+	var ahead: int = clock.tick - int(_history.stats().actor_tick)
+	if ahead < 0 or ahead > 1:
+		return false
+	return _adapter.world.sample(PistaObjetos.BOX_ID, 1).get("held", false)
 
 
 func _clear_path(eyes: Vector3, point: Vector3) -> bool:
@@ -1042,6 +1090,7 @@ func diagnostic_state() -> Dictionary:
 		"recovery_view_tick": _recovery_view_sample.get("tick", -1),
 		"recovery_view_held": _recovery_view_sample.get("held", false),
 		"recovery_hand": _recovery_drew_hand,
+		"predicted_release": _predicted_release_id,
 		"published_revision": _revision,
 		"applied": authorities_applied, "rejected": authorities_rejected,
 		"skipped_old": authorities_skipped_old, "recoveries": recoveries,
@@ -1091,8 +1140,18 @@ func _present_box(sample: Dictionary, delta: float) -> void:
 	# no donde la tenía el host (más de medio segundo atrás con red mala).
 	var held_recovering: bool = guest and sample.held and not _adapter.ready_for_input
 	_recovery_drew_hand = held_recovering
+	if held_locally and _predicted_release_id != 0:
+		# Suelta predicha que el mundo todavía no ejecutó (llega en el tick que
+		# sigue), o un estado del host anterior a su suelta la volvió a poner en
+		# la mano un momento: lo dibujado se queda donde está, sin volver a la mano.
+		return
 	var follow_rate := 35.0
-	var draw_free_from_host: bool = guest and not sample.held and not _free_draw_samples.is_empty()
+	# Caja suelta: con predicción, la del mundo propio (al presente del
+	# invitado, sin esperar al host); recuperando, las poses del host en orden.
+	var predicted_free: bool = guest and not sample.held and _adapter.ready_for_input
+	var draw_free_from_host: bool = guest and not sample.held and not _free_draw_samples.is_empty() \
+			and not _adapter.ready_for_input
+	var draw_free := predicted_free or draw_free_from_host
 	if _grab_preview and (held_locally or not _adapter.ready_for_input):
 		_settle_grab_preview()
 	if draw_free_from_host:
@@ -1114,7 +1173,8 @@ func _present_box(sample: Dictionary, delta: float) -> void:
 				and pose.basis.get_rotation_quaternion().angle_to(shown.basis.get_rotation_quaternion()) < HOLD_VISUAL_IDLE_ANGLE:
 			_drew_box_held = true
 			return
-	if draw_free_from_host and not _grab_preview:
+	var blended := false
+	if draw_free and not _grab_preview:
 		if _drew_box_held:
 			_loose_draw_from = shown
 			_loose_draw_remaining = GRAB_HANDOFF_TIME
@@ -1122,6 +1182,7 @@ func _present_box(sample: Dictionary, delta: float) -> void:
 			var progress := 1.0 - _loose_draw_remaining / GRAB_HANDOFF_TIME
 			pose = _loose_draw_from.interpolate_with(pose, smoothstep(0.0, 1.0, progress))
 			_loose_draw_remaining = maxf(0.0, _loose_draw_remaining - delta)
+			blended = true
 	elif sample.held:
 		_loose_draw_remaining = 0.0
 	_drew_box_held = sample.held
@@ -1129,9 +1190,12 @@ func _present_box(sample: Dictionary, delta: float) -> void:
 		_grab_handoff_remaining = maxf(0.0, _grab_handoff_remaining - delta)
 		var progress := 1.0 - _grab_handoff_remaining / GRAB_HANDOFF_TIME
 		pose = _grab_handoff_from.interpolate_with(pose, smoothstep(0.0, 1.0, progress))
-	elif not draw_free_from_host or _grab_preview:
+	elif predicted_free and not _grab_preview:
+		if not blended:
+			pose = shown.interpolate_with(pose, 1.0 - exp(-delta * FREE_PREDICTED_FOLLOW))
+	elif not draw_free or _grab_preview:
 		pose = shown.interpolate_with(pose, 1.0 - exp(-delta * follow_rate))
-	if draw_free_from_host and not _grab_preview:
+	if draw_free and not _grab_preview:
 		pose = _free_box_contact_pose(pose)
 	box_visual.global_transform = pose
 

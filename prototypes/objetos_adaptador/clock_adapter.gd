@@ -115,6 +115,35 @@ func queue_action(at_tick: int, action_id: int, kind: String,
 	_queued[at_tick] = action
 	return true
 
+## Object lane pilot (2026-11-18): the host executed a predicted action at a
+## different tick (the request reached it late). Move the action in the local
+## history/queue to that tick so later replays match the host. The current
+## world is corrected by the next authority snapshot. The new tick must be free.
+func retime_action(action_id: int, to_tick: int) -> bool:
+	if not _actions.has(action_id): return _fail("unknown_action")
+	var action: Dictionary = bytes_to_var(_actions[action_id])
+	var from_tick: int = action.tick
+	if to_tick == from_tick: return true
+	var present := _last_tick if ready_for_input else maxi(_last_tick, _observed_clock_tick)
+	if to_tick < 0 or to_tick > present + 2: return _fail("invalid_action_tick")
+	if _queued.has(to_tick) or not (_history.get(to_tick, {}).get("action", {}) as Dictionary).is_empty():
+		return _fail("action_capacity")
+	if _queued.get(from_tick, {}).get("id", 0) == action_id: _queued.erase(from_tick)
+	_set_history_action(from_tick, action_id, {})
+	action.tick = to_tick
+	_actions[action_id] = var_to_bytes(action)
+	if ready_for_input and to_tick > _last_tick: _queued[to_tick] = action
+	else: _set_history_action(to_tick, 0, action)
+	return true
+
+func _set_history_action(at_tick: int, only_id: int, action: Dictionary) -> void:
+	if not _history.has(at_tick): return
+	var frame: Dictionary = _history[at_tick]
+	if only_id > 0 and frame.action.get("id", 0) != only_id: return
+	_history_bytes -= var_to_bytes(frame).size()
+	frame.action = action.duplicate(true)
+	_history_bytes += var_to_bytes(frame).size()
+
 ## A pending action from this binding can be withdrawn before the native step.
 ## Keep the identity registered so a cancellation never makes its ID reusable.
 func cancel_queued_action(at_tick: int, action_id: int) -> bool:
